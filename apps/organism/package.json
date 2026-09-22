@@ -36,6 +36,7 @@
     "test:browser": "node --import tsx scripts/browser-harness.mts && node --import tsx scripts/settings-browser-harness.mts && node --import tsx scripts/editor-material-browser-harness.mts && node --import tsx scripts/art-direction-browser-harness.mts",
     "test:browser-verified": "node --import tsx scripts/center-panes-browser-harness.mts && node --import tsx scripts/file-pane-browser-harness.mts && node --import tsx scripts/mobile-parity-browser-harness.mts && node --import tsx scripts/pane-parity-browser-harness.mts && node --import tsx scripts/wires-panel-browser-harness.mts && node --import tsx scripts/workspace-selector-browser-harness.mts",
     "test:center-panes-browser": "node --import tsx scripts/center-panes-browser-harness.mts",
+    "test:comments-panel-browser": "node --import tsx scripts/comments-panel-browser-harness.mts",
     "test:center-panes-gardend-browser": "node --import tsx scripts/center-panes-gardend-browser.mts",
     "test:daily-note-browser": "node --import tsx scripts/daily-note-browser-harness.mts",
     "test:document-activation-browser": "node --import tsx scripts/document-activation-gardend-browser.mts",

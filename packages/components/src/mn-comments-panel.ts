@@ -133,6 +133,8 @@ export class MnCommentsPanel extends SkinAware(LitElement) {
     }
 
     .comments-container {
+      display: flex;
+      flex-direction: column;
       flex: 1 1 auto;
       min-height: 0;
       overflow: auto;
@@ -300,10 +302,12 @@ export class MnCommentsPanel extends SkinAware(LitElement) {
 
     .empty-state {
       display: grid;
+      flex: 1 1 auto;
       justify-items: center;
       align-content: center;
       min-height: 240px;
       padding: var(--mn-space-8, 32px);
+      box-sizing: border-box;
       color: var(--mn-color-text-muted, #6b7280);
       text-align: center;
     }

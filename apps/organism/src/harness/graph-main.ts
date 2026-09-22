@@ -12,6 +12,7 @@ import {
   type GraphPanelEdge,
   type GraphPanelNode,
   type GraphPanelViewMode,
+  type WorkspaceComment,
 } from '@shrubbery/runtime'
 import { applySkinTheme } from '@shrubbery/tokens'
 
@@ -69,6 +70,23 @@ const DOCUMENT_EDGES: readonly GraphPanelEdge[] = Object.freeze([
   { id: 'portal-wire', from: 'block-task', to: 'portal-neighbor', predicate: 'relatedTo', predicateLabel: 'related to', kind: 'wire', category: 'relation' },
 ])
 
+// Deliberately SHORT comments (the realistic, common case: "lgtm", "fixed",
+// a one-line note) — a comment card's own max-content width, not the pane's,
+// is what a shrink-to-fit host would otherwise collapse to. A fixture built
+// from long unwrapped paragraphs would mask that defect (their max-content
+// width already exceeds the pane, so shrink-to-fit clamps to 100% by
+// accident) — see the harness receipt for the measured before/after.
+const PROOF_COMMENTS: readonly WorkspaceComment[] = Object.freeze([
+  { id: 'comment-1', author: 'Vera', text: 'Needs a citation here.', quotedText: 'The machine transforms a flow.', createdAt: Date.now() - 1000 * 60 * 5, documentPosition: 1 },
+  { id: 'comment-2', author: 'Sophia', text: 'Found it — ch. 3.', quotedText: 'Inputs remain situated', createdAt: Date.now() - 1000 * 60 * 60 * 2, documentPosition: 2 },
+  { id: 'comment-3', author: 'Vera', text: 'Resolved.', quotedText: null, createdAt: Date.now() - 1000 * 60 * 60 * 24, resolved: true, documentPosition: 0 },
+  { id: 'comment-4', author: 'Barry', text: 'lgtm', quotedText: 'transduce(input)', createdAt: Date.now() - 1000 * 60 * 30, documentPosition: 4 },
+  { id: 'comment-5', author: 'Vera', text: 'One more pass on this.', quotedText: 'operational closure', createdAt: Date.now() - 1000 * 60 * 20, documentPosition: 5 },
+  { id: 'comment-6', author: 'Sophia', text: 'Agreed, done.', quotedText: null, createdAt: Date.now() - 1000 * 60 * 15, documentPosition: 6 },
+  { id: 'comment-7', author: 'Barry', text: 'Small nit: typo above.', quotedText: 'Verify semantic behavior', createdAt: Date.now() - 1000 * 60 * 10, documentPosition: 7 },
+  { id: 'comment-8', author: 'Vera', text: 'Fixed, thanks.', quotedText: null, createdAt: Date.now() - 1000 * 60 * 3, documentPosition: 8 },
+])
+
 interface GraphHarnessState {
   readonly ready: boolean
   readonly error: string | null
@@ -114,6 +132,11 @@ let selectedNodeIds: string[] = []
 let activatedNodeIds: string[] = []
 let refreshCount = 0
 let projectionRevision = 0
+// Starts EMPTY — the common real case of opening the comments pane on a
+// document that has none yet. [data-proof-action="comments-many"] loads
+// PROOF_COMMENTS on demand for the populated/scroll proof.
+let comments: WorkspaceComment[] = []
+let hoveredCommentId: string | null = null
 
 function bridgeState(): GraphHarnessState {
   return Object.freeze({
@@ -178,6 +201,27 @@ function renderFixture(): void {
         renderFixture()
       },
     },
+    comments: {
+      comments,
+      hoveredCommentId,
+      onSelect: () => {},
+      onHover: ({ id }) => {
+        hoveredCommentId = id
+        renderFixture()
+      },
+      onEdit: ({ id, text }) => {
+        comments = comments.map((comment) => (comment.id === id ? { ...comment, text } : comment))
+        renderFixture()
+      },
+      onResolve: ({ id, resolved }) => {
+        comments = comments.map((comment) => (comment.id === id ? { ...comment, resolved } : comment))
+        renderFixture()
+      },
+      onDelete: ({ id }) => {
+        comments = comments.filter((comment) => comment.id !== id)
+        renderFixture()
+      },
+    },
   })
   root.dataset.ready = String(ready)
   root.dataset.viewMode = viewMode
@@ -224,6 +268,9 @@ document.querySelector('#proof-controls')?.addEventListener('click', (event) => 
   if (action === 'graph-only') {
     setPanel('graph')
   } else if (action === 'comments') {
+    setPanel('comments')
+  } else if (action === 'comments-many') {
+    comments = PROOF_COMMENTS.map((comment) => ({ ...comment }))
     setPanel('comments')
   } else if (action === 'graph') {
     setPanel('graph')
