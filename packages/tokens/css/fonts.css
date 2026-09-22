@@ -1,0 +1,18 @@
+/* ═══ REPOSITORY-OWNED CORE TYPEFACES ═══════════════════════════════════════
+ * Garden's mature frontend requests these faces from Google Fonts at runtime.
+ * Shrubbery is local-first and must render the same way offline, so the core
+ * faces are bundled from Fontsource's OFL-licensed WOFF2 packages instead.
+ *
+ * Only the product's five structural families live here. Optional document
+ * fonts remain caller-extensible through <mn-editor-toolbar>. */
+
+@import '@fontsource-variable/literata/standard.css';
+@import '@fontsource-variable/literata/standard-italic.css';
+@import '@fontsource-variable/source-sans-3/wght.css';
+@import '@fontsource-variable/source-sans-3/wght-italic.css';
+@import '@fontsource-variable/jetbrains-mono/wght.css';
+@import '@fontsource-variable/jetbrains-mono/wght-italic.css';
+@import '@fontsource-variable/inter/standard.css';
+@import '@fontsource-variable/inter/standard-italic.css';
+@import '@fontsource-variable/public-sans/wght.css';
+@import '@fontsource-variable/public-sans/wght-italic.css';

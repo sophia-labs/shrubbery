@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en" data-theme="light" data-skin="greenhouse">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Greenhouse - one agent, present</title>
+    <style>
+      html,
+      body,
+      #app {
+        min-height: 100%;
+      }
+
+      body {
+        margin: 0;
+        background: var(--mn-color-surface-base, #f6f4ef);
+        color: var(--mn-color-text-primary, #111827);
+        font-family: var(--mn-font-chrome, system-ui, sans-serif);
+      }
+    </style>
+  </head>
+  <body>
+    <greenhouse-app id="app" data-skin="greenhouse"></greenhouse-app>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

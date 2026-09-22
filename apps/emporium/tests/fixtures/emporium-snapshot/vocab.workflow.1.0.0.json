@@ -1,0 +1,620 @@
+{
+  "block_types": {
+    "campaign-record": {
+      "description": "Native optimization-campaign record: iterations, candidates with per-task outcomes, matrix tasks, gate verdict.",
+      "fence_language": "json"
+    },
+    "run-record": {
+      "description": "Workflow run telemetry: workflowProgress phase and agent entries.",
+      "fence_language": "json"
+    }
+  },
+  "classes": {
+    "AgentNode": {
+      "predicates": {
+        "wf:agentType": {
+          "datatype": "string",
+          "multi": false,
+          "required": false,
+          "source": "opts.agentType"
+        },
+        "wf:label": {
+          "datatype": "string",
+          "multi": false,
+          "required": true,
+          "source": "trace node label"
+        },
+        "wf:partOfWorkflow": {
+          "datatype": "uri",
+          "multi": false,
+          "required": true,
+          "source": "workflow doc URI"
+        },
+        "wf:phaseIndex": {
+          "datatype": "integer",
+          "multi": false,
+          "required": true,
+          "source": "1-based index of the node's phase"
+        }
+      },
+      "rdf_types": [
+        "wf:AgentNode"
+      ],
+      "subject_rule": "node doc URI"
+    },
+    "AgentRun": {
+      "comment": "EXACT names — the frontend joins on these. wf:partOfRun, never wf:run (the v0.1 drift the emitter made unrepresentable).",
+      "predicates": {
+        "wf:agentType": {
+          "datatype": "string",
+          "multi": false,
+          "required": false
+        },
+        "wf:archetype": {
+          "datatype": "uri",
+          "multi": false,
+          "required": false,
+          "source": "archetype doc URI (judgment)"
+        },
+        "wf:cached": {
+          "datatype": "boolean",
+          "multi": false,
+          "required": true
+        },
+        "wf:durationMs": {
+          "datatype": "integer",
+          "multi": false,
+          "required": true
+        },
+        "wf:label": {
+          "datatype": "string",
+          "multi": false,
+          "required": true,
+          "source": "workflowProgress entry label"
+        },
+        "wf:model": {
+          "datatype": "string",
+          "multi": false,
+          "required": true
+        },
+        "wf:node": {
+          "datatype": "uri",
+          "multi": false,
+          "required": false,
+          "source": "AgentNode doc URI when the label maps to a node"
+        },
+        "wf:partOfRun": {
+          "datatype": "uri",
+          "multi": false,
+          "required": true,
+          "source": "the Run subject"
+        },
+        "wf:phaseIndex": {
+          "datatype": "integer",
+          "multi": false,
+          "required": true
+        },
+        "wf:queuedAt": {
+          "datatype": "long",
+          "multi": false,
+          "required": true,
+          "source": "epoch ms"
+        },
+        "wf:startedAt": {
+          "datatype": "long",
+          "multi": false,
+          "required": true,
+          "source": "epoch ms"
+        },
+        "wf:state": {
+          "datatype": "string",
+          "multi": false,
+          "required": true
+        },
+        "wf:tokens": {
+          "datatype": "integer",
+          "multi": false,
+          "required": true
+        },
+        "wf:toolCalls": {
+          "datatype": "integer",
+          "multi": false,
+          "required": true
+        }
+      },
+      "rdf_types": [
+        "wf:AgentRun"
+      ],
+      "subject_rule": "uri_rules.agentRun"
+    },
+    "Archetype": {
+      "predicates": {
+        "wf:name": {
+          "datatype": "string",
+          "multi": false,
+          "required": true
+        }
+      },
+      "rdf_types": [
+        "wf:Archetype"
+      ],
+      "subject_rule": "archetype doc URI"
+    },
+    "Contract": {
+      "predicates": {
+        "wf:name": {
+          "datatype": "string",
+          "multi": false,
+          "required": true
+        }
+      },
+      "rdf_types": [
+        "wf:Contract"
+      ],
+      "subject_rule": "contract doc URI"
+    },
+    "Phase": {
+      "predicates": {
+        "dcterms:description": {
+          "datatype": "string",
+          "multi": false,
+          "required": false,
+          "source": "meta phase.detail"
+        },
+        "dcterms:title": {
+          "comment": "safe: urn subject, not a doc",
+          "datatype": "string",
+          "multi": false,
+          "required": true
+        },
+        "wf:order": {
+          "datatype": "integer",
+          "multi": false,
+          "required": true
+        }
+      },
+      "rdf_types": [
+        "wf:Phase"
+      ],
+      "subject_rule": "uri_rules.phase (urn space — fragment subjects are forbidden)"
+    },
+    "Protocol": {
+      "comment": "The pinning subject of a distributed commons seed: protocol version plus the vocab version/sha/registry-URL anchor. Offline resolution: trust the seed's snapshot, verified against wf:vocabSha256.",
+      "predicates": {
+        "wf:description": {
+          "datatype": "string",
+          "multi": false,
+          "required": false
+        },
+        "wf:name": {
+          "datatype": "string",
+          "multi": false,
+          "required": true
+        },
+        "wf:protocolVersion": {
+          "datatype": "string",
+          "multi": false,
+          "required": true
+        },
+        "wf:vocabRegistry": {
+          "datatype": "string",
+          "multi": false,
+          "required": false,
+          "source": "URL of the registry serving the live contract"
+        },
+        "wf:vocabSha256": {
+          "datatype": "string",
+          "multi": false,
+          "required": false,
+          "source": "sha256 of the canonical vocab JSON bytes at that version"
+        },
+        "wf:vocabVersion": {
+          "datatype": "string",
+          "multi": false,
+          "required": false,
+          "source": "version of the vocabulary contract the seed pins"
+        }
+      },
+      "rdf_types": [],
+      "subject_rule": "urn:sophia:wf:protocol"
+    },
+    "Run": {
+      "predicates": {
+        "prov:endedAtTime": {
+          "datatype": "dateTime",
+          "multi": false,
+          "required": true,
+          "source": "ISO from record timestamp"
+        },
+        "prov:generated": {
+          "datatype": "uri",
+          "multi": true,
+          "required": false,
+          "source": "uploaded output doc URIs"
+        },
+        "prov:startedAtTime": {
+          "datatype": "dateTime",
+          "multi": false,
+          "required": true,
+          "source": "ISO from record startTime (epoch ms)"
+        },
+        "prov:used": {
+          "datatype": "uri",
+          "multi": false,
+          "required": true,
+          "source": "workflow doc URI"
+        },
+        "wf:agentCount": {
+          "datatype": "integer",
+          "multi": false,
+          "required": true
+        },
+        "wf:bestHoldout": {
+          "datatype": "double",
+          "multi": false,
+          "required": false
+        },
+        "wf:bestScore": {
+          "datatype": "double",
+          "multi": false,
+          "required": false
+        },
+        "wf:budgetSpent": {
+          "datatype": "integer",
+          "multi": false,
+          "required": false,
+          "source": "metric/rollout calls spent"
+        },
+        "wf:campaignKind": {
+          "comment": "set (e.g. 'gepa') when this Run is an optimization campaign — the lens discriminator",
+          "datatype": "string",
+          "multi": false,
+          "required": false
+        },
+        "wf:candidateCount": {
+          "datatype": "integer",
+          "multi": false,
+          "required": false
+        },
+        "wf:durationMs": {
+          "datatype": "integer",
+          "multi": false,
+          "required": true
+        },
+        "wf:gateVerdict": {
+          "datatype": "string",
+          "multi": false,
+          "required": false,
+          "source": "pass | fail | hold — the pre-registered holdout gate"
+        },
+        "wf:generatedFile": {
+          "datatype": "string",
+          "multi": true,
+          "required": false
+        },
+        "wf:journalDocument": {
+          "datatype": "uri",
+          "multi": false,
+          "required": false,
+          "source": "doc URI of the uploaded journal artifact"
+        },
+        "wf:note": {
+          "datatype": "string",
+          "multi": false,
+          "required": false
+        },
+        "wf:reflectionModel": {
+          "datatype": "string",
+          "multi": false,
+          "required": false,
+          "source": "the model that proposed mutations"
+        },
+        "wf:replayOf": {
+          "datatype": "uri",
+          "multi": false,
+          "required": false
+        },
+        "wf:runId": {
+          "datatype": "string",
+          "multi": false,
+          "required": true
+        },
+        "wf:runRecordDocument": {
+          "datatype": "uri",
+          "multi": false,
+          "required": false,
+          "source": "doc URI of the stored run record"
+        },
+        "wf:scriptSource": {
+          "datatype": "string",
+          "multi": false,
+          "required": false
+        },
+        "wf:seedHoldout": {
+          "datatype": "double",
+          "multi": false,
+          "required": false
+        },
+        "wf:seedScore": {
+          "datatype": "double",
+          "multi": false,
+          "required": false
+        },
+        "wf:sessionRecord": {
+          "datatype": "string",
+          "multi": false,
+          "required": false,
+          "source": "machine path of the runId.json"
+        },
+        "wf:status": {
+          "datatype": "string",
+          "multi": false,
+          "required": true
+        },
+        "wf:targetArchetype": {
+          "datatype": "uri",
+          "multi": false,
+          "required": false,
+          "source": "archetype doc URI the campaign optimized"
+        },
+        "wf:taskModel": {
+          "datatype": "string",
+          "multi": false,
+          "required": false,
+          "source": "the model all candidate scores were measured ON — scores do not transfer across models"
+        },
+        "wf:totalTokens": {
+          "datatype": "integer",
+          "multi": false,
+          "required": true
+        },
+        "wf:workflowName": {
+          "datatype": "string",
+          "multi": false,
+          "required": true
+        }
+      },
+      "rdf_types": [
+        "wf:Run",
+        "prov:Activity"
+      ],
+      "subject_rule": "uri_rules.run"
+    },
+    "Variant": {
+      "comment": "One candidate in an optimization campaign's population. wf:variantText carries the full text as a literal so the frontend can diff against a parent WITHOUT a doc-content fetch path (cap ~8KB).",
+      "predicates": {
+        "prov:wasDerivedFrom": {
+          "datatype": "uri",
+          "multi": false,
+          "required": false,
+          "source": "parent variant doc URI (absent on seed)"
+        },
+        "wf:generation": {
+          "datatype": "integer",
+          "multi": false,
+          "required": true,
+          "source": "depth from seed (0 = seed)"
+        },
+        "wf:holdoutScore": {
+          "datatype": "double",
+          "multi": false,
+          "required": false,
+          "source": "holdout score — typically only seed + best are measured"
+        },
+        "wf:isBest": {
+          "datatype": "boolean",
+          "multi": false,
+          "required": true
+        },
+        "wf:isFrontier": {
+          "datatype": "boolean",
+          "multi": false,
+          "required": true
+        },
+        "wf:isSeed": {
+          "datatype": "boolean",
+          "multi": false,
+          "required": true
+        },
+        "wf:optimizesArchetype": {
+          "datatype": "uri",
+          "multi": false,
+          "required": true,
+          "source": "archetype doc URI"
+        },
+        "wf:partOfCampaign": {
+          "datatype": "uri",
+          "multi": false,
+          "required": true,
+          "source": "the campaign Run subject"
+        },
+        "wf:textBlock": {
+          "datatype": "uri",
+          "multi": false,
+          "required": true,
+          "source": "<docUri>#<blockId> of the sealed block (mirrors wf:scriptBlock)"
+        },
+        "wf:textSha256": {
+          "datatype": "string",
+          "multi": false,
+          "required": true
+        },
+        "wf:valScore": {
+          "datatype": "double",
+          "multi": false,
+          "required": true,
+          "source": "aggregate valset score"
+        },
+        "wf:variantText": {
+          "datatype": "string",
+          "multi": false,
+          "required": true,
+          "source": "the candidate prompt text (also the sealed block bytes)"
+        }
+      },
+      "rdf_types": [
+        "wf:Variant"
+      ],
+      "subject_rule": "variant doc URI (the doc holds the candidate text in a sealed code block)"
+    },
+    "Workflow": {
+      "predicates": {
+        "wf:description": {
+          "datatype": "string",
+          "multi": false,
+          "required": true,
+          "source": "meta.description — wf:description, NOT dcterms (doc subjects are materializer co-managed)"
+        },
+        "wf:name": {
+          "datatype": "string",
+          "multi": false,
+          "required": true,
+          "source": "meta.name"
+        },
+        "wf:phase": {
+          "datatype": "uri",
+          "multi": true,
+          "required": true,
+          "source": "phase URIs per uri_rules.phase"
+        },
+        "wf:scriptBlock": {
+          "datatype": "uri",
+          "multi": false,
+          "required": true,
+          "source": "code-block URI <docUri>#<blockId> from write_document block ids"
+        },
+        "wf:scriptSha256": {
+          "datatype": "string",
+          "multi": false,
+          "required": true,
+          "source": "sha256 of the fenced script bytes"
+        },
+        "wf:whenToUse": {
+          "datatype": "string",
+          "multi": false,
+          "required": false,
+          "source": "meta.whenToUse"
+        }
+      },
+      "rdf_types": [
+        "wf:Workflow"
+      ],
+      "subject_rule": "workflow doc URI"
+    }
+  },
+  "comanaged_forbidden": [
+    "dcterms:",
+    "doc:",
+    "nfo:",
+    "mnemo:"
+  ],
+  "comment": "NEVER write comanaged-prefix predicates on doc subjects — the materializer owns them and re-materialization clobbers (exception: mnemo: via create_wires; dcterms: on urn-space subjects like Phase is safe). rdf:type on doc subjects: adding wf classes is tolerated, but discovery must key on wf:name presence, not type alone.",
+  "description": "Graph-stored agent workflow definitions, anatomy, run provenance, archetype registry, and optimization campaigns. Aligned with PROV-O.",
+  "doc_id_rules": {
+    "archetype": "agent-{slug(name)}",
+    "contract": "contract-{slug(name)}",
+    "node": "{shortId}-n-{slug(label)}",
+    "runRecord": "{shortId}-run-{slug(runId)}",
+    "variant": "{campaignId}-v{idx}",
+    "workflow": "{shortId}"
+  },
+  "folders": {
+    "agentLibrary": {
+      "folder_id": "agent-library",
+      "label": "Agent Library"
+    },
+    "campaign": {
+      "folder_id": "{campaignId}-folder",
+      "label": "{campaignLabel}",
+      "only_if": "optimization campaign filed",
+      "parent": "{shortId}-folder"
+    },
+    "contracts": {
+      "folder_id": "agent-library-contracts",
+      "label": "Contracts",
+      "parent": "agent-library"
+    },
+    "outputs": {
+      "folder_id": "{shortId}-outputs",
+      "label": "Outputs",
+      "only_if": "output artifacts exist",
+      "parent": "{shortId}-folder"
+    },
+    "phase": {
+      "folder_id": "{shortId}-p{order}",
+      "label": "{order} · {phaseTitle}",
+      "parent": "{shortId}-folder"
+    },
+    "provenance": {
+      "folder_id": "{shortId}-prov",
+      "label": "Provenance",
+      "only_if": "run record or journal exists",
+      "parent": "{shortId}-folder"
+    },
+    "workflow": {
+      "folder_id": "{shortId}-folder",
+      "label": "{workflowName}",
+      "parent": "workflows"
+    },
+    "workflowsRoot": {
+      "folder_id": "workflows",
+      "label": "Workflows"
+    }
+  },
+  "name": "workflow",
+  "namespaces": {
+    "dcterms": "http://purl.org/dc/terms/",
+    "mnemo": "http://mnemosyne.ai/vocab#",
+    "prov": "http://www.w3.org/ns/prov#",
+    "rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
+    "wf": "http://mnemosyne.dev/workflow#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#"
+  },
+  "primary_prefix": "wf",
+  "protocol_subject": "urn:sophia:wf:protocol",
+  "slug_rule": {
+    "lowercase": false,
+    "pattern": "[^A-Za-z0-9_-]+",
+    "replacement": "-",
+    "strip": "-"
+  },
+  "title": "Mnemosyne Workflow Vocabulary",
+  "uri_rules": {
+    "agentRun": "urn:sophia:wf-run:{runId}:agent:{slug(label)}",
+    "forbidden": "NEVER mint subjects in document-fragment space (<docUri>#…) — the content materializer wipes #-subjects on re-materialization. Block URIs may appear as OBJECTS only (wf:scriptBlock, wf:textBlock).",
+    "phase": "urn:sophia:wf:{slug(workflowName)}:phase:{order}",
+    "replay": "urn:sophia:wf-run:{runId}:replay-{YYYYMMDD}",
+    "run": "urn:sophia:wf-run:{runId}",
+    "workflowDoc": "resolved from the graph (SELECT doc URI by doc id) — NEVER constructed by hand"
+  },
+  "version": "1.0.0",
+  "wires": {
+    "derivedFrom": {
+      "comment": "custom predicate URI — create_wires accepts non-builtin URIs; the 3D panel renders any wire",
+      "from_kind": "variant doc",
+      "predicate_uri": "http://mnemosyne.dev/workflow#derivedFrom",
+      "source": "campaign lineage",
+      "to_kind": "parent variant doc"
+    },
+    "exemplifies": {
+      "from_kind": "node doc",
+      "source": "judgment archetype assignment; ALSO best variant doc -> target archetype doc (campaign winner)",
+      "to_kind": "archetype doc"
+    },
+    "flowsInto": {
+      "from_kind": "node doc",
+      "source": "trace edges",
+      "to_kind": "node doc"
+    },
+    "produces": {
+      "from_kind": "terminal node doc",
+      "source": "trace outputs/returnReaches + uploads",
+      "to_kind": "output doc"
+    },
+    "requires": {
+      "from_kind": "archetype doc",
+      "source": "judgment, optional",
+      "to_kind": "contract doc"
+    }
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "name": "@shrubbery/chat-kernel",
+  "version": "0.0.0",
+  "description": "Pure chat render kernel — Garden's chat projector + render-data types + the ChatEvent union (choreograph SandboxEvent, COPIED not imported) relocated VERBATIM with their couplings severed. NO stores, NO EventSource/SSE, NO yjs/y-*, NO fetchers, NO cognito/auth, NO tauri, NO MODEL_PRICING.",
+  "type": "module",
+  "license": "LicenseRef-PolyForm-Noncommercial-1.0.0",
+  "private": true,
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:run": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@shrubbery/hoja": "workspace:*",
+    "dompurify": "^3.1.0",
+    "lit": "^3.1.4",
+    "marked": "^14.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.4",
+    "happy-dom": "^15.0.0",
+    "jsdom": "^25.0.0",
+    "typescript": "^5.4.5",
+    "vitest": "^4.0.13"
+  }
+}

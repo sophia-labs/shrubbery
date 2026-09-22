@@ -1,0 +1,37 @@
+{
+  "name": "@shrubbery/vehicle",
+  "version": "0.0.0",
+  "description": "Greenhouse as a real Shrubbery app: a browser AgentWorld cockpit for Choreograph agents, built from SRS workspace and shared chat primitives.",
+  "type": "module",
+  "license": "LicenseRef-PolyForm-Noncommercial-1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "stack:start": "bash scripts/greenhouse-live-stack.sh start",
+    "stack:status": "bash scripts/greenhouse-live-stack.sh status",
+    "stack:logs": "bash scripts/greenhouse-live-stack.sh logs",
+    "stack:stop": "bash scripts/greenhouse-live-stack.sh stop",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:run": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@shrubbery/chat-kernel": "workspace:*",
+    "@shrubbery/components": "workspace:*",
+    "@shrubbery/runtime": "workspace:*",
+    "@shrubbery/tokens": "workspace:*",
+    "lit": "^3.1.4",
+    "y-protocols": "^1.0.6",
+    "yjs": "^13.6.18"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.4",
+    "happy-dom": "^15.0.0",
+    "typescript": "^5.4.5",
+    "vite": "^5.4.8",
+    "vitest": "^3.2.6"
+  }
+}

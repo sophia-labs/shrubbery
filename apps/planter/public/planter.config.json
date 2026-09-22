@@ -1,0 +1,7 @@
+{
+  "endpoint": "/cell",
+  "graph": "planter-dev",
+  "bundle": "garden",
+  "adapter": "gardend-local",
+  "auth": { "mode": "none" }
+}

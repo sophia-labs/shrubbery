@@ -1,0 +1,26 @@
+{
+  "name": "@shrubbery/koreader",
+  "version": "0.0.0",
+  "description": "Pure packaged KOReader target for Shrubbery: Garden document projections -> semantic XHTML, semantic sidecars and a synchronization manifest.",
+  "type": "module",
+  "license": "LicenseRef-PolyForm-Noncommercial-1.0.0",
+  "private": true,
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:run": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "saxes": "^6.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.4",
+    "typescript": "^5.4.5",
+    "vitest": "^3.2.6"
+  }
+}

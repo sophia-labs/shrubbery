@@ -1,0 +1,35 @@
+{
+  "name": "@shrubbery/seele-workbench",
+  "version": "0.0.0",
+  "description": "The SEELe WORKBENCH \u2014 a special Vite shrubbery app over a LOCAL gardend cell (ratification D17: local-first, Tauri packaging later; never hosted/wasm in v1). Two leaves, left/right: the constitution document in hoja.document, the compile report in seele.context. Real cell, real editor, real `nature` binary. No backend mock anywhere.",
+  "type": "module",
+  "license": "LicenseRef-PolyForm-Noncommercial-1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:run": "vitest run",
+    "test:watch": "vitest",
+    "test:browser": "node --import tsx scripts/seele-workbench-gardend-browser.mts"
+  },
+  "dependencies": {
+    "@shrubbery/nucleus": "workspace:*",
+    "@shrubbery/organism": "workspace:*",
+    "@shrubbery/runtime": "workspace:*",
+    "@shrubbery/tokens": "workspace:*",
+    "lit": "^3.1.4"
+  },
+  "devDependencies": {
+    "@shrubbery/editor-kernel": "workspace:*",
+    "@types/node": "^22.7.4",
+    "happy-dom": "^15.0.0",
+    "playwright": "^1.48.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.4.5",
+    "vite": "^5.4.8",
+    "vitest": "^3.2.6"
+  }
+}

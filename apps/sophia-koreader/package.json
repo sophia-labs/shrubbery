@@ -1,0 +1,27 @@
+{
+  "name": "@shrubbery/sophia-koreader",
+  "version": "0.0.0",
+  "description": "Sophia for KOReader: build or serve a Shrubbery KOReader feed and package the native Lua plugin that synchronizes and opens it.",
+  "type": "module",
+  "license": "LicenseRef-PolyForm-Noncommercial-1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "tsx src/build.ts",
+    "typecheck": "tsc --noEmit",
+    "serve": "tsx src/serve.ts",
+    "test": "vitest run",
+    "test:live:garden": "vitest run src/garden-client.live.test.ts",
+    "test:run": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@shrubbery/koreader": "workspace:*",
+    "@shrubbery/source": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.4",
+    "tsx": "^4.19.0",
+    "typescript": "^5.4.5",
+    "vitest": "^3.2.6"
+  }
+}

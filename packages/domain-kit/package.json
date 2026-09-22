@@ -1,0 +1,43 @@
+{
+  "name": "@shrubbery/domain-kit",
+  "version": "0.0.0",
+  "description": "Portable graph contracts for Sophia domains: manifests, verdicts, catalogues, dashboards, grants, and graph-defined agent bundles.",
+  "type": "module",
+  "license": "LicenseRef-PolyForm-Noncommercial-1.0.0",
+  "private": true,
+  "exports": {
+    ".": "./src/index.ts",
+    "./manifest": "./src/manifest.ts",
+    "./verdict": "./src/verdict.ts",
+    "./catalogue": "./src/catalogue.ts",
+    "./dashboard": "./src/dashboard.ts",
+    "./grant": "./src/grant.ts",
+    "./build-recipe": "./src/build-recipe.ts",
+    "./agent-bundle": "./src/agent-bundle.ts",
+    "./agent-studio": "./src/agent-studio.ts",
+    "./instance": "./src/instance.ts",
+    "./instances": "./src/instances/index.ts",
+    "./trigger-consent": "./src/trigger-consent.ts",
+    "./shacl/domain-kit.ttl": "./shacl/domain-kit.ttl"
+  },
+  "scripts": {
+    "build": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:run": "vitest run",
+    "test:watch": "vitest",
+    "domain-kit": "tsx src/cli.ts",
+    "render:sophia-cluster-seed": "tsx scripts/render-sophia-cluster-seed.mts",
+    "verify:agent-studio-choreograph": "tsx scripts/verify-agent-studio-choreograph.mts"
+  },
+  "dependencies": {
+    "@shrubbery/nucleus": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.4",
+    "oxigraph": "0.5.9",
+    "tsx": "^4.19.0",
+    "typescript": "^5.4.5",
+    "vitest": "^4.0.13"
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "name": "@shrubbery/greenhouse",
+  "version": "0.0.0",
+  "description": "Greenhouse v1: a live-only scientist's workbench for Choreograph agents.",
+  "type": "module",
+  "license": "LicenseRef-PolyForm-Noncommercial-1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "stack:start": "bash scripts/stack.sh start",
+    "stack:status": "bash scripts/stack.sh status",
+    "stack:logs": "bash scripts/stack.sh logs",
+    "stack:stop": "bash scripts/stack.sh stop",
+    "smoke": "bash scripts/smoke.sh",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:run": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@shrubbery/nucleus": "workspace:*",
+    "@shrubbery/tokens": "workspace:*",
+    "lit": "^3.1.4"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.4",
+    "happy-dom": "^15.0.0",
+    "typescript": "^5.4.5",
+    "vite": "^5.4.8",
+    "vitest": "^3.2.6"
+  }
+}

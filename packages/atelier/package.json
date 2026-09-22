@@ -1,0 +1,40 @@
+{
+  "name": "@shrubbery/atelier-vtuber",
+  "version": "0.0.0",
+  "description": "The WebGL/VRM avatar puppet — mn-vtuber, split out of @shrubbery/components into its own home for its heavier three/@pixiv/three-vrm footprint. Depends on @shrubbery/components (SkinAware) + lit + three + @pixiv/three-vrm — NEVER stores/auth/tauri/@shrubbery/runtime.",
+  "type": "module",
+  "license": "LicenseRef-PolyForm-Noncommercial-1.0.0",
+  "private": true,
+  "exports": {
+    ".": "./src/index.ts",
+    "./vtuber": "./src/mn-vtuber.ts",
+    "./glb-inspect": "./src/glb-inspect.ts",
+    "./mirror": "./src/mirror.ts",
+    "./mirror-artifact": "./src/mirror-artifact.ts"
+  },
+  "scripts": {
+    "build": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:run": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@pixiv/three-vrm": "^3.5.4",
+    "@shrubbery/components": "workspace:*",
+    "@shrubbery/nucleus": "workspace:*",
+    "lit": "^3.1.4",
+    "playwright": "^1.48.0",
+    "three": "^0.170.0",
+    "vite": "^6.0.0 || ^7.0.0 || ^8.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.4",
+    "@types/pngjs": "^6.0.5",
+    "@types/three": "^0.170.0",
+    "happy-dom": "^15.0.0",
+    "pngjs": "^7.0.0",
+    "typescript": "^5.4.5",
+    "vitest": "^4.0.13"
+  }
+}

@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs><linearGradient id="night" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#18243a"/><stop offset="1" stop-color="#415676"/></linearGradient></defs>
+  <rect width="1024" height="1024" fill="#151b25"/>
+  <rect x="101" y="112" width="822" height="690" fill="url(#night)" stroke="#8a775f" stroke-width="21"/>
+  <path d="M512 113v689M102 458h821" stroke="#8a775f" stroke-width="17"/>
+  <path d="M152 168 98 356M252 130 132 552M426 135 315 445M613 128 493 553M790 128 666 560M922 157 821 523" stroke="#a9bfd3" stroke-width="8" opacity=".45"/>
+  <g fill="#f1b65e"><circle cx="241" cy="546" r="16"/><circle cx="334" cy="621" r="11"/><circle cx="744" cy="535" r="14"/><circle cx="831" cy="628" r="19"/><circle cx="592" cy="678" r="10"/></g>
+  <path d="M0 778h1024v246H0Z" fill="#292a29"/>
+  <path d="M0 796h1024" stroke="#b88657" stroke-width="19"/>
+  <path d="M716 1024q-8-142 91-216 108 79 109 216M116 1024q6-115 85-173 87 67 93 173" fill="#283b36"/>
+  <text x="54" y="75" fill="#c7d5df" font-family="Georgia,serif" font-size="41" font-style="italic">Night window / scenery reference 03</text>
+</svg>

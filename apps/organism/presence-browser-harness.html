@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Shrubbery presence lifecycle harness</title>
+    <style>
+      body { margin: 24px; padding-bottom: 36px; font: 14px/1.4 system-ui, sans-serif; color: #17231d; }
+      /* Match the production shell geometry so upward-opening presence
+         controls are exercised inside the real viewport. */
+      #presence-bar { position: fixed; right: 0; bottom: 0; left: 0; }
+      #editor { min-height: 180px; margin: 20px 0; padding: 16px; border: 1px solid #aebdb4; }
+      #editor .ProseMirror { min-height: 140px; outline: none; }
+      #state { white-space: pre-wrap; font: 12px/1.4 ui-monospace, monospace; }
+    </style>
+  </head>
+  <body>
+    <mn-bottom-bar id="presence-bar"></mn-bottom-bar>
+    <div id="editor"></div>
+    <pre id="state">booting</pre>
+    <script type="module" src="/src/harness/presence-main.ts"></script>
+  </body>
+</html>

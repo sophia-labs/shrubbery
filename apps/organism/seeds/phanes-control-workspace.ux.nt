@@ -1,0 +1,59 @@
+# phanes-control-workspace.ux.nt — dedicated Shrubbery workspace for the
+# owner-only `phanes-control` graph on cloud-2 Canary.
+#
+# This is live graph configuration, not an embedded UI fallback. Deploy it at
+# seed time by loading it into:
+#   urn:mnemosyne:local:graph:phanes-control:ux:config
+#
+# The graph authors only layout and the admitted component identity. Trusted
+# Organism code fixes the component's cross-graph capability to exactly
+# `phanes-control`; copying these triples into another graph cannot confer the
+# Phanes authority.
+<http://sophia.ai/ux#PhanesControlWorkspace> <http://sophia.ai/ux#hasRegion> <http://sophia.ai/ux#region-bottom-bar> .
+<http://sophia.ai/ux#PhanesControlWorkspace> <http://sophia.ai/ux#hasRegion> <http://sophia.ai/ux#region-phanes-control> .
+<http://sophia.ai/ux#PhanesControlWorkspace> <http://sophia.ai/ux#hasRegion> <http://sophia.ai/ux#region-top-bar> .
+<http://sophia.ai/ux#PhanesControlWorkspace> <http://sophia.ai/ux#hasRootEntry> <http://sophia.ai/ux#PhanesControlWorkspace-root-0> .
+<http://sophia.ai/ux#PhanesControlWorkspace> <http://sophia.ai/ux#hasRootEntry> <http://sophia.ai/ux#PhanesControlWorkspace-root-1> .
+<http://sophia.ai/ux#PhanesControlWorkspace> <http://sophia.ai/ux#hasRootEntry> <http://sophia.ai/ux#PhanesControlWorkspace-root-2> .
+<http://sophia.ai/ux#PhanesControlWorkspace> <http://sophia.ai/ux#localId> "PhanesControlWorkspace" .
+<http://sophia.ai/ux#PhanesControlWorkspace> <http://sophia.ai/ux#renderedByComponent> "app-shell" .
+<http://sophia.ai/ux#PhanesControlWorkspace> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://sophia.ai/ux#Workspace> .
+<http://sophia.ai/ux#PhanesControlWorkspace> <http://www.w3.org/2000/01/rdf-schema#label> "Phanes Control Workspace" .
+<http://sophia.ai/ux#PhanesControlWorkspace-root-0> <http://sophia.ai/ux#atIndex> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<http://sophia.ai/ux#PhanesControlWorkspace-root-0> <http://sophia.ai/ux#rootRegion> <http://sophia.ai/ux#region-top-bar> .
+<http://sophia.ai/ux#PhanesControlWorkspace-root-0> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://sophia.ai/ux#RootEntry> .
+<http://sophia.ai/ux#PhanesControlWorkspace-root-1> <http://sophia.ai/ux#atIndex> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<http://sophia.ai/ux#PhanesControlWorkspace-root-1> <http://sophia.ai/ux#rootRegion> <http://sophia.ai/ux#region-phanes-control> .
+<http://sophia.ai/ux#PhanesControlWorkspace-root-1> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://sophia.ai/ux#RootEntry> .
+<http://sophia.ai/ux#PhanesControlWorkspace-root-2> <http://sophia.ai/ux#atIndex> "2"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<http://sophia.ai/ux#PhanesControlWorkspace-root-2> <http://sophia.ai/ux#rootRegion> <http://sophia.ai/ux#region-bottom-bar> .
+<http://sophia.ai/ux#PhanesControlWorkspace-root-2> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://sophia.ai/ux#RootEntry> .
+<http://sophia.ai/ux#region-bottom-bar> <http://sophia.ai/ux#collapsible> "false"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<http://sophia.ai/ux#region-bottom-bar> <http://sophia.ai/ux#localId> "region-bottom-bar" .
+<http://sophia.ai/ux#region-bottom-bar> <http://sophia.ai/ux#order> "2"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<http://sophia.ai/ux#region-bottom-bar> <http://sophia.ai/ux#renderedByComponent> "mn-bottom-bar" .
+<http://sophia.ai/ux#region-bottom-bar> <http://sophia.ai/ux#resizable> "false"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<http://sophia.ai/ux#region-bottom-bar> <http://sophia.ai/ux#sizeFraction> "0.03"^^<http://www.w3.org/2001/XMLSchema#decimal> .
+<http://sophia.ai/ux#region-bottom-bar> <http://sophia.ai/ux#splitOrientation> "horizontal" .
+<http://sophia.ai/ux#region-bottom-bar> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://sophia.ai/ux#Region> .
+<http://sophia.ai/ux#region-bottom-bar> <http://www.w3.org/2000/01/rdf-schema#label> "Bottom Bar" .
+<http://sophia.ai/ux#region-phanes-control> <http://sophia.ai/ux#collapsible> "false"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<http://sophia.ai/ux#region-phanes-control> <http://sophia.ai/ux#localId> "region-phanes-control" .
+<http://sophia.ai/ux#region-phanes-control> <http://sophia.ai/ux#order> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<http://sophia.ai/ux#region-phanes-control> <http://sophia.ai/ux#renderedByComponent> "mn-phanes-control-editor" .
+<http://sophia.ai/ux#region-phanes-control> <http://sophia.ai/ux#resizable> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<http://sophia.ai/ux#region-phanes-control> <http://sophia.ai/ux#sizeFraction> "0.94"^^<http://www.w3.org/2001/XMLSchema#decimal> .
+<http://sophia.ai/ux#region-phanes-control> <http://sophia.ai/ux#splitOrientation> "vertical" .
+<http://sophia.ai/ux#region-phanes-control> <http://sophia.ai/ux#surfaceMode> "configured" .
+<http://sophia.ai/ux#region-phanes-control> <http://sophia.ai/ux#surfaceRole> "center" .
+<http://sophia.ai/ux#region-phanes-control> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://sophia.ai/ux#Region> .
+<http://sophia.ai/ux#region-phanes-control> <http://www.w3.org/2000/01/rdf-schema#label> "Phanes Control Workbench" .
+<http://sophia.ai/ux#region-top-bar> <http://sophia.ai/ux#collapsible> "false"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<http://sophia.ai/ux#region-top-bar> <http://sophia.ai/ux#localId> "region-top-bar" .
+<http://sophia.ai/ux#region-top-bar> <http://sophia.ai/ux#order> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<http://sophia.ai/ux#region-top-bar> <http://sophia.ai/ux#renderedByComponent> "mn-top-bar" .
+<http://sophia.ai/ux#region-top-bar> <http://sophia.ai/ux#resizable> "false"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<http://sophia.ai/ux#region-top-bar> <http://sophia.ai/ux#sizeFraction> "0.03"^^<http://www.w3.org/2001/XMLSchema#decimal> .
+<http://sophia.ai/ux#region-top-bar> <http://sophia.ai/ux#splitOrientation> "horizontal" .
+<http://sophia.ai/ux#region-top-bar> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://sophia.ai/ux#Region> .
+<http://sophia.ai/ux#region-top-bar> <http://www.w3.org/2000/01/rdf-schema#label> "Top Bar" .

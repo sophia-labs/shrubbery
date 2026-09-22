@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs><linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#f1d797"/><stop offset="1" stop-color="#8ba06a"/></linearGradient></defs>
+  <rect width="1024" height="1024" fill="url(#sky)"/>
+  <path d="m114 448 398-323 398 323v480H114Z" fill="#c8d59c" opacity=".42" stroke="#354b39" stroke-width="21"/>
+  <path d="M512 126v802M113 447h798M304 294v634M720 294v634" stroke="#354b39" stroke-width="13" opacity=".78"/>
+  <path d="M0 850c81-139 185-190 313-155 81 22 128 92 141 210V1024H0ZM1024 824c-98-131-202-165-313-101-72 41-115 112-129 215v86h442Z" fill="#3f6445"/>
+  <g fill="none" stroke="#6c8b56" stroke-width="24" stroke-linecap="round"><path d="M88 899q29-174 146-278M159 789l-77-51M190 726l73-62M879 899q-23-166-112-265M827 782l91-54M806 720l-66-58"/></g>
+  <g fill="#efb76c"><circle cx="227" cy="656" r="18"/><circle cx="122" cy="729" r="15"/><circle cx="790" cy="673" r="16"/><circle cx="891" cy="744" r="19"/></g>
+  <text x="55" y="86" fill="#293b2e" font-family="Georgia,serif" font-size="41" font-style="italic">Glasshouse / scenery reference 03</text>
+</svg>

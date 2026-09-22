@@ -1,0 +1,36 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "useDefineForClassFields": false,
+    "module": "ESNext",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "skipLibCheck": true,
+
+    /* Bundler mode — matches nucleus / runtime / garden frontend so the copied
+       .js specifiers (which resolve to .ts siblings) typecheck unchanged. */
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+
+    /* Decorators — UNLIKE editor-kernel (a decorator-free pure TipTap kernel),
+       chat-kernel ships a Lit @customElement('sh-chat-panel') whose load-bearing
+       createRenderRoot()=>this + adopted-stylesheet contract is an ELEMENT
+       lifecycle hook. So it mirrors @shrubbery/runtime's Lit tsconfig:
+       experimentalDecorators + useDefineForClassFields:false (the same combo
+       garden/frontend + @shrubbery/components ship). projectEvents stays a pure
+       function alongside the element — the reducer purity is unaffected. */
+    "experimentalDecorators": true,
+
+    /* Linting */
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+
+    "types": ["node", "vitest/globals"]
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
+}

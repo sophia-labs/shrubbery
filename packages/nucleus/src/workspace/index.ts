@@ -1,0 +1,21 @@
+/**
+ * Public surface of the workspace rendering engine (the pure RDF->UI core).
+ */
+export * from './types.js'
+export * from './right-panel-grammar.js'
+export * from './component-library.js'
+export * from './interpreter.js'
+export * from './validate.js'
+export * from './mutations.js'
+export * from './known-components.js'
+export * from './known-faces.js'
+export * from './apply-verb.js'
+export * from './rdf-model.js'
+export * from './ux-rdf.js'
+export * from './vtuber-control-rdf.js'
+export * from './wardrobe-rdf.js'
+export * from './file-pane-contract.js'
+export { deepFreeze } from './deep-freeze.js'
+export { GARDEN_DEFAULT } from './garden-default.js'
+export { GARDEN_VARIANT } from './garden-variant.js'
+export { minimalTextPanelConfig, grownTextPanelConfig } from './minimal-text-panel.js'

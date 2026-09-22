@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <rect width="1024" height="1024" fill="#dfe1b5"/>
+  <circle cx="790" cy="190" r="148" fill="#ef926d" opacity=".8"/>
+  <path d="M0 781c174-85 335-52 491 33 194 106 353 109 533 22v188H0Z" fill="#64774b"/>
+  <ellipse cx="514" cy="835" rx="250" ry="70" fill="#303b2d" opacity=".28"/>
+  <path d="M335 635h360l-50 230c-11 50-56 84-107 84h-53c-54 0-99-38-108-91Z" fill="#d86e50" stroke="#793f37" stroke-width="16"/>
+  <path d="M353 674h324M388 768h258" stroke="#f6b079" stroke-width="12" opacity=".6"/>
+  <path d="M512 663c-75-70-104-159-86-267 7-47 42-80 84-80 45 0 79 35 83 84 11 112-16 199-81 263Z" fill="#5f9c76" stroke="#315c50" stroke-width="17"/>
+  <path d="M444 548c-83-13-129-69-138-166-4-41 21-73 57-77 37-5 66 19 73 60l18 105M582 521c76-18 115-67 117-147 1-39-25-66-59-67-34-1-60 26-63 63l-7 80" fill="#5f9c76" stroke="#315c50" stroke-width="17" stroke-linecap="round"/>
+  <path d="m513 304 18-45 20 46 49-8-37 34 27 42-48-18-30 40-3-50-48-13 46-17Z" fill="#f2d166" stroke="#8c6d35" stroke-width="10"/>
+  <g fill="#e8ebc6"><circle cx="510" cy="424" r="7"/><circle cx="478" cy="498" r="7"/><circle cx="542" cy="538" r="7"/><circle cx="367" cy="387" r="7"/><circle cx="405" cy="464" r="7"/><circle cx="641" cy="381" r="7"/><circle cx="613" cy="449" r="7"/></g>
+  <text x="67" y="109" fill="#29372c" font-family="Georgia,serif" font-size="41" font-style="italic">Star cactus / prop reference 02</text>
+</svg>

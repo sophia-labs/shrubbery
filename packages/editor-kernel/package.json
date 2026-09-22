@@ -1,0 +1,43 @@
+{
+  "name": "@shrubbery/editor-kernel",
+  "version": "0.0.0",
+  "description": "Pure TipTap/ProseMirror editor kernel — custom Garden extensions ported VERBATIM with their couplings severed. NO yjs/collab/y-*, NO stores, NO fetchers, NO UI pickers.",
+  "type": "module",
+  "license": "LicenseRef-PolyForm-Noncommercial-1.0.0",
+  "private": true,
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:run": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@tiptap/core": "^3.0.0",
+    "@tiptap/pm": "^3.0.0",
+    "@tiptap/starter-kit": "^3.0.0",
+    "@tiptap/extension-document": "^3.0.0",
+    "@tiptap/extension-paragraph": "^3.0.0",
+    "@tiptap/extension-text": "^3.0.0",
+    "@tiptap/extension-code-block": "^3.0.0",
+    "@tiptap/extension-highlight": "^3.0.0",
+    "@tiptap/extension-text-align": "^3.0.0",
+    "@tiptap/extension-text-style": "^3.0.0",
+    "@tiptap/extension-font-family": "^3.0.0",
+    "@tiptap/extension-font-size": "3.0.0-next.3",
+    "@tiptap/extension-table": "^3.0.0",
+    "@tiptap/extension-table-row": "^3.0.0",
+    "@tiptap/extension-table-header": "^3.0.0",
+    "@tiptap/extension-table-cell": "^3.0.0",
+    "@tiptap/extension-placeholder": "^3.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.4",
+    "happy-dom": "^15.0.0",
+    "typescript": "^5.4.5",
+    "vitest": "^4.0.13"
+  }
+}

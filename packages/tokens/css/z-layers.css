@@ -1,0 +1,21 @@
+/* ═══ z-layers — the ONE layering contract (Tier 1, theme-invariant) ═══════════
+ * The single source of truth for stacking order. Components reference these by
+ * name with an inline fallback equal to the value here; the fallback only fires
+ * if this file failed to load. Migrated floating UI (see the layer-contract
+ * campaign) promotes to the native top layer and no longer competes on z-index —
+ * these tokens then govern the non-promoted surfaces + same-context fallbacks.
+ * Ascending: delivery-shell < wire-overlay < dropdown(+backdrop) < popover < tooltip <
+ * modal(+backdrop) < overlay < toast. 100-unit gaps leave room for calc(+1). */
+:root {
+  /* A full-viewport responsive delivery form, still below all floating UI. */
+  --mn-z-delivery-shell: 700;
+  --mn-z-wire-overlay: 800;
+  --mn-z-dropdown-backdrop: 900;
+  --mn-z-dropdown: 1000;
+  --mn-z-popover: 1100;
+  --mn-z-tooltip: 1200;
+  --mn-z-modal-backdrop: 1300;
+  --mn-z-modal: 1400;
+  --mn-z-overlay: 1500;
+  --mn-z-toast: 1600;
+}

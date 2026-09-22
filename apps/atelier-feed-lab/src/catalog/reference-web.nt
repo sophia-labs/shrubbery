@@ -1,0 +1,140 @@
+# shrubbery fossil v1
+# graphIri: urn:mnemosyne:local:graph:atelier-feed-lab:catalog:reference-web
+# capturedAt: 1785540600000 (2026-07-31T23:30:00.000Z)
+# source: apps/atelier-feed-lab scripts/emit-reference-web.mts (authored config, no cell)
+<http://sophia.ai/atelier#AtelierReferenceWeb> <http://sophia.ai/atelier#hasEntity> <http://sophia.ai/atelier#atmosphere-ink-blue-rain> .
+<http://sophia.ai/atelier#AtelierReferenceWeb> <http://sophia.ai/atelier#hasEntity> <http://sophia.ai/atelier#character-avatar-sample-a> .
+<http://sophia.ai/atelier#AtelierReferenceWeb> <http://sophia.ai/atelier#hasEntity> <http://sophia.ai/atelier#prop-moon-lantern> .
+<http://sophia.ai/atelier#AtelierReferenceWeb> <http://sophia.ai/atelier#hasEntity> <http://sophia.ai/atelier#prop-paper-drum-lantern> .
+<http://sophia.ai/atelier#AtelierReferenceWeb> <http://sophia.ai/atelier#hasEntity> <http://sophia.ai/atelier#prop-path-lights> .
+<http://sophia.ai/atelier#AtelierReferenceWeb> <http://sophia.ai/atelier#hasEntity> <http://sophia.ai/atelier#prop-star-cactus> .
+<http://sophia.ai/atelier#AtelierReferenceWeb> <http://sophia.ai/atelier#hasEntity> <http://sophia.ai/atelier#prop-the-letter> .
+<http://sophia.ai/atelier#AtelierReferenceWeb> <http://sophia.ai/atelier#hasEntity> <http://sophia.ai/atelier#scene-forking-garden> .
+<http://sophia.ai/atelier#AtelierReferenceWeb> <http://sophia.ai/atelier#hasEntity> <http://sophia.ai/atelier#scene-glasshouse> .
+<http://sophia.ai/atelier#AtelierReferenceWeb> <http://sophia.ai/atelier#hasEntity> <http://sophia.ai/atelier#scene-night-window> .
+<http://sophia.ai/atelier#AtelierReferenceWeb> <http://sophia.ai/atelier#hasEntity> <http://sophia.ai/atelier#technique-tactile-illustration> .
+<http://sophia.ai/atelier#AtelierReferenceWeb> <http://sophia.ai/atelier#hasEntity> <http://sophia.ai/atelier#wardrobe-dark-hoodie> .
+<http://sophia.ai/atelier#AtelierReferenceWeb> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://sophia.ai/atelier#ReferenceWeb> .
+<http://sophia.ai/atelier#AtelierReferenceWeb> <http://www.w3.org/2000/01/rdf-schema#label> "Atelier reference web — entities, studies, and relations" .
+<http://sophia.ai/atelier#atmosphere-ink-blue-rain> <http://sophia.ai/atelier#accent> "#7c93c4" .
+<http://sophia.ai/atelier#atmosphere-ink-blue-rain> <http://sophia.ai/atelier#compositionNotes> "Advisory, never sovereign: it tunes the world without touching what things are. The palette settles toward ink-blue with warmth confined to sources; rain arrives as texture and hush, not as event. Its one optical signature is the bloom — lamplight opening in wet air, halos soft and honest. Under this card, darks stay blue rather than black, and no surface dries." .
+<http://sophia.ai/atelier#atmosphere-ink-blue-rain> <http://sophia.ai/atelier#description> "An ink-blue rain card: palette, weather, and the way lamplight blooms in wet air" .
+<http://sophia.ai/atelier#atmosphere-ink-blue-rain> <http://sophia.ai/atelier#invariant> "the ink-blue palette, rain as texture, and warm lamplight blooming in wet air" .
+<http://sophia.ai/atelier#atmosphere-ink-blue-rain> <http://sophia.ai/atelier#kind> "atmosphere" .
+<http://sophia.ai/atelier#atmosphere-ink-blue-rain> <http://sophia.ai/atelier#localId> "atmosphere:ink-blue-rain" .
+<http://sophia.ai/atelier#atmosphere-ink-blue-rain> <http://sophia.ai/atelier#pairsWith> <http://sophia.ai/atelier#scene-forking-garden> .
+<http://sophia.ai/atelier#atmosphere-ink-blue-rain> <http://sophia.ai/atelier#pairsWith> <http://sophia.ai/atelier#scene-night-window> .
+<http://sophia.ai/atelier#atmosphere-ink-blue-rain> <http://sophia.ai/atelier#providerReference> "ink-blue-rain.png" .
+<http://sophia.ai/atelier#atmosphere-ink-blue-rain> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://sophia.ai/atelier#ReferenceEntity> .
+<http://sophia.ai/atelier#atmosphere-ink-blue-rain> <http://www.w3.org/2000/01/rdf-schema#label> "Ink-blue rain" .
+<http://sophia.ai/atelier#character-avatar-sample-a> <http://sophia.ai/atelier#accent> "#9bcba4" .
+<http://sophia.ai/atelier#character-avatar-sample-a> <http://sophia.ai/atelier#compositionNotes> "She holds the right vertical third with her eyes near the upper-right intersection, and she is the still center of every frame: the world changes around her while she changes by degrees. Her gaze always moves first — attention, then expression, then at last the body. Hands are deliberate and few; poses settle completely, each calm enough to stand as the exact first or final frame of a shot. The left two-thirds belongs to what she is attending to, never to her." .
+<http://sophia.ai/atelier#character-avatar-sample-a> <http://sophia.ai/atelier#description> "Real VRM fixture · deterministic headless source plate · browser-private" .
+<http://sophia.ai/atelier#character-avatar-sample-a> <http://sophia.ai/atelier#holds> <http://sophia.ai/atelier#prop-moon-lantern> .
+<http://sophia.ai/atelier#character-avatar-sample-a> <http://sophia.ai/atelier#holds> <http://sophia.ai/atelier#prop-star-cactus> .
+<http://sophia.ai/atelier#character-avatar-sample-a> <http://sophia.ai/atelier#invariant> "her recognizable face, black bob haircut, body proportions, and unmistakable identity" .
+<http://sophia.ai/atelier#character-avatar-sample-a> <http://sophia.ai/atelier#kind> "character" .
+<http://sophia.ai/atelier#character-avatar-sample-a> <http://sophia.ai/atelier#localId> "character:avatar-sample-a" .
+<http://sophia.ai/atelier#character-avatar-sample-a> <http://sophia.ai/atelier#providerReference> "vtuber-source.png" .
+<http://sophia.ai/atelier#character-avatar-sample-a> <http://sophia.ai/atelier#wears> <http://sophia.ai/atelier#wardrobe-dark-hoodie> .
+<http://sophia.ai/atelier#character-avatar-sample-a> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://sophia.ai/atelier#ReferenceEntity> .
+<http://sophia.ai/atelier#character-avatar-sample-a> <http://www.w3.org/2000/01/rdf-schema#label> "AvatarSample_A" .
+<http://sophia.ai/atelier#prop-moon-lantern> <http://sophia.ai/atelier#accent> "#efca72" .
+<http://sophia.ai/atelier#prop-moon-lantern> <http://sophia.ai/atelier#compositionNotes> "It stands at the lower-left thirds intersection and its light obeys a strict discipline: a local pool, warm and breathing, never a scene-wide fill. The cloudy glass keeps its drum shape readable even lit; the captive crescent inside is the emotional register of the frame — contained, stirring, or risen — and its gold must survive every palette. What escapes the glass touches only what is near: her hands, the near path, the closest leaves." .
+<http://sophia.ai/atelier#prop-moon-lantern> <http://sophia.ai/atelier#description> "A cloudy glass lamp with a captive crescent moon" .
+<http://sophia.ai/atelier#prop-moon-lantern> <http://sophia.ai/atelier#invariant> "its cloudy glass drum and the captive crescent's warm gold" .
+<http://sophia.ai/atelier#prop-moon-lantern> <http://sophia.ai/atelier#kind> "prop" .
+<http://sophia.ai/atelier#prop-moon-lantern> <http://sophia.ai/atelier#localId> "prop:moon-lantern" .
+<http://sophia.ai/atelier#prop-moon-lantern> <http://sophia.ai/atelier#pairsWith> <http://sophia.ai/atelier#scene-night-window> .
+<http://sophia.ai/atelier#prop-moon-lantern> <http://sophia.ai/atelier#providerReference> "moon-lantern.png" .
+<http://sophia.ai/atelier#prop-moon-lantern> <http://sophia.ai/atelier#thumbnail> "/catalog/moon-lantern.svg" .
+<http://sophia.ai/atelier#prop-moon-lantern> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://sophia.ai/atelier#ReferenceEntity> .
+<http://sophia.ai/atelier#prop-moon-lantern> <http://www.w3.org/2000/01/rdf-schema#label> "Moon lantern" .
+<http://sophia.ai/atelier#prop-paper-drum-lantern> <http://sophia.ai/atelier#accent> "#e0b96a" .
+<http://sophia.ai/atelier#prop-paper-drum-lantern> <http://sophia.ai/atelier#compositionNotes> "The moon-lantern's older sibling: the same drum, translated into paper. Its light does not shine so much as breathe — the paper grain reads through the glow like skin over a candle, brightest at the belly, dim at the ribs. It is carried low, near the hands, or set on earth; it belongs to the walk, not the table. In the moon color, so lantern and moon can be mistaken for each other at distance — that mistake is the point." .
+<http://sophia.ai/atelier#prop-paper-drum-lantern> <http://sophia.ai/atelier#description> "A paper-drum lantern in the moon color — paper texture over the drum form" .
+<http://sophia.ai/atelier#prop-paper-drum-lantern> <http://sophia.ai/atelier#invariant> "its paper-drum form, the visible paper grain through its glow, and the moon color" .
+<http://sophia.ai/atelier#prop-paper-drum-lantern> <http://sophia.ai/atelier#kind> "prop" .
+<http://sophia.ai/atelier#prop-paper-drum-lantern> <http://sophia.ai/atelier#localId> "prop:paper-drum-lantern" .
+<http://sophia.ai/atelier#prop-paper-drum-lantern> <http://sophia.ai/atelier#pairsWith> <http://sophia.ai/atelier#scene-forking-garden> .
+<http://sophia.ai/atelier#prop-paper-drum-lantern> <http://sophia.ai/atelier#providerReference> "paper-drum-lantern.png" .
+<http://sophia.ai/atelier#prop-paper-drum-lantern> <http://sophia.ai/atelier#variantOf> <http://sophia.ai/atelier#prop-moon-lantern> .
+<http://sophia.ai/atelier#prop-paper-drum-lantern> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://sophia.ai/atelier#ReferenceEntity> .
+<http://sophia.ai/atelier#prop-paper-drum-lantern> <http://www.w3.org/2000/01/rdf-schema#label> "Paper-drum lantern" .
+<http://sophia.ai/atelier#prop-path-lights> <http://sophia.ai/atelier#accent> "#d9c27a" .
+<http://sophia.ai/atelier#prop-path-lights> <http://sophia.ai/atelier#compositionNotes> "The swarming futures, given pixels. They string both forks of the path into depth — each one a point, never a lamp; no single light may claim a shape or a source. Their scale halves with distance while their warmth stays constant, so the path reads as inhabited rather than decorated. They change in sequence, near to far or far to near, one at a time and never all at once; their waking or dying is the garden speaking." .
+<http://sophia.ai/atelier#prop-path-lights> <http://sophia.ai/atelier#description> "Small lights stringing both forks of the path — the swarming futures" .
+<http://sophia.ai/atelier#prop-path-lights> <http://sophia.ai/atelier#invariant> "small warm points of light in even sequence along both forks, receding with distance" .
+<http://sophia.ai/atelier#prop-path-lights> <http://sophia.ai/atelier#kind> "prop" .
+<http://sophia.ai/atelier#prop-path-lights> <http://sophia.ai/atelier#localId> "prop:path-lights" .
+<http://sophia.ai/atelier#prop-path-lights> <http://sophia.ai/atelier#pairsWith> <http://sophia.ai/atelier#scene-forking-garden> .
+<http://sophia.ai/atelier#prop-path-lights> <http://sophia.ai/atelier#providerReference> "path-lights.png" .
+<http://sophia.ai/atelier#prop-path-lights> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://sophia.ai/atelier#ReferenceEntity> .
+<http://sophia.ai/atelier#prop-path-lights> <http://www.w3.org/2000/01/rdf-schema#label> "Path-lights" .
+<http://sophia.ai/atelier#prop-star-cactus> <http://sophia.ai/atelier#accent> "#afcd78" .
+<http://sophia.ai/atelier#prop-star-cactus> <http://sophia.ai/atelier#compositionNotes> "It sits grounded at the lower-left thirds intersection at true hand-held scale — a small thing that must stay small to stay believable. The painted coral pot anchors it to table or earth; the blue-green body keeps its star-form geometry from every angle. Only the flower is permitted to change state; everything else about it is furniture, faithful across every frame." .
+<http://sophia.ai/atelier#prop-star-cactus> <http://sophia.ai/atelier#description> "Tiny blue-green cactus in a hand-painted coral pot" .
+<http://sophia.ai/atelier#prop-star-cactus> <http://sophia.ai/atelier#invariant> "its star-form blue-green body, its exact hand-painted coral pot, and its small hand-held scale" .
+<http://sophia.ai/atelier#prop-star-cactus> <http://sophia.ai/atelier#kind> "prop" .
+<http://sophia.ai/atelier#prop-star-cactus> <http://sophia.ai/atelier#localId> "prop:star-cactus" .
+<http://sophia.ai/atelier#prop-star-cactus> <http://sophia.ai/atelier#pairsWith> <http://sophia.ai/atelier#scene-glasshouse> .
+<http://sophia.ai/atelier#prop-star-cactus> <http://sophia.ai/atelier#providerReference> "star-cactus.png" .
+<http://sophia.ai/atelier#prop-star-cactus> <http://sophia.ai/atelier#thumbnail> "/catalog/star-cactus.svg" .
+<http://sophia.ai/atelier#prop-star-cactus> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://sophia.ai/atelier#ReferenceEntity> .
+<http://sophia.ai/atelier#prop-star-cactus> <http://www.w3.org/2000/01/rdf-schema#label> "Star cactus" .
+<http://sophia.ai/atelier#prop-the-letter> <http://sophia.ai/atelier#accent> "#d98a8a" .
+<http://sophia.ai/atelier#prop-the-letter> <http://sophia.ai/atelier#compositionNotes> "A crimson sheet gone pink with a century, soft-edged, light as breath. The calligraphy is minute and utterly illegible — brush-rhythm, not writing; one clean stroke crosses it out. It exists to be held and to catch light: near the lower-center intersection, tilted so the sheet takes the lantern warmth on its face. It is the only paper in the world of the piece; nothing else in frame may carry marks." .
+<http://sophia.ai/atelier#prop-the-letter> <http://sophia.ai/atelier#description> "A crimson sheet faded pink; minute illegible calligraphy, crossed out" .
+<http://sophia.ai/atelier#prop-the-letter> <http://sophia.ai/atelier#invariant> "the crimson-faded-pink sheet, its minute illegible brush calligraphy, and the single crossing stroke" .
+<http://sophia.ai/atelier#prop-the-letter> <http://sophia.ai/atelier#kind> "prop" .
+<http://sophia.ai/atelier#prop-the-letter> <http://sophia.ai/atelier#localId> "prop:the-letter" .
+<http://sophia.ai/atelier#prop-the-letter> <http://sophia.ai/atelier#pairsWith> <http://sophia.ai/atelier#scene-forking-garden> .
+<http://sophia.ai/atelier#prop-the-letter> <http://sophia.ai/atelier#providerReference> "the-letter.png" .
+<http://sophia.ai/atelier#prop-the-letter> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://sophia.ai/atelier#ReferenceEntity> .
+<http://sophia.ai/atelier#prop-the-letter> <http://www.w3.org/2000/01/rdf-schema#label> "The letter" .
+<http://sophia.ai/atelier#scene-forking-garden> <http://sophia.ai/atelier#accent> "#8fae7c" .
+<http://sophia.ai/atelier#scene-forking-garden> <http://sophia.ai/atelier#compositionNotes> "The path arrives from the lower-right and forks in the left two-thirds of the frame — one bifurcation close and unmistakable, a second farther and half-suggested, so the garden implies more forks than it shows. Both branches must stay legible into depth; neither may die in shadow. Tangled poplars close the sky except where the low full moon hangs, large but never dominant; at the end of one branch — only one — a lattice of warm light waits. Gravel underfoot, elemental earth at the verges: a garden walked for a hundred years and kept by no one." .
+<http://sophia.ai/atelier#scene-forking-garden> <http://sophia.ai/atelier#description> "A garden path that forks: bifurcating gravel, tangled poplars, a low full moon, distant lattice glow" .
+<http://sophia.ai/atelier#scene-forking-garden> <http://sophia.ai/atelier#invariant> "the bifurcating gravel path with both branches legible, tangled poplars, the low full moon, and the single distant lattice glow" .
+<http://sophia.ai/atelier#scene-forking-garden> <http://sophia.ai/atelier#kind> "scene" .
+<http://sophia.ai/atelier#scene-forking-garden> <http://sophia.ai/atelier#localId> "scene:forking-garden" .
+<http://sophia.ai/atelier#scene-forking-garden> <http://sophia.ai/atelier#providerReference> "forking-garden.png" .
+<http://sophia.ai/atelier#scene-forking-garden> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://sophia.ai/atelier#ReferenceEntity> .
+<http://sophia.ai/atelier#scene-forking-garden> <http://www.w3.org/2000/01/rdf-schema#label> "Forking garden" .
+<http://sophia.ai/atelier#scene-glasshouse> <http://sophia.ai/atelier#accent> "#abc66f" .
+<http://sophia.ai/atelier#scene-glasshouse> <http://sophia.ai/atelier#compositionNotes> "It composes in three planes without being asked: unruly leaves crossing the extreme foreground, soft and dark; her and whatever she attends to in the midground; the amber-paned structure receding behind, sun coming through old glass like tea. The wetness matters — every leaf carries light. Its geometry may be reinterpreted freely, but its warmth may not: this is a kept place, humid and alive, and the air itself should look inhabited." .
+<http://sophia.ai/atelier#scene-glasshouse> <http://sophia.ai/atelier#description> "Sunlit greenhouse, unruly leaves, old amber glass" .
+<http://sophia.ai/atelier#scene-glasshouse> <http://sophia.ai/atelier#invariant> "the warm overgrown glasshouse atmosphere — old amber panes, wet unruly leaves, sunlit humid air" .
+<http://sophia.ai/atelier#scene-glasshouse> <http://sophia.ai/atelier#kind> "scene" .
+<http://sophia.ai/atelier#scene-glasshouse> <http://sophia.ai/atelier#localId> "scene:glasshouse" .
+<http://sophia.ai/atelier#scene-glasshouse> <http://sophia.ai/atelier#providerReference> "glasshouse.png" .
+<http://sophia.ai/atelier#scene-glasshouse> <http://sophia.ai/atelier#thumbnail> "/catalog/glasshouse.svg" .
+<http://sophia.ai/atelier#scene-glasshouse> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://sophia.ai/atelier#ReferenceEntity> .
+<http://sophia.ai/atelier#scene-glasshouse> <http://www.w3.org/2000/01/rdf-schema#label> "Glasshouse" .
+<http://sophia.ai/atelier#scene-night-window> <http://sophia.ai/atelier#accent> "#8ca9d2" .
+<http://sophia.ai/atelier#scene-night-window> <http://sophia.ai/atelier#compositionNotes> "The ink-blue room at night: window structure behind, reflections crossing the extreme foreground like a second weather. Rain owns the far side of the glass and condensation the near side — between them, time stays visible even when nothing else moves. The distant lights are warm and far and never resolve into sources. Interior light stays scarce, so whatever glows in the midground has no competition." .
+<http://sophia.ai/atelier#scene-night-window> <http://sophia.ai/atelier#description> "Ink-blue studio window with rain and distant warm lights" .
+<http://sophia.ai/atelier#scene-night-window> <http://sophia.ai/atelier#invariant> "the rainy ink-blue window atmosphere — reflective glass, condensation, and distant unresolved warm lights" .
+<http://sophia.ai/atelier#scene-night-window> <http://sophia.ai/atelier#kind> "scene" .
+<http://sophia.ai/atelier#scene-night-window> <http://sophia.ai/atelier#localId> "scene:night-window" .
+<http://sophia.ai/atelier#scene-night-window> <http://sophia.ai/atelier#providerReference> "night-window.png" .
+<http://sophia.ai/atelier#scene-night-window> <http://sophia.ai/atelier#thumbnail> "/catalog/night-window.svg" .
+<http://sophia.ai/atelier#scene-night-window> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://sophia.ai/atelier#ReferenceEntity> .
+<http://sophia.ai/atelier#scene-night-window> <http://www.w3.org/2000/01/rdf-schema#label> "Night window" .
+<http://sophia.ai/atelier#technique-tactile-illustration> <http://sophia.ai/atelier#accent> "#b0a08c" .
+<http://sophia.ai/atelier#technique-tactile-illustration> <http://sophia.ai/atelier#compositionNotes> "The medium is a material, not a filter: visible brush and paper tooth in every surface, edges drawn by a hand rather than resolved by a lens. Color stays restrained and warm-biased; light behaves physically but lands as pigment. Anatomy and hands stay coherent under all of it — expressiveness is spent on light, fabric, and weather, never on distorting the figure. If a frame could be mistaken for a photograph, the technique has failed." .
+<http://sophia.ai/atelier#technique-tactile-illustration> <http://sophia.ai/atelier#description> "The illustration-medium identity — woven into every composed pack" .
+<http://sophia.ai/atelier#technique-tactile-illustration> <http://sophia.ai/atelier#invariant> "expressive tactile editorial animation: visible brush and paper texture, restrained warm palette, coherent anatomy and hands, natural material detail, cinematic depth" .
+<http://sophia.ai/atelier#technique-tactile-illustration> <http://sophia.ai/atelier#kind> "technique" .
+<http://sophia.ai/atelier#technique-tactile-illustration> <http://sophia.ai/atelier#localId> "technique:tactile-illustration" .
+<http://sophia.ai/atelier#technique-tactile-illustration> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://sophia.ai/atelier#ReferenceEntity> .
+<http://sophia.ai/atelier#technique-tactile-illustration> <http://www.w3.org/2000/01/rdf-schema#label> "Tactile illustration" .
+<http://sophia.ai/atelier#wardrobe-dark-hoodie> <http://sophia.ai/atelier#accent> "#6e7480" .
+<http://sophia.ai/atelier#wardrobe-dark-hoodie> <http://sophia.ai/atelier#compositionNotes> "A soft dark mass that shapes her silhouette against any lit ground; it drinks light rather than returning it, keeping her face the brightest thing she owns. The folds are slow fabric — they carry breath and small movement so her stillness is never frozen. Hood down, sleeves loose; the drape reads as weight, not costume." .
+<http://sophia.ai/atelier#wardrobe-dark-hoodie> <http://sophia.ai/atelier#description> "Her default garment — pixels still live inside the source plate" .
+<http://sophia.ai/atelier#wardrobe-dark-hoodie> <http://sophia.ai/atelier#embeddedIn> <http://sophia.ai/atelier#character-avatar-sample-a> .
+<http://sophia.ai/atelier#wardrobe-dark-hoodie> <http://sophia.ai/atelier#invariant> "the same dark hoodie — its soft weight, loose sleeves, and unbroken silhouette" .
+<http://sophia.ai/atelier#wardrobe-dark-hoodie> <http://sophia.ai/atelier#kind> "wardrobe" .
+<http://sophia.ai/atelier#wardrobe-dark-hoodie> <http://sophia.ai/atelier#localId> "wardrobe:dark-hoodie" .
+<http://sophia.ai/atelier#wardrobe-dark-hoodie> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://sophia.ai/atelier#ReferenceEntity> .
+<http://sophia.ai/atelier#wardrobe-dark-hoodie> <http://www.w3.org/2000/01/rdf-schema#label> "Dark hoodie" .

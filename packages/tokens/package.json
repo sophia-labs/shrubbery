@@ -1,0 +1,33 @@
+{
+  "name": "@shrubbery/tokens",
+  "version": "0.0.0",
+  "description": "Backend-free design-token system for Shrubbery — layered CSS (reference → semantic → component → theme → skin) + a tiny TS map of {skin,theme} → root attributes (the sux ConfigValue.appliesAttribute pattern). NO backend, NO stores, NO lit. Garden (fern, default), Emporium (sophia structure, purple accent), Research (SRS scholar desk), and Greenhouse (sans Garden research workspace) skins.",
+  "type": "module",
+  "license": "LicenseRef-PolyForm-Noncommercial-1.0.0",
+  "private": true,
+  "exports": {
+    ".": "./src/index.ts",
+    "./tokens.css": "./css/tokens.css",
+    "./css": "./css/tokens.css"
+  },
+  "scripts": {
+    "build": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:run": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.4",
+    "happy-dom": "^15.0.0",
+    "typescript": "^5.4.5",
+    "vitest": "^4.0.13"
+  },
+  "dependencies": {
+    "@fontsource-variable/inter": "5.2.8",
+    "@fontsource-variable/jetbrains-mono": "5.2.8",
+    "@fontsource-variable/literata": "5.2.8",
+    "@fontsource-variable/public-sans": "5.2.7",
+    "@fontsource-variable/source-sans-3": "5.2.9"
+  }
+}

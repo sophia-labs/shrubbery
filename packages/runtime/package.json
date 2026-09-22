@@ -1,0 +1,59 @@
+{
+  "name": "@shrubbery/runtime",
+  "version": "0.0.0",
+  "description": "The render host — planFor → LayoutPlan → Lit DOM. Depends ONLY on @shrubbery/nucleus + lit.",
+  "type": "module",
+  "license": "LicenseRef-PolyForm-Noncommercial-1.0.0",
+  "private": true,
+  "exports": {
+    ".": "./src/index.ts",
+    "./harness/in-process-crdt-backend": "./src/harness/in-process-crdt-backend.ts",
+    "./layout": "./src/layout/index.ts",
+    "./layout/faces/media-face-internal": "./src/layout/faces/media-face-internal.ts",
+    "./layout/sealed-open-face-params-internal": "./src/layout/sealed-open-face-params-internal.ts",
+    "./layout/source-object-service-internal": "./src/layout/source-object-service.ts",
+    "./layout/hosts/guest-app": "./src/layout/hosts/guest-app.ts",
+    "./layout/hosts/define-react-face": "./src/layout/hosts/define-react-face.ts",
+    "./layout/hosts/sh-guest-island": "./src/layout/hosts/sh-guest-island.ts",
+    "./layout/hosts/scope-css": "./src/layout/hosts/scope-css.ts"
+  },
+  "scripts": {
+    "build": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:run": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@excalidraw/excalidraw": "^0.18.1",
+    "@shrubbery/chat-kernel": "workspace:*",
+    "@shrubbery/editor-kernel": "workspace:*",
+    "@shrubbery/nucleus": "workspace:*",
+    "@tiptap/core": "^3.0.0",
+    "@tiptap/extension-collaboration": "^3.0.0",
+    "@tiptap/y-tiptap": "3.0.5",
+    "lit": "^3.1.4",
+    "mermaid": "^11.15.0",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "vega": "^6.2.0",
+    "vega-embed": "^7.1.0",
+    "vega-lite": "^6.4.2",
+    "y-protocols": "^1.0.6",
+    "yjs": "^13.6.18"
+  },
+  "devDependencies": {
+    "@shrubbery/source": "workspace:*",
+    "@shrubbery/tokens": "workspace:*",
+    "@types/node": "^22.7.4",
+    "@types/react": "^19.2.2",
+    "@types/react-dom": "^19.2.3",
+    "@types/ws": "^8.5.12",
+    "happy-dom": "^15.0.0",
+    "oxigraph": "0.5.9",
+    "typescript": "^5.4.5",
+    "vitest": "^4.0.13",
+    "ws": "^8.18.0",
+    "y-websocket": "^2.0.4"
+  }
+}

@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en" data-skin="garden" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Shrubbery Organism — graph fence + parked work real-cell proof</title>
+    <style>
+      * { box-sizing: border-box; }
+      html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: #eeece6; }
+      body { display: flex; flex-direction: column; gap: 12px; padding: 12px; }
+      mn-lifetime-banner { width: 900px; }
+      mn-workspace-selector { width: 320px; }
+      /* fix(slice-8), R22/G12 step 5b (master §3 Slice 9's dispatched
+       * adversarial review, finding #1): a real host for the REAL
+       * `renderWorkspace()` shell (sidebar + parked-work centre route),
+       * the same production surface the contested-query-service harness
+       * exercises for Slice 5's G10. Clicks are dispatched on the DOM node
+       * directly (`.click()`, matching this repo's own shadow-DOM click
+       * convention), so on-screen size only needs to fit for debugging
+       * with SHRUBBERY_HEADED=1 — it is not load-bearing for the proof. */
+      #parked-sidebar-root { position: relative; width: 1000px; height: 420px; flex: 0 0 auto; }
+    </style>
+  </head>
+  <body>
+    <mn-lifetime-banner></mn-lifetime-banner>
+    <mn-workspace-selector></mn-workspace-selector>
+    <div id="parked-sidebar-root"></div>
+    <script type="module" src="/src/harness/graph-fence-parked-harness-main.ts"></script>
+  </body>
+</html>

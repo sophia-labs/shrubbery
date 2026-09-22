@@ -1,0 +1,1218 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-07-15T19:35:28.145Z",
+  "campaignId": "shrubbery-concordance-pleasantness",
+  "baselines": {
+    "uxOracle": {
+      "repository": "../sophia/mnemosyne-platform",
+      "commit": "da66b0ad01e4be64d666b63b8e3d873c37972887",
+      "role": "Current live OG UX oracle. Browser behavior and frontend/src are primary where richer."
+    },
+    "capabilityOracle": {
+      "manifest": "docs/acceptance/garden-capability-manifest.json",
+      "repository": "../sophia/garden",
+      "commit": "cf0cb9600ba25ee49f7268301bcf3d949ed48f3b",
+      "role": "Existing 80-capability/38-journey coverage spine and Garden-native extensions."
+    },
+    "targetStart": {
+      "repository": ".",
+      "commit": "ed1fb2e98d9840f04e5fc21fb281fd3147737319",
+      "role": "Campaign start commit; generated status records the live dirty-tree fingerprint."
+    }
+  },
+  "targetState": {
+    "head": "6047cd7de95d52d890d5cf0ce84238eb81817285",
+    "dirty": false,
+    "statusLines": [],
+    "untrackedFiles": [],
+    "excludedGeneratedFiles": [
+      "docs/acceptance/concordance-surface-ledger.json",
+      "docs/acceptance/CONCORDANCE_STATUS.md"
+    ],
+    "fingerprint": "a3473a2737995dcf0628060c3d5f002e15b1b4352fb979d92b6e2ebb6b9790c6"
+  },
+  "counts": {
+    "capabilities": 80,
+    "lanes": 13,
+    "findings": 24,
+    "workPackages": 8,
+    "ogCustomElements": 69,
+    "targetCustomElements": 108
+  },
+  "capabilityAssignments": {
+    "ACC-CAP-A11Y-001": "CONC-L00",
+    "ACC-CAP-ARCHIVE-001": "CONC-L10",
+    "ACC-CAP-ART-001": "CONC-L09",
+    "ACC-CAP-ART-002": "CONC-L09",
+    "ACC-CAP-AUTH-001": "CONC-L01",
+    "ACC-CAP-AUTH-002": "CONC-L01",
+    "ACC-CAP-CHAT-001": "CONC-L11",
+    "ACC-CAP-CHAT-002": "CONC-L11",
+    "ACC-CAP-CHOREO-001": "CONC-L11",
+    "ACC-CAP-CHOREO-002": "CONC-L11",
+    "ACC-CAP-CHROME-001": "CONC-L02",
+    "ACC-CAP-CHROME-002": "CONC-L10",
+    "ACC-CAP-CHROME-003": "CONC-L02",
+    "ACC-CAP-CITE-001": "CONC-L06",
+    "ACC-CAP-CLIP-001": "CONC-L10",
+    "ACC-CAP-CLIP-002": "CONC-L10",
+    "ACC-CAP-COLLAB-001": "CONC-L07",
+    "ACC-CAP-COLLAB-002": "CONC-L07",
+    "ACC-CAP-COMMENT-001": "CONC-L06",
+    "ACC-CAP-DESIGN-001": "CONC-L00",
+    "ACC-CAP-DESTRUCT-001": "CONC-L00",
+    "ACC-CAP-EDIT-001": "CONC-L05",
+    "ACC-CAP-EDIT-002": "CONC-L05",
+    "ACC-CAP-EDIT-003": "CONC-L05",
+    "ACC-CAP-EDIT-004": "CONC-L05",
+    "ACC-CAP-EDIT-005": "CONC-L05",
+    "ACC-CAP-EDIT-006": "CONC-L05",
+    "ACC-CAP-EDIT-007": "CONC-L05",
+    "ACC-CAP-EDIT-008": "CONC-L05",
+    "ACC-CAP-EDIT-009": "CONC-L06",
+    "ACC-CAP-EDIT-010": "CONC-L06",
+    "ACC-CAP-EMP-001": "CONC-L12",
+    "ACC-CAP-EMP-002": "CONC-L12",
+    "ACC-CAP-ERROR-001": "CONC-L00",
+    "ACC-CAP-EXCAL-001": "CONC-L09",
+    "ACC-CAP-EXCAL-002": "CONC-L09",
+    "ACC-CAP-EXPORT-001": "CONC-L10",
+    "ACC-CAP-GRAPH-001": "CONC-L08",
+    "ACC-CAP-HISTORY-001": "CONC-L10",
+    "ACC-CAP-HOME-001": "CONC-L03",
+    "ACC-CAP-HOME-002": "CONC-L03",
+    "ACC-CAP-IMPORT-001": "CONC-L10",
+    "ACC-CAP-INSPECT-001": "CONC-L08",
+    "ACC-CAP-KEYBOARD-001": "CONC-L02",
+    "ACC-CAP-MERMAID-001": "CONC-L08",
+    "ACC-CAP-MOBILE-001": "CONC-L02",
+    "ACC-CAP-NAV-001": "CONC-L04",
+    "ACC-CAP-NAV-002": "CONC-L04",
+    "ACC-CAP-NAV-003": "CONC-L04",
+    "ACC-CAP-NAV-004": "CONC-L04",
+    "ACC-CAP-NAV-005": "CONC-L04",
+    "ACC-CAP-OPS-001": "CONC-L01",
+    "ACC-CAP-ORIGINAL-001": "CONC-L10",
+    "ACC-CAP-ORIGINAL-002": "CONC-L10",
+    "ACC-CAP-PUBLIC-001": "CONC-L01",
+    "ACC-CAP-QUERY-001": "CONC-L08",
+    "ACC-CAP-RESTORE-001": "CONC-L10",
+    "ACC-CAP-ROUTE-001": "CONC-L01",
+    "ACC-CAP-SEARCH-001": "CONC-L04",
+    "ACC-CAP-SEMANTIC-001": "CONC-L10",
+    "ACC-CAP-SET-001": "CONC-L10",
+    "ACC-CAP-SET-002": "CONC-L10",
+    "ACC-CAP-SET-003": "CONC-L10",
+    "ACC-CAP-SET-004": "CONC-L10",
+    "ACC-CAP-SET-005": "CONC-L10",
+    "ACC-CAP-SHARE-001": "CONC-L01",
+    "ACC-CAP-SHARE-002": "CONC-L01",
+    "ACC-CAP-STORAGE-001": "CONC-L03",
+    "ACC-CAP-TAG-001": "CONC-L06",
+    "ACC-CAP-TENANCY-001": "CONC-L03",
+    "ACC-CAP-TENANCY-002": "CONC-L03",
+    "ACC-CAP-TENANCY-003": "CONC-L03",
+    "ACC-CAP-TENANCY-004": "CONC-L03",
+    "ACC-CAP-TTS-001": "CONC-L05",
+    "ACC-CAP-VEGA-001": "CONC-L08",
+    "ACC-CAP-WIRE-001": "CONC-L08",
+    "ACC-CAP-WIRE-002": "CONC-L08",
+    "ACC-CAP-WIRE-003": "CONC-L08",
+    "ACC-CAP-WIRE-004": "CONC-L08",
+    "ACC-CAP-ZOTERO-001": "CONC-L09"
+  },
+  "ogSurfaces": [
+    {
+      "tag": "advanced-wire-menu",
+      "lane": "CONC-L08",
+      "targetMatches": [
+        "mn-advanced-wire-menu"
+      ],
+      "disposition": "synthesize"
+    },
+    {
+      "tag": "chat-debug-page",
+      "lane": "CONC-L11",
+      "targetMatches": [],
+      "disposition": "deliberately-omit-development-only"
+    },
+    {
+      "tag": "chat-panel",
+      "lane": "CONC-L11",
+      "targetMatches": [
+        "sh-chat-host",
+        "sh-chat-panel"
+      ],
+      "disposition": "synthesize"
+    },
+    {
+      "tag": "citation-picker",
+      "lane": "CONC-L06",
+      "targetMatches": [
+        "mn-citation-picker"
+      ],
+      "disposition": "synthesize"
+    },
+    {
+      "tag": "comments-panel",
+      "lane": "CONC-L06",
+      "targetMatches": [
+        "mn-comments-panel"
+      ],
+      "disposition": "synthesize"
+    },
+    {
+      "tag": "doc-history-panel",
+      "lane": "CONC-L10",
+      "targetMatches": [
+        "mn-doc-history-panel"
+      ],
+      "disposition": "synthesize"
+    },
+    {
+      "tag": "document-editor",
+      "lane": "CONC-L05",
+      "targetMatches": [
+        "sh-editor-host"
+      ],
+      "disposition": "synthesize"
+    },
+    {
+      "tag": "document-switcher",
+      "lane": "CONC-L02",
+      "targetMatches": [
+        "mn-document-switcher"
+      ],
+      "disposition": "synthesize"
+    },
+    {
+      "tag": "garden-hero-canvas",
+      "lane": "CONC-L01",
+      "targetMatches": [
+        "garden-hero-canvas"
+      ],
+      "disposition": "synthesize"
+    },
+    {
+      "tag": "garden-landing",
+      "lane": "CONC-L01",
+      "targetMatches": [
+        "garden-landing"
+      ],
+      "disposition": "synthesize"
+    },
+    {
+      "tag": "graph-panel",
+      "lane": "CONC-L08",
+      "targetMatches": [
+        "sh-graph-host",
+        "mn-graph-three"
+      ],
+      "disposition": "synthesize"
+    },
+    {
+      "tag": "mn-auth-page",
+      "lane": "CONC-L01",
+      "targetMatches": [
+        "mn-auth-page"
+      ],
+      "disposition": "synthesize"
+    },
+    {
+      "tag": "mn-avatar",
+      "lane": "CONC-L07",
+      "targetMatches": [
+        "mn-avatar"
+      ],
+      "disposition": "synthesize"
+    },
+    {
+      "tag": "mn-badge",
+      "lane": "CONC-L00",
+      "targetMatches": [
+        "mn-badge"
+      ],
+      "disposition": "synthesize"
+    },
+    {
+      "tag": "mn-bottom-bar",
+      "lane": "CONC-L02",
+      "targetMatches": [
+        "mn-bottom-bar"
+      ],
+      "disposition": "synthesize"
+    },
+    {
+      "tag": "mn-button",
+      "lane": "CONC-L00",
+      "targetMatches": [
+        "mn-button"
+      ],
+      "disposition": "synthesize"
+    },
+    {
+      "tag": "mn-calendar-event-specimen",
+      "lane": "CONC-L05",
+      "targetMatches": [
+        "mn-calendar-event-specimen"
+      ],
+      "disposition": "synthesize"
+    },
+    {
+      "tag": "mn-card",
+      "lane": "CONC-L00",
+      "targetMatches": [
+        "mn-card"
+      ],
+      "disposition": "synthesize"
+    },
+    {
+      "tag": "mn-comment-popover",
+      "lane": "CONC-L06",
+      "targetMatches": [
+        "mn-comment-popover"
+      ],
+      "disposition": "synthesize"
+    },
+    {
+      "tag": "mn-confirmation-dialog",
+      "lane": "CONC-L00",
+      "targetMatches": [
+        "mn-confirmation-dialog"
+      ],
+      "disposition": "synthesize"
+    },
+    {
+      "tag": "mn-consent-banner",
+      "lane": "CONC-L01",
+      "targetMatches": [
+        "mn-consent-banner"
+      ],
+      "disposition": "synthesize"
+    },
+    {
+      "tag": "mn-context-menu",
+      "lane": "CONC-L00",
+      "targetMatches": [
+        "mn-context-menu"
+      ],
+      "disposition": "synthesize"
+    },
+    {
+      "tag": "mn-daily-note-header",
+      "lane": "CONC-L04",
+      "targetMatches": [
+        "mn-daily-note-header"
+      ],
+      "disposition": "synthesize"
+    },
+    {
+      "tag": "mn-daily-note-row",
+      "lane": "CONC-L04",
+      "targetMatches": [
+        "mn-daily-note-row"
+      ],
+      "disposition": "synthesize"
+    },
+    {
+      "tag": "mn-doc-restore-dialog",
+      "lane": "CONC-L10",
+      "targetMatches": [],
+      "disposition": "synthesize-in-settings-history-workbench"
+    },
+    {
+      "tag": "mn-empty-state",
+      "lane": "CONC-L00",
+      "targetMatches": [
+        "mn-empty-state"
+      ],
+      "disposition": "synthesize"
+    },
+    {
+      "tag": "mn-error-boundary",
+      "lane": "CONC-L00",
+      "targetMatches": [
+        "mn-error-boundary"
+      ],
+      "disposition": "synthesize"
+    },
+    {
+      "tag": "mn-export-dialog",
+      "lane": "CONC-L10",
+      "targetMatches": [
+        "mn-export-dialog"
+      ],
+      "disposition": "synthesize"
+    },
+    {
+      "tag": "mn-feedback-form",
+      "lane": "CONC-L10",
+      "targetMatches": [
+        "mn-feedback-form"
+      ],
+      "disposition": "synthesize"
+    },
+    {
+      "tag": "mn-folder-picker-dialog",
+      "lane": "CONC-L04",
+      "targetMatches": [
+        "mn-folder-picker-dialog"
+      ],
+      "disposition": "synthesize"
+    },
+    {
+      "tag": "mn-icon-button",
+      "lane": "CONC-L00",
+      "targetMatches": [
+        "mn-icon-button"
+      ],
+      "disposition": "synthesize"
+    },
+    {
+      "tag": "mn-inline-edit",
+      "lane": "CONC-L00",
+      "targetMatches": [
+        "mn-inline-edit"
+      ],
+      "disposition": "synthesize"
+    },
+    {
+      "tag": "mn-input",
+      "lane": "CONC-L00",
+      "targetMatches": [
+        "mn-input"
+      ],
+      "disposition": "synthesize"
+    },
+    {
+      "tag": "mn-input-dialog",
+      "lane": "CONC-L00",
+      "targetMatches": [
+        "mn-input-dialog"
+      ],
+      "disposition": "synthesize"
+    },
+    {
+      "tag": "mn-loading",
+      "lane": "CONC-L00",
+      "targetMatches": [
+        "mn-loading"
+      ],
+      "disposition": "synthesize"
+    },
+    {
+      "tag": "mn-mobile-file-list",
+      "lane": "CONC-L04",
+      "targetMatches": [
+        "mn-mobile-file-list"
+      ],
+      "disposition": "synthesize"
+    },
+    {
+      "tag": "mn-mobile-tabs",
+      "lane": "CONC-L02",
+      "targetMatches": [
+        "mn-mobile-tabs"
+      ],
+      "disposition": "synthesize"
+    },
+    {
+      "tag": "mn-modal",
+      "lane": "CONC-L00",
+      "targetMatches": [
+        "mn-modal"
+      ],
+      "disposition": "synthesize"
+    },
+    {
+      "tag": "mn-month-popover",
+      "lane": "CONC-L04",
+      "targetMatches": [
+        "mn-month-popover"
+      ],
+      "disposition": "synthesize"
+    },
+    {
+      "tag": "mn-ops-health-page",
+      "lane": "CONC-L01",
+      "targetMatches": [
+        "mn-ops-health-page"
+      ],
+      "disposition": "synthesize"
+    },
+    {
+      "tag": "mn-original-viewer",
+      "lane": "CONC-L10",
+      "targetMatches": [
+        "mn-original-viewer"
+      ],
+      "disposition": "synthesize"
+    },
+    {
+      "tag": "mn-public-shell",
+      "lane": "CONC-L01",
+      "targetMatches": [
+        "mn-public-shell"
+      ],
+      "disposition": "synthesize"
+    },
+    {
+      "tag": "mn-restore-overlay",
+      "lane": "CONC-L10",
+      "targetMatches": [
+        "mn-restore-overlay"
+      ],
+      "disposition": "synthesize"
+    },
+    {
+      "tag": "mn-settings-page",
+      "lane": "CONC-L10",
+      "targetMatches": [
+        "mn-settings-page"
+      ],
+      "disposition": "synthesize"
+    },
+    {
+      "tag": "mn-shortcuts-dialog",
+      "lane": "CONC-L02",
+      "targetMatches": [
+        "mn-shortcuts-dialog"
+      ],
+      "disposition": "synthesize"
+    },
+    {
+      "tag": "mn-sidebar-panel",
+      "lane": "CONC-L04",
+      "targetMatches": [
+        "mn-sidebar-panel"
+      ],
+      "disposition": "synthesize"
+    },
+    {
+      "tag": "mn-sign-in-form",
+      "lane": "CONC-L01",
+      "targetMatches": [
+        "mn-sign-in-form"
+      ],
+      "disposition": "synthesize"
+    },
+    {
+      "tag": "mn-sign-up-form",
+      "lane": "CONC-L01",
+      "targetMatches": [
+        "mn-sign-up-form"
+      ],
+      "disposition": "synthesize"
+    },
+    {
+      "tag": "mn-snapshot-diff",
+      "lane": "CONC-L10",
+      "targetMatches": [
+        "mn-snapshot-diff"
+      ],
+      "disposition": "synthesize"
+    },
+    {
+      "tag": "mn-storage-banner",
+      "lane": "CONC-L03",
+      "targetMatches": [
+        "mn-storage-banner"
+      ],
+      "disposition": "synthesize"
+    },
+    {
+      "tag": "mn-tag-autocomplete-popover",
+      "lane": "CONC-L06",
+      "targetMatches": [
+        "mn-tag-autocomplete-popover"
+      ],
+      "disposition": "synthesize"
+    },
+    {
+      "tag": "mn-tag-chip-specimen",
+      "lane": "CONC-L06",
+      "targetMatches": [
+        "mn-tag-chip-specimen"
+      ],
+      "disposition": "synthesize"
+    },
+    {
+      "tag": "mn-tag-view",
+      "lane": "CONC-L06",
+      "targetMatches": [
+        "mn-tag-view"
+      ],
+      "disposition": "synthesize"
+    },
+    {
+      "tag": "mn-timeline-rail",
+      "lane": "CONC-L10",
+      "targetMatches": [
+        "mn-timeline-rail"
+      ],
+      "disposition": "synthesize"
+    },
+    {
+      "tag": "mn-toast",
+      "lane": "CONC-L00",
+      "targetMatches": [
+        "mn-toast"
+      ],
+      "disposition": "synthesize"
+    },
+    {
+      "tag": "mn-top-bar",
+      "lane": "CONC-L02",
+      "targetMatches": [
+        "mn-top-bar"
+      ],
+      "disposition": "synthesize"
+    },
+    {
+      "tag": "mn-tts-player",
+      "lane": "CONC-L05",
+      "targetMatches": [
+        "mn-tts-player"
+      ],
+      "disposition": "synthesize"
+    },
+    {
+      "tag": "mn-upgrade-banner",
+      "lane": "CONC-L10",
+      "targetMatches": [
+        "mn-upgrade-banner"
+      ],
+      "disposition": "synthesize"
+    },
+    {
+      "tag": "mn-verify-email-form",
+      "lane": "CONC-L01",
+      "targetMatches": [
+        "mn-verify-email-form"
+      ],
+      "disposition": "synthesize"
+    },
+    {
+      "tag": "sophia-hero-canvas",
+      "lane": "CONC-L01",
+      "targetMatches": [
+        "sophia-hero-canvas"
+      ],
+      "disposition": "synthesize"
+    },
+    {
+      "tag": "sophia-labs-landing",
+      "lane": "CONC-L01",
+      "targetMatches": [
+        "sophia-labs-landing"
+      ],
+      "disposition": "synthesize"
+    },
+    {
+      "tag": "wikilink-picker",
+      "lane": "CONC-L06",
+      "targetMatches": [
+        "mn-wikilink-picker"
+      ],
+      "disposition": "synthesize"
+    },
+    {
+      "tag": "wire-menu-dropdown",
+      "lane": "CONC-L08",
+      "targetMatches": [
+        "mn-wire-menu-dropdown"
+      ],
+      "disposition": "synthesize"
+    },
+    {
+      "tag": "wire-picker",
+      "lane": "CONC-L08",
+      "targetMatches": [
+        "mn-wire-picker"
+      ],
+      "disposition": "synthesize"
+    },
+    {
+      "tag": "wire-pinned-layer",
+      "lane": "CONC-L08",
+      "targetMatches": [
+        "sh-wire-pinned-layer"
+      ],
+      "disposition": "synthesize"
+    },
+    {
+      "tag": "wire-radial-overlay",
+      "lane": "CONC-L08",
+      "targetMatches": [
+        "mn-wire-radial-overlay"
+      ],
+      "disposition": "synthesize"
+    },
+    {
+      "tag": "wires-panel",
+      "lane": "CONC-L08",
+      "targetMatches": [
+        "sh-wires-panel"
+      ],
+      "disposition": "synthesize"
+    },
+    {
+      "tag": "zotero-library-panel",
+      "lane": "CONC-L09",
+      "targetMatches": [
+        "mn-zotero-library-panel"
+      ],
+      "disposition": "synthesize"
+    },
+    {
+      "tag": "zotero-source-workbench",
+      "lane": "CONC-L09",
+      "targetMatches": [
+        "mn-zotero-source-workbench"
+      ],
+      "disposition": "synthesize"
+    }
+  ],
+  "targetSurfaces": [
+    {
+      "tag": "garden-hero-canvas",
+      "lane": "CONC-L01",
+      "classification": "concordance-surface"
+    },
+    {
+      "tag": "garden-landing",
+      "lane": "CONC-L01",
+      "classification": "concordance-surface"
+    },
+    {
+      "tag": "mn-access-manager",
+      "lane": "CONC-L01",
+      "classification": "target-extension"
+    },
+    {
+      "tag": "mn-advanced-wire-menu",
+      "lane": "CONC-L08",
+      "classification": "concordance-surface"
+    },
+    {
+      "tag": "mn-app-bar",
+      "lane": "CONC-L02",
+      "classification": "target-extension"
+    },
+    {
+      "tag": "mn-artifact-editor",
+      "lane": "CONC-L09",
+      "classification": "target-extension"
+    },
+    {
+      "tag": "mn-artifact-history",
+      "lane": "CONC-L09",
+      "classification": "target-extension"
+    },
+    {
+      "tag": "mn-artifact-view",
+      "lane": "CONC-L09",
+      "classification": "target-extension"
+    },
+    {
+      "tag": "mn-auth-page",
+      "lane": "CONC-L01",
+      "classification": "concordance-surface"
+    },
+    {
+      "tag": "mn-avatar",
+      "lane": "CONC-L07",
+      "classification": "concordance-surface"
+    },
+    {
+      "tag": "mn-badge",
+      "lane": "CONC-L00",
+      "classification": "concordance-surface"
+    },
+    {
+      "tag": "mn-bottom-bar",
+      "lane": "CONC-L02",
+      "classification": "concordance-surface"
+    },
+    {
+      "tag": "mn-button",
+      "lane": "CONC-L00",
+      "classification": "concordance-surface"
+    },
+    {
+      "tag": "mn-calendar-event-specimen",
+      "lane": "CONC-L05",
+      "classification": "concordance-surface"
+    },
+    {
+      "tag": "mn-card",
+      "lane": "CONC-L00",
+      "classification": "concordance-surface"
+    },
+    {
+      "tag": "mn-chip",
+      "lane": "CONC-L00",
+      "classification": "target-extension"
+    },
+    {
+      "tag": "mn-citation-picker",
+      "lane": "CONC-L06",
+      "classification": "concordance-surface"
+    },
+    {
+      "tag": "mn-cloud-mode-panel",
+      "lane": "CONC-L11",
+      "classification": "target-extension"
+    },
+    {
+      "tag": "mn-cloud-mode-pill",
+      "lane": "CONC-L11",
+      "classification": "target-extension"
+    },
+    {
+      "tag": "mn-comment-popover",
+      "lane": "CONC-L06",
+      "classification": "concordance-surface"
+    },
+    {
+      "tag": "mn-comments-panel",
+      "lane": "CONC-L06",
+      "classification": "concordance-surface"
+    },
+    {
+      "tag": "mn-confirmation-dialog",
+      "lane": "CONC-L00",
+      "classification": "concordance-surface"
+    },
+    {
+      "tag": "mn-consent-banner",
+      "lane": "CONC-L01",
+      "classification": "concordance-surface"
+    },
+    {
+      "tag": "mn-context-menu",
+      "lane": "CONC-L00",
+      "classification": "concordance-surface"
+    },
+    {
+      "tag": "mn-daily-note-header",
+      "lane": "CONC-L04",
+      "classification": "concordance-surface"
+    },
+    {
+      "tag": "mn-daily-note-row",
+      "lane": "CONC-L04",
+      "classification": "concordance-surface"
+    },
+    {
+      "tag": "mn-dialog",
+      "lane": "CONC-L00",
+      "classification": "target-extension"
+    },
+    {
+      "tag": "mn-doc-history-panel",
+      "lane": "CONC-L10",
+      "classification": "concordance-surface"
+    },
+    {
+      "tag": "mn-document-switcher",
+      "lane": "CONC-L02",
+      "classification": "concordance-surface"
+    },
+    {
+      "tag": "mn-dropdown-button",
+      "lane": "CONC-L00",
+      "classification": "target-extension"
+    },
+    {
+      "tag": "mn-editor-toolbar",
+      "lane": "CONC-L05",
+      "classification": "target-extension"
+    },
+    {
+      "tag": "mn-empty-state",
+      "lane": "CONC-L00",
+      "classification": "concordance-surface"
+    },
+    {
+      "tag": "mn-error-boundary",
+      "lane": "CONC-L00",
+      "classification": "concordance-surface"
+    },
+    {
+      "tag": "mn-excalidraw-canvas",
+      "lane": "CONC-L09",
+      "classification": "target-extension"
+    },
+    {
+      "tag": "mn-export-dialog",
+      "lane": "CONC-L10",
+      "classification": "concordance-surface"
+    },
+    {
+      "tag": "mn-feedback-form",
+      "lane": "CONC-L10",
+      "classification": "concordance-surface"
+    },
+    {
+      "tag": "mn-folder-picker-dialog",
+      "lane": "CONC-L04",
+      "classification": "concordance-surface"
+    },
+    {
+      "tag": "mn-graph",
+      "lane": "CONC-L08",
+      "classification": "target-extension"
+    },
+    {
+      "tag": "mn-graph-panel",
+      "lane": "CONC-L08",
+      "classification": "target-extension"
+    },
+    {
+      "tag": "mn-graph-three",
+      "lane": "CONC-L08",
+      "classification": "concordance-surface"
+    },
+    {
+      "tag": "mn-home-view",
+      "lane": "CONC-L03",
+      "classification": "target-extension"
+    },
+    {
+      "tag": "mn-icon-button",
+      "lane": "CONC-L00",
+      "classification": "concordance-surface"
+    },
+    {
+      "tag": "mn-inline-edit",
+      "lane": "CONC-L00",
+      "classification": "concordance-surface"
+    },
+    {
+      "tag": "mn-input",
+      "lane": "CONC-L00",
+      "classification": "concordance-surface"
+    },
+    {
+      "tag": "mn-input-dialog",
+      "lane": "CONC-L00",
+      "classification": "concordance-surface"
+    },
+    {
+      "tag": "mn-inspector",
+      "lane": "CONC-L08",
+      "classification": "target-extension"
+    },
+    {
+      "tag": "mn-loading",
+      "lane": "CONC-L00",
+      "classification": "concordance-surface"
+    },
+    {
+      "tag": "mn-mobile-file-list",
+      "lane": "CONC-L04",
+      "classification": "concordance-surface"
+    },
+    {
+      "tag": "mn-mobile-tabs",
+      "lane": "CONC-L02",
+      "classification": "concordance-surface"
+    },
+    {
+      "tag": "mn-modal",
+      "lane": "CONC-L00",
+      "classification": "concordance-surface"
+    },
+    {
+      "tag": "mn-month-popover",
+      "lane": "CONC-L04",
+      "classification": "concordance-surface"
+    },
+    {
+      "tag": "mn-node-link-picker",
+      "lane": "CONC-L06",
+      "classification": "target-extension"
+    },
+    {
+      "tag": "mn-ops-health-page",
+      "lane": "CONC-L01",
+      "classification": "concordance-surface"
+    },
+    {
+      "tag": "mn-original-viewer",
+      "lane": "CONC-L10",
+      "classification": "concordance-surface"
+    },
+    {
+      "tag": "mn-panel-header",
+      "lane": "CONC-L02",
+      "classification": "target-extension"
+    },
+    {
+      "tag": "mn-public-shell",
+      "lane": "CONC-L01",
+      "classification": "concordance-surface"
+    },
+    {
+      "tag": "mn-quick-clip",
+      "lane": "CONC-L10",
+      "classification": "target-extension"
+    },
+    {
+      "tag": "mn-relations",
+      "lane": "CONC-L08",
+      "classification": "target-extension"
+    },
+    {
+      "tag": "mn-research-run-trace",
+      "lane": "CONC-L09",
+      "classification": "target-extension"
+    },
+    {
+      "tag": "mn-research-source-card",
+      "lane": "CONC-L09",
+      "classification": "target-extension"
+    },
+    {
+      "tag": "mn-research-source-chip",
+      "lane": "CONC-L09",
+      "classification": "target-extension"
+    },
+    {
+      "tag": "mn-research-workspace",
+      "lane": "CONC-L09",
+      "classification": "target-extension"
+    },
+    {
+      "tag": "mn-restore-overlay",
+      "lane": "CONC-L10",
+      "classification": "concordance-surface"
+    },
+    {
+      "tag": "mn-ribbon",
+      "lane": "CONC-L02",
+      "classification": "target-extension"
+    },
+    {
+      "tag": "mn-search-input",
+      "lane": "CONC-L00",
+      "classification": "target-extension"
+    },
+    {
+      "tag": "mn-settings-page",
+      "lane": "CONC-L10",
+      "classification": "concordance-surface"
+    },
+    {
+      "tag": "mn-shortcuts-dialog",
+      "lane": "CONC-L02",
+      "classification": "concordance-surface"
+    },
+    {
+      "tag": "mn-sidebar-panel",
+      "lane": "CONC-L04",
+      "classification": "concordance-surface"
+    },
+    {
+      "tag": "mn-sign-in-form",
+      "lane": "CONC-L01",
+      "classification": "concordance-surface"
+    },
+    {
+      "tag": "mn-sign-up-form",
+      "lane": "CONC-L01",
+      "classification": "concordance-surface"
+    },
+    {
+      "tag": "mn-snapshot-diff",
+      "lane": "CONC-L10",
+      "classification": "concordance-surface"
+    },
+    {
+      "tag": "mn-sparkline",
+      "lane": "CONC-L00",
+      "classification": "target-extension"
+    },
+    {
+      "tag": "mn-spinner",
+      "lane": "CONC-L00",
+      "classification": "target-extension"
+    },
+    {
+      "tag": "mn-storage-banner",
+      "lane": "CONC-L03",
+      "classification": "concordance-surface"
+    },
+    {
+      "tag": "mn-tag-autocomplete-popover",
+      "lane": "CONC-L06",
+      "classification": "concordance-surface"
+    },
+    {
+      "tag": "mn-tag-chip-specimen",
+      "lane": "CONC-L06",
+      "classification": "concordance-surface"
+    },
+    {
+      "tag": "mn-tag-view",
+      "lane": "CONC-L06",
+      "classification": "concordance-surface"
+    },
+    {
+      "tag": "mn-textarea",
+      "lane": "CONC-L00",
+      "classification": "target-extension"
+    },
+    {
+      "tag": "mn-timeline-rail",
+      "lane": "CONC-L10",
+      "classification": "concordance-surface"
+    },
+    {
+      "tag": "mn-toast",
+      "lane": "CONC-L00",
+      "classification": "concordance-surface"
+    },
+    {
+      "tag": "mn-toolbar",
+      "lane": "CONC-L00",
+      "classification": "target-extension"
+    },
+    {
+      "tag": "mn-toolbar-group",
+      "lane": "CONC-L00",
+      "classification": "target-extension"
+    },
+    {
+      "tag": "mn-toolbar-overflow",
+      "lane": "CONC-L00",
+      "classification": "target-extension"
+    },
+    {
+      "tag": "mn-tooltip",
+      "lane": "CONC-L00",
+      "classification": "target-extension"
+    },
+    {
+      "tag": "mn-top-bar",
+      "lane": "CONC-L02",
+      "classification": "concordance-surface"
+    },
+    {
+      "tag": "mn-tts-player",
+      "lane": "CONC-L05",
+      "classification": "concordance-surface"
+    },
+    {
+      "tag": "mn-upgrade-banner",
+      "lane": "CONC-L10",
+      "classification": "concordance-surface"
+    },
+    {
+      "tag": "mn-verify-email-form",
+      "lane": "CONC-L01",
+      "classification": "concordance-surface"
+    },
+    {
+      "tag": "mn-vtuber",
+      "lane": "CONC-L09",
+      "classification": "target-extension"
+    },
+    {
+      "tag": "mn-wikilink-picker",
+      "lane": "CONC-L06",
+      "classification": "concordance-surface"
+    },
+    {
+      "tag": "mn-wire-menu-dropdown",
+      "lane": "CONC-L08",
+      "classification": "concordance-surface"
+    },
+    {
+      "tag": "mn-wire-picker",
+      "lane": "CONC-L08",
+      "classification": "concordance-surface"
+    },
+    {
+      "tag": "mn-wire-radial-overlay",
+      "lane": "CONC-L08",
+      "classification": "concordance-surface"
+    },
+    {
+      "tag": "mn-workspace-selector",
+      "lane": "CONC-L03",
+      "classification": "target-extension"
+    },
+    {
+      "tag": "mn-zotero-library-panel",
+      "lane": "CONC-L09",
+      "classification": "concordance-surface"
+    },
+    {
+      "tag": "mn-zotero-source-workbench",
+      "lane": "CONC-L09",
+      "classification": "concordance-surface"
+    },
+    {
+      "tag": "sh-center-panes",
+      "lane": "CONC-L02",
+      "classification": "target-extension"
+    },
+    {
+      "tag": "sh-chat-host",
+      "lane": "CONC-L11",
+      "classification": "concordance-surface"
+    },
+    {
+      "tag": "sh-chat-panel",
+      "lane": "CONC-L11",
+      "classification": "concordance-surface"
+    },
+    {
+      "tag": "sh-editor-host",
+      "lane": "CONC-L05",
+      "classification": "concordance-surface"
+    },
+    {
+      "tag": "sh-graph-host",
+      "lane": "CONC-L08",
+      "classification": "concordance-surface"
+    },
+    {
+      "tag": "sh-wire-pinned-layer",
+      "lane": "CONC-L08",
+      "classification": "concordance-surface"
+    },
+    {
+      "tag": "sh-wires-panel",
+      "lane": "CONC-L08",
+      "classification": "concordance-surface"
+    },
+    {
+      "tag": "sophia-hero-canvas",
+      "lane": "CONC-L01",
+      "classification": "concordance-surface"
+    },
+    {
+      "tag": "sophia-labs-landing",
+      "lane": "CONC-L01",
+      "classification": "concordance-surface"
+    },
+    {
+      "tag": "wf-choreograph-view",
+      "lane": "CONC-L11",
+      "classification": "target-extension"
+    },
+    {
+      "tag": "wf-mission-control",
+      "lane": "CONC-L11",
+      "classification": "target-extension"
+    },
+    {
+      "tag": "wf-studio-shell",
+      "lane": "CONC-L11",
+      "classification": "target-extension"
+    }
+  ]
+}

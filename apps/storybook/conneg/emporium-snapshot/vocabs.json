@@ -1,0 +1,18 @@
+{
+  "vocabularies": [
+    {
+      "name": "workflow",
+      "version": "1.0.0",
+      "namespace": "http://mnemosyne.dev/workflow#",
+      "sha": "bc50e854bd4eed51ef3e1644db72662610af34f037d9802f1804a009eec77eff",
+      "title": "Mnemosyne Workflow Vocabulary"
+    },
+    {
+      "name": "sophia-memory-core",
+      "version": "1.0.0",
+      "namespace": "http://mnemosyne.dev/memory#",
+      "sha": "42b24ee38b6ce395f421ee7459080138ba49dff25c37a848c96650d3ffaa54ed",
+      "title": "Sophia Memory Core Vocabulary"
+    }
+  ]
+}

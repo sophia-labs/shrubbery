@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs><linearGradient id="n" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#18233b"/><stop offset="1" stop-color="#4a5e7c"/></linearGradient><linearGradient id="h"><stop stop-color="#a85843"/><stop offset="1" stop-color="#512a2c"/></linearGradient></defs>
+  <rect width="1024" height="1024" fill="#121822"/>
+  <rect x="78" y="65" width="868" height="694" fill="url(#n)" stroke="#806d59" stroke-width="18"/>
+  <path d="M512 66v694M79 417h867" stroke="#806d59" stroke-width="14"/>
+  <path d="M134 86 74 284M276 66 164 456M451 66 342 414M624 67 502 430M804 68 680 426M940 113 837 457" stroke="#adc0cf" stroke-width="7" opacity=".42"/>
+  <g fill="#f1b65e"><circle cx="185" cy="529" r="11"/><circle cx="313" cy="601" r="16"/><circle cx="735" cy="554" r="13"/><circle cx="863" cy="624" r="18"/></g>
+  <path d="M0 752h1024v272H0Z" fill="#242626"/>
+  <path d="M283 1024q20-230 225-254 218 12 249 254" fill="#31483a"/>
+  <path d="M348 1024q19-153 164-179 143 28 170 179" fill="#47684b"/>
+  <path d="M338 441q8-271 181-271 189 2 193 276v201q-40 150-197 151-160-3-201-151Z" fill="url(#h)"/>
+  <ellipse cx="514" cy="491" rx="145" ry="181" fill="#efc3a5"/>
+  <path d="M366 437q20-225 160-222 141 5 177 209-105-12-184-112-47 83-153 125Z" fill="url(#h)"/>
+  <path d="M556 222q-28 53-27 151 29-18 76-28 10-68 36-95-37-23-85-28Z" fill="#9bcba4"/>
+  <path d="M408 486q43-32 84 0M547 486q42-32 83 0" fill="none" stroke="#49322e" stroke-width="13" stroke-linecap="round"/>
+  <ellipse cx="454" cy="510" rx="25" ry="34" fill="#b99b3f"/><ellipse cx="588" cy="510" rx="25" ry="34" fill="#b99b3f"/>
+  <circle cx="455" cy="514" r="12" fill="#263026"/><circle cx="589" cy="514" r="12" fill="#263026"/>
+  <path d="M477 605q39 10 76-3" fill="none" stroke="#8e4947" stroke-width="9" stroke-linecap="round"/>
+  <path d="M347 838q160 114 337-2l52 188H290Z" fill="#eee6d2"/>
+  <path d="m393 863 117 93 123-97 43 165H348Z" fill="#47684b"/>
+  <path d="M626 754q76 12 100 92l-64 28q-23-52-72-66" fill="#efc3a5" stroke="#b47664" stroke-width="9"/>
+  <circle cx="719" cy="849" r="28" fill="#efc3a5"/>
+</svg>

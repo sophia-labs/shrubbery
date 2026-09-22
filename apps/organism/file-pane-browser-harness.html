@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Shrubbery Organism — controlled file-pane proof</title>
+    <style>
+      * { box-sizing: border-box; }
+      html, body, #file-pane-harness-root, #file-pane-harness-root > .app-container {
+        width: 100%; height: 100%; margin: 0; min-width: 0; min-height: 0;
+      }
+      body { overflow: hidden; background: var(--mn-color-surface-base, #f7faf7); }
+      #file-pane-harness-root > .app-container { display: flex; flex-direction: column; }
+      #file-pane-harness-root .main { position: relative; display: flex; flex: 1 1 auto; min-width: 0; min-height: 0; overflow: hidden; }
+      #file-pane-harness-root sl-split-panel { display: flex; flex: 1 1 auto; min-width: 0; min-height: 0; overflow: hidden; }
+      #file-pane-harness-root .split-pane { position: relative; display: flex; min-width: 0; min-height: 0; overflow: hidden; border-right: 1px solid var(--mn-color-border-subtle, #d8e2dc); }
+      #file-pane-harness-root .split-pane > * { flex: 1 1 auto; min-width: 0; min-height: 0; }
+      #file-pane-harness-root .panel-edge-btns { z-index: 4; }
+    </style>
+  </head>
+  <body>
+    <main id="file-pane-harness-root" aria-label="Controlled file-pane browser harness"></main>
+    <script type="module" src="/src/harness/file-pane-main.ts"></script>
+  </body>
+</html>

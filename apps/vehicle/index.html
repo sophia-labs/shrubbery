@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en" data-theme="light" data-skin="greenhouse">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Greenhouse — AgentWorld cockpit</title>
+    <style>
+      html,
+      body,
+      #app {
+        height: 100%;
+      }
+
+      body {
+        margin: 0;
+        overflow: hidden;
+        background: var(--mn-color-surface-base, #f6f4ef);
+        color: var(--mn-color-text-primary, #111827);
+        font-family: var(--mn-font-chrome, system-ui, sans-serif);
+      }
+    </style>
+  </head>
+  <body>
+    <vehicle-app id="app"></vehicle-app>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

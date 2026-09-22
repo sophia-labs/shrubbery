@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Shrubbery Organism — controlled 3-D graph proof</title>
+    <style>
+      * { box-sizing: border-box; }
+      html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; }
+      body {
+        display: grid;
+        grid-template-rows: auto minmax(0, 1fr);
+        background: var(--mn-color-surface-base, #f7faf7);
+        color: var(--mn-color-text-primary, #1f2933);
+        font-family: var(--mn-font-sans, system-ui, sans-serif);
+      }
+      #proof-controls {
+        z-index: 20;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-height: 44px;
+        padding: 6px 10px;
+        border-bottom: 1px solid var(--mn-color-border-subtle, #d8e2dc);
+        background: var(--mn-color-surface-raised, #fff);
+      }
+      #proof-controls strong { margin-right: 4px; }
+      #proof-controls button {
+        min-height: 30px;
+        padding: 0 10px;
+        border: 1px solid var(--mn-color-border-subtle, #c9d5ce);
+        border-radius: 6px;
+        background: var(--mn-color-surface-base, #f7faf7);
+        color: inherit;
+        font: inherit;
+        cursor: pointer;
+      }
+      #proof-controls button:hover { background: var(--mn-color-surface-hover, #eef4ef); }
+      #proof-status {
+        min-width: 0;
+        margin-left: auto;
+        overflow: hidden;
+        color: var(--mn-color-text-tertiary, #617069);
+        font-size: 12px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      #graph-harness-root,
+      #graph-harness-root > .app-container {
+        width: 100%;
+        height: 100%;
+        min-width: 0;
+        min-height: 0;
+      }
+      #graph-harness-root > .app-container {
+        display: flex;
+        flex-direction: column;
+      }
+      #graph-harness-root .main {
+        position: relative;
+        display: flex;
+        flex: 1 1 auto;
+        min-width: 0;
+        min-height: 0;
+        overflow: hidden;
+      }
+      #graph-harness-root sl-split-panel {
+        display: flex;
+        flex: 1 1 auto;
+        min-width: 0;
+        min-height: 0;
+        overflow: hidden;
+      }
+      #graph-harness-root sl-split-panel > .split-pane[slot="start"] { flex: 0 0 22%; }
+      #graph-harness-root sl-split-panel.right-split > .split-pane[slot="start"] { flex-basis: 58%; }
+      #graph-harness-root .split-pane {
+        position: relative;
+        display: flex;
+        min-width: 0;
+        min-height: 0;
+        overflow: hidden;
+        border-right: 1px solid var(--mn-color-border-subtle, #d8e2dc);
+      }
+      #graph-harness-root .split-pane > * {
+        flex: 1 1 auto;
+        min-width: 0;
+        min-height: 0;
+      }
+      #graph-harness-root .right-panel {
+        display: flex;
+        width: 100%;
+        height: 100%;
+        flex: 1 1 0;
+        min-width: 0;
+        min-height: 0;
+        overflow: hidden;
+        border-bottom: 1px solid var(--mn-color-border-subtle, #d8e2dc);
+      }
+      #graph-harness-root .right-panel-body,
+      #graph-harness-root .right-panel-chat-slot {
+        display: flex;
+        flex: 1 1 auto;
+        min-width: 0;
+        min-height: 0;
+        overflow: hidden;
+      }
+      #graph-harness-root .right-panel-body[hidden],
+      #graph-harness-root .right-panel-chat-slot[hidden] { display: none; }
+      #graph-harness-failure {
+        position: fixed;
+        inset: 56px 12px 12px;
+        z-index: 100000;
+        display: none;
+        overflow: auto;
+        padding: 16px;
+        border: 2px solid #b42318;
+        background: #fff5f5;
+        color: #8a1c15;
+        white-space: pre-wrap;
+      }
+      #graph-harness-failure[data-visible] { display: block; }
+    </style>
+  </head>
+  <body>
+    <nav id="proof-controls" aria-label="3-D graph proof controls">
+      <strong>Graph proof</strong>
+      <button type="button" data-proof-action="graph-only">Graph only</button>
+      <button type="button" data-proof-action="comments">Comments panel</button>
+      <button type="button" data-proof-action="graph">Graph panel</button>
+      <button type="button" data-proof-action="mutate-projection">Add projected node</button>
+      <button type="button" data-proof-action="collapse">Collapse rail</button>
+      <button type="button" data-proof-action="expand">Expand rail</button>
+      <output id="proof-status" aria-live="polite"></output>
+    </nav>
+    <main id="graph-harness-root" aria-label="Controlled 3-D graph browser harness"></main>
+    <pre id="graph-harness-failure" role="alert"></pre>
+    <script type="module" src="/src/harness/graph-main.ts"></script>
+  </body>
+</html>

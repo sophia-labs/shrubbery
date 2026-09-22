@@ -1,0 +1,273 @@
+/* SKIN: observatory (the night-room dashboard identity)
+ *
+ * Observatory is the mission-control / instrument-panel skin for the
+ * Observatory dashboard (fragment-status leaf + the query-backed dashboard
+ * faces). Unlike Garden/Emporium/98/Glass/Research/Greenhouse — all of which
+ * are LIGHT by default with a separate dark composition — Observatory has no
+ * "daylight" register: the deep-field room IS the identity, built directly
+ * from the ink ramp (the same ramp the Observatory dataviz palette validated
+ * its dark surface against). The [data-theme=dark] composition below is not
+ * a flip, it is a deeper "true-night" variant — the SAME move 98 makes for
+ * High-Contrast-Black and Glass makes for its smoked composition, pushed one
+ * step further because the baseline was already dark.
+ *
+ *   - deep-field surfaces: the ink ramp (ink-0 canvas … ink-950 numeral ink)
+ *   - instrument-lit borders: every rule/border is the accent channel at low
+ *     alpha — a lit bezel, not a flat gray line — plus a dedicated glow
+ *     shadow (--mn-observatory-instrument-glow) for card/tile chrome
+ *   - high-contrast numeral ink: text-primary/title sit at the brightest ink
+ *     steps, and dashboards reach for --mn-font-numeral (JetBrains Mono,
+ *     tabular figures) via the global semantic token
+ *   - mono chrome/display/utility (a genuine telemetry-console voice,
+ *     distinct from every other skin's chrome font); sans for actual prose
+ *
+ * Zero new raw hex beyond the validated Observatory dataviz palette
+ * (reference.css) and the existing ink/carmine/ochre/moss/indigo ramps —
+ * every glow/wash here is rgb(var(--observatory-accent-ch) / α) or a plain
+ * ramp step. The two literal #ffffff / #000000 peaks in the dark
+ * composition mirror skin-98.css's own High-Contrast-Black precedent.
+ *
+ * Applies via [data-skin=observatory]. NOT part of the global Garden → Sophia
+ * → 98 → Glass visual-identity cycle (VISUAL_IDENTITY_SKINS is unchanged) —
+ * an app-owned skin, same axis, same machinery, picked explicitly.
+ */
+
+:root {
+  --observatory-accent:        #028fad;
+  --observatory-accent-hover:  #02a2c5;
+  --observatory-accent-active: #52c1e1;
+  --observatory-accent-ch:     2 143 173;
+}
+
+[data-skin="observatory"] {
+  /* Typography — mono chrome/display/utility: a telemetry-console voice. */
+  --mn-font-chrome:  var(--mn-font-mono);
+  --mn-font-display: var(--mn-font-mono);
+  --mn-font-prose:   var(--mn-font-sans);
+  --mn-font-serif:   var(--mn-font-sans);
+  --mn-font-utility: var(--mn-font-mono);
+
+  /* Accent system — the dark-optimized azure chart swatch (matches the
+     Observatory dataviz palette's categorical slot 1 / sequential pole). */
+  --mn-color-accent:             var(--observatory-accent);
+  --mn-color-accent-hover:       var(--observatory-accent-hover);
+  --mn-color-accent-active:      var(--observatory-accent-active);
+  --mn-color-text-accent:        var(--observatory-accent-hover);
+  --mn-color-text-accent-strong: var(--mn-ref-azure-300);
+  --mn-color-border-accent:      var(--observatory-accent);
+  --mn-color-border-focus:       var(--observatory-accent-hover);
+  --mn-color-surface-accent:     rgb(var(--observatory-accent-ch) / 0.14);
+  --mn-focus-ring-color:         var(--observatory-accent-hover);
+  --mn-color-accent-ch:          var(--observatory-accent-ch);
+  --mn-editor-paper-accent:       #028fad;
+  --mn-editor-paper-accent-hover: #02a2c5;
+  --mn-editor-paper-accent-soft:  rgb(2 143 173 / 0.12);
+  --mn-editor-paper-accent-ch:    2 143 173;
+
+  /* Surfaces — deep-field: the ink ramp, canvas at the darkest step, the
+     validated dataviz dark surface (ink-50) as the primary dashboard paper. */
+  --mn-color-surface-canvas:   var(--mn-ref-ink-0);
+  --mn-color-surface-base:     var(--mn-ref-ink-50);
+  --mn-color-surface-editor:   var(--mn-ref-ink-100);
+  --mn-color-surface-panel:    var(--mn-ref-ink-100);
+  --mn-color-surface-chrome:   var(--mn-ref-ink-100);
+  --mn-color-surface-raised:   var(--mn-ref-ink-200);
+  --mn-color-surface-elevated: var(--mn-ref-ink-200);
+  --mn-color-surface-overlay:  var(--mn-ref-ink-300);
+  --mn-color-surface-subtle:   var(--mn-ref-ink-100);
+  --mn-color-surface-warm:     var(--mn-ref-ink-100);
+  --mn-color-surface-sunken:   var(--mn-ref-ink-0);
+  --mn-color-surface-hover:    rgb(var(--observatory-accent-ch) / 0.08);
+  --mn-color-surface-active:   rgb(var(--observatory-accent-ch) / 0.16);
+  --mn-color-surface-accent-subtle: rgb(var(--observatory-accent-ch) / 0.08);
+  --mn-color-surface-accent-strong: rgb(var(--observatory-accent-ch) / 0.24);
+  --mn-color-backdrop: rgb(20 22 19 / 0.72);
+  --mn-atmosphere:
+    radial-gradient(circle at 54% -18%, rgb(var(--observatory-accent-ch) / 0.16), transparent 42%),
+    linear-gradient(135deg, rgb(var(--observatory-accent-ch) / 0.05), transparent 40%);
+
+  /* Text — high-contrast numeral ink: primary/title sit at the brightest
+     ink steps so dashboard figures read first in a scan. */
+  --mn-color-text-primary:   var(--mn-ref-ink-900);
+  --mn-color-text-secondary: var(--mn-ref-ink-700);
+  --mn-color-text-tertiary:  var(--mn-ref-ink-600);
+  --mn-color-text-muted:     var(--mn-ref-ink-500);
+  --mn-color-text-inverse:   var(--mn-ref-ink-0);
+  --mn-color-text-title:     var(--mn-ref-ink-950);
+  --mn-color-text-quiet:     var(--mn-ref-ink-600);
+  --mn-color-text-on-accent: var(--mn-ref-ink-0);
+  --mn-color-text-danger:    var(--mn-ref-carmine-500);
+  --mn-color-text-warning:   var(--mn-ref-ochre-500);
+  --mn-color-text-success:   var(--mn-ref-moss-500);
+
+  /* Borders — instrument-lit: the accent channel at low alpha, not a flat
+     neutral gray line. */
+  --mn-color-border-subtle:  rgb(var(--observatory-accent-ch) / 0.14);
+  --mn-color-border-default: rgb(var(--observatory-accent-ch) / 0.24);
+  --mn-color-border-strong:  rgb(var(--observatory-accent-ch) / 0.42);
+  --mn-color-border:         var(--mn-color-border-default);
+  --mn-color-rule:           rgb(var(--observatory-accent-ch) / 0.18);
+  --mn-color-rule-strong:    rgb(var(--observatory-accent-ch) / 0.32);
+
+  /* Status quads — the dark-appropriate steps (the room is dark regardless
+     of the [data-theme] toggle, so status must already read correctly here
+     even when [data-theme=light] is the ambient default). */
+  --mn-color-danger:          var(--mn-ref-carmine-500);
+  --mn-color-danger-strong:   var(--mn-ref-carmine-300);
+  --mn-color-danger-surface:  rgba(244, 63, 94, 0.10);
+  --mn-color-danger-border:   rgba(244, 63, 94, 0.25);
+  --mn-color-action-danger:   var(--mn-ref-carmine-600);
+  --mn-color-on-danger:       #ffffff;
+
+  --mn-color-warning:         var(--mn-ref-ochre-600);
+  --mn-color-warning-strong:  var(--mn-ref-ochre-400);
+  --mn-color-warning-surface: rgba(217, 119, 6, 0.10);
+  --mn-color-warning-border:  rgba(217, 119, 6, 0.25);
+  --mn-color-action-warning:  var(--mn-ref-ochre-400);
+  --mn-color-on-warning:      var(--mn-ref-ink-0);
+
+  --mn-color-success:         var(--mn-ref-moss-500);
+  --mn-color-success-strong:  var(--mn-ref-moss-400);
+  --mn-color-success-surface: rgba(70, 156, 112, 0.10);
+  --mn-color-success-border:  rgba(70, 156, 112, 0.25);
+
+  --mn-color-info:            var(--mn-ref-indigo-400);
+  --mn-color-info-strong:     var(--mn-ref-indigo-300);
+  --mn-color-info-surface:    rgba(99, 102, 241, 0.10);
+  --mn-color-info-border:     rgba(99, 102, 241, 0.25);
+
+  /* Chrome bands — a lit instrument bezel, not the fern masthead gradient. */
+  --mn-top-bar-bg:         linear-gradient(102deg, var(--mn-ref-ink-100) 0%, var(--mn-ref-ink-200) 55%, var(--mn-ref-ink-100) 100%);
+  --mn-top-bar-border:     rgb(var(--observatory-accent-ch) / 0.32);
+  --mn-top-bar-text:       var(--mn-ref-ink-900);
+  --mn-top-bar-text-muted: var(--mn-ref-ink-600);
+  --mn-bottom-bar-bg:      var(--mn-ref-ink-50);
+  --mn-bottom-bar-border:  rgb(var(--observatory-accent-ch) / 0.22);
+
+  /* Geometry — crisp instrument edges, tighter than Garden, not square. */
+  --mn-radius-control: var(--mn-radius-sm);
+  --mn-radius-surface: var(--mn-radius-md);
+  --mn-row-height:     28px;
+  --mn-control-height: 28px;
+
+  /* Presentation flags — labels visible, no parchment grain in a control room. */
+  --mn-label-display:   inline;
+  --mn-texture-display: none;
+  --mn-tracking-label:  0.04em;
+  --mn-chrome-rule:     var(--mn-rule-line);
+
+  /* Rule hierarchy — the instrument-lit border, three intensities. */
+  --mn-rule-hair:  1px solid rgb(var(--observatory-accent-ch) / 0.14);
+  --mn-rule-line:  1px solid rgb(var(--observatory-accent-ch) / 0.24);
+  --mn-rule-frame: 1px solid rgb(var(--observatory-accent-ch) / 0.42);
+
+  /* Instrument-lit glow — a soft luminous edge, the bezel around a lit
+     dial. Built ONLY from the accent channel + alpha, no new raw hex. */
+  --mn-observatory-instrument-glow:        0 0 0 1px rgb(var(--observatory-accent-ch) / 0.32), 0 0 12px rgb(var(--observatory-accent-ch) / 0.22);
+  --mn-observatory-instrument-glow-strong: 0 0 0 1px rgb(var(--observatory-accent-ch) / 0.58), 0 0 20px rgb(var(--observatory-accent-ch) / 0.36);
+  /* The brightest ink step — the dedicated hook a dashboard figure reaches
+     for when it wants to read first in a scan (paired with --mn-font-numeral,
+     the global tabular-figures token from semantic.css). */
+  --mn-observatory-numeral-ink: var(--mn-ref-ink-950);
+
+  /* Shadows — a genuinely dark room: black-based depth plus the accent glow. */
+  --mn-shadow-xs: 0 1px 1px rgba(0, 0, 0, 0.32), 0 1px 3px rgba(0, 0, 0, 0.24);
+  --mn-shadow-sm: 0 2px 6px rgba(0, 0, 0, 0.36), 0 5px 16px rgba(0, 0, 0, 0.22);
+  --mn-shadow-md: 0 10px 30px rgba(0, 0, 0, 0.42), 0 2px 10px rgba(0, 0, 0, 0.30);
+  --mn-shadow-lg: 0 24px 64px rgba(0, 0, 0, 0.50), 0 7px 22px rgba(0, 0, 0, 0.30);
+  --mn-shadow-xl: 0 34px 88px rgba(0, 0, 0, 0.58), 0 10px 30px rgba(0, 0, 0, 0.34);
+  --mn-shadow-chrome:         0 1px 0 rgb(var(--observatory-accent-ch) / 0.12), 0 2px 8px rgba(0, 0, 0, 0.26);
+  --mn-shadow-card:           var(--mn-observatory-instrument-glow);
+  --mn-shadow-raised:         0 8px 24px rgba(0, 0, 0, 0.38), 0 0 0 1px rgb(var(--observatory-accent-ch) / 0.18);
+  --mn-shadow-popover:        0 16px 40px rgba(0, 0, 0, 0.46);
+  --mn-shadow-modal:          0 26px 68px rgba(0, 0, 0, 0.56);
+  --mn-shadow-primary:        0 12px 32px rgb(var(--observatory-accent-ch) / 0.26);
+  --mn-shadow-composer:       var(--mn-shadow-sm);
+  --mn-shadow-composer-focus: var(--mn-focus-ring), var(--mn-shadow-md);
+  --mn-shadow-status-danger:  0 10px 28px rgba(244, 63, 94, 0.20);
+  --mn-shadow-error-ring:     0 0 0 2px rgba(244, 63, 94, 0.26);
+
+  font-family: var(--mn-font-chrome);
+}
+
+[data-theme="dark"][data-skin="observatory"] {
+  /* True night: the same room, pushed to its deepest, most luminous register
+     — the same move 98's High-Contrast-Black and Glass's smoked composition
+     make, one step further because the baseline was already dark. */
+  --observatory-accent:        var(--mn-ref-azure-300);
+  --observatory-accent-hover:  var(--mn-ref-azure-200);
+  --observatory-accent-active: var(--mn-ref-azure-100);
+  --observatory-accent-ch:     82 193 225;
+
+  --mn-color-accent-ch:      var(--observatory-accent-ch);
+  --mn-color-surface-accent: rgb(var(--observatory-accent-ch) / 0.18);
+  --mn-focus-ring-color:     var(--observatory-accent);
+
+  --mn-color-surface-canvas:   #000000;
+  --mn-color-surface-base:     var(--mn-ref-ink-0);
+  --mn-color-surface-editor:   var(--mn-ref-ink-50);
+  --mn-color-surface-panel:    var(--mn-ref-ink-50);
+  --mn-color-surface-chrome:   var(--mn-ref-ink-50);
+  --mn-color-surface-raised:   var(--mn-ref-ink-100);
+  --mn-color-surface-elevated: var(--mn-ref-ink-100);
+  --mn-color-surface-overlay:  var(--mn-ref-ink-200);
+  --mn-color-surface-subtle:   var(--mn-ref-ink-50);
+  --mn-color-surface-warm:     var(--mn-ref-ink-50);
+  --mn-color-surface-sunken:   #000000;
+  --mn-color-surface-hover:    rgb(var(--observatory-accent-ch) / 0.10);
+  --mn-color-surface-active:   rgb(var(--observatory-accent-ch) / 0.20);
+  --mn-color-surface-accent-subtle: rgb(var(--observatory-accent-ch) / 0.10);
+  --mn-color-surface-accent-strong: rgb(var(--observatory-accent-ch) / 0.30);
+  --mn-color-backdrop: rgb(0 0 0 / 0.82);
+  --mn-atmosphere:
+    radial-gradient(circle at 55% -16%, rgb(var(--observatory-accent-ch) / 0.20), transparent 40%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.02), transparent 36%);
+
+  --mn-color-text-primary:   #ffffff;
+  --mn-color-text-secondary: var(--mn-ref-ink-800);
+  --mn-color-text-tertiary:  var(--mn-ref-ink-700);
+  --mn-color-text-muted:     var(--mn-ref-ink-600);
+  --mn-color-text-inverse:   #000000;
+  --mn-color-text-title:     #ffffff;
+  --mn-color-text-quiet:     var(--mn-ref-ink-700);
+  --mn-color-text-accent:        var(--observatory-accent-hover);
+  --mn-color-text-accent-strong: var(--observatory-accent-active);
+  --mn-color-text-on-accent:     #000000;
+
+  --mn-color-border-subtle:  rgb(var(--observatory-accent-ch) / 0.18);
+  --mn-color-border-default: rgb(var(--observatory-accent-ch) / 0.30);
+  --mn-color-border-strong:  rgb(var(--observatory-accent-ch) / 0.52);
+  --mn-color-border:         var(--mn-color-border-default);
+  --mn-color-rule:           rgb(var(--observatory-accent-ch) / 0.22);
+  --mn-color-rule-strong:    rgb(var(--observatory-accent-ch) / 0.38);
+
+  --mn-top-bar-bg:         var(--mn-ref-ink-0);
+  --mn-top-bar-border:     rgb(var(--observatory-accent-ch) / 0.38);
+  --mn-top-bar-text:       #ffffff;
+  --mn-top-bar-text-muted: var(--mn-ref-ink-700);
+  --mn-bottom-bar-bg:      #000000;
+  --mn-bottom-bar-border:  rgb(var(--observatory-accent-ch) / 0.26);
+
+  --mn-rule-hair:  1px solid rgb(var(--observatory-accent-ch) / 0.18);
+  --mn-rule-line:  1px solid rgb(var(--observatory-accent-ch) / 0.30);
+  --mn-rule-frame: 1px solid rgb(var(--observatory-accent-ch) / 0.52);
+  --mn-chrome-rule: var(--mn-rule-line);
+
+  --mn-observatory-instrument-glow:        0 0 0 1px rgb(var(--observatory-accent-ch) / 0.45), 0 0 16px rgb(var(--observatory-accent-ch) / 0.30);
+  --mn-observatory-instrument-glow-strong: 0 0 0 1.5px rgb(var(--observatory-accent-ch) / 0.70), 0 0 26px rgb(var(--observatory-accent-ch) / 0.46);
+  --mn-observatory-numeral-ink: #ffffff;
+
+  --mn-shadow-xs: 0 1px 1px rgba(0, 0, 0, 0.44), 0 1px 3px rgba(0, 0, 0, 0.32);
+  --mn-shadow-sm: 0 2px 7px rgba(0, 0, 0, 0.48), 0 5px 18px rgba(0, 0, 0, 0.30);
+  --mn-shadow-md: 0 12px 34px rgba(0, 0, 0, 0.54), 0 2px 12px rgba(0, 0, 0, 0.38);
+  --mn-shadow-lg: 0 26px 68px rgba(0, 0, 0, 0.62), 0 8px 24px rgba(0, 0, 0, 0.38);
+  --mn-shadow-xl: 0 36px 92px rgba(0, 0, 0, 0.70), 0 12px 34px rgba(0, 0, 0, 0.42);
+  --mn-shadow-chrome:  0 1px 0 rgb(var(--observatory-accent-ch) / 0.16), 0 2px 9px rgba(0, 0, 0, 0.34);
+  --mn-shadow-card:    var(--mn-observatory-instrument-glow);
+  --mn-shadow-raised:  0 10px 28px rgba(0, 0, 0, 0.48), 0 0 0 1px rgb(var(--observatory-accent-ch) / 0.24);
+  --mn-shadow-popover: 0 18px 46px rgba(0, 0, 0, 0.58);
+  --mn-shadow-modal:   0 30px 76px rgba(0, 0, 0, 0.68);
+  --mn-shadow-primary: 0 14px 36px rgb(var(--observatory-accent-ch) / 0.32);
+  --mn-shadow-status-danger: 0 10px 28px rgba(244, 63, 94, 0.26);
+  --mn-shadow-error-ring:    0 0 0 2px rgba(244, 63, 94, 0.32);
+}

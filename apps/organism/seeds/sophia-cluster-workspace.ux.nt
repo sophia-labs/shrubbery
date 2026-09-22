@@ -1,0 +1,50 @@
+# sophia-cluster-workspace.ux.nt — graph-authored Shrubbery workspace for the
+# lead Agent and its current-v2 Agent Ontology bindings on cloud-2.
+<http://sophia.ai/ux#SophiaClusterWorkspace> <http://sophia.ai/ux#hasRegion> <http://sophia.ai/ux#region-bottom-bar> .
+<http://sophia.ai/ux#SophiaClusterWorkspace> <http://sophia.ai/ux#hasRegion> <http://sophia.ai/ux#region-agent-studio> .
+<http://sophia.ai/ux#SophiaClusterWorkspace> <http://sophia.ai/ux#hasRegion> <http://sophia.ai/ux#region-top-bar> .
+<http://sophia.ai/ux#SophiaClusterWorkspace> <http://sophia.ai/ux#hasRootEntry> <http://sophia.ai/ux#SophiaClusterWorkspace-root-0> .
+<http://sophia.ai/ux#SophiaClusterWorkspace> <http://sophia.ai/ux#hasRootEntry> <http://sophia.ai/ux#SophiaClusterWorkspace-root-1> .
+<http://sophia.ai/ux#SophiaClusterWorkspace> <http://sophia.ai/ux#hasRootEntry> <http://sophia.ai/ux#SophiaClusterWorkspace-root-2> .
+<http://sophia.ai/ux#SophiaClusterWorkspace> <http://sophia.ai/ux#localId> "SophiaClusterWorkspace" .
+<http://sophia.ai/ux#SophiaClusterWorkspace> <http://sophia.ai/ux#renderedByComponent> "app-shell" .
+<http://sophia.ai/ux#SophiaClusterWorkspace> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://sophia.ai/ux#Workspace> .
+<http://sophia.ai/ux#SophiaClusterWorkspace> <http://www.w3.org/2000/01/rdf-schema#label> "Sophia Cluster" .
+<http://sophia.ai/ux#SophiaClusterWorkspace-root-0> <http://sophia.ai/ux#atIndex> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<http://sophia.ai/ux#SophiaClusterWorkspace-root-0> <http://sophia.ai/ux#rootRegion> <http://sophia.ai/ux#region-top-bar> .
+<http://sophia.ai/ux#SophiaClusterWorkspace-root-0> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://sophia.ai/ux#RootEntry> .
+<http://sophia.ai/ux#SophiaClusterWorkspace-root-1> <http://sophia.ai/ux#atIndex> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<http://sophia.ai/ux#SophiaClusterWorkspace-root-1> <http://sophia.ai/ux#rootRegion> <http://sophia.ai/ux#region-agent-studio> .
+<http://sophia.ai/ux#SophiaClusterWorkspace-root-1> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://sophia.ai/ux#RootEntry> .
+<http://sophia.ai/ux#SophiaClusterWorkspace-root-2> <http://sophia.ai/ux#atIndex> "2"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<http://sophia.ai/ux#SophiaClusterWorkspace-root-2> <http://sophia.ai/ux#rootRegion> <http://sophia.ai/ux#region-bottom-bar> .
+<http://sophia.ai/ux#SophiaClusterWorkspace-root-2> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://sophia.ai/ux#RootEntry> .
+<http://sophia.ai/ux#region-bottom-bar> <http://sophia.ai/ux#collapsible> "false"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<http://sophia.ai/ux#region-bottom-bar> <http://sophia.ai/ux#localId> "region-bottom-bar" .
+<http://sophia.ai/ux#region-bottom-bar> <http://sophia.ai/ux#order> "2"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<http://sophia.ai/ux#region-bottom-bar> <http://sophia.ai/ux#renderedByComponent> "mn-bottom-bar" .
+<http://sophia.ai/ux#region-bottom-bar> <http://sophia.ai/ux#resizable> "false"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<http://sophia.ai/ux#region-bottom-bar> <http://sophia.ai/ux#sizeFraction> "0.03"^^<http://www.w3.org/2001/XMLSchema#decimal> .
+<http://sophia.ai/ux#region-bottom-bar> <http://sophia.ai/ux#splitOrientation> "horizontal" .
+<http://sophia.ai/ux#region-bottom-bar> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://sophia.ai/ux#Region> .
+<http://sophia.ai/ux#region-bottom-bar> <http://www.w3.org/2000/01/rdf-schema#label> "Bottom Bar" .
+<http://sophia.ai/ux#region-agent-studio> <http://sophia.ai/ux#collapsible> "false"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<http://sophia.ai/ux#region-agent-studio> <http://sophia.ai/ux#localId> "region-agent-studio" .
+<http://sophia.ai/ux#region-agent-studio> <http://sophia.ai/ux#order> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<http://sophia.ai/ux#region-agent-studio> <http://sophia.ai/ux#renderedByComponent> "mn-agent-studio-editor" .
+<http://sophia.ai/ux#region-agent-studio> <http://sophia.ai/ux#resizable> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<http://sophia.ai/ux#region-agent-studio> <http://sophia.ai/ux#sizeFraction> "0.94"^^<http://www.w3.org/2001/XMLSchema#decimal> .
+<http://sophia.ai/ux#region-agent-studio> <http://sophia.ai/ux#splitOrientation> "vertical" .
+<http://sophia.ai/ux#region-agent-studio> <http://sophia.ai/ux#surfaceMode> "configured" .
+<http://sophia.ai/ux#region-agent-studio> <http://sophia.ai/ux#surfaceRole> "center" .
+<http://sophia.ai/ux#region-agent-studio> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://sophia.ai/ux#Region> .
+<http://sophia.ai/ux#region-agent-studio> <http://www.w3.org/2000/01/rdf-schema#label> "Lead Agent Studio" .
+<http://sophia.ai/ux#region-top-bar> <http://sophia.ai/ux#collapsible> "false"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<http://sophia.ai/ux#region-top-bar> <http://sophia.ai/ux#localId> "region-top-bar" .
+<http://sophia.ai/ux#region-top-bar> <http://sophia.ai/ux#order> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<http://sophia.ai/ux#region-top-bar> <http://sophia.ai/ux#renderedByComponent> "mn-top-bar" .
+<http://sophia.ai/ux#region-top-bar> <http://sophia.ai/ux#resizable> "false"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<http://sophia.ai/ux#region-top-bar> <http://sophia.ai/ux#sizeFraction> "0.03"^^<http://www.w3.org/2001/XMLSchema#decimal> .
+<http://sophia.ai/ux#region-top-bar> <http://sophia.ai/ux#splitOrientation> "horizontal" .
+<http://sophia.ai/ux#region-top-bar> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://sophia.ai/ux#Region> .
+<http://sophia.ai/ux#region-top-bar> <http://www.w3.org/2000/01/rdf-schema#label> "Top Bar" .

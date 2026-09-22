@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Atelier — minimal text Sophia</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+      }
+      body {
+        font-family: ui-sans-serif, system-ui, sans-serif;
+        display: flex;
+        flex-direction: column;
+      }
+      #status {
+        padding: 6px 10px;
+        font-size: 12px;
+        white-space: pre-wrap;
+        border-bottom: 1px solid #ddd;
+        flex: 0 0 auto;
+      }
+      #status.ok {
+        color: #114;
+      }
+      #status.err {
+        color: #a00;
+      }
+      /* The demo layout: the CANVAS (the interpreter-rendered :ux:config that
+         GROWS) fills the page; the CHAT is an always-present fixed shell on the
+         right (the way you talk to Sophia). The chat lives OUTSIDE the
+         interpreter's :ux:config — it survives every interface-grow re-render by
+         construction (the chat-host is Class-B). The GROWS add OTHER interface
+         (top-bar/bottom-bar/sidebar) into #host only. */
+      #stage {
+        flex: 1 1 auto;
+        min-height: 0;
+        display: flex;
+        flex-direction: row;
+      }
+      #host {
+        flex: 1 1 auto;
+        min-width: 0;
+        min-height: 0;
+        display: flex;
+      }
+      #host .app-container {
+        flex: 1 1 auto;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+      }
+      #host .main {
+        flex: 1 1 auto;
+        display: flex;
+        min-height: 0;
+      }
+      #chat {
+        flex: 0 0 360px;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        border-left: 1px solid #ddd;
+      }
+      #chat .main {
+        flex: 1 1 auto;
+        display: flex;
+        min-height: 0;
+      }
+      #chat-header {
+        padding: 6px 10px;
+        font-size: 12px;
+        font-weight: 600;
+        color: #114;
+        border-bottom: 1px solid #eee;
+        flex: 0 0 auto;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="status" class="ok">booting…</div>
+    <div id="stage">
+      <!-- THE CANVAS — the interpreter-rendered :ux:config; grows on each poll. -->
+      <div id="host"></div>
+      <!-- THE CHAT — the always-present fixed shell (talk to Sophia). Typing a
+           demo phrase grows the canvas to the left. -->
+      <div id="chat">
+        <div id="chat-header">Sophia — say “give me a top bar”</div>
+      </div>
+    </div>
+    <!-- Both loops boot independently against the SAME live cell: main.ts owns the
+         canvas read+render+poll; chat-main.ts owns the chat round-trip whose
+         grow-driver writes the grow that the canvas poll picks up. -->
+    <script type="module" src="/src/main.ts"></script>
+    <script type="module" src="/src/chat-main.ts"></script>
+  </body>
+</html>

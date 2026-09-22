@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en" data-skin="garden" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#faf9f6" />
+    <meta name="description" content="hoja — a quiet notes app. Each note is a seed." />
+    <link rel="icon" type="image/svg+xml" href="./hoja-mark.svg" />
+    <title>hoja</title>
+    <script>
+      const dark = matchMedia('(prefers-color-scheme: dark)')
+      const apply = () => {
+        document.documentElement.dataset.theme = dark.matches ? 'dark' : 'light'
+      }
+      apply()
+      dark.addEventListener('change', apply)
+    </script>
+    <style>
+      html,
+      body {
+        min-height: 100%;
+        margin: 0;
+      }
+
+      body {
+        background: #faf9f6;
+        color: #1f1e1b;
+        font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      [data-theme='dark'] body {
+        background: #16150f;
+        color: #e8e5da;
+      }
+
+      button,
+      input {
+        font: inherit;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="./src/main.ts"></script>
+  </body>
+</html>

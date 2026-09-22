@@ -1,0 +1,54 @@
+@prefix dk: <http://sophia.ai/domain#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+dk:DomainManifestShape
+  a sh:NodeShape ;
+  sh:targetClass dk:DomainManifest ;
+  sh:closed true ;
+  sh:ignoredProperties ( rdf:type ) ;
+  sh:property [ sh:path dk:programId ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ; sh:minLength 1 ] ;
+  sh:property [ sh:path dk:title ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ; sh:minLength 1 ] ;
+  sh:property [ sh:path dk:schemaVersion ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:integer ; sh:minInclusive 1 ] ;
+  sh:property [ sh:path dk:contentSha256 ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ; sh:pattern "^[0-9a-f]{64}$" ] ;
+  sh:property [ sh:path dk:sourceJson ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ] ;
+  sh:property [ sh:path dk:hasTier ; sh:minCount 1 ; sh:nodeKind sh:IRI ; sh:class dk:Tier ] ;
+  sh:property [ sh:path dk:hasMode ; sh:minCount 1 ; sh:nodeKind sh:IRI ; sh:class dk:Mode ] ;
+  sh:property [ sh:path dk:hasRole ; sh:minCount 1 ; sh:nodeKind sh:IRI ; sh:class dk:Role ] ;
+  sh:property [ sh:path dk:hasCapability ; sh:minCount 1 ; sh:nodeKind sh:IRI ; sh:class dk:CapabilityClaim ] ;
+  sh:property [ sh:path dk:hasJourney ; sh:minCount 1 ; sh:nodeKind sh:IRI ; sh:class dk:Journey ] .
+
+dk:CapabilityClaimShape
+  a sh:NodeShape ;
+  sh:targetClass dk:CapabilityClaim ;
+  sh:property [ sh:path dk:stableId ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ; sh:minLength 1 ] ;
+  sh:property [ sh:path dk:tier ; sh:minCount 1 ; sh:maxCount 1 ; sh:class dk:Tier ] ;
+  sh:property [ sh:path dk:mode ; sh:minCount 1 ; sh:class dk:Mode ] ;
+  sh:property [ sh:path dk:role ; sh:minCount 1 ; sh:class dk:Role ] ;
+  sh:property [ sh:path dk:journey ; sh:minCount 1 ; sh:class dk:Journey ] .
+
+dk:JourneyShape
+  a sh:NodeShape ;
+  sh:targetClass dk:Journey ;
+  sh:property [ sh:path dk:stableId ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ; sh:minLength 1 ] ;
+  sh:property [ sh:path dk:hasStep ; sh:minCount 1 ; sh:nodeKind sh:IRI ; sh:class dk:JourneyStep ] ;
+  sh:property [ sh:path dk:declaresEvidence ; sh:minCount 1 ; sh:datatype xsd:string ; sh:minLength 1 ] .
+
+dk:VerdictShape
+  a sh:NodeShape ;
+  sh:targetClass dk:Verdict ;
+  sh:property [ sh:path dk:capabilityId ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ; sh:minLength 1 ] ;
+  sh:property [ sh:path dk:modeId ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ; sh:minLength 1 ] ;
+  sh:property [ sh:path dk:roleId ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ; sh:minLength 1 ] ;
+  sh:property [ sh:path dk:targetSha256 ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ; sh:pattern "^[0-9a-f]{64}$" ] ;
+  sh:property [ sh:path dk:outcome ; sh:minCount 1 ; sh:maxCount 1 ; sh:in ( dk:PASS dk:FAIL dk:BLOCKED ) ] ;
+  sh:property [ sh:path dk:evidence ; sh:minCount 1 ; sh:nodeKind sh:IRI ; sh:class dk:EvidenceRef ] ;
+  sh:property [ sh:path dk:asOf ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:dateTime ] ;
+  sh:property [ sh:path dk:agentSession ; sh:minCount 1 ; sh:maxCount 1 ; sh:nodeKind sh:IRI ] .
+
+dk:EvidenceRefShape
+  a sh:NodeShape ;
+  sh:targetClass dk:EvidenceRef ;
+  sh:property [ sh:path dk:contentUri ; sh:minCount 1 ; sh:maxCount 1 ; sh:nodeKind sh:IRI ] ;
+  sh:property [ sh:path dk:contentSha256 ; sh:minCount 1 ; sh:maxCount 1 ; sh:datatype xsd:string ; sh:pattern "^[0-9a-f]{64}$" ] .

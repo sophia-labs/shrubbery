@@ -1,0 +1,32 @@
+{
+  "name": "@shrubbery/source",
+  "version": "0.0.0",
+  "description": "Where triples come from — TripleSource adapter factories (static-nt fossil now; gardend-local / hosted-gateway / sparql-http as they land), the R8 boot factory + auth union, the source config store, and the shippable conformance kit. The '.' entry is browser-safe and depends on @shrubbery/nucleus ONLY (enforced by tests/browser-safety.test.ts).",
+  "type": "module",
+  "license": "LicenseRef-PolyForm-Noncommercial-1.0.0",
+  "private": true,
+  "exports": {
+    ".": "./src/index.ts",
+    "./gateway": "./src/gateway/index.ts",
+    "./node": "./src/node/index.ts",
+    "./emporium": "./src/emporium/index.ts",
+    "./conformance": "./src/conformance/suite.ts"
+  },
+  "scripts": {
+    "build": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:run": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@shrubbery/nucleus": "workspace:*",
+    "@shrubbery/render": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.4",
+    "oxigraph": "0.5.9",
+    "typescript": "^5.4.5",
+    "vitest": "^4.0.13"
+  }
+}

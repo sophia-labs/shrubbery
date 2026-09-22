@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en" data-theme="dark" data-skin="observatory">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0b0c10" />
+    <title>Atelier Feed Lab</title>
+    <style>
+      /* Structural CSS for the renderWorkspace frame — the runtime ships none
+         (see apps/rhizome/index.html, apps/planter/index.html). Everything
+         visual routes through --mn-* tokens; the leaves style themselves. */
+      html,
+      body,
+      #host {
+        height: 100%;
+      }
+      body {
+        margin: 0;
+        min-width: 320px;
+        background: var(--mn-color-surface-canvas, #0b0c10);
+        color: var(--mn-color-text-primary, #e8e9f0);
+        font-family: var(--mn-font-chrome, system-ui, sans-serif);
+      }
+      #host .app-container {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+      }
+      #host header[data-region='region-top-bar'],
+      #host footer[data-region='region-bottom-bar'] {
+        flex: none;
+      }
+      #host .main {
+        flex: 1;
+        min-height: 0;
+        overflow: hidden;
+      }
+      #host .main sl-split-panel {
+        height: 100%;
+        width: 100%;
+        --divider-width: 3px;
+      }
+      #host .main sl-split-panel::part(divider) {
+        background: var(--mn-color-border-subtle, #23242c);
+      }
+      #host .split-pane {
+        height: 100%;
+        min-height: 0;
+        overflow: hidden;
+      }
+      /* Below the breakpoint the shell flips the split vertical (main.ts) and
+         the page scrolls: the feed keeps a stable stage, the director and the
+         pipeline band flow beneath it. */
+      @media (max-width: 980px) {
+        #host .app-container {
+          height: auto;
+          min-height: 100%;
+        }
+        #host .main {
+          flex: none;
+          height: calc(100vh - 56px);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="host"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

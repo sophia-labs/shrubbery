@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en" data-skin="garden" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#173c2d" />
+    <meta
+      name="description"
+      content="Learn to copy Morse code by sound with the Koch method, backed by your Garden."
+    />
+    <title>Koch · Garden</title>
+    <style>
+      html,
+      body {
+        min-height: 100%;
+        margin: 0;
+      }
+
+      body {
+        background: #f3f0e7;
+        color: #173027;
+        font-family: var(--mn-font-chrome, ui-sans-serif, system-ui, sans-serif);
+      }
+
+      button,
+      input {
+        font: inherit;
+      }
+    </style>
+  </head>
+  <body>
+    <koch-app></koch-app>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,62 @@
+/* ═══ @shrubbery/tokens — the layered design-token entrypoint ═════════════════
+ *
+ * One import gives the organism + Storybook the full token system. The layers
+ * compose by the cascade, lowest → highest specificity / latest-wins:
+ *
+ *   fonts         repository-owned WOFF2 core families (offline deterministic)
+ *   reference     Tier 0 — raw ramps (fern, cobalt, PURPLE, neutrals, status)
+ *   semantic      Tier 1 — role tokens, light-mode Garden defaults
+ *   component     Tier 2 — chrome families (top-bar / bottom-bar)
+ *   z-layers      Tier 1 — the stacking-order contract (theme-invariant)
+ *   theme-dark    [data-theme=dark]      — orthogonal theme axis (Garden dark)
+ *   editor-material [data-editor-material=paper|classic-word] — editor presentation
+ *   stance        [data-stance=...]      — orthogonal posture/register axis
+ *   kind          [data-kind=...]        — DisplayKind register hooks
+ *   skin-garden   [data-skin=garden]     — the fern / Literata / rounded identity
+ *   skin-emporium [data-skin=emporium]   — sophia STRUCTURE, accent recolored PURPLE
+ *                 + [data-design=emporium] alias
+ *                 + [data-theme=dark][data-skin=emporium] dark override
+ *   skin-98 [data-skin=98] — classic desktop/window-system identity
+ *                 + high-contrast-black dark composition
+ *   skin-glass [data-skin=glass] — luminous translucent desktop identity
+ *                 + smoked-glass dark composition
+ *   skin-research [data-skin=research]   — SRS scholar-desk skin
+ *                 + [data-theme=dark][data-skin=research] dark override
+ *   skin-greenhouse [data-skin=greenhouse] — sans Garden research workspace
+ *                 + [data-theme=dark][data-skin=greenhouse] dark override
+ *   skin-observatory [data-skin=observatory] — night-room dashboard skin,
+ *                 dark-by-default (no separate light register)
+ *                 + [data-theme=dark][data-skin=observatory] true-night override
+ *
+ * Adapted (NOT copied verbatim) from garden/frontend/src/index.css's layered
+ * architecture (S2 reference → S3 semantic → S4 component → S5 theme →
+ * S7 skin hooks / [data-design=sophia]). Garden is READ-ONLY; this is a
+ * Shrubbery-local, trimmed, recolored re-derivation.
+ *
+ * Skins/themes apply via root attributes on the document element:
+ *   data-theme = light | dark      (orthogonal)
+ *   data-skin  = garden | emporium | 98 | glass | research | greenhouse | observatory (and/or data-design = emporium)
+ *   data-editor-material = paper | classic-word   (absent = continuous; orthogonal)
+ *   data-stance = room | bench | constitution | dispatch (orthogonal)
+ *   data-kind = identity | state | metric | prose | reference | testimony | affordance
+ * The TS map in ../src/index.ts ({skin,theme} → root attributes) is the
+ * canonical applier and ties to the sux ConfigValue.appliesAttribute pattern.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+@import './fonts.css';
+@import './reference.css';
+@import './semantic.css';
+@import './component.css';
+@import './z-layers.css';
+@import './theme-dark.css';
+@import './editor-material.css';
+@import './stance.css';
+@import './kind.css';
+@import './layout-tabs.css';
+@import './skin-garden.css';
+@import './skin-emporium.css';
+@import './skin-98.css';
+@import './skin-glass.css';
+@import './skin-research.css';
+@import './skin-greenhouse.css';
+@import './skin-observatory.css';

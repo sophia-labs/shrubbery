@@ -1,0 +1,91 @@
+# observatory-workspace.ux.nt — the MINIMAL sux:Workspace seed for a graph whose
+# center pane is a layout-document dashboard (first tenant: the `observatory`
+# graph on the cloud-2 canary).
+#
+# APPLIED AT SEED TIME, NOT BUILD TIME: these triples are inserted into the
+# observatory cell's `:ux:config` named graph
+# (`urn:mnemosyne:local:graph:{graph_id}:ux:config`) as a DEPLOY step — e.g. an
+# `rdf_load` with target_graph_iri set to that slot, the same mechanism the
+# garden-default gateway seed uses. The organism build never embeds this file;
+# the hosted shell READS it back through the normal live-read path
+# (loadConfigFromCell -> parseNT -> parseTriplesToConfig -> validateConfig).
+#
+# Shape (proven by apps/organism/src/cell/observatory-workspace-seed.test.ts):
+#   - region-top-bar   chrome root (mn-top-bar) — workspace switcher/auth chrome.
+#   - region-center    THE FRAGMENT MARKER: renderedByComponent
+#                      "sh-layout-dashboard" declares "this region's subtree is
+#                      a graph-authored layout fragment". The Surface path
+#                      SPLICES the fragment's ux:layoutJson LayoutDocument into
+#                      the ONE workspace Surface document (Surface unification,
+#                      docs/design/surface-unification.md); the shell loads and
+#                      persists it (cell/workspace-fragments.ts). This region
+#                      carries NO sux:fragmentSurface, so the shell applies the
+#                      default surface IRI below — deliberate back-compat: this
+#                      exact seed predates the predicate and is live on canary.
+#   - region-right-rail optional stacked chat rail (panel-chat/mn-chat-panel);
+#                      collapsed by default in the shell until panels are opened.
+#   - NO file-tree/sidebar dependency: the observatory graph has no documents to
+#     browse, so no region docks mn-sidebar-panel.
+#
+# The fragment's CONTENT (the ux:layoutJson layout-document literal) lives in
+# the same :ux:config slot under <urn:sophia:ux:surface:observatory-dashboard>
+# and is authored/persisted separately; with no ux:layoutJson present the shell
+# loads the canned observatory v0 fallback for this default surface (only).
+#
+# The same subject may ALSO carry an OPTIONAL sibling ux:vegaTheme literal —
+# a partial Vega-Lite chart-theme override merged over the in-repo default
+# theme (packages/runtime/src/editor-services/vega-theme.ts). No graph needs
+# one: the in-repo default already makes every chart.vega-lite cell in the
+# canned dashboard conform, light and dark, with zero graph authoring. See
+# observatory-vega-theme.README.md (this directory) for the full convention.
+<http://sophia.ai/ux#ObservatoryDefault> <http://sophia.ai/ux#hasPanel> <http://sophia.ai/ux#panel-chat> .
+<http://sophia.ai/ux#ObservatoryDefault> <http://sophia.ai/ux#hasRegion> <http://sophia.ai/ux#region-center> .
+<http://sophia.ai/ux#ObservatoryDefault> <http://sophia.ai/ux#hasRegion> <http://sophia.ai/ux#region-right-rail> .
+<http://sophia.ai/ux#ObservatoryDefault> <http://sophia.ai/ux#hasRegion> <http://sophia.ai/ux#region-top-bar> .
+<http://sophia.ai/ux#ObservatoryDefault> <http://sophia.ai/ux#hasRootEntry> <http://sophia.ai/ux#ObservatoryDefault-root-0> .
+<http://sophia.ai/ux#ObservatoryDefault> <http://sophia.ai/ux#hasRootEntry> <http://sophia.ai/ux#ObservatoryDefault-root-1> .
+<http://sophia.ai/ux#ObservatoryDefault> <http://sophia.ai/ux#localId> "ObservatoryDefault" .
+<http://sophia.ai/ux#ObservatoryDefault> <http://sophia.ai/ux#renderedByComponent> "app-shell" .
+<http://sophia.ai/ux#ObservatoryDefault> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://sophia.ai/ux#Workspace> .
+<http://sophia.ai/ux#ObservatoryDefault> <http://www.w3.org/2000/01/rdf-schema#label> "Observatory Workspace" .
+<http://sophia.ai/ux#ObservatoryDefault-root-0> <http://sophia.ai/ux#atIndex> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<http://sophia.ai/ux#ObservatoryDefault-root-0> <http://sophia.ai/ux#rootRegion> <http://sophia.ai/ux#region-top-bar> .
+<http://sophia.ai/ux#ObservatoryDefault-root-0> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://sophia.ai/ux#RootEntry> .
+<http://sophia.ai/ux#ObservatoryDefault-root-1> <http://sophia.ai/ux#atIndex> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<http://sophia.ai/ux#ObservatoryDefault-root-1> <http://sophia.ai/ux#rootRegion> <http://sophia.ai/ux#region-center> .
+<http://sophia.ai/ux#ObservatoryDefault-root-1> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://sophia.ai/ux#RootEntry> .
+<http://sophia.ai/ux#panel-chat> <http://sophia.ai/ux#defaultVisible> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<http://sophia.ai/ux#panel-chat> <http://sophia.ai/ux#dockState> "stacked" .
+<http://sophia.ai/ux#panel-chat> <http://sophia.ai/ux#localId> "panel-chat" .
+<http://sophia.ai/ux#panel-chat> <http://sophia.ai/ux#renderedByComponent> "mn-chat-panel" .
+<http://sophia.ai/ux#panel-chat> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://sophia.ai/ux#Panel> .
+<http://sophia.ai/ux#panel-chat> <http://www.w3.org/2000/01/rdf-schema#label> "Chat Panel" .
+<http://sophia.ai/ux#region-center> <http://sophia.ai/ux#childRegion> <http://sophia.ai/ux#region-right-rail> .
+<http://sophia.ai/ux#region-center> <http://sophia.ai/ux#collapsible> "false"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<http://sophia.ai/ux#region-center> <http://sophia.ai/ux#localId> "region-center" .
+<http://sophia.ai/ux#region-center> <http://sophia.ai/ux#order> "2"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<http://sophia.ai/ux#region-center> <http://sophia.ai/ux#renderedByComponent> "sh-layout-dashboard" .
+<http://sophia.ai/ux#region-center> <http://sophia.ai/ux#resizable> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<http://sophia.ai/ux#region-center> <http://sophia.ai/ux#sizeFraction> "0.8"^^<http://www.w3.org/2001/XMLSchema#decimal> .
+<http://sophia.ai/ux#region-center> <http://sophia.ai/ux#splitOrientation> "vertical" .
+<http://sophia.ai/ux#region-center> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://sophia.ai/ux#Region> .
+<http://sophia.ai/ux#region-center> <http://www.w3.org/2000/01/rdf-schema#label> "Center (Layout Dashboard)" .
+<http://sophia.ai/ux#region-right-rail> <http://sophia.ai/ux#collapsible> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<http://sophia.ai/ux#region-right-rail> <http://sophia.ai/ux#docksPanel> <http://sophia.ai/ux#panel-chat> .
+<http://sophia.ai/ux#region-right-rail> <http://sophia.ai/ux#dockState> "stacked" .
+<http://sophia.ai/ux#region-right-rail> <http://sophia.ai/ux#localId> "region-right-rail" .
+<http://sophia.ai/ux#region-right-rail> <http://sophia.ai/ux#order> "3"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<http://sophia.ai/ux#region-right-rail> <http://sophia.ai/ux#resizable> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<http://sophia.ai/ux#region-right-rail> <http://sophia.ai/ux#sizeFraction> "0.2"^^<http://www.w3.org/2001/XMLSchema#decimal> .
+<http://sophia.ai/ux#region-right-rail> <http://sophia.ai/ux#splitOrientation> "vertical" .
+<http://sophia.ai/ux#region-right-rail> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://sophia.ai/ux#Region> .
+<http://sophia.ai/ux#region-right-rail> <http://www.w3.org/2000/01/rdf-schema#label> "Right Rail (Chat)" .
+<http://sophia.ai/ux#region-top-bar> <http://sophia.ai/ux#collapsible> "false"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<http://sophia.ai/ux#region-top-bar> <http://sophia.ai/ux#localId> "region-top-bar" .
+<http://sophia.ai/ux#region-top-bar> <http://sophia.ai/ux#order> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<http://sophia.ai/ux#region-top-bar> <http://sophia.ai/ux#renderedByComponent> "mn-top-bar" .
+<http://sophia.ai/ux#region-top-bar> <http://sophia.ai/ux#resizable> "false"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<http://sophia.ai/ux#region-top-bar> <http://sophia.ai/ux#sizeFraction> "0.04"^^<http://www.w3.org/2001/XMLSchema#decimal> .
+<http://sophia.ai/ux#region-top-bar> <http://sophia.ai/ux#splitOrientation> "horizontal" .
+<http://sophia.ai/ux#region-top-bar> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://sophia.ai/ux#Region> .
+<http://sophia.ai/ux#region-top-bar> <http://www.w3.org/2000/01/rdf-schema#label> "Top Bar" .

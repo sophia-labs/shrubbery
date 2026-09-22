@@ -1,0 +1,39 @@
+{
+  "name": "@shrubbery/koch",
+  "version": "0.0.0",
+  "description": "A keyboard-first Koch-method receiving and straight-key sending trainer backed by Garden.",
+  "type": "module",
+  "license": "LicenseRef-PolyForm-Noncommercial-1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:run": "vitest run",
+    "test:watch": "vitest",
+    "test:browser": "node --import tsx e2e/koch-gardend.browser.mts",
+    "seed:export": "node --import tsx scripts/export-seed.mts",
+    "gardend:dev": "tsx scripts/gardend-dev.mts",
+    "gardend:persistent": "node scripts/gardend-persistent.mjs"
+  },
+  "dependencies": {
+    "@shrubbery/components": "workspace:*",
+    "@shrubbery/hoja": "workspace:*",
+    "@shrubbery/nucleus": "workspace:*",
+    "@shrubbery/runtime": "workspace:*",
+    "@shrubbery/source": "workspace:*",
+    "@shrubbery/tokens": "workspace:*",
+    "lit": "^3.1.4"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.4",
+    "happy-dom": "^15.0.0",
+    "playwright": "^1.48.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.4.5",
+    "vite": "^5.4.8",
+    "vitest": "^3.2.6"
+  }
+}

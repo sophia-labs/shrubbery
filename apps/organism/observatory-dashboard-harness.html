@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en" data-skin="garden" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Shrubbery Organism — observatory dashboard v0 (Wave 2 x Lane B) proof</title>
+    <style>
+      /* The harness's own chrome speaks the SAME token language as the
+         product it proves — observatory-dashboard-main.ts imports
+         @shrubbery/tokens/tokens.css before anything renders, so every
+         var(--mn-*) below is live (and follows the QA skin/theme toggle for
+         free). No raw hex in harness chrome. */
+      * { box-sizing: border-box; }
+      html, body { width: 100%; height: 100%; margin: 0; overflow: auto; background: var(--mn-color-surface-canvas); }
+      body {
+        color: var(--mn-color-text-primary);
+        font-family: var(--mn-font-chrome, system-ui, sans-serif);
+      }
+      #observatory-dashboard-stage {
+        position: relative;
+        min-width: 0;
+        min-height: 0;
+      }
+      #observatory-dashboard-root {
+        position: relative;
+      }
+      /* B1 visual-QA toggle only — never a runtime dependency of the proof
+         itself. Pure DOM-attribute flipping; no coordination with
+         observatory-dashboard-main.ts's own applySkinTheme() boot call
+         beyond acting after it. Fixed so it stays reachable at any scroll
+         position/dashboard size. */
+      #b1-skin-toggle {
+        position: fixed;
+        top: var(--mn-space-2, 8px);
+        right: var(--mn-space-2, 8px);
+        z-index: 9999;
+        display: flex;
+        gap: var(--mn-space-1, 4px);
+        flex-wrap: wrap;
+        max-width: 220px;
+        padding: var(--mn-space-1-5, 6px);
+        background: var(--mn-color-surface-elevated);
+        border: 1px solid var(--mn-color-border-default);
+        border-radius: var(--mn-radius-md, 6px);
+        box-shadow: var(--mn-shadow-sm);
+        color: var(--mn-color-text-primary);
+        font-family: var(--mn-font-chrome, system-ui, sans-serif);
+        font-size: var(--mn-text-2xs, 11px);
+      }
+      #b1-skin-toggle button {
+        font: inherit;
+        color: inherit;
+        padding: 3px 7px;
+        border: 1px solid var(--mn-color-border-strong);
+        border-radius: var(--mn-radius-sm, 4px);
+        background: var(--mn-color-surface-base);
+        cursor: pointer;
+      }
+      #b1-skin-toggle button[data-active="true"] {
+        background: var(--mn-color-accent);
+        color: var(--mn-color-text-on-accent);
+        border-color: var(--mn-color-accent);
+      }
+    </style>
+  </head>
+  <body>
+    <main id="observatory-dashboard-stage">
+      <div id="observatory-dashboard-root"></div>
+    </main>
+    <div id="b1-skin-toggle" role="toolbar" aria-label="Visual QA: skin/theme">
+      <span style="width:100%;opacity:0.6;">skin/theme (QA only)</span>
+      <button type="button" data-skin="garden">garden</button>
+      <button type="button" data-skin="emporium">sophia</button>
+      <button type="button" data-skin="98">98</button>
+      <button type="button" data-skin="glass">glass</button>
+      <button type="button" data-skin="research">research</button>
+      <button type="button" data-skin="greenhouse">greenhouse</button>
+      <button type="button" data-skin="observatory">observatory</button>
+      <button type="button" data-theme-toggle="1">☾ dark</button>
+    </div>
+    <script type="module" src="/src/harness/observatory-dashboard-main.ts"></script>
+    <script type="module">
+      // B1 visual-QA only: flips the SAME data-skin/data-theme attributes
+      // applySkinTheme() stamps on <html> — no import, no build coupling.
+      const root = document.documentElement
+      const panel = document.getElementById('b1-skin-toggle')
+      function syncActive() {
+        for (const btn of panel.querySelectorAll('button[data-skin]')) {
+          btn.dataset.active = String(btn.dataset.skin === (root.dataset.skin ?? 'garden'))
+        }
+      }
+      panel.addEventListener('click', (event) => {
+        const target = event.target
+        if (!(target instanceof HTMLButtonElement)) return
+        if (target.dataset.skin) {
+          if (target.dataset.skin === 'garden') delete root.dataset.skin
+          else root.dataset.skin = target.dataset.skin
+        } else if (target.dataset.themeToggle) {
+          root.dataset.theme = root.dataset.theme === 'dark' ? 'light' : 'dark'
+          target.textContent = root.dataset.theme === 'dark' ? '☀ light' : '☾ dark'
+        }
+        syncActive()
+      })
+      syncActive()
+    </script>
+  </body>
+</html>

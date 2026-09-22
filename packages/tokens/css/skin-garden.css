@@ -1,0 +1,49 @@
+/* ═══ SKIN: garden (default) ══════════════════════════════════════════════════
+ * The current fern / Literata / rounded identity. This is the :root default
+ * (semantic.css + component.css already carry the Garden values), so the
+ * sux dim-skin "garden" value applies NO attribute — its appliesAttribute is
+ * "[data-skin] absent (removeAttribute)".
+ *
+ * This block is an EXPLICIT, idempotent restatement of the Garden identity
+ * roles. It exists so that:
+ *   (a) [data-skin=garden] is a real, addressable selector (a host MAY stamp it
+ *       explicitly rather than removing the attribute — both resolve identically);
+ *   (b) the skin axis is symmetric + testable against [data-skin=emporium].
+ *
+ * It re-points only the IDENTITY half (font + accent ramp + radius + density
+ * flags) at the Garden values — never new structure.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+[data-skin="garden"] {
+  /* Typography — Literata serif chrome (the Garden voice). */
+  --mn-font-chrome:  'Literata Variable', 'Literata', Georgia, 'Times New Roman', serif;
+  --mn-font-display: var(--mn-font-chrome);
+
+  /* Accent system — fern. */
+  --mn-color-accent:             var(--mn-ref-fern-600);
+  --mn-color-accent-hover:       var(--mn-ref-fern-700);
+  --mn-color-accent-active:      var(--mn-ref-fern-800);
+  --mn-color-text-accent:        var(--mn-ref-fern-600);
+  --mn-color-text-accent-strong: var(--mn-ref-fern-700);
+  --mn-color-border-accent:      var(--mn-ref-fern-600);
+  --mn-color-border-focus:       var(--mn-ref-fern-600);
+  --mn-color-surface-accent:     var(--mn-ref-fern-50);
+  --mn-focus-ring-color:         var(--mn-ref-fern-600);
+  --mn-color-accent-ch:          79 134 107;  /* fern-500 */
+
+  /* Top bar — fern masthead. */
+  --mn-top-bar-bg:         linear-gradient(102deg, #dcebe2 0%, #e7f0e9 58%, #e2ede6 100%);
+  --mn-top-bar-border:     rgba(43, 88, 70, 0.22);
+  --mn-top-bar-text:       var(--mn-ref-fern-800);
+  --mn-top-bar-text-muted: var(--mn-ref-fern-500);
+
+  /* Geometry — rounded, comfortable. */
+  --mn-radius-control: var(--mn-radius-md);
+  --mn-radius-surface: var(--mn-radius-xl);
+  --mn-row-height:     30px;
+  --mn-control-height: 30px;
+
+  /* Presentation flags — labels visible, grain on, default rules. */
+  --mn-label-display:   inline;
+  --mn-texture-display: block;
+}

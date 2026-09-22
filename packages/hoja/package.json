@@ -1,0 +1,29 @@
+{
+  "name": "@shrubbery/hoja",
+  "version": "0.0.0",
+  "description": "Backend-free, postured text-entry surface over @shrubbery/editor-kernel.",
+  "type": "module",
+  "license": "LicenseRef-PolyForm-Noncommercial-1.0.0",
+  "private": true,
+  "exports": {
+    ".": "./src/index.ts",
+    "./composer-markdown": "./src/composer-markdown.ts"
+  },
+  "scripts": {
+    "build": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:run": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@shrubbery/editor-kernel": "workspace:*",
+    "lit": "^3.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.4",
+    "happy-dom": "^15.0.0",
+    "typescript": "^5.4.5",
+    "vitest": "^4.0.13"
+  }
+}

@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <!--
+      The mirror harness — a bare page whose only job is to let entry.ts
+      register + mount the REAL <mn-vtuber> element and let renderPortrait's
+      headless Chromium screenshot it. Not published, not linked from any
+      other app; mirror.ts is the only thing that ever navigates here.
+    -->
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        background: #0b0d10;
+      }
+    </style>
+  </head>
+  <body>
+    <script type="module" src="./entry.ts"></script>
+  </body>
+</html>

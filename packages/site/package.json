@@ -1,0 +1,28 @@
+{
+  "name": "@shrubbery/site",
+  "version": "0.0.0",
+  "description": "Declarative Shrubbery site/product bundles: routes, faces, appearance and feature posture over a canonical RDF workspace layout.",
+  "type": "module",
+  "license": "LicenseRef-PolyForm-Noncommercial-1.0.0",
+  "private": true,
+  "exports": {
+    ".": "./src/index.ts",
+    "./garden": "./src/garden.ts"
+  },
+  "scripts": {
+    "build": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:run": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@shrubbery/nucleus": "workspace:*",
+    "@shrubbery/tokens": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.4",
+    "typescript": "^5.4.5",
+    "vitest": "^4.0.13"
+  }
+}

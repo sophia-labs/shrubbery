@@ -1,0 +1,35 @@
+{
+  "name": "@shrubbery/emporium",
+  "version": "0.0.0",
+  "description": "The EMPORIUM app — a DEDICATED Vite product shell (the 4th shell after garden desktop / cloud-2 cell SPA / choreograph Studio) for the live vocab-pack catalogue. Defaults to the Emporium skin (purple, Diatype, square, tight). Reuses the shrubbery library + the shell-side live /emporium read (@shrubbery/source's './emporium' subpath — U10 migration). NO backend in the library, NO mocks — reads a REAL gardend cell over the /cell proxy.",
+  "type": "module",
+  "license": "LicenseRef-PolyForm-Noncommercial-1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:run": "vitest run",
+    "test:watch": "vitest",
+    "gardend:dev": "tsx scripts/gardend-dev.mts"
+  },
+  "dependencies": {
+    "@shrubbery/components": "workspace:*",
+    "@shrubbery/nucleus": "workspace:*",
+    "@shrubbery/render": "workspace:*",
+    "@shrubbery/runtime": "workspace:*",
+    "@shrubbery/source": "workspace:*",
+    "@shrubbery/tokens": "workspace:*",
+    "lit": "^3.1.4"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.4",
+    "happy-dom": "^15.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.4.5",
+    "vite": "^5.4.8",
+    "vitest": "^3.2.6"
+  }
+}

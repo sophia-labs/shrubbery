@@ -1,0 +1,28 @@
+{
+  "name": "shrubbery",
+  "version": "0.0.0",
+  "license": "LicenseRef-PolyForm-Noncommercial-1.0.0",
+  "private": true,
+  "description": "Pure RDF->UI core extracted from Garden's frontend",
+  "type": "module",
+  "scripts": {
+    "build": "pnpm -r build",
+    "concordance:status": "node scripts/validate-concordance-campaign.mjs --write",
+    "test": "pnpm -r test:run",
+    "test:run": "pnpm -r test:run",
+    "test:source": "pnpm -r exec vitest run --exclude '**/*.browser.test.ts' --exclude '**/*.integration.test.ts' --exclude '**/*.probe.test.ts' --passWithNoTests",
+    "test:browser-suites": "pnpm -r exec vitest run browser.test.ts --passWithNoTests",
+    "test:all": "pnpm -r --no-bail run test:run",
+    "lint": "biome lint .",
+    "guard:no-mocks": "node scripts/validate-no-mocks.mjs"
+  },
+  "packageManager": "pnpm@9.0.0",
+  "pnpm": {
+    "onlyBuiltDependencies": ["esbuild"]
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.4",
+    "@types/http-proxy": "1.17.17",
+    "http-proxy": "1.18.1"
+  }
+}

@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Shrubbery Organism — deterministic browser harness</title>
+    <style>
+      * { box-sizing: border-box; }
+      html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; }
+      body {
+        background: var(--mn-color-surface-base, #fff);
+        color: var(--mn-color-text-primary, #1f2933);
+        font-family: var(--mn-font-sans, system-ui, sans-serif);
+      }
+      #harness-root,
+      #harness-root > .app-container {
+        width: 100%;
+        height: 100%;
+        min-width: 0;
+        min-height: 0;
+      }
+      #harness-root > .app-container {
+        display: flex;
+        flex-direction: column;
+      }
+      #harness-root .main {
+        position: relative;
+        display: flex;
+        flex: 1 1 auto;
+        min-width: 0;
+        min-height: 0;
+        overflow: hidden;
+      }
+      #harness-root sl-split-panel {
+        display: flex;
+        flex: 1 1 auto;
+        min-width: 0;
+        min-height: 0;
+        overflow: hidden;
+      }
+      #harness-root sl-split-panel > .split-pane[slot="start"] {
+        flex: 0 0 22%;
+      }
+      #harness-root sl-split-panel.right-split > .split-pane[slot="start"] {
+        flex-basis: 68%;
+      }
+      #harness-root .split-pane {
+        position: relative;
+        display: flex;
+        min-width: 0;
+        min-height: 0;
+        overflow: hidden;
+        border-right: 1px solid var(--mn-color-border-subtle, #e5e7eb);
+      }
+      #harness-root .split-pane > * {
+        flex: 1 1 auto;
+        min-width: 0;
+        min-height: 0;
+      }
+      #harness-root .right-panel {
+        display: flex;
+        width: 100%;
+        height: 100%;
+        flex: 1 1 0;
+        min-width: 0;
+        min-height: 0;
+        overflow: hidden;
+        border-bottom: 1px solid var(--mn-color-border-subtle, #e5e7eb);
+      }
+      #harness-root .right-panel-body,
+      #harness-root .right-panel-chat-slot {
+        display: flex;
+        flex: 1 1 auto;
+        min-width: 0;
+        min-height: 0;
+        overflow: hidden;
+      }
+      #harness-root .right-panel-body[hidden],
+      #harness-root .right-panel-chat-slot[hidden] { display: none; }
+      [data-harness-status] {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      #harness-failure {
+        position: fixed;
+        inset: 1rem;
+        z-index: 100000;
+        display: none;
+        overflow: auto;
+        padding: 1rem;
+        border: 2px solid #b42318;
+        background: #fff5f5;
+        color: #8a1c15;
+        white-space: pre-wrap;
+      }
+      #harness-failure[data-visible] { display: block; }
+    </style>
+  </head>
+  <body>
+    <main id="harness-root" aria-label="Shrubbery Organism browser harness"></main>
+    <pre id="harness-failure" role="alert"></pre>
+    <script type="module" src="/src/harness/main.ts"></script>
+  </body>
+</html>

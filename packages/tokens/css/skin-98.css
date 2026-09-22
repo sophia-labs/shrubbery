@@ -1,0 +1,312 @@
+/* ═══ SKIN: 98 ════════════════════════════════════════════════════════
+ * A first-class visual identity on the same axis as Garden and Sophia.
+ *
+ * The light composition uses the classic desktop palette: teal room,
+ * silver window faces, navy active captions, white document wells, square
+ * controls, and explicit raised/sunken bevels. The orthogonal dark theme becomes
+ * a period-appropriate High Contrast Black composition rather than a modern
+ * charcoal reskin. Structure remains in Shrubbery components; this file supplies
+ * the semantic roles and the bevel vocabulary those components consume.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+[data-skin="98"] {
+  color-scheme: light;
+
+  /* Deterministic offline approximation of the compact system UI voice. */
+  --mn-font-chrome:  'Public Sans Variable', 'Public Sans', Arial, sans-serif;
+  --mn-font-display: var(--mn-font-chrome);
+  --mn-font-utility: var(--mn-font-chrome);
+  --mn-tracking-label: 0;
+
+  /* The classic system-color vocabulary. Components use the shadow composites;
+     keeping the five colors named makes dark/high-contrast composition exact. */
+  --mn-98-desktop:   #008080;
+  --mn-98-face:      #c0c0c0;
+  --mn-98-highlight: #ffffff;
+  --mn-98-light:     #dfdfdf;
+  --mn-98-shadow:    #808080;
+  --mn-98-dark:      #000000;
+  --mn-98-caption:   #000080;
+  --mn-98-caption-end: #1084d0;
+  --mn-98-selection: #000080;
+  --mn-98-settings-bg: var(--mn-98-face);
+  --mn-98-raised:
+    inset 1px 1px 0 var(--mn-98-highlight),
+    inset 2px 2px 0 var(--mn-98-light),
+    inset -1px -1px 0 var(--mn-98-dark),
+    inset -2px -2px 0 var(--mn-98-shadow);
+  --mn-98-sunken:
+    inset 1px 1px 0 var(--mn-98-dark),
+    inset 2px 2px 0 var(--mn-98-shadow),
+    inset -1px -1px 0 var(--mn-98-highlight),
+    inset -2px -2px 0 var(--mn-98-light);
+
+  /* Surfaces: the canvas is the desktop; the base is a window face. */
+  --mn-color-surface-canvas:   var(--mn-98-desktop);
+  --mn-color-surface-base:     var(--mn-98-face);
+  --mn-color-surface-editor:   #ffffff;
+  --mn-color-surface-panel:    var(--mn-98-face);
+  --mn-color-surface-chrome:   var(--mn-98-face);
+  --mn-color-surface-raised:   var(--mn-98-face);
+  --mn-color-surface-elevated: var(--mn-98-face);
+  --mn-color-surface-overlay:  var(--mn-98-face);
+  --mn-color-surface-subtle:   #d4d0c8;
+  --mn-color-surface-warm:     #ffffe1;
+  --mn-color-surface-sunken:   #ffffff;
+  --mn-color-surface-hover:    #d4d0c8;
+  --mn-color-surface-active:   #a0a0a0;
+  --mn-color-surface-accent:   #d4d0c8;
+  --mn-color-surface-accent-subtle: rgba(0, 0, 128, 0.10);
+  --mn-color-surface-accent-strong: #d4d0c8;
+  --mn-color-backdrop: rgba(0, 0, 0, 0.46);
+  --mn-atmosphere: none;
+
+  /* Ink and selection. Muted roles stay AA on the silver face. */
+  --mn-color-text-primary:       #000000;
+  --mn-color-text-secondary:     #202020;
+  --mn-color-text-tertiary:      #383838;
+  --mn-color-text-muted:         #444444;
+  --mn-color-text-inverse:       #ffffff;
+  --mn-color-text-title:         #000000;
+  --mn-color-text-quiet:         #383838;
+  --mn-color-text-link:          #000080;
+  --mn-color-text-link-hover:    #0000c0;
+  --mn-color-text-accent:        #000080;
+  --mn-color-text-accent-strong: #000080;
+  --mn-color-text-on-accent:     #ffffff;
+
+  --mn-color-border-subtle:  #a0a0a0;
+  --mn-color-border-default: var(--mn-98-shadow);
+  --mn-color-border-strong:  var(--mn-98-dark);
+  --mn-color-border-accent:  var(--mn-98-selection);
+  --mn-color-border-focus:   var(--mn-98-dark);
+  --mn-color-rule:           #808080;
+  --mn-color-rule-strong:    #000000;
+  --mn-color-accent:         var(--mn-98-selection);
+  --mn-color-accent-hover:   #0000a0;
+  --mn-color-accent-active:  #000060;
+  --mn-color-accent-ch:      0 0 128;
+  --mn-color-interactive-hover:    rgba(0, 0, 128, 0.08);
+  --mn-color-interactive-active:   rgba(0, 0, 128, 0.16);
+  --mn-color-interactive-selected: rgba(0, 0, 128, 0.14);
+
+  --mn-focus-ring-color: #000000;
+  --mn-focus-ring: 0 0 0 1px #000000, 0 0 0 2px #ffffff;
+
+  /* Period-colored status roles without sacrificing readable text. */
+  --mn-color-success:         #008000;
+  --mn-color-success-strong:  #006000;
+  --mn-color-success-surface: #d8ecd8;
+  --mn-color-success-border:  #008000;
+  --mn-color-warning:         #806000;
+  --mn-color-warning-strong:  #604000;
+  --mn-color-warning-surface: #fff4c0;
+  --mn-color-warning-border:  #806000;
+  --mn-color-danger:          #800000;
+  --mn-color-danger-strong:   #600000;
+  --mn-color-danger-surface:  #f0d0d0;
+  --mn-color-danger-border:   #800000;
+  --mn-color-info:            #000080;
+  --mn-color-info-strong:     #000060;
+  --mn-color-info-surface:    #d0d0f0;
+  --mn-color-info-border:     #000080;
+
+  /* The masthead acts as the active caption; the footer is a status bar. */
+  --mn-top-bar-bg: linear-gradient(90deg, var(--mn-98-caption), var(--mn-98-caption-end));
+  --mn-top-bar-border: var(--mn-98-dark);
+  --mn-top-bar-text: #ffffff;
+  --mn-top-bar-text-muted: #ffffff;
+  --mn-bottom-bar-bg: var(--mn-98-face);
+  --mn-bottom-bar-border: var(--mn-98-highlight);
+  --mn-bottom-bar-text: #000000;
+  --mn-bottom-bar-text-muted: #202020;
+
+  --mn-radius-control: var(--mn-radius-none);
+  --mn-radius-surface: var(--mn-radius-none);
+  --mn-row-height: 26px;
+  --mn-control-height: 26px;
+  --mn-label-display: inline;
+  --mn-texture-display: none;
+  --mn-rule-hair:  1px solid var(--mn-98-shadow);
+  --mn-rule-line:  1px solid var(--mn-98-dark);
+  --mn-rule-frame: 2px solid var(--mn-98-dark);
+  --mn-chrome-rule: var(--mn-rule-frame);
+
+  --mn-shadow-xs: var(--mn-98-raised);
+  --mn-shadow-sm: var(--mn-98-raised);
+  --mn-shadow-md: var(--mn-98-raised), 2px 2px 0 rgba(0, 0, 0, 0.52);
+  --mn-shadow-lg: var(--mn-98-raised), 3px 3px 0 rgba(0, 0, 0, 0.58);
+  --mn-shadow-xl: var(--mn-98-raised), 4px 4px 0 rgba(0, 0, 0, 0.62);
+  --mn-shadow-chrome: none;
+  --mn-shadow-card: var(--mn-98-raised);
+  --mn-shadow-raised: var(--mn-98-raised);
+  --mn-shadow-popover: var(--mn-98-raised), 2px 2px 0 rgba(0, 0, 0, 0.55);
+  --mn-shadow-modal: var(--mn-98-raised), 4px 4px 0 rgba(0, 0, 0, 0.62);
+  --mn-shadow-primary: var(--mn-98-raised);
+  --mn-shadow-composer: var(--mn-98-sunken);
+  --mn-shadow-composer-focus: var(--mn-98-sunken), var(--mn-focus-ring);
+
+  /* Shared structural roles keep small controls, panes, and chat coherent. */
+  --mn-window-backdrop-filter: none;
+  --mn-control-background: var(--mn-98-face);
+  --mn-control-background-hover: var(--mn-98-face);
+  --mn-control-background-active: var(--mn-98-face);
+  --mn-control-border: 1px solid var(--mn-98-dark);
+  --mn-control-shadow: var(--mn-98-raised);
+  --mn-control-shadow-active: var(--mn-98-sunken);
+  --mn-scrollbar-track: var(--mn-98-face);
+  --mn-scrollbar-thumb: var(--mn-98-face);
+  --mn-scrollbar-thumb-solid: var(--mn-98-shadow);
+  --mn-chat-superbar-bg: linear-gradient(90deg, var(--mn-98-caption), var(--mn-98-caption-end));
+  --mn-chat-superbar-text: #ffffff;
+  --mn-chat-superbar-text-muted: #ffffff;
+  --mn-chat-header-bg: var(--mn-98-face);
+  --mn-chat-transcript-bg: #ffffff;
+  --mn-chat-assistant-bg: #ffffff;
+  --mn-chat-user-bg: var(--mn-98-selection);
+  --mn-chat-control-bg: var(--mn-98-face);
+  --mn-chat-control-border: 1px solid var(--mn-98-dark);
+  --mn-chat-control-shadow: var(--mn-98-raised);
+
+  /* 98 interaction is immediate rather than eased/floaty. */
+  --mn-transition-fast: 0ms linear;
+  --mn-transition-normal: 0ms linear;
+  --mn-transition-slow: 0ms linear;
+
+  /* Physical editor modes keep white paper but inherit the navy system ink. */
+  --mn-editor-paper-accent:       #000080;
+  --mn-editor-paper-accent-hover: #0000a0;
+  --mn-editor-paper-accent-soft:  #e8e8f8;
+  --mn-editor-paper-accent-ch:    0 0 128;
+
+  font-family: var(--mn-font-chrome);
+  letter-spacing: 0;
+  scrollbar-color: var(--mn-scrollbar-thumb-solid) var(--mn-scrollbar-track);
+}
+
+/* 98's dark composition follows the historical High Contrast Black
+   model: black work wells, dark window faces, white type, and the same blue
+   selection/caption identity. */
+[data-theme="dark"][data-skin="98"] {
+  color-scheme: dark;
+
+  --mn-98-desktop:   #000000;
+  --mn-98-face:      #202020;
+  --mn-98-highlight: #ffffff;
+  --mn-98-light:     #c0c0c0;
+  --mn-98-shadow:    #606060;
+  --mn-98-dark:      #000000;
+  --mn-98-caption:   #000080;
+  --mn-98-caption-end: #004a80;
+  --mn-98-settings-bg: #000000;
+
+  --mn-color-surface-canvas:   #000000;
+  --mn-color-surface-base:     #202020;
+  --mn-color-surface-editor:   #080808;
+  --mn-color-surface-panel:    #202020;
+  --mn-color-surface-chrome:   #202020;
+  --mn-color-surface-raised:   #282828;
+  --mn-color-surface-elevated: #282828;
+  --mn-color-surface-overlay:  #282828;
+  --mn-color-surface-subtle:   #303030;
+  --mn-color-surface-warm:     #303000;
+  --mn-color-surface-sunken:   #000000;
+  --mn-color-surface-hover:    #383838;
+  --mn-color-surface-active:   #505050;
+  --mn-color-surface-accent:   #000080;
+  --mn-color-surface-accent-subtle: rgba(0, 128, 255, 0.15);
+  --mn-color-surface-accent-strong: #000080;
+  --mn-color-backdrop: rgba(0, 0, 0, 0.78);
+  --mn-atmosphere: none;
+
+  --mn-color-text-primary:       #ffffff;
+  --mn-color-text-secondary:     #f0f0f0;
+  --mn-color-text-tertiary:      #e0e0e0;
+  --mn-color-text-muted:         #d8d8d8;
+  --mn-color-text-inverse:       #000000;
+  --mn-color-text-title:         #ffffff;
+  --mn-color-text-quiet:         #d8d8d8;
+  --mn-color-text-link:          #7fc9ff;
+  --mn-color-text-link-hover:    #bfe4ff;
+  --mn-color-text-accent:        #7fc9ff;
+  --mn-color-text-accent-strong: #bfe4ff;
+  --mn-color-text-on-accent:     #ffffff;
+
+  --mn-color-border-subtle: #606060;
+  --mn-color-border-default: #808080;
+  --mn-color-border-strong: #ffffff;
+  --mn-color-border-accent: #7fc9ff;
+  --mn-color-border-focus: #ffffff;
+  --mn-color-rule: #808080;
+  --mn-color-rule-strong: #ffffff;
+  --mn-color-accent: #000080;
+  --mn-color-accent-hover: #0000a0;
+  --mn-color-accent-active: #000060;
+  --mn-color-interactive-hover: rgba(255, 255, 255, 0.12);
+  --mn-color-interactive-active: rgba(255, 255, 255, 0.20);
+  --mn-color-interactive-selected: rgba(0, 128, 255, 0.25);
+  --mn-focus-ring-color: #ffffff;
+  --mn-focus-ring: 0 0 0 1px #ffffff, 0 0 0 2px #000000;
+
+  --mn-color-success: #00ff00;
+  --mn-color-success-strong: #80ff80;
+  --mn-color-success-surface: #003000;
+  --mn-color-success-border: #00ff00;
+  --mn-color-warning: #ffff00;
+  --mn-color-warning-strong: #ffff80;
+  --mn-color-warning-surface: #303000;
+  --mn-color-warning-border: #ffff00;
+  --mn-color-danger: #ff8080;
+  --mn-color-danger-strong: #ffc0c0;
+  --mn-color-danger-surface: #300000;
+  --mn-color-danger-border: #ff8080;
+  --mn-color-info: #7fc9ff;
+  --mn-color-info-strong: #bfe4ff;
+  --mn-color-info-surface: #001830;
+  --mn-color-info-border: #7fc9ff;
+
+  --mn-top-bar-bg: linear-gradient(90deg, var(--mn-98-caption), var(--mn-98-caption-end));
+  --mn-top-bar-border: #000000;
+  --mn-top-bar-text: #ffffff;
+  --mn-top-bar-text-muted: #ffffff;
+  --mn-bottom-bar-bg: var(--mn-98-face);
+  --mn-bottom-bar-border: var(--mn-98-highlight);
+  --mn-bottom-bar-text: #ffffff;
+  --mn-bottom-bar-text-muted: #f0f0f0;
+
+  --mn-chat-transcript-bg: #080808;
+  --mn-chat-assistant-bg: #202020;
+  --mn-chat-user-bg: var(--mn-98-selection);
+}
+
+[data-skin="98"] :where(button, input, textarea, select, dialog) {
+  font-family: var(--mn-font-utility);
+}
+
+[data-skin="98"] :where(input, textarea, select) {
+  border: var(--mn-control-border);
+  border-radius: 0;
+  background: var(--mn-color-surface-sunken);
+  color: var(--mn-color-text-primary);
+  box-shadow: var(--mn-98-sunken);
+}
+
+[data-skin="98"] ::-webkit-scrollbar {
+  width: 16px;
+  height: 16px;
+}
+
+[data-skin="98"] ::-webkit-scrollbar-track,
+[data-skin="98"] ::-webkit-scrollbar-thumb {
+  border-radius: 0;
+  background: var(--mn-98-face);
+}
+
+[data-skin="98"] ::-webkit-scrollbar-track {
+  box-shadow: var(--mn-98-sunken);
+}
+
+[data-skin="98"] ::-webkit-scrollbar-thumb {
+  border: 1px solid var(--mn-98-dark);
+  box-shadow: var(--mn-98-raised);
+}

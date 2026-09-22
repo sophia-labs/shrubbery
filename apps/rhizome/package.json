@@ -1,0 +1,35 @@
+{
+  "name": "@shrubbery/rhizome",
+  "version": "0.0.0",
+  "description": "RHIZOME — the read-only memory observatory. Renders a gardend cell's :projection:memory named graph (subject-beds, lineage, supersession, the ?asof temporal lens) as curl-able resources via @shrubbery/render's mem-plot / mem-subject faces. App/tooling level — the SPARQL /mcp wire + the cell reads live here, behind the pure render package.",
+  "type": "module",
+  "license": "LicenseRef-PolyForm-Noncommercial-1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "vite build",
+    "typecheck": "tsc --noEmit",
+    "serve": "tsx src/server.ts",
+    "dev": "vite",
+    "preview": "vite preview",
+    "smoke": "vitest run src/__tests__/render-smoke.test.ts",
+    "test": "vitest run",
+    "test:run": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@shrubbery/components": "workspace:*",
+    "@shrubbery/nucleus": "workspace:*",
+    "@shrubbery/render": "workspace:*",
+    "@shrubbery/runtime": "workspace:*",
+    "@shrubbery/tokens": "workspace:*",
+    "happy-dom": "^15.0.0",
+    "lit": "^3.1.4",
+    "vite": "^5.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.4",
+    "tsx": "^4.19.0",
+    "typescript": "^5.4.5",
+    "vitest": "^3.2.6"
+  }
+}

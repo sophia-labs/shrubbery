@@ -1,0 +1,79 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.5.4/schema.json",
+  "vcs": { "enabled": false },
+  "files": {
+    // Lint source, not generated/vendored output or prose. `**` overrides
+    // Biome's built-in ignores, so node_modules must be re-excluded explicitly.
+    "includes": [
+      "**",
+      "!**/node_modules",
+      "!**/dist",
+      "!**/build",
+      "!**/coverage",
+      "!**/storybook-static",
+      "!**/conneg-static",
+      "!**/docs",
+      "!**/*.md",
+      "!**/*.html",
+      "!pnpm-lock.yaml",
+      // Mithras Flow playground build, S2: a verbatim vendor of another
+      // team's app (apps/flow/vendor/flow/VENDOR.md) — their .tsx source,
+      // their conventions, not ours to reformat or hold to this repo's
+      // rules. 48 errors / 36 warnings here at vendor time (a11y button
+      // types, array-index keys, exhaustive-deps, etc.) are THEIRS, not a
+      // regression introduced by hosting them — confirmed none of it
+      // reaches apps/flow/src/** (this app's OWN code, still linted
+      // normally) or packages/runtime/src/layout/hosts/** (S1, also still
+      // linted normally).
+      "!apps/flow/vendor/**"
+    ]
+  },
+  "json": {
+    "parser": {
+      "allowComments": true
+    }
+  },
+  "formatter": {
+    // Formatter stays OFF for now. Repo-wide formatting lands as its own
+    // dedicated commit so the diff is reviewable in isolation — do NOT let
+    // this run reformat the tree.
+    "enabled": false
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "recommended": true,
+      "style": {
+        // Non-null assertions are deliberate here: in strict-mode TS they mark
+        // invariants the checker can't see (post-`await clip.updateComplete`
+        // shadow-DOM queries, RDF walks with structural guarantees, etc.).
+        // 2000+ intentional uses across the tree — pure noise, so it is off.
+        "noNonNullAssertion": "off"
+      },
+      // The rules below are KEPT ENABLED but demoted to warnings. Each fires
+      // only on idioms that are correct in this codebase, not on real defects
+      // (verified case by case): `[^]` = "any char incl. newlines" (NOT an
+      // empty class), `while ((m = re.exec()))` in the RDF/turtle parsers,
+      // control-char stripping in the document importers, forEach side effects
+      // in the three.js/graph renderers and browser harnesses, sparse-array
+      // test fixtures, and a module-local `valueOf` helper. Demoting (not
+      // disabling) keeps them visible in review and lets the gate go green
+      // without rewriting ~30 files that are outside this change's scope.
+      // Promote any back to "error" once its call sites are cleaned up.
+      "suspicious": {
+        "noAssignInExpressions": "warn",
+        "useIterableCallbackReturn": "warn",
+        "noControlCharactersInRegex": "warn",
+        "noSparseArray": "warn",
+        "noImplicitAnyLet": "warn",
+        "noShadowRestrictedNames": "warn",
+        "noExportsInTest": "warn"
+      },
+      "correctness": {
+        "noUnsafeOptionalChaining": "warn",
+        "noSwitchDeclarations": "warn",
+        "noEmptyCharacterClassInRegex": "warn"
+      }
+    }
+  }
+}

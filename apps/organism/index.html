@@ -1,0 +1,973 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content"
+    />
+    <title>Shrubbery Organism — live RDF → UI playground</title>
+    <link rel="icon" type="image/png" href="/sophialabslogo.png" />
+    <style>
+      /* ── The REAL design tokens now come from @shrubbery/tokens (imported in
+         main.ts as tokens.css): the layered reference → semantic → component →
+         theme → skin system. The old cosmetic stub :root block was removed; the
+         chrome components resolve their --mn-* vars from the real token layers,
+         and the skin/theme toggles re-stamp [data-skin]/[data-theme] on <html>
+         via @shrubbery/tokens applySkinTheme(). ── */
+      * { box-sizing: border-box; }
+      html, body { margin: 0; height: 100%; }
+      body {
+        font-family: var(--mn-font-sans);
+        color: var(--mn-color-text-primary);
+        background: #f6f7f9;
+        display: grid;
+        /* Clean single-column app is the DEFAULT; the debug rail adds a second
+           track only when opted in (see below). */
+        grid-template-columns: 1fr;
+        height: 100vh;
+        overflow: hidden;
+      }
+      /* The debug scaffolding (source/skin/cell controls, the 420px left rail,
+         the label-strip) is OPT-IN via `?debug=1`: main.ts stamps
+         [data-organism-debug] on <body> only when that flag is present (and only
+         in playground mode, where those controls mean anything). HIDDEN is the
+         DEFAULT — including the pre-module state before any attribute is stamped —
+         so the rail never flashes on a normal load; it only APPEARS when asked
+         for. (Previously keyed on data-organism-mode="playground", which showed
+         the rail on every local-dev load.) */
+      body[data-organism-debug] {
+        grid-template-columns: 420px 1fr;
+      }
+      body:not([data-organism-debug]) .editor-pane,
+      body:not([data-organism-debug]) .label-strip {
+        display: none;
+      }
+      body:not([data-organism-debug]) .shell-pane,
+      body:not([data-organism-debug]) #host {
+        height: 100vh;
+      }
+      /* Cross-document View Transitions — the workspace ↔ settings/chat/
+         legal/auth/ops-health/choreograph boundary is NOT an in-SPA route
+         swap. It is a real, same-origin, full-page browser navigation:
+         `window.location.assign`/`.replace` in main.ts's `mn-settings-toggle`
+         handler, `onAuthSuccess`, and `bootOrganismAppRoute`'s `onClose`
+         (the old document is torn down and this file is re-fetched and
+         re-booted for the new route). The browser's default for that is a
+         blank white gap between the two paints. `navigation: auto` opts
+         every load of this file — the sole SPA entry behind all of those
+         routes — into the UA's default cross-fade on BOTH ends of the
+         exchange; a transition only activates when both the outgoing and
+         incoming document declare it, so a fresh cold load (arriving from
+         some other origin/page) is unaffected and falls through to today's
+         plain navigation exactly as before. Pure progressive enhancement:
+         unsupporting browsers ignore the unknown at-rule and see today's
+         behavior unchanged. Deliberately blanket, not scoped per-route or
+         named — there is no cross-origin hop in this flow to exclude (auth
+         talks to Cognito over fetch, not a hosted-UI redirect; `window.open`
+         popouts are a separate top-level browsing context, not a navigation
+         of this document) and named/typed transitions per route pair are an
+         enhancement, not what the reported bug needs. The FOUC fix directly
+         above (debug scaffolding hidden by default pre-module) already
+         guarantees the incoming document's first frame — the one the
+         transition snapshots — is the clean production layout, not the dev
+         rail. */
+      @view-transition {
+        navigation: auto;
+      }
+      /* Respect reduced motion: keep the navigation swap (still no white
+         flash) but drop the animated cross-fade itself so reduced-motion
+         users get an instant replacement instead of a moving transition.
+         This is the standard UA-pseudo-element guard (targets the same
+         ::view-transition-* tree same-document transitions use) — it is
+         inert, not invalid, in browsers without view-transition support. */
+      @media (prefers-reduced-motion: reduce) {
+        ::view-transition-group(*),
+        ::view-transition-old(*),
+        ::view-transition-new(*) {
+          animation: none !important;
+        }
+      }
+      #host .organism-route-auth,
+      #host .organism-route-chat,
+      #host .organism-route-chat-debug,
+      #host .organism-route-legal,
+      #host .organism-route-landing,
+      #host .organism-route-home,
+      #host .organism-route-frame,
+      #host .route-main {
+        width: 100%;
+        height: 100%;
+        min-height: 0;
+      }
+      #host .organism-route-auth,
+      #host .organism-route-chat,
+      #host .organism-route-chat-debug {
+        display: flex;
+      }
+      #host .organism-route-legal {
+        display: flex;
+        background: #f7f5f0;
+      }
+      #host .legal-frame {
+        width: 100%;
+        height: 100%;
+        border: 0;
+        display: block;
+        background: #f7f5f0;
+      }
+      #host .organism-route-chat-debug {
+        overflow: hidden;
+        background: #0b1021;
+        color: #e6e9f2;
+        font-family: var(--mn-font-sans);
+      }
+      #host .chat-debug-page {
+        width: min(1400px, 100%);
+        min-height: 100%;
+        margin: 0 auto;
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      #host .chat-debug-header {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        flex: 0 0 auto;
+      }
+      #host .chat-debug-title {
+        font-size: var(--mn-type-heading-size, 20px);
+        font-weight: 600;
+        letter-spacing: 0;
+        color: #e6e9f2;
+      }
+      #host .chat-debug-hint {
+        color: var(--mn-color-text-secondary);
+        font-size: var(--mn-text-xs, 12px);
+        line-height: 1.4;
+      }
+      #host .chat-debug-panel {
+        flex: 1 1 auto;
+        min-height: 0;
+        display: flex;
+        border: 1px solid var(--mn-color-border-default);
+        border-radius: 10px;
+        overflow: hidden;
+      }
+      #host .chat-debug-panel > sh-chat-host {
+        flex: 1 1 auto;
+        min-height: 0;
+      }
+      #host .organism-route-landing {
+        overflow: auto;
+        background: var(--mn-color-surface-base);
+      }
+      #host .organism-route-home {
+        overflow: auto;
+        background: var(--mn-color-surface-canvas, #f5f3ed);
+      }
+      #host .garden-home-route-mount {
+        min-height: 100%;
+      }
+      /* Settings is an in-place history route once a workspace/Home screen is
+         mounted. Keep that screen alive underneath a calm opaque layer: there
+         is no document reboot and therefore no generic boot-placeholder flash. */
+      .organism-settings-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 1000;
+        display: flex;
+        width: 100%;
+        height: 100%;
+        min-width: 0;
+        min-height: 0;
+        overflow: hidden;
+        background: var(--mn-color-surface-canvas, #f5f3ed);
+        animation: organism-settings-enter 140ms cubic-bezier(0.2, 0.75, 0.25, 1) both;
+      }
+      .organism-settings-overlay > .organism-route-frame {
+        flex: 1;
+        min-width: 0;
+        min-height: 0;
+      }
+      .organism-settings-overlay .app-container {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        min-height: 0;
+      }
+      .organism-settings-overlay .main {
+        position: relative;
+        flex: 1;
+        display: flex;
+        min-height: 0;
+        overflow: hidden;
+      }
+      .organism-settings-overlay .route-main {
+        width: 100%;
+        height: 100%;
+        min-height: 0;
+      }
+      @keyframes organism-settings-enter {
+        from { opacity: 0; transform: translateY(3px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .organism-settings-overlay { animation: none; }
+      }
+
+      /* ── Left: the editor / control panel ── */
+      .editor-pane {
+        display: flex;
+        flex-direction: column;
+        border-right: 1px solid #d1d5db;
+        background: #fff;
+        min-height: 0;
+      }
+      .editor-pane header {
+        padding: 12px 16px;
+        border-bottom: 1px solid #e5e7eb;
+      }
+      .editor-pane h1 {
+        font-size: 15px;
+        margin: 0 0 2px;
+        font-family: var(--mn-font-serif);
+      }
+      .editor-pane p { font-size: 12px; color: #6b7280; margin: 0; }
+      .controls {
+        display: flex;
+        gap: 8px;
+        padding: 8px 16px;
+        border-bottom: 1px solid #e5e7eb;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+      .controls label { font-size: 12px; color: #374151; }
+      .controls select, .controls button, .controls input[type="text"] {
+        font: inherit;
+        font-size: 12px;
+        padding: 4px 8px;
+        border: 1px solid #d1d5db;
+        border-radius: 4px;
+        background: #fff;
+        cursor: pointer;
+      }
+      .controls input[type="text"] { cursor: text; width: 130px; }
+      .cell-controls { background: #fafafa; }
+      #seed-editor {
+        flex: 1;
+        width: 100%;
+        border: none;
+        resize: none;
+        padding: 12px 16px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 11px;
+        line-height: 1.5;
+        outline: none;
+        color: #1f2937;
+        min-height: 0;
+      }
+      #status {
+        padding: 8px 16px;
+        font-size: 12px;
+        border-top: 1px solid #e5e7eb;
+        font-family: ui-monospace, monospace;
+        white-space: pre-wrap;
+        max-height: 120px;
+        overflow: auto;
+      }
+      #status.ok { color: #15803d; background: #f0fdf4; }
+      #status.err { color: #b91c1c; background: #fef2f2; }
+
+      /* ── Right: the live workspace shell ── */
+      .shell-pane {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+        min-height: 0;
+        background: #fff;
+      }
+      .shell-pane .label-strip {
+        padding: 6px 16px;
+        font-size: 11px;
+        color: #6b7280;
+        background: #f9fafb;
+        border-bottom: 1px solid #e5e7eb;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+      #host {
+        flex: 1;
+        min-height: 0;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+      }
+
+      /* A calm branded placeholder, painted into #host in the STATIC HTML — so
+         it's visible before the module boots (no blank/flash while JS loads).
+         The render host drives Lit's render() into #host on first paint, which
+         REPLACES this node — so it needs no teardown, and simply lingers if boot
+         is slow. Colors use --mn-* with literal fallbacks because the token CSS
+         is imported by the module and isn't present pre-module. */
+      #host .boot-placeholder {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 14px;
+        color: var(--mn-color-text-muted, #6b7280);
+        background: #fff;
+      }
+      #host .boot-placeholder__logo {
+        animation: boot-fade 1.6s ease-in-out infinite;
+      }
+      #host .boot-placeholder__label {
+        font-size: 13px;
+        letter-spacing: 0.02em;
+      }
+      @keyframes boot-fade {
+        0%, 100% { opacity: 0.4; transform: scale(0.97); }
+        50% { opacity: 0.95; transform: scale(1); }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        #host .boot-placeholder__logo { animation: none; opacity: 0.85; }
+      }
+
+      /* The honest first-load error panel (default-workspace-ui.ts): outside
+         ?debug=1 the #status strip is hidden, so a failed first read paints
+         this into #host instead of a blank page. Tokens with literal fallbacks,
+         like the boot placeholder — it can appear before/without a workspace. */
+      #host .cell-error-panel {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        padding: 24px;
+        text-align: center;
+        color: var(--mn-color-text-primary, #111827);
+        background: var(--mn-color-surface-base, #fff);
+      }
+      #host .cell-error-panel__title {
+        font-size: 15px;
+        font-weight: 600;
+      }
+      #host .cell-error-panel__message {
+        max-width: min(640px, 90%);
+        max-height: 40vh;
+        overflow: auto;
+        margin: 0;
+        padding: 12px 16px;
+        text-align: left;
+        white-space: pre-wrap;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 12px;
+        line-height: 1.5;
+        color: var(--mn-color-text-danger, #b91c1c);
+        background: var(--mn-color-surface-sunken, #fef2f2);
+        border: 1px solid var(--mn-color-border-default, #fecaca);
+        border-radius: 8px;
+      }
+      #host .cell-error-panel__retry {
+        font: inherit;
+        font-size: 13px;
+        padding: 6px 16px;
+        border: 1px solid var(--mn-color-border-default, #d1d5db);
+        border-radius: 6px;
+        background: var(--mn-color-surface-raised, #fff);
+        color: var(--mn-color-text-primary, #111827);
+        cursor: pointer;
+      }
+      #host .cell-error-panel__retry:hover {
+        background: var(--mn-color-surface-hover, #f3f4f6);
+      }
+
+      /* ── The render host's own structural CSS (the host emits class names but
+         ships no styles — a shell owns the frame layout). ── */
+      #host .app-container {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        min-height: 0;
+      }
+      #host .main {
+        /* LOAD-BEARING: position:relative makes .main the containing block for
+           the floating <sh-editor-host>. The host is position:absolute and
+           computeHostVars writes --editor-x/y as offsets RELATIVE TO .main
+           (anchor.left - main.left). Without a positioned .main, the host
+           resolves against the viewport and floats to the top-left of the
+           screen — the live editor's toolbar orphaned at the top, the center
+           pane empty. R-FIXED-CB: the host never self-establishes a containing
+           block; the shell owns .main's layout, so the shell must position it. */
+        position: relative;
+        flex: 1;
+        display: flex;
+        min-height: 0;
+        overflow: hidden;
+      }
+      #host sl-split-panel {
+        /* Shoelace owns this host as a three-track grid. Overriding it with
+           flex lets its position property change while the physical panes stay
+           fixed, because the component writes grid-template-columns. */
+        display: grid;
+        flex: 1;
+        min-width: 0;
+        height: 100%;
+        --divider-width: 1px;
+        --divider-hit-area: 12px;
+      }
+      #host sl-split-panel.right-split { /* nested */ }
+      #host sl-split-panel::part(divider) {
+        background: var(--mn-color-border-default, #d1d5db);
+        transition: background var(--mn-transition-fast, 120ms ease);
+      }
+      #host sl-split-panel::part(divider):hover {
+        background: var(--mn-color-accent-hover, #60a5fa);
+      }
+      #host sl-split-panel > [slot] {
+        height: 100%;
+        overflow: hidden;
+      }
+      #host .split-pane {
+        /* Pane children own their scrolling. Scrolling this structural wrapper
+           would move the editor anchor without resizing it and desynchronize
+           the persistent floating editor host. */
+        overflow: hidden;
+        border: 0;
+        min-width: 0;
+        flex: 1;
+        height: 100%;
+        position: relative;
+      }
+      #host .panel {
+        flex: 1;
+        min-height: 0;
+        height: 100%;
+        box-sizing: border-box;
+        overflow: hidden;
+        position: relative;
+      }
+      /* LOAD-BEARING: the center slot's anchor (#mn-main-editor, renderCenterSlotAnchor
+         in mount.ts) is an EMPTY <div> — sh-editor-host floats OVER it via computeHostVars
+         reading its getBoundingClientRect(), never renders anything inside it. An empty,
+         non-flex div has zero natural content height, so without an explicit height the
+         anchor measures 0px tall, sh-editor-host's :host box (height: var(--editor-h))
+         collapses to 0px too, and .editor-mount's explicit overflow:auto zeroes its flex
+         automatic-minimum-size — the live editor's real content lays out fine (scrollHeight
+         stays honest) but is clipped to a 0px-tall viewport, invisible. mn-editor-toolbar
+         escapes the same fate only because it never set its own overflow, so flexbox's
+         automatic-minimum-size lets it paint at its content height regardless. height:100%
+         here (against .split-pane's real flex-stretched height) is the fix. */
+      #host .panel.center {
+        height: 100%;
+      }
+      /* A daily-note header is an in-flow sibling of the otherwise-empty
+         editor anchor. Give the frame a definite height and let the anchor
+         flex into the remainder instead of resolving to zero. */
+      #host .daily-note-editor-frame {
+        display: flex;
+        flex-direction: column;
+        width: 100%;
+        height: 100%;
+        min-height: 0;
+        overflow: hidden;
+      }
+      #host .daily-note-editor-frame > mn-daily-note-header {
+        flex: 0 0 auto;
+      }
+      #host .daily-note-editor-frame > .panel.center {
+        flex: 1 1 auto;
+        height: auto;
+        min-height: 0;
+      }
+      /* Garden's discrete panel-mode controls live at the pane edges. */
+      #host .panel-edge-btn,
+      #host .panel-edge-btns {
+        position: absolute;
+        top: 50%;
+        transform: translateY(-50%);
+        z-index: 10;
+        opacity: 0;
+        transition: opacity 150ms ease;
+      }
+      #host .split-pane:hover > .panel-edge-btn,
+      #host .split-pane:hover > .panel-edge-btns,
+      #host .split-pane:focus-within > .panel-edge-btn,
+      #host .split-pane:focus-within > .panel-edge-btns {
+        opacity: 1;
+      }
+      #host .panel-edge-btns {
+        right: 0;
+        display: flex;
+        flex-direction: column;
+      }
+      #host .panel-edge-btn {
+        left: 0;
+        width: 16px;
+        height: 40px;
+      }
+      #host .panel-edge-btns button {
+        width: 16px;
+        height: 28px;
+      }
+      #host .panel-edge-btn,
+      #host .panel-edge-btns button {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0;
+        border: 1px solid var(--mn-color-border-default, #d1d5db);
+        background: var(--mn-color-panel-bg, #fff);
+        color: var(--mn-color-text-muted, #6b7280);
+        cursor: pointer;
+        font: inherit;
+      }
+      #host .panel-edge-btns button:first-child {
+        border-bottom: 0;
+        border-radius: 4px 0 0 0;
+      }
+      #host .panel-edge-btns button:last-child {
+        border-radius: 0 0 0 4px;
+      }
+      #host .panel-edge-btn {
+        border-left: 0;
+        border-radius: 0 4px 4px 0;
+      }
+      #host .panel-edge-btn:hover,
+      #host .panel-edge-btn:focus-visible,
+      #host .panel-edge-btns button:hover,
+      #host .panel-edge-btns button:focus-visible {
+        color: var(--mn-color-text-accent, #2563eb);
+        background: var(--mn-color-surface-accent, #eff6ff);
+        outline: none;
+      }
+      #host .collapse-rail {
+        flex: 0 0 20px;
+        width: 20px;
+        height: 100%;
+        border: 0;
+        border-right: 1px solid var(--mn-color-border-default, #d1d5db);
+        background: var(--mn-color-panel-bg, #fff);
+        color: var(--mn-color-text-muted, #6b7280);
+        cursor: pointer;
+      }
+      #host .collapse-rail.right-rail {
+        border-right: 0;
+        border-left: 1px solid var(--mn-color-border-default, #d1d5db);
+      }
+      #host .collapse-rail:hover,
+      #host .collapse-rail:focus-visible {
+        background: var(--mn-color-surface-hover, #f3f4f6);
+        color: var(--mn-color-text-accent, #2563eb);
+        outline: none;
+      }
+      #host .right-panel {
+        display: flex;
+        width: 100%;
+        height: 100%;
+        flex: 1 1 0;
+        min-height: 0;
+        overflow: auto;
+        border-bottom: 1px solid #e5e7eb;
+      }
+      #host .right-panel-body,
+      #host .right-panel-chat-slot {
+        display: flex;
+        flex: 1 1 auto;
+        min-width: 0;
+        min-height: 0;
+        overflow: hidden;
+      }
+      #host .right-panel-body[hidden],
+      #host .right-panel-chat-slot[hidden] { display: none; }
+      #host .right-panel:last-child {
+        border-bottom: 0;
+      }
+      /* ── Surface: one recursive LayoutDocument owns the whole main pane. ── */
+      #host sh-workspace-surface {
+        display: block;
+        position: relative;
+        flex: 1 1 auto;
+        width: 100%;
+        height: 100%;
+        min-width: 0;
+        min-height: 0;
+        overflow: hidden;
+        background: var(--mn-color-surface-base, #f8f6f0);
+      }
+      #host sh-workspace-surface .surface-leaf {
+        box-sizing: border-box;
+        min-width: 0;
+        min-height: 0;
+        overflow: hidden;
+        background: var(--mn-color-surface-editor, #fffdf8);
+      }
+      #host sh-workspace-surface .surface-leaf > :is(
+        mn-sidebar-panel,
+        mn-home-view,
+        mn-tag-view,
+        mn-zotero-source-workbench,
+        mn-artifact-view,
+        mn-artifact-editor,
+        wf-studio-shell,
+        sh-chat-host,
+        sh-wires-panel
+      ) {
+        display: block;
+        width: 100%;
+        height: 100%;
+        min-width: 0;
+        min-height: 0;
+      }
+      #host sh-workspace-surface .right-panel {
+        box-sizing: border-box;
+        width: 100%;
+        height: 100%;
+        min-width: 0;
+        min-height: 0;
+        overflow: auto;
+      }
+      #host sh-workspace-surface [data-layout-divider] > span {
+        transition: width 100ms ease, height 100ms ease, background-color 100ms ease;
+      }
+      #host sh-workspace-surface [data-layout-divider]:hover > span,
+      #host sh-workspace-surface [data-layout-divider]:focus-visible > span {
+        background: var(--mn-color-accent, #4d8768) !important;
+      }
+      #host sh-workspace-surface [data-layout-divider]:focus-visible {
+        outline: 2px solid var(--mn-color-border-focus, #4d8768);
+      }
+      #host .surface-pane-header {
+        display: flex;
+        align-items: center;
+        gap: 2px;
+        box-sizing: border-box;
+        width: 100%;
+        height: 100%;
+        min-width: 0;
+        padding: 0 7px;
+        border-bottom: 1px solid var(--mn-color-border-subtle, #ddd8ce);
+        background: var(--mn-color-surface-chrome, rgba(248, 246, 240, 0.96));
+        font: 500 12px/1 var(--mn-font-ui, system-ui, sans-serif);
+      }
+      #host [data-surface-part='pane-header'][data-active='true'] .surface-pane-header {
+        background: var(--mn-color-surface-raised, #fffdf8);
+      }
+      #host .surface-pane-header .pane-position {
+        flex: none;
+        width: 6px;
+        height: 6px;
+        margin-inline: 2px 5px;
+        border-radius: 999px;
+        background: var(--mn-color-border-strong, #a49e92);
+      }
+      #host [data-surface-part='pane-header'][data-active='true'] .pane-position {
+        background: var(--mn-color-accent, #4d8768);
+        box-shadow: 0 0 0 3px color-mix(in srgb, var(--mn-color-accent, #4d8768) 15%, transparent);
+      }
+      #host .surface-pane-header button {
+        box-sizing: border-box;
+        border: 0;
+        color: inherit;
+        background: transparent;
+        font: inherit;
+      }
+      #host .surface-pane-header .pane-command,
+      #host .surface-pane-header .split-command {
+        display: inline-grid;
+        place-items: center;
+        min-width: 27px;
+        height: 27px;
+        padding: 0 6px;
+        border-radius: 5px;
+        color: var(--mn-color-text-secondary, #627068);
+        cursor: pointer;
+      }
+      #host .surface-pane-header .pane-command:hover:not(:disabled),
+      #host .surface-pane-header .split-command:hover:not(:disabled) {
+        color: var(--mn-color-text-primary, #28332d);
+        background: var(--mn-color-surface-hover, rgba(65, 91, 75, 0.08));
+      }
+      #host .surface-pane-header :is(.pane-command, .split-command):focus-visible,
+      #host .surface-pane-stage .empty-open:focus-visible {
+        outline: 2px solid var(--mn-color-border-focus, #4d8768);
+        outline-offset: -1px;
+      }
+      #host .surface-pane-header :is(.pane-command, .split-command):disabled {
+        opacity: 0.34;
+        cursor: not-allowed;
+      }
+      #host .surface-pane-header .pane-title {
+        min-width: 0;
+        margin-inline: 2px auto;
+        overflow: hidden;
+        color: var(--mn-color-text-secondary, #536159);
+        text-align: left;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        cursor: pointer;
+      }
+      #host .surface-pane-header .split-command {
+        min-width: auto;
+        padding-inline: 8px;
+        border: 1px solid var(--mn-color-border-subtle, #d9d4c9);
+        font-size: 11px;
+      }
+      #host .surface-pane-stage {
+        position: absolute;
+        inset: 0;
+        min-width: 0;
+        min-height: 0;
+        overflow: hidden;
+      }
+      #host .surface-pane-empty {
+        position: absolute;
+        inset: 0;
+        z-index: 2;
+        display: grid;
+        place-content: center;
+        justify-items: center;
+        gap: 10px;
+        padding: 24px;
+        color: var(--mn-color-text-secondary, #65716a);
+        background:
+          radial-gradient(circle at 50% 42%, color-mix(in srgb, var(--mn-color-accent, #4d8768) 8%, transparent), transparent 42%),
+          var(--mn-color-surface-editor, #fffdf8);
+        font: 13px/1.45 var(--mn-font-ui, system-ui, sans-serif);
+        text-align: center;
+      }
+      #host .surface-pane-stage .empty-open {
+        min-height: 32px;
+        padding: 0 12px;
+        border: 1px solid var(--mn-color-border-default, #c8c2b7);
+        border-radius: 6px;
+        color: var(--mn-color-accent-strong, #2f684b);
+        background: var(--mn-color-surface-raised, #fff);
+        cursor: pointer;
+      }
+      :root[data-skin='98'] #host .surface-pane-header {
+        border-bottom-color: #808080;
+        background: #c0c0c0;
+        font-family: Tahoma, sans-serif;
+      }
+      /* Inert placeholder panels: show the tag name so it reads as "not yet
+         lifted", never faked content. Defined chrome (mn-top-bar/mn-bottom-bar)
+         upgrade and override this. */
+      #host .split-pane > *:not(:defined),
+      #host .split-pane :not(:defined) {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 100%;
+        color: #9ca3af;
+        font-size: 12px;
+        font-family: ui-monospace, monospace;
+      }
+      #host .split-pane > *:not(:defined)::before {
+        content: "⟨ " attr(data-placeholder-for) " — inert placeholder ⟩";
+      }
+
+      /* ── Emporium vocab-catalogue / pack-detail views (the DOM face) ──
+         The shell owns the layout frame; the cards/chips/badges inside are the
+         GENERALIZED @shrubbery/components primitives (skin-aware, token-driven).
+         This is structural CSS only — colors come from the primitives' tokens. */
+      #host .vocab-catalogue,
+      #host .vocab-pack {
+        padding: 16px;
+        overflow: auto;
+        height: 100%;
+      }
+      #host .vocab-catalogue__intro,
+      #host .vocab-pack__desc {
+        font-size: 13px;
+        color: var(--mn-color-text-secondary, #4b5563);
+        margin: 0 0 12px;
+      }
+      #host .vocab-catalogue__grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 12px;
+      }
+      #host .vocab-card__header,
+      #host .vocab-pack__title,
+      #host .vocab-class__header {
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      #host .vocab-card__name,
+      #host .vocab-pack__name,
+      #host .vocab-class__name {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-weight: 600;
+      }
+      #host .vocab-card__title,
+      #host .vocab-pack__subtitle {
+        font-size: 12px;
+        color: var(--mn-color-text-muted, #6b7280);
+      }
+      #host .vocab-card__chips,
+      #host .vocab-pack__chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        align-items: center;
+      }
+      #host .vocab-card__chips mn-chip[tone="neutral"],
+      #host .vocab-pack__chips mn-chip[tone="neutral"] {
+        max-width: 100%;
+        overflow: hidden;
+      }
+      #host .vocab-pack__nav { margin-bottom: 12px; }
+      #host .vocab-pack__head { margin-bottom: 16px; }
+      #host .vocab-pack__classes {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      #host .vocab-pack__ns,
+      #host .vocab-class__preds {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 10px;
+        font-size: 12px;
+      }
+      #host .vocab-pack__ns th,
+      #host .vocab-class__preds th {
+        text-align: left;
+        font-weight: 600;
+        color: var(--mn-color-text-muted, #6b7280);
+        padding: 4px 8px 4px 0;
+        border-bottom: 1px solid var(--mn-color-border-subtle, #e5e7eb);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        font-size: 10px;
+      }
+      #host .vocab-pack__ns td,
+      #host .vocab-class__preds td {
+        padding: 4px 8px 4px 0;
+        vertical-align: top;
+        border-bottom: 1px solid var(--mn-color-border-subtle, #f1f3f5);
+      }
+      #host .vocab-pack__ns-uri,
+      #host .vocab-class__dt {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 11px;
+        color: var(--mn-color-text-secondary, #4b5563);
+        word-break: break-all;
+      }
+      #host .vocab-class__flags {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+      #host .vocab-empty {
+        color: var(--mn-color-text-muted, #9ca3af);
+        font-size: 13px;
+        font-style: italic;
+      }
+    </style>
+  </head>
+  <body>
+    <section class="editor-pane">
+      <header>
+        <h1>🌳 Shrubbery Organism</h1>
+        <p>Edit the RDF seed (N-Triples) below — it re-parses + re-renders live. No backend, no mock.</p>
+      </header>
+      <div class="controls">
+        <label>source:
+          <select id="source-select">
+            <option value="GARDEN_DEFAULT">GARDEN_DEFAULT</option>
+            <option value="GARDEN_VARIANT">GARDEN_VARIANT</option>
+            <option value="SEED_NT">seed .nt (parsed)</option>
+            <option value="CELL_LIVE">gardend cell (live)</option>
+            <option value="EMPORIUM_LIVE">Emporium catalogue (live)</option>
+          </select>
+        </label>
+        <!-- The `app` dimension debug-select was retired (bundle audit finding
+             13, 2026-07-31): it hardcoded a 'garden'/'choreograph' pair, the
+             exact anti-pattern Slice 10 eliminated from the real switcher
+             (`deriveAppTabs(config)` — no hardcoded tab list). The real,
+             config-derived `mn-top-bar` app-switcher renders live inside #host
+             for every source mode (including this debug harness) and is the
+             one control for the `app` dimension now — see `currentApp`'s doc
+             comment in main.ts. -->
+        <button id="reparse-btn">re-parse + render</button>
+      </div>
+      <!-- Skin / theme controls — drive @shrubbery/tokens applySkinTheme() which
+           stamps [data-skin]/[data-theme] on <html> (the sux appliesAttribute
+           hooks). The chrome re-skins live with no re-render. -->
+      <div class="controls">
+        <label>skin:
+          <select id="skin-select">
+            <option value="garden">garden (fern)</option>
+            <option value="emporium">emporium (purple)</option>
+            <option value="98">98 (classic desktop)</option>
+            <option value="glass">glass (luminous desktop)</option>
+          </select>
+        </label>
+        <label>theme:
+          <select id="theme-select">
+            <option value="light">light</option>
+            <option value="dark">dark</option>
+          </select>
+        </label>
+      </div>
+      <!-- Live-cell controls (shown only when source = gardend cell (live)) -->
+      <div class="controls cell-controls" id="cell-controls" hidden>
+        <label>graph_id:
+          <input id="cell-graph-id" type="text" value="organism-dev" spellcheck="false" />
+        </label>
+        <label>doc_id (blank = first doc):
+          <input id="cell-doc-id" type="text" value="" spellcheck="false" placeholder="(open a document → live editor)" />
+        </label>
+        <button id="cell-refresh-btn">refresh from cell</button>
+        <button id="cell-open-doc-btn">open document (live editor)</button>
+        <label><input id="cell-poll" type="checkbox" checked /> live config · 3s</label>
+      </div>
+      <!-- Emporium catalogue controls (shown only when source = Emporium (live)) -->
+      <div class="controls cell-controls" id="emporium-controls" hidden>
+        <button id="emporium-refresh-btn">refresh /emporium</button>
+        <button id="emporium-back-btn" hidden>← back to catalogue</button>
+      </div>
+      <textarea id="seed-editor" spellcheck="false" placeholder="N-Triples seed…"></textarea>
+      <div id="status">booting…</div>
+    </section>
+
+    <section class="shell-pane">
+      <div class="label-strip">Live workspace shell — render host (@shrubbery/runtime) + chrome (@shrubbery/components)</div>
+      <!-- Bundle audit findings 2/3 (2026-07-31): `render-workspace.ts` deliberately
+           owns no banner/overlay stack of its own (see its doc comment) — a mirror
+           fence and a reapply run both originate from the ORDINARY per-graph
+           workspace `#host` renders into, which until now had no mount for either.
+           These two slots are the shell-owned layer `main.ts` fills via the SAME
+           `lifetimeBannerTemplate`/`reapplyOverlayTemplate` `app-routes.ts` uses for
+           its own frames (one contract, shared). Plain flow siblings of `#host` in
+           this flex column: `#host` alone keeps `flex: 1`, so the banner slot only
+           takes space when it actually renders something, and `#host`'s own
+           sidebar/center/right-panel leaves never reflow relative to each other —
+           only the outer available height adjusts, same as any chrome toggle. The
+           overlay slot's content is `position: fixed`, so its placement here is
+           inert either way. -->
+      <div id="workspace-lifetime-banner-slot"></div>
+      <div id="host">
+        <!-- Pre-module boot placeholder — replaced by the render host on first
+             paint (Lit render() into #host). See .boot-placeholder above. -->
+        <div class="boot-placeholder" aria-hidden="true">
+          <img class="boot-placeholder__logo" src="/sophialabslogo.png" alt="" width="44" height="44" />
+          <div class="boot-placeholder__label">Loading your workspace…</div>
+        </div>
+      </div>
+      <div id="workspace-reapply-overlay-slot"></div>
+    </section>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

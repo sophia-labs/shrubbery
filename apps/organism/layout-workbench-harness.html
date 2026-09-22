@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en" data-skin="garden" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Shrubbery Organism — layout vehicle (documents + artifacts) proof</title>
+    <style>
+      * { box-sizing: border-box; }
+      html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: #eeece6; }
+      body {
+        display: grid;
+        grid-template-rows: auto 1fr;
+        color: #27332c;
+        font-family: system-ui, sans-serif;
+      }
+      #layout-workbench-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        padding: 8px 12px;
+        border-bottom: 1px solid #cbc6bb;
+        background: #f6f3ec;
+      }
+      #layout-workbench-actions button {
+        min-height: 28px;
+        padding: 0 10px;
+        border: 1px solid #bdb7aa;
+        border-radius: 6px;
+        background: #fffdf8;
+        color: #35644c;
+        font: 12px/1 system-ui, sans-serif;
+        cursor: pointer;
+      }
+      #layout-workbench-stage {
+        position: relative;
+        overflow: auto;
+        min-width: 0;
+        min-height: 0;
+      }
+      #layout-workbench-root {
+        position: relative;
+      }
+      #layout-workbench-overlay {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+      }
+      #layout-workbench-overlay > * {
+        pointer-events: auto;
+      }
+    </style>
+  </head>
+  <body>
+    <header id="layout-workbench-actions" aria-label="Layout vehicle proof actions"></header>
+    <main id="layout-workbench-stage">
+      <div id="layout-workbench-root"></div>
+      <div id="layout-workbench-overlay"></div>
+    </main>
+    <script type="module" src="/src/harness/layout-workbench-main.ts"></script>
+  </body>
+</html>

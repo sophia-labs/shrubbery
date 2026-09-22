@@ -1,0 +1,53 @@
+/* ═══ COMPONENT TIER (Tier 2) ════════════════════════════════════════════════
+ * Registered Tier-2 families consumed by the Shrubbery chrome components
+ * (mn-top-bar / mn-bottom-bar). Defaults reference Tier-1 roles or the Garden
+ * fern ramp. A skin remaps these (see skin-emporium.css) without the components
+ * changing. Component A must never consume Component B's tokens.
+ *
+ * These names match the CSS custom properties the chrome components already read
+ * (verified against packages/components/src/mn-{top,bottom}-bar.ts).
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+:root {
+  /* ── Top bar / masthead ───────────────────────────────────────────────── */
+  --mn-top-bar-height:     40px;
+  /* Garden default masthead = fern 100/200/800/500 (a skin remaps these). */
+  --mn-top-bar-bg:         linear-gradient(102deg, #dcebe2 0%, #e7f0e9 58%, #e2ede6 100%);
+  --mn-top-bar-border:     rgba(43, 88, 70, 0.22);
+  --mn-top-bar-text:       var(--mn-ref-fern-800);
+  --mn-top-bar-text-muted: var(--mn-ref-fern-500);
+
+  /* ── Bottom bar ───────────────────────────────────────────────────────── */
+  --mn-bottom-bar-height:     30px;
+  --mn-bottom-bar-bg:         #eeeae2;
+  --mn-bottom-bar-border:     rgba(64, 61, 56, 0.16);
+  --mn-bottom-bar-text:       var(--mn-color-text-secondary);
+  --mn-bottom-bar-text-muted: var(--mn-color-text-tertiary);
+
+  /* ── Panel widths (consumed by the bottom-bar grid) ───────────────────── */
+  --mn-left-panel-width:  240px;
+  --mn-right-panel-width: 320px;
+
+  /* ── Layout tab strip (the `tabs` layout node) ────────────────────────── */
+  /* Consumed ONLY by layout-tabs.css. Defaults reference Tier-1 roles, so the
+   * strip inherits whatever skin is active and a skin can remap the strip
+   * alone — the same contract the bars above have. Kept as its own family
+   * rather than reading bar tokens directly: a tab strip is not a masthead,
+   * and Component A must never consume Component B's tokens. */
+  --mn-layout-tab-strip-height:   32px;
+  --mn-layout-tab-strip-bg:       var(--mn-color-surface-chrome);
+  --mn-layout-tab-strip-border:   var(--mn-color-border-default);
+  --mn-layout-tab-gap:            var(--mn-space-1);
+  --mn-layout-tab-padding:        var(--mn-space-1) var(--mn-space-3);
+  --mn-layout-tab-radius:         var(--mn-radius-control);
+  --mn-layout-tab-font:           var(--mn-font-chrome);
+  --mn-layout-tab-text:           var(--mn-color-text-secondary);
+  --mn-layout-tab-text-hover:     var(--mn-color-text-primary);
+  --mn-layout-tab-bg-hover:       var(--mn-color-surface-raised);
+  /* Selected tab: the accent channel, which every skin already defines — this
+   * is what makes the strip read as instrument chrome under `observatory`
+   * without the rules knowing anything about that skin. */
+  --mn-layout-tab-text-selected:  var(--mn-color-text-accent);
+  --mn-layout-tab-bg-selected:    var(--mn-color-surface-accent);
+  --mn-layout-tab-marker:         var(--mn-color-border-accent);
+}

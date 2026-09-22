@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Shrubbery VTuber Demo</title>
+    <script type="module" src="./main.ts"></script>
+  </head>
+  <body>
+    <main class="demo-shell">
+      <section class="stage-panel">
+        <mn-vtuber id="avatar" label="Shrubbery VTuber demo" camera-frame="bust"></mn-vtuber>
+      </section>
+
+      <aside class="controls" aria-label="VTuber controls">
+        <label>
+          Model URL
+          <input id="model-url" value="" placeholder="URL of a .vrm model (or a /@fs/<abs-path> handle)" />
+        </label>
+        <label>
+          Expression
+          <select id="expression">
+            <option value="focused">focused</option>
+            <option value="neutral">neutral</option>
+            <option value="excited">excited</option>
+            <option value="strained">strained</option>
+          </select>
+        </label>
+        <label>
+          Camera
+          <select id="camera-frame">
+            <option value="bust">bust</option>
+            <option value="portrait">portrait</option>
+            <option value="full">full</option>
+          </select>
+        </label>
+        <label>
+          Mouth
+          <input id="mouth" type="range" min="0" max="1" step="0.01" value="0.35" />
+        </label>
+        <label>
+          Look X
+          <input id="look-x" type="range" min="-1" max="1" step="0.01" value="0.16" />
+        </label>
+        <label>
+          Look Y
+          <input id="look-y" type="range" min="-1" max="1" step="0.01" value="0.04" />
+        </label>
+        <label>
+          Scale
+          <input id="scale" type="range" min="0.5" max="1.6" step="0.01" value="1" />
+        </label>
+        <label>
+          Gesture
+          <select id="gesture">
+            <option value="none">none</option>
+            <option value="dance" selected>dance</option>
+            <option value="hello">hello</option>
+            <option value="nod">nod</option>
+            <option value="nope">nope</option>
+            <option value="bow">bow</option>
+            <option value="surprise">surprise</option>
+            <option value="lookAround">look around</option>
+          </select>
+        </label>
+        <div class="control-grid">
+          <label>
+            Head yaw
+            <input id="head-yaw" type="range" min="-35" max="35" step="1" value="0" />
+          </label>
+          <label>
+            Head pitch
+            <input id="head-pitch" type="range" min="-24" max="24" step="1" value="0" />
+          </label>
+          <label>
+            Head roll
+            <input id="head-roll" type="range" min="-18" max="18" step="1" value="0" />
+          </label>
+          <label>
+            Body yaw
+            <input id="body-yaw" type="range" min="-35" max="35" step="1" value="0" />
+          </label>
+          <label>
+            Body lean
+            <input id="body-lean" type="range" min="-1" max="1" step="0.01" value="0" />
+          </label>
+          <label>
+            Chest pitch
+            <input id="chest-pitch" type="range" min="-18" max="18" step="1" value="0" />
+          </label>
+          <label>
+            Talk
+            <input id="talk" type="range" min="0" max="1" step="0.01" value="0.18" />
+          </label>
+          <label>
+            Smile
+            <input id="smile" type="range" min="0" max="1" step="0.01" value="0.28" />
+          </label>
+          <label>
+            Strain
+            <input id="strain" type="range" min="0" max="1" step="0.01" value="0" />
+          </label>
+          <label>
+            Left arm
+            <input id="left-arm" type="range" min="0" max="1" step="0.01" value="0" />
+          </label>
+          <label>
+            Right arm
+            <input id="right-arm" type="range" min="0" max="1" step="0.01" value="0" />
+          </label>
+          <label>
+            Elbows
+            <input id="arm-bend" type="range" min="0" max="1" step="0.01" value="0" />
+          </label>
+        </div>
+        <label class="row">
+          <input id="animated" type="checkbox" checked />
+          animate
+        </label>
+        <label class="row">
+          <input id="dark" type="checkbox" />
+          dark theme
+        </label>
+        <label>
+          Control overlay triples
+          <textarea id="control-triples" spellcheck="false"></textarea>
+        </label>
+        <button id="write-triples" type="button">Write triples</button>
+        <button id="apply-triples" type="button">Apply triples</button>
+        <button id="clear-model" type="button">Use fallback</button>
+        <pre id="status" aria-live="polite"></pre>
+      </aside>
+    </main>
+  </body>
+</html>

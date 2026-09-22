@@ -1,0 +1,30 @@
+{
+  "name": "@shrubbery/render",
+  "version": "0.0.0",
+  "description": "Pure render-target core — turtle / compacted-JSON-LD / beautiful-markdown faces of a Shrubbery resource. Lit-free; depends only on @shrubbery/nucleus + jsonld.",
+  "type": "module",
+  "license": "LicenseRef-PolyForm-Noncommercial-1.0.0",
+  "private": true,
+  "exports": {
+    ".": "./src/index.ts",
+    "./context": "./src/context.ts"
+  },
+  "scripts": {
+    "build": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:run": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@shrubbery/nucleus": "workspace:*",
+    "jsonld": "^9.0.0"
+  },
+  "devDependencies": {
+    "@types/jsonld": "^1.5.15",
+    "@types/node": "^22.7.4",
+    "happy-dom": "^15.0.0",
+    "typescript": "^5.4.5",
+    "vitest": "^4.0.13"
+  }
+}

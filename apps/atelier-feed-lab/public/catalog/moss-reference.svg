@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#e7d9b6"/><stop offset="1" stop-color="#a7bd73"/></linearGradient>
+    <linearGradient id="hair" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#9f4f3d"/><stop offset="1" stop-color="#5c302d"/></linearGradient>
+  </defs>
+  <rect width="1024" height="1024" fill="url(#bg)"/>
+  <circle cx="142" cy="170" r="115" fill="#f08a68" opacity=".7"/>
+  <path d="M0 820 320 610l182 163 215-216 307 242v225H0Z" fill="#354934" opacity=".3"/>
+  <path d="M205 103h614v818H205z" fill="none" stroke="#243126" stroke-width="8" opacity=".5"/>
+  <path d="M309 936c17-181 75-265 203-265s194 84 219 265" fill="#476342"/>
+  <path d="M355 733c26 42 55 70 84 83l73-71 74 71c34-16 60-44 81-84-32-35-80-56-146-61-68 0-123 21-166 62Z" fill="#f1ead7"/>
+  <path d="M408 721 512 832l105-113 69 216H337Z" fill="#56774e"/>
+  <path d="m484 802 28 30 29-31-8 135h-45Z" fill="#d1da9e"/>
+  <path d="M347 393c0-163 65-253 178-253 120 0 188 90 188 254v184c-29 102-95 160-197 160-104 0-169-58-195-160Z" fill="url(#hair)"/>
+  <path d="m358 407-79-97 107 25M698 407l77-97-104 26" fill="#7b3f35" stroke="#4b2c2a" stroke-width="18" stroke-linejoin="round"/>
+  <ellipse cx="516" cy="449" rx="143" ry="178" fill="#f2c8aa"/>
+  <path d="M381 394c18-154 100-194 165-189 84 6 137 58 153 177-77-5-138-35-182-88-30 54-76 88-136 100Z" fill="url(#hair)"/>
+  <path d="M557 207c-22 36-34 89-36 160 23-13 47-22 72-26 5-54 18-92 39-116-22-11-47-17-75-18Z" fill="#9bcba4"/>
+  <path d="M403 443q46-36 88 0M550 443q45-36 87 0" fill="none" stroke="#51352f" stroke-width="13" stroke-linecap="round"/>
+  <ellipse cx="449" cy="471" rx="28" ry="38" fill="#bf9e3e"/><ellipse cx="593" cy="471" rx="28" ry="38" fill="#bf9e3e"/>
+  <circle cx="451" cy="474" r="13" fill="#2b3024"/><circle cx="595" cy="474" r="13" fill="#2b3024"/>
+  <circle cx="460" cy="462" r="6" fill="#fff7dd"/><circle cx="604" cy="462" r="6" fill="#fff7dd"/>
+  <path d="M507 481q-11 41 15 51" fill="none" stroke="#c18470" stroke-width="8" stroke-linecap="round"/>
+  <path d="M459 571q59 57 119-4" fill="#9d4f50" stroke="#69373b" stroke-width="7" stroke-linecap="round"/>
+  <path d="M476 581q42 24 80-2" fill="none" stroke="#f2a6a3" stroke-width="9" stroke-linecap="round"/>
+  <circle cx="396" cy="540" r="25" fill="#ee8d82" opacity=".42"/><circle cx="646" cy="540" r="25" fill="#ee8d82" opacity=".42"/>
+  <path d="M387 631q130 117 263-3" fill="none" stroke="#d9ad90" stroke-width="9" opacity=".65"/>
+  <text x="73" y="944" fill="#243126" font-family="Georgia,serif" font-size="37" font-style="italic">Moss / canonical reference 01</text>
+</svg>

@@ -1,0 +1,343 @@
+/* ═══ SKIN: Glass ════════════════════════════════════════════════════════════
+ * A luminous desktop identity built from original CSS: translucent sky-blue
+ * surfaces, polished highlights, frosted depth, and teal light. The skin stays
+ * on Shrubbery's normal semantic axis, so Garden and Sophia content structures
+ * remain intact while every chrome surface consumes the same glass vocabulary.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+[data-skin="glass"] {
+  color-scheme: light;
+
+  --mn-font-chrome: 'Public Sans Variable', 'Public Sans', -apple-system, 'Helvetica Neue', sans-serif;
+  --mn-font-display: var(--mn-font-chrome);
+  --mn-font-utility: var(--mn-font-chrome);
+  --mn-tracking-label: 0.025em;
+
+  --mn-glass-sky: #3a92cf;
+  --mn-glass-sky-deep: #174e86;
+  --mn-glass-teal: #35c3d8;
+  --mn-glass-glow: #b9f4ff;
+  --mn-glass-panel: rgba(234, 247, 255, 0.78);
+  --mn-glass-panel-strong: rgba(246, 252, 255, 0.9);
+  --mn-glass-panel-soft: rgba(213, 239, 252, 0.58);
+  --mn-glass-well: rgba(255, 255, 255, 0.72);
+  --mn-glass-ink: #102a43;
+  --mn-glass-border: rgba(39, 104, 151, 0.44);
+  --mn-glass-highlight: rgba(255, 255, 255, 0.92);
+  --mn-glass-backdrop: blur(18px) saturate(145%);
+  --mn-glass-raised:
+    inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    inset 1px 0 0 rgba(255, 255, 255, 0.38),
+    inset -1px 0 0 rgba(23, 78, 134, 0.16),
+    0 1px 2px rgba(15, 61, 99, 0.18),
+    0 8px 22px rgba(22, 94, 145, 0.14);
+  --mn-glass-sunken:
+    inset 0 1px 3px rgba(15, 61, 99, 0.26),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.72),
+    0 1px 0 rgba(255, 255, 255, 0.58);
+
+  --mn-color-surface-canvas: #3a92cf;
+  --mn-color-surface-base: rgba(247, 252, 255, 0.82);
+  --mn-color-surface-editor: rgba(255, 255, 255, 0.9);
+  --mn-color-surface-panel: var(--mn-glass-panel);
+  --mn-color-surface-chrome: rgba(211, 240, 252, 0.68);
+  --mn-color-surface-raised: var(--mn-glass-panel-strong);
+  --mn-color-surface-elevated: rgba(239, 249, 255, 0.9);
+  --mn-color-surface-overlay: rgba(229, 245, 253, 0.88);
+  --mn-color-surface-subtle: rgba(205, 235, 249, 0.62);
+  --mn-color-surface-warm: rgba(255, 251, 226, 0.78);
+  --mn-color-surface-sunken: var(--mn-glass-well);
+  --mn-color-surface-hover: rgba(255, 255, 255, 0.52);
+  --mn-color-surface-active: rgba(91, 183, 224, 0.34);
+  --mn-color-surface-accent: rgba(77, 184, 218, 0.22);
+  --mn-color-surface-accent-subtle: rgba(53, 195, 216, 0.13);
+  --mn-color-surface-accent-strong: rgba(41, 150, 204, 0.29);
+  --mn-color-backdrop: rgba(5, 38, 70, 0.42);
+  --mn-atmosphere:
+    radial-gradient(circle at 22% 4%, rgba(185, 244, 255, 0.92), transparent 32%),
+    radial-gradient(circle at 84% 18%, rgba(53, 195, 216, 0.52), transparent 27%),
+    linear-gradient(155deg, #7fd2ee 0%, #3a92cf 43%, #174e86 100%);
+
+  --mn-color-text-primary: #102a43;
+  --mn-color-text-secondary: #244d6d;
+  --mn-color-text-tertiary: #426882;
+  --mn-color-text-muted: #52728a;
+  --mn-color-text-inverse: #f7fdff;
+  --mn-color-text-title: #09233b;
+  --mn-color-text-quiet: #41667f;
+  --mn-color-text-link: #075b9b;
+  --mn-color-text-link-hover: #003f78;
+  --mn-color-text-accent: #075b9b;
+  --mn-color-text-accent-strong: #003f78;
+  --mn-color-text-on-accent: #ffffff;
+
+  --mn-color-border-subtle: rgba(39, 104, 151, 0.22);
+  --mn-color-border-default: var(--mn-glass-border);
+  --mn-color-border-strong: rgba(15, 75, 122, 0.7);
+  --mn-color-border-accent: #168cb8;
+  --mn-color-border-focus: #0d79b2;
+  --mn-color-rule: rgba(28, 91, 137, 0.28);
+  --mn-color-rule-strong: rgba(16, 73, 118, 0.52);
+  /* White-label controls clear WCAG AA against this polished blue. */
+  --mn-color-accent: #08759e;
+  --mn-color-accent-hover: #086488;
+  --mn-color-accent-active: #075f88;
+  --mn-color-accent-ch: 8 117 158;
+  --mn-color-interactive-hover: rgba(255, 255, 255, 0.48);
+  --mn-color-interactive-active: rgba(29, 143, 190, 0.2);
+  --mn-color-interactive-selected: rgba(34, 157, 198, 0.24);
+
+  --mn-focus-ring-color: #0d79b2;
+  --mn-focus-ring: 0 0 0 1px rgba(255, 255, 255, 0.94), 0 0 0 3px rgba(13, 121, 178, 0.58), 0 0 12px rgba(53, 195, 216, 0.4);
+
+  --mn-color-success: #1b8156;
+  --mn-color-success-strong: #12613f;
+  --mn-color-success-surface: rgba(211, 250, 229, 0.72);
+  --mn-color-success-border: rgba(27, 129, 86, 0.5);
+  --mn-color-warning: #9b6500;
+  --mn-color-warning-strong: #744a00;
+  --mn-color-warning-surface: rgba(255, 241, 190, 0.8);
+  --mn-color-warning-border: rgba(155, 101, 0, 0.52);
+  --mn-color-danger: #b33a45;
+  --mn-color-danger-strong: #842733;
+  --mn-color-danger-surface: rgba(255, 222, 226, 0.82);
+  --mn-color-danger-border: rgba(179, 58, 69, 0.52);
+  --mn-color-info: #0d79b2;
+  --mn-color-info-strong: #075b8c;
+  --mn-color-info-surface: rgba(207, 239, 255, 0.78);
+  --mn-color-info-border: rgba(13, 121, 178, 0.52);
+
+  --mn-top-bar-bg:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.76) 0, rgba(255, 255, 255, 0.28) 48%, rgba(43, 145, 193, 0.44) 51%, rgba(21, 103, 160, 0.58) 100%),
+    linear-gradient(90deg, rgba(126, 221, 242, 0.84), rgba(54, 148, 207, 0.82));
+  --mn-top-bar-border: rgba(15, 71, 113, 0.62);
+  --mn-top-bar-text: #09233b;
+  --mn-top-bar-text-muted: #234d6f;
+  --mn-bottom-bar-bg: linear-gradient(180deg, rgba(239, 250, 255, 0.82), rgba(162, 216, 241, 0.7));
+  --mn-bottom-bar-border: rgba(255, 255, 255, 0.8);
+  --mn-bottom-bar-text: #12314c;
+  --mn-bottom-bar-text-muted: #345d79;
+
+  --mn-radius-control: 7px;
+  --mn-radius-surface: 12px;
+  --mn-row-height: 30px;
+  --mn-control-height: 30px;
+  --mn-label-display: inline;
+  --mn-texture-display: none;
+  --mn-rule-hair: 1px solid rgba(255, 255, 255, 0.62);
+  --mn-rule-line: 1px solid var(--mn-color-border-default);
+  --mn-rule-frame: 1px solid var(--mn-color-border-strong);
+  --mn-chrome-rule: var(--mn-rule-line);
+
+  --mn-shadow-xs: inset 0 1px 0 rgba(255, 255, 255, 0.7), 0 1px 3px rgba(15, 61, 99, 0.13);
+  --mn-shadow-sm: var(--mn-glass-raised);
+  --mn-shadow-md: inset 0 1px 0 rgba(255, 255, 255, 0.84), 0 10px 30px rgba(11, 65, 111, 0.2);
+  --mn-shadow-lg: inset 0 1px 0 rgba(255, 255, 255, 0.88), 0 18px 48px rgba(7, 49, 88, 0.28);
+  --mn-shadow-xl: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 26px 70px rgba(4, 37, 70, 0.34);
+  --mn-shadow-chrome: inset 0 1px 0 rgba(255, 255, 255, 0.82), 0 3px 13px rgba(8, 63, 105, 0.2);
+  --mn-shadow-card: var(--mn-glass-raised);
+  --mn-shadow-raised: var(--mn-glass-raised);
+  --mn-shadow-popover: var(--mn-shadow-lg);
+  --mn-shadow-modal: var(--mn-shadow-xl);
+  --mn-shadow-primary: 0 8px 24px rgba(22, 140, 184, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.45);
+  --mn-shadow-composer: var(--mn-glass-sunken);
+  --mn-shadow-composer-focus: var(--mn-glass-sunken), var(--mn-focus-ring);
+
+  /* Shared structural roles consumed by controls, panes, chat, and overlays. */
+  --mn-window-backdrop-filter: var(--mn-glass-backdrop);
+  --mn-control-background: linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(187, 229, 247, 0.78));
+  --mn-control-background-hover: linear-gradient(180deg, #ffffff, rgba(169, 229, 247, 0.92));
+  --mn-control-background-active: linear-gradient(180deg, rgba(126, 200, 230, 0.82), rgba(232, 249, 255, 0.88));
+  --mn-control-border: 1px solid rgba(27, 95, 144, 0.64);
+  --mn-control-shadow: var(--mn-glass-raised);
+  --mn-control-shadow-active: var(--mn-glass-sunken);
+  --mn-scrollbar-track: rgba(198, 231, 245, 0.55);
+  --mn-scrollbar-thumb: linear-gradient(90deg, rgba(255, 255, 255, 0.9), rgba(70, 163, 205, 0.72));
+  --mn-scrollbar-thumb-solid: #5fa9ce;
+  --mn-chat-superbar-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.7), rgba(98, 184, 219, 0.28));
+  --mn-chat-superbar-text: var(--mn-color-text-primary);
+  --mn-chat-superbar-text-muted: var(--mn-color-text-secondary);
+  --mn-chat-header-bg: rgba(220, 242, 252, 0.56);
+  --mn-chat-transcript-bg: rgba(250, 254, 255, 0.67);
+  --mn-chat-assistant-bg: rgba(224, 245, 253, 0.68);
+  --mn-chat-user-bg: linear-gradient(180deg, #08759e, #075f88);
+  --mn-chat-control-bg: var(--mn-control-background);
+  --mn-chat-control-border: var(--mn-control-border);
+  --mn-chat-control-shadow: var(--mn-control-shadow);
+
+  --mn-editor-paper-accent: #168cb8;
+  --mn-editor-paper-accent-hover: #08759e;
+  --mn-editor-paper-accent-soft: rgba(207, 241, 252, 0.72);
+  --mn-editor-paper-accent-ch: 22 140 184;
+
+  font-family: var(--mn-font-chrome);
+  letter-spacing: 0;
+  scrollbar-color: var(--mn-scrollbar-thumb-solid) var(--mn-scrollbar-track);
+}
+
+[data-theme="dark"][data-skin="glass"] {
+  color-scheme: dark;
+
+  --mn-glass-panel: rgba(20, 43, 69, 0.8);
+  --mn-glass-panel-strong: rgba(30, 58, 88, 0.9);
+  --mn-glass-panel-soft: rgba(23, 57, 86, 0.66);
+  --mn-glass-well: rgba(7, 25, 43, 0.78);
+  --mn-glass-ink: #eaf9ff;
+  --mn-glass-border: rgba(113, 204, 238, 0.42);
+  --mn-glass-highlight: rgba(227, 250, 255, 0.58);
+  --mn-glass-raised:
+    inset 0 1px 0 rgba(225, 249, 255, 0.42),
+    inset 1px 0 0 rgba(157, 224, 246, 0.14),
+    inset -1px 0 0 rgba(0, 19, 37, 0.4),
+    0 1px 2px rgba(0, 11, 23, 0.46),
+    0 10px 28px rgba(0, 8, 20, 0.32);
+  --mn-glass-sunken:
+    inset 0 2px 5px rgba(0, 7, 17, 0.66),
+    inset 0 0 0 1px rgba(160, 224, 245, 0.22),
+    0 1px 0 rgba(211, 245, 255, 0.2);
+
+  --mn-color-surface-canvas: #0c2742;
+  --mn-color-surface-base: rgba(13, 34, 55, 0.84);
+  --mn-color-surface-editor: rgba(8, 25, 42, 0.92);
+  --mn-color-surface-panel: var(--mn-glass-panel);
+  --mn-color-surface-chrome: rgba(27, 65, 94, 0.66);
+  --mn-color-surface-raised: var(--mn-glass-panel-strong);
+  --mn-color-surface-elevated: rgba(22, 51, 80, 0.94);
+  --mn-color-surface-overlay: rgba(18, 44, 72, 0.93);
+  --mn-color-surface-subtle: rgba(28, 65, 94, 0.66);
+  --mn-color-surface-warm: rgba(79, 69, 34, 0.68);
+  --mn-color-surface-sunken: var(--mn-glass-well);
+  --mn-color-surface-hover: rgba(139, 222, 246, 0.13);
+  --mn-color-surface-active: rgba(58, 175, 218, 0.23);
+  --mn-color-surface-accent: rgba(53, 195, 216, 0.2);
+  --mn-color-surface-accent-subtle: rgba(53, 195, 216, 0.12);
+  --mn-color-surface-accent-strong: rgba(53, 195, 216, 0.28);
+  --mn-color-backdrop: rgba(0, 9, 20, 0.7);
+  --mn-atmosphere:
+    radial-gradient(circle at 18% 0%, rgba(44, 155, 194, 0.48), transparent 34%),
+    radial-gradient(circle at 84% 14%, rgba(28, 101, 157, 0.52), transparent 30%),
+    linear-gradient(155deg, #173d5f 0%, #0c2742 46%, #050f1d 100%);
+
+  --mn-color-text-primary: #eefbff;
+  --mn-color-text-secondary: #c1dfeb;
+  --mn-color-text-tertiary: #94bdcf;
+  --mn-color-text-muted: #82aabd;
+  --mn-color-text-inverse: #071b2d;
+  --mn-color-text-title: #ffffff;
+  --mn-color-text-quiet: #9fc4d4;
+  --mn-color-text-link: #7fe5ff;
+  --mn-color-text-link-hover: #c0f5ff;
+  --mn-color-text-accent: #7fe5ff;
+  --mn-color-text-accent-strong: #b9f4ff;
+  --mn-color-text-on-accent: #061b29;
+
+  --mn-color-border-subtle: rgba(113, 204, 238, 0.2);
+  --mn-color-border-default: var(--mn-glass-border);
+  --mn-color-border-strong: rgba(170, 232, 250, 0.64);
+  --mn-color-border-accent: #5ddcf3;
+  --mn-color-border-focus: #7ee9ff;
+  --mn-color-rule: rgba(113, 204, 238, 0.26);
+  --mn-color-rule-strong: rgba(170, 232, 250, 0.48);
+  --mn-color-accent: #46c8de;
+  --mn-color-accent-hover: #78e1f2;
+  --mn-color-accent-active: #a8effa;
+  --mn-color-accent-ch: 70 200 222;
+  --mn-color-interactive-hover: rgba(128, 225, 247, 0.13);
+  --mn-color-interactive-active: rgba(70, 200, 222, 0.2);
+  --mn-color-interactive-selected: rgba(70, 200, 222, 0.24);
+
+  --mn-focus-ring-color: #7ee9ff;
+  --mn-focus-ring: 0 0 0 1px rgba(8, 28, 46, 0.92), 0 0 0 3px rgba(126, 233, 255, 0.7), 0 0 14px rgba(70, 200, 222, 0.45);
+
+  --mn-color-success: #70e6ae;
+  --mn-color-success-strong: #a7f5cf;
+  --mn-color-success-surface: rgba(18, 83, 59, 0.6);
+  --mn-color-success-border: rgba(112, 230, 174, 0.54);
+  --mn-color-warning: #ffd66d;
+  --mn-color-warning-strong: #ffe7a6;
+  --mn-color-warning-surface: rgba(96, 70, 14, 0.62);
+  --mn-color-warning-border: rgba(255, 214, 109, 0.55);
+  --mn-color-danger: #ff99a3;
+  --mn-color-danger-strong: #ffc2c8;
+  --mn-color-danger-surface: rgba(103, 28, 42, 0.62);
+  --mn-color-danger-border: rgba(255, 153, 163, 0.54);
+  --mn-color-info: #7ee9ff;
+  --mn-color-info-strong: #b9f4ff;
+  --mn-color-info-surface: rgba(18, 77, 109, 0.66);
+  --mn-color-info-border: rgba(126, 233, 255, 0.5);
+
+  --mn-top-bar-bg:
+    linear-gradient(180deg, rgba(213, 247, 255, 0.28) 0, rgba(111, 207, 235, 0.13) 49%, rgba(8, 45, 78, 0.54) 51%, rgba(5, 29, 54, 0.72) 100%),
+    linear-gradient(90deg, rgba(23, 116, 161, 0.84), rgba(16, 61, 107, 0.9));
+  --mn-top-bar-border: rgba(148, 226, 249, 0.5);
+  --mn-top-bar-text: #eefbff;
+  --mn-top-bar-text-muted: #bfdfeb;
+  --mn-bottom-bar-bg: linear-gradient(180deg, rgba(47, 91, 122, 0.76), rgba(13, 42, 68, 0.82));
+  --mn-bottom-bar-border: rgba(169, 231, 249, 0.42);
+  --mn-bottom-bar-text: #e6f8fe;
+  --mn-bottom-bar-text-muted: #b4d6e4;
+
+  --mn-shadow-xs: inset 0 1px 0 rgba(221, 249, 255, 0.28), 0 1px 3px rgba(0, 8, 18, 0.42);
+  --mn-shadow-sm: var(--mn-glass-raised);
+  --mn-shadow-md: inset 0 1px 0 rgba(221, 249, 255, 0.32), 0 12px 34px rgba(0, 7, 17, 0.4);
+  --mn-shadow-lg: inset 0 1px 0 rgba(221, 249, 255, 0.35), 0 20px 52px rgba(0, 5, 13, 0.52);
+  --mn-shadow-xl: inset 0 1px 0 rgba(221, 249, 255, 0.38), 0 30px 78px rgba(0, 4, 10, 0.62);
+  --mn-shadow-chrome: inset 0 1px 0 rgba(216, 247, 255, 0.3), 0 4px 15px rgba(0, 6, 15, 0.4);
+  --mn-shadow-card: var(--mn-glass-raised);
+  --mn-shadow-raised: var(--mn-glass-raised);
+  --mn-shadow-popover: var(--mn-shadow-lg);
+  --mn-shadow-modal: var(--mn-shadow-xl);
+  --mn-shadow-primary: 0 9px 26px rgba(53, 195, 216, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.28);
+  --mn-shadow-composer: var(--mn-glass-sunken);
+  --mn-shadow-composer-focus: var(--mn-glass-sunken), var(--mn-focus-ring);
+
+  --mn-control-background: linear-gradient(180deg, rgba(122, 190, 218, 0.5), rgba(25, 67, 99, 0.75));
+  --mn-control-background-hover: linear-gradient(180deg, rgba(142, 224, 241, 0.52), rgba(28, 89, 121, 0.78));
+  --mn-control-background-active: linear-gradient(180deg, rgba(10, 42, 69, 0.78), rgba(72, 159, 190, 0.52));
+  --mn-control-border: 1px solid rgba(133, 213, 239, 0.5);
+  --mn-control-shadow: var(--mn-glass-raised);
+  --mn-control-shadow-active: var(--mn-glass-sunken);
+  --mn-scrollbar-track: rgba(7, 25, 43, 0.55);
+  --mn-scrollbar-thumb: linear-gradient(90deg, rgba(96, 189, 217, 0.72), rgba(24, 89, 124, 0.82));
+  --mn-scrollbar-thumb-solid: #397fa3;
+  --mn-chat-superbar-bg: linear-gradient(180deg, rgba(153, 224, 242, 0.23), rgba(17, 56, 86, 0.48));
+  --mn-chat-superbar-text: var(--mn-color-text-primary);
+  --mn-chat-superbar-text-muted: var(--mn-color-text-secondary);
+  --mn-chat-header-bg: rgba(25, 64, 94, 0.55);
+  --mn-chat-transcript-bg: rgba(8, 28, 47, 0.7);
+  --mn-chat-assistant-bg: rgba(27, 69, 98, 0.68);
+  --mn-chat-user-bg: linear-gradient(180deg, #54d4e8, #1888ad);
+}
+
+/* Native light-DOM controls and scrollbars consume the same skin vocabulary.
+   Shadow-DOM primitives receive these values through inherited custom roles. */
+[data-skin="glass"] :where(button, input, textarea, select, dialog) {
+  font-family: var(--mn-font-utility);
+}
+
+[data-skin="glass"] :where(input, textarea, select) {
+  border: var(--mn-control-border);
+  border-radius: var(--mn-radius-control);
+  background: var(--mn-color-surface-sunken);
+  color: var(--mn-color-text-primary);
+  box-shadow: var(--mn-glass-sunken);
+}
+
+[data-skin="glass"] ::-webkit-scrollbar {
+  width: 13px;
+  height: 13px;
+}
+
+[data-skin="glass"] ::-webkit-scrollbar-track {
+  background: var(--mn-scrollbar-track);
+  border: 1px solid var(--mn-color-border-subtle);
+}
+
+[data-skin="glass"] ::-webkit-scrollbar-thumb {
+  min-height: 28px;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  background: var(--mn-scrollbar-thumb);
+  background-clip: padding-box;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.48);
+}

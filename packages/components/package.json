@@ -1,0 +1,35 @@
+{
+  "name": "@shrubbery/components",
+  "version": "0.0.0",
+  "description": "Backend-free Lit components. Depends only on @shrubbery/nucleus contract types, lit, and pure visual/rendering deps — NEVER stores/auth/tauri.",
+  "type": "module",
+  "license": "LicenseRef-PolyForm-Noncommercial-1.0.0",
+  "private": true,
+  "exports": {
+    ".": "./src/index.ts",
+    "./top-bar": "./src/mn-top-bar.ts",
+    "./bottom-bar": "./src/mn-bottom-bar.ts"
+  },
+  "scripts": {
+    "build": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:run": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@shrubbery/nucleus": "workspace:*",
+    "fabric": "^7.4.0",
+    "lit": "^3.1.4",
+    "lucide": "^0.554.0",
+    "three": "^0.170.0"
+  },
+  "devDependencies": {
+    "@shrubbery/runtime": "workspace:*",
+    "@types/node": "^22.7.4",
+    "@types/three": "^0.170.0",
+    "happy-dom": "^15.0.0",
+    "typescript": "^5.4.5",
+    "vitest": "^4.0.13"
+  }
+}

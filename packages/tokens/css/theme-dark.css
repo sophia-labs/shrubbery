@@ -1,0 +1,149 @@
+/* ═══ THEME [data-theme=dark] ════════════════════════════════════════════════
+ * Pure Tier-1 / Tier-2 VALUE overrides. Literals are legal here — they freeze
+ * the dark values directly (no ramp redefinition). Theme is ORTHOGONAL to skin:
+ * this block is the Garden-default dark theme; per-skin dark overrides live in
+ * the skin files at the higher-specificity selector [data-theme=dark][data-skin=…].
+ *
+ * Adapted from garden/frontend/src/index.css §S5.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  /* ── Surfaces (dark) ──────────────────────────────────────────────────── */
+  --mn-color-surface-canvas:   #151814;
+  --mn-color-surface-base:     #1b1e19;
+  --mn-color-surface-editor:   #20231d;
+  --mn-color-surface-panel:    #181b17;
+  --mn-color-surface-chrome:   #222a23;
+  --mn-color-surface-raised:   #272c25;
+  --mn-color-surface-elevated: #2c312a;
+  --mn-color-surface-overlay:  #30352d;
+  --mn-color-surface-subtle:   #20241e;
+  --mn-color-surface-warm:     #292820;
+  --mn-color-surface-sunken:   #131512;
+  --mn-color-surface-hover:    rgba(225, 235, 226, 0.055);
+  --mn-color-surface-active:   rgba(225, 235, 226, 0.10);
+  --mn-color-surface-accent:   rgba(114, 160, 135, 0.14);
+  --mn-color-surface-accent-subtle: rgba(114, 160, 135, 0.09);
+  --mn-color-surface-accent-strong: rgba(114, 160, 135, 0.22);
+  --mn-color-backdrop: rgba(3, 5, 3, 0.62);
+  --mn-atmosphere:
+    radial-gradient(circle at 55% -16%, rgba(79, 134, 107, 0.14), transparent 40%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.015), transparent 36%);
+
+  /* ── Text (dark) ──────────────────────────────────────────────────────── */
+  --mn-color-text-primary:       #e6e8e2;
+  --mn-color-text-secondary:     #b7bbb1;
+  --mn-color-text-tertiary:      #8f968a;
+  --mn-color-text-muted:         #7f877b;
+  --mn-color-text-inverse:       #171a16;
+  /* Light-mode link roles resolve to indigo-800/950 — nearly invisible on the
+     dark canvas. Dark theme lifts them to the light end of the same indigo
+     ramp so a link still reads as a link, not as body text. */
+  --mn-color-text-link:          var(--mn-ref-indigo-300);
+  --mn-color-text-link-hover:    var(--mn-ref-indigo-200);
+  --mn-color-text-accent:        #99bea9;
+  --mn-color-text-accent-strong: #bfd8c9;
+  --mn-color-text-on-accent:     #141613;
+  --mn-color-text-title:         #f1f3ed;
+  --mn-color-text-quiet:         #8f968a;
+  --mn-color-text-danger:        #f43f5e;
+  --mn-color-text-warning:       #d97706;
+  --mn-color-text-success:       #469c70;
+
+  /* ── Borders (dark) ───────────────────────────────────────────────────── */
+  --mn-color-border-subtle:  rgba(222, 230, 220, 0.085);
+  --mn-color-border-default: #30362e;
+  --mn-color-border-strong:  #464d43;
+  --mn-color-border-accent:  #72a087;
+  --mn-color-border-focus:   #99bea9;
+  --mn-color-rule:           rgba(191, 216, 201, 0.12);
+  --mn-color-rule-strong:    rgba(191, 216, 201, 0.22);
+
+  /* ── Accent solids (dark) ─────────────────────────────────────────────── */
+  --mn-color-accent:        #72a087;
+  --mn-color-accent-hover:  #99bea9;
+  --mn-color-accent-active: #4f866b;
+
+  /* ── Interactive washes (dark) ────────────────────────────────────────── */
+  --mn-color-interactive-hover: rgba(255, 255, 255, 0.05);  /* neutral in dark */
+
+  /* ── Focus (dark) ─────────────────────────────────────────────────────── */
+  --mn-focus-ring-color: #99bea9;
+
+  /* ── Status quads (dark) ──────────────────────────────────────────────── */
+  --mn-color-danger:          #f43f5e;
+  --mn-color-danger-strong:   #fda4af;
+  --mn-color-danger-surface:  rgba(244, 63, 94, 0.10);
+  --mn-color-danger-border:   rgba(244, 63, 94, 0.25);
+  --mn-color-action-danger:   #e11d48;
+  --mn-color-on-danger:       #ffffff;
+
+  --mn-color-warning:         #d97706;
+  --mn-color-warning-strong:  #fbbf24;
+  --mn-color-warning-surface: rgba(217, 119, 6, 0.10);
+  --mn-color-warning-border:  rgba(217, 119, 6, 0.25);
+  --mn-color-action-warning:  #fbbf24;
+  --mn-color-on-warning:      #141613;
+
+  --mn-color-success:         #469c70;
+  --mn-color-success-strong:  #63b08a;
+  --mn-color-success-surface: rgba(70, 156, 112, 0.10);
+  --mn-color-success-border:  rgba(70, 156, 112, 0.25);
+
+  --mn-color-info:            #818cf8;
+  --mn-color-info-strong:     #a5b4fc;
+  --mn-color-info-surface:    rgba(99, 102, 241, 0.10);
+  --mn-color-info-border:     rgba(99, 102, 241, 0.25);
+
+  /* ── Dataviz — Observatory chart roles (dark) ────────────────────────────
+     Categorical + diverging + status re-validated against the dark canvas
+     (ink-50); sequential is theme-invariant, carried through unchanged from
+     semantic.css. Literals here (not var()) match this file's own
+     convention — a flat, auditable list of dark overrides. */
+  --mn-chart-categorical-1: #028fad;
+  --mn-chart-categorical-2: #d45c36;
+  --mn-chart-categorical-3: #916cdf;
+  --mn-chart-categorical-4: #848f03;
+  --mn-chart-categorical-5: #c158ae;
+
+  --mn-chart-diverging-cool-far:  #0195b5;
+  --mn-chart-diverging-cool-mid:  #00758e;
+  --mn-chart-diverging-cool-near: #3b5158;
+  --mn-chart-diverging-mid:       #42473e;
+  --mn-chart-diverging-warm-near: #5c4841;
+  --mn-chart-diverging-warm-mid:  #99533d;
+  --mn-chart-diverging-warm-far:  #d0603d;
+
+  /* warning is unchanged across themes (same validated swatch) — no override. */
+  --mn-chart-status-good:     #469c70;
+  --mn-chart-status-serious:  #f43f5e;
+  --mn-chart-status-critical: #b43c6b;
+
+  /* `contested` stance annunciator (WS1 S1) — all three overridden via `var()`
+     against the `-dark` reference swatches, never a bare literal (the
+     three-tier naming law: theme files reference, they never invent hexes —
+     §6.6.3's corrected two-sources-of-truth regression). */
+  --mn-stance-contested-ink:  var(--mn-ref-status-critical-ink-dark);
+  --mn-stance-contested-edge: var(--mn-ref-status-critical-edge-dark);
+  --mn-stance-contested-wash: var(--mn-ref-status-critical-wash-dark);
+
+  /* ── Top bar (dark) — Garden fern masthead steps 800/700/100/300 ───────── */
+  --mn-top-bar-bg:         linear-gradient(102deg, #213f34 0%, #294b3c 54%, #223d33 100%);
+  --mn-top-bar-border:     rgba(153, 190, 169, 0.24);
+  --mn-top-bar-text:       #dcebe2;
+  --mn-top-bar-text-muted: #99bea9;
+
+  /* ── Bottom bar (dark) ────────────────────────────────────────────────── */
+  --mn-bottom-bar-bg:     #20231d;
+  --mn-bottom-bar-border: #30362e;
+
+  --mn-shadow-xs: 0 1px 1px rgba(0, 0, 0, 0.22), 0 1px 3px rgba(0, 0, 0, 0.16);
+  --mn-shadow-sm: 0 2px 5px rgba(0, 0, 0, 0.25), 0 5px 14px rgba(0, 0, 0, 0.14);
+  --mn-shadow-md: 0 10px 30px rgba(0, 0, 0, 0.30), 0 2px 8px rgba(0, 0, 0, 0.22);
+  --mn-shadow-lg: 0 24px 64px rgba(0, 0, 0, 0.42), 0 7px 22px rgba(0, 0, 0, 0.24);
+  --mn-shadow-xl: 0 34px 88px rgba(0, 0, 0, 0.54), 0 10px 30px rgba(0, 0, 0, 0.28);
+  --mn-shadow-chrome: 0 1px 0 rgba(255, 255, 255, 0.035), 0 2px 7px rgba(0, 0, 0, 0.18);
+  --mn-shadow-primary: 0 12px 32px rgba(var(--mn-color-accent-ch), 0.18);
+}

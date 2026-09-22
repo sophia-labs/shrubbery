@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <title>hoja</title>
+  <style>
+    path, polygon { fill: #4d7a5a; }
+    @media (prefers-color-scheme: dark) {
+      path, polygon { fill: #7fae8d; }
+    }
+  </style>
+  <defs>
+    <mask id="vein">
+      <rect width="24" height="24" fill="white"/>
+      <path d="M 9.1 20.2 C 9.8 16.2 10.8 12.2 13.4 7.6" fill="none" stroke="black" stroke-width="1.3" stroke-linecap="round"/>
+    </mask>
+  </defs>
+  <path mask="url(#vein)" d="M 8.6 21.6 C 8.2 18.5 6.5 16.8 4.9 14.2 C 2.9 10.9 4.4 6.6 8.4 4.4 C 10.3 3.35 12.4 3.0 14.6 3.0 L 20.2 8.6 C 20.9 11.6 20.3 14.6 18.1 16.9 C 15.7 19.4 12.2 20.6 9.9 21.2 C 9.4 21.35 9.0 21.5 8.6 21.6 Z"/>
+  <polygon points="14.6,3.0 20.2,8.6 15.1,8.4" opacity="0.45"/>
+</svg>

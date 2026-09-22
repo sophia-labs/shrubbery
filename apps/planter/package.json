@@ -1,0 +1,42 @@
+{
+  "name": "@shrubbery/planter",
+  "version": "0.0.0",
+  "description": "PLANTER — the generic curl-able host: negotiate (hoisted) -> resolve the resource LIVE per-request from ANY @shrubbery/source TripleSource -> linksFor once -> render face. apps/rhizome/server.ts's shape, generalized off ONE TripleSource instead of a bespoke cell client. Serves the EXISTING workspace Resource kind at / and /site (zero new render kinds), an app-level /source capability card, and /health. NO backend/mock in the library: real gardend, a static fossil, or any TripleSource the boot factory wires.",
+  "type": "module",
+  "license": "LicenseRef-PolyForm-Noncommercial-1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "vite build",
+    "build:pool": "vite build --config vite.pool.config.ts",
+    "typecheck": "tsc --noEmit",
+    "serve": "tsx src/server-entry.ts",
+    "serve:pool": "tsx src/pool.ts",
+    "dev": "vite",
+    "preview": "vite preview",
+    "seed": "tsx scripts/seed.mts",
+    "dump": "tsx scripts/dump.mts",
+    "test": "vitest run",
+    "test:run": "vitest run",
+    "test:watch": "vitest",
+    "test:browser": "node --import tsx scripts/planter-browser.mts",
+    "test:browser:garden": "node --import tsx scripts/planter-browser.mts --bundle garden"
+  },
+  "dependencies": {
+    "@shrubbery/components": "workspace:*",
+    "@shrubbery/nucleus": "workspace:*",
+    "@shrubbery/render": "workspace:*",
+    "@shrubbery/runtime": "workspace:*",
+    "@shrubbery/site": "workspace:*",
+    "@shrubbery/source": "workspace:*",
+    "@shrubbery/tokens": "workspace:*",
+    "vite": "^5.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.4",
+    "happy-dom": "^15.0.0",
+    "playwright": "^1.48.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.4.5",
+    "vitest": "^3.2.6"
+  }
+}

@@ -1,0 +1,357 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Emporium — vocabulary pack catalogue</title>
+    <style>
+      /* ── The REAL design tokens come from @shrubbery/tokens (imported in
+         main.ts). main.ts also stamps [data-skin=emporium] on <html> by default
+         (this app IS the Emporium identity). The shell + frame styles below are
+         STRUCTURAL only — every color / font / radius / density resolves from the
+         skin's --mn-* role tokens, so flipping the skin re-paints the whole shell
+         with no per-skin code here. ── */
+      * { box-sizing: border-box; }
+      html, body { margin: 0; height: 100%; }
+      body {
+        font-family: var(--mn-font-chrome, system-ui, sans-serif);
+        color: var(--mn-color-text-primary, #160d24);
+        background: var(--mn-color-surface-base, #f7f6fb);
+        display: grid;
+        grid-template-rows: auto 1fr auto;
+        height: 100vh;
+        overflow: hidden;
+      }
+
+      /* ── Top bar row (the mn-app-bar mounts here) ── */
+      #app-bar { flex-shrink: 0; }
+
+      /* ── Body: packs RAIL | content area ── */
+      .body {
+        display: grid;
+        grid-template-columns: minmax(220px, 280px) 1fr;
+        min-height: 0;
+        overflow: hidden;
+      }
+
+      /* ── Packs RAIL (sidebar) ── */
+      #rail {
+        overflow-y: auto;
+        min-height: 0;
+        border-right: var(--mn-rule-line, 1px solid var(--mn-color-border-default, #e3def0));
+        background: var(--mn-color-surface-raised, #fff);
+      }
+      .rail { display: flex; flex-direction: column; }
+      .rail__head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        width: 100%;
+        padding: 14px 16px;
+        border: none;
+        border-bottom: var(--mn-rule-line, 1px solid var(--mn-color-border-default, #e3def0));
+        background: transparent;
+        cursor: pointer;
+        font: inherit;
+        text-align: left;
+        transition: background 0.12s;
+      }
+      .rail__head:hover { background: var(--mn-color-surface-hover, rgba(148,114,206,0.07)); }
+      .rail__head--active { background: var(--mn-color-surface-accent, rgba(148,114,206,0.1)); }
+      .rail__head-title {
+        font-family: var(--mn-font-display, inherit);
+        font-size: var(--mn-text-xs, 11px);
+        font-weight: 700;
+        letter-spacing: var(--mn-tracking-label, 0.08em);
+        text-transform: uppercase;
+        color: var(--mn-color-text-secondary, #51465f);
+      }
+      .rail__list { display: flex; flex-direction: column; }
+      .rail__row {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        width: 100%;
+        padding: 12px 16px;
+        border: none;
+        border-left: 3px solid transparent;
+        border-bottom: var(--mn-rule-hair, 1px solid var(--mn-color-border-subtle, #efebf8));
+        background: transparent;
+        cursor: pointer;
+        font: inherit;
+        text-align: left;
+        transition: background 0.12s, border-color 0.12s;
+      }
+      .rail__row:hover { background: var(--mn-color-surface-hover, rgba(148,114,206,0.07)); }
+      .rail__row--active {
+        background: var(--mn-color-surface-accent, rgba(148,114,206,0.1));
+        border-left-color: var(--mn-color-accent, #9472CE);
+      }
+      .rail__row-main { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+      .rail__row-name {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: var(--mn-text-sm, 13px);
+        font-weight: 600;
+        color: var(--mn-color-text-primary, #160d24);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .rail__row-title {
+        font-size: var(--mn-text-xs, 11px);
+        color: var(--mn-color-text-muted, #9890a3);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .rail__row-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+      .rail__empty {
+        padding: 16px;
+        font-size: 13px;
+        font-style: italic;
+        color: var(--mn-color-text-muted, #9890a3);
+      }
+
+      /* ── Content area ── */
+      #content {
+        overflow-y: auto;
+        min-height: 0;
+        padding: 0;
+        scroll-behavior: smooth;
+      }
+      /* A gentle enter transition so route/view changes feel intentional, not
+         abrupt (the content area re-renders on every nav). */
+      @keyframes content-enter {
+        from { opacity: 0; transform: translateY(4px); }
+        to   { opacity: 1; transform: translateY(0); }
+      }
+      .vocab-catalogue, .vocab-pack, .content-state {
+        animation: content-enter 0.18s ease both;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .vocab-catalogue, .vocab-pack, .content-state { animation: none; }
+        #content { scroll-behavior: auto; }
+      }
+
+      /* Honest state blocks — loading / empty / error. A leading glyph + a clear
+         title + a real hint; the error block surfaces the verbatim read error. */
+      .content-state {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--mn-space-2, 8px);
+        max-width: 56ch;
+        padding: var(--mn-space-8, 32px);
+        font-size: var(--mn-text-sm, 13px);
+        color: var(--mn-color-text-secondary, #51465f);
+      }
+      .content-state__glyph {
+        font-size: 22px;
+        line-height: 1;
+        color: var(--mn-color-accent, #9472CE);
+      }
+      .content-state__glyph.spin {
+        display: inline-block;
+        animation: state-spin 0.9s linear infinite;
+      }
+      @keyframes state-spin { to { transform: rotate(360deg); } }
+      @media (prefers-reduced-motion: reduce) {
+        .content-state__glyph.spin { animation: none; }
+      }
+      .content-state--error { color: var(--mn-color-danger, #b91c1c); }
+      .content-state--error .content-state__glyph { color: var(--mn-color-danger, #b91c1c); }
+      .content-state__title {
+        font-weight: 600; margin: 0;
+        font-size: var(--mn-text-base, 15px);
+        color: var(--mn-color-text-primary, #160d24);
+      }
+      .content-state--error .content-state__title { color: var(--mn-color-danger, #b91c1c); }
+      .content-state__detail {
+        align-self: stretch;
+        font-family: ui-monospace, monospace;
+        font-size: var(--mn-text-xs, 12px);
+        white-space: pre-wrap;
+        background: var(--mn-color-surface-sunken, rgba(148,114,206,0.05));
+        padding: var(--mn-space-3, 12px);
+        border-radius: var(--mn-radius-surface, 4px);
+        border: var(--mn-rule-hair, 1px solid var(--mn-color-border-subtle, #efebf8));
+        color: var(--mn-color-text-primary, #160d24);
+      }
+      .content-state__hint {
+        font-size: var(--mn-text-xs, 12px);
+        color: var(--mn-color-text-muted, #9890a3);
+        margin: 0;
+      }
+      .content-state__hint code {
+        font-family: ui-monospace, monospace;
+        background: var(--mn-color-surface-sunken, rgba(148,114,206,0.06));
+        padding: 1px 5px;
+        border-radius: 3px;
+      }
+      .content-filter {
+        padding: var(--mn-space-3, 12px) var(--mn-space-6, 24px);
+        font-size: var(--mn-text-sm, 13px);
+        color: var(--mn-color-text-secondary, #51465f);
+        border-bottom: var(--mn-rule-hair, 1px solid var(--mn-color-border-subtle, #efebf8));
+      }
+      .content-filter strong { color: var(--mn-color-text-accent, var(--mn-color-accent, #9472CE)); }
+
+      /* ── The shared catalogue / pack-detail views (the DOM face). Structural
+         CSS only — the cards/chips/badges inside are the GENERALIZED
+         @shrubbery/components primitives (skin-aware, token-driven), so colors
+         come from the skin. Lifted from apps/organism's index.html (same views).
+         ── */
+      .vocab-catalogue, .vocab-pack {
+        padding: var(--mn-space-6, 24px) var(--mn-space-6, 24px) var(--mn-space-8, 32px);
+        max-width: 1080px;
+      }
+      .vocab-catalogue__intro, .vocab-pack__desc {
+        font-size: var(--mn-text-sm, 13px);
+        line-height: 1.5;
+        color: var(--mn-color-text-secondary, #51465f);
+        margin: 0 0 var(--mn-space-5, 20px);
+      }
+      .vocab-catalogue__intro strong {
+        color: var(--mn-color-text-accent, var(--mn-color-accent, #9472CE));
+      }
+      .vocab-catalogue__grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: var(--mn-space-4, 16px);
+      }
+      .vocab-card__header, .vocab-pack__title, .vocab-class__header {
+        display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap;
+      }
+      .vocab-card__name, .vocab-pack__name, .vocab-class__name {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-weight: 600;
+      }
+      .vocab-card__title, .vocab-pack__subtitle {
+        font-size: 12px; color: var(--mn-color-text-muted, #9890a3);
+      }
+      .vocab-card__chips, .vocab-pack__chips {
+        display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+      }
+      .vocab-pack__nav { margin-bottom: 16px; }
+      .vocab-pack__head { margin-bottom: 18px; }
+      .vocab-pack__classes { display: flex; flex-direction: column; gap: 14px; }
+      .vocab-pack__stats { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+      .vocab-pack__section-head { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+      .vocab-pack__rel-groups { display: flex; flex-direction: column; gap: 12px; }
+      .vocab-pack__rel-label, .vocab-class__group-label {
+        font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em;
+        color: var(--mn-color-text-muted, #9890a3); margin: 8px 0 4px;
+      }
+
+      /* ── Relationships LIST/GRAPH toggle (iter-6b) — a segmented control that
+         sits in the section header, pushed to the right. Token-driven so it
+         recolors per skin (square + tracked under Emporium). ── */
+      .vocab-pack__rel-toggle {
+        display: inline-flex;
+        margin-left: auto;
+        border: 1px solid var(--mn-color-border-default, #e3def0);
+        border-radius: var(--mn-radius-control, 6px);
+        overflow: hidden;
+      }
+      .vocab-pack__rel-toggle-btn {
+        appearance: none;
+        border: none;
+        background: transparent;
+        cursor: pointer;
+        font: inherit;
+        font-size: var(--mn-text-2xs, 10px);
+        font-weight: 600;
+        letter-spacing: var(--mn-tracking-label, 0.06em);
+        text-transform: uppercase;
+        padding: 4px 11px;
+        color: var(--mn-color-text-muted, #9890a3);
+        transition: background 0.14s ease, color 0.14s ease;
+      }
+      .vocab-pack__rel-toggle-btn:hover {
+        background: var(--mn-color-surface-hover, rgba(148,114,206,0.07));
+        color: var(--mn-color-text-secondary, #51465f);
+      }
+      .vocab-pack__rel-toggle-btn.is-active {
+        background: var(--mn-color-accent, #9472CE);
+        color: var(--mn-color-on-accent, #fff);
+      }
+      .vocab-pack__rel-toggle-btn:focus-visible {
+        outline: 2px solid var(--mn-color-border-focus, var(--mn-color-accent, #9472CE));
+        outline-offset: -2px;
+      }
+      [data-skin='emporium'] .vocab-pack__rel-toggle { border-radius: var(--mn-radius-none, 0); }
+
+      /* ── Relationships GRAPH face — the mn-graph canvas in a framed, scrollable
+         well so a wide DAG never breaks the column rhythm. ── */
+      .vocab-pack__rel-graph {
+        margin-top: 8px;
+      }
+      .vocab-pack__rel-graph mn-graph {
+        display: block;
+        border: var(--mn-rule-hair, 1px solid var(--mn-color-border-subtle, #efebf8));
+        border-radius: var(--mn-radius-surface, 4px);
+        background:
+          radial-gradient(circle, var(--mn-color-border-subtle, #efebf8) 0.5px, transparent 0.5px)
+          0 0 / 16px 16px,
+          var(--mn-color-surface-sunken, rgba(148,114,206,0.04));
+        padding: 8px;
+        max-height: 480px;
+        overflow: auto;
+      }
+      .vocab-class__subject { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+      .vocab-class__subject-rule, .vocab-pack__mint-rule {
+        font-family: ui-monospace, monospace; font-size: 11px;
+        color: var(--mn-color-text-secondary, #51465f);
+      }
+      .vocab-pack__ns, .vocab-class__preds, .vocab-pack__mint {
+        width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 12px;
+      }
+      .vocab-pack__ns th, .vocab-class__preds th, .vocab-pack__mint th {
+        text-align: left; font-weight: 600; color: var(--mn-color-text-muted, #9890a3);
+        padding: 4px 8px 4px 0; border-bottom: 1px solid var(--mn-color-border-subtle, #efebf8);
+        text-transform: uppercase; letter-spacing: 0.04em; font-size: 10px;
+      }
+      .vocab-pack__ns td, .vocab-class__preds td, .vocab-pack__mint td {
+        padding: 4px 8px 4px 0; vertical-align: top;
+        border-bottom: 1px solid var(--mn-color-border-subtle, #efebf8);
+      }
+      .vocab-pack__ns-uri, .vocab-class__dt {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px;
+        color: var(--mn-color-text-secondary, #51465f); word-break: break-all;
+      }
+      .vocab-class__flags, .vocab-class__enum, .vocab-pack__slug {
+        display: flex; gap: 6px; align-items: center; flex-wrap: wrap;
+      }
+      mn-card.vocab-class { cursor: pointer; }
+      .vocab-empty {
+        color: var(--mn-color-text-muted, #9890a3); font-size: 13px; font-style: italic;
+      }
+
+      /* ── Status strip (bottom, honest provenance — never faked) ── */
+      #status {
+        flex-shrink: 0;
+        padding: 6px 16px;
+        font-size: 11px;
+        font-family: ui-monospace, monospace;
+        white-space: pre-wrap;
+        max-height: 80px;
+        overflow: auto;
+        border-top: var(--mn-rule-line, 1px solid var(--mn-color-border-default, #e3def0));
+        background: var(--mn-bottom-bar-bg, #efebf8);
+        color: var(--mn-color-text-secondary, #51465f);
+      }
+      #status.ok { color: var(--mn-color-text-secondary, #51465f); }
+      #status.err { color: var(--mn-color-danger, #b91c1c); }
+    </style>
+  </head>
+  <body>
+    <div id="app-bar"></div>
+    <div class="body">
+      <aside id="rail"></aside>
+      <main id="content"></main>
+    </div>
+    <div id="status">booting…</div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

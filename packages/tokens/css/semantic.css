@@ -1,0 +1,311 @@
+/* ═══ SEMANTIC CONTRACT (Tier 1) ═════════════════════════════════════════════
+ * Role definitions. Light-mode Garden defaults. Components consume ONLY these
+ * tokens (never the Tier-0 ramps directly). Themes ([data-theme]) and skins
+ * ([data-skin]) override these roles — never the structure.
+ *
+ * Adapted from garden/frontend/src/index.css §S3. Trimmed to the roles the
+ * Shrubbery chrome (mn-top-bar / mn-bottom-bar) + the skin demos consume, plus
+ * the core surface/text/border/accent/status families for completeness.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+:root {
+  /* ── Surfaces ─────────────────────────────────────────────────────────── */
+  --mn-color-surface-canvas:   var(--mn-ref-parchment-50);  /* Room around the work */
+  --mn-color-surface-base:     var(--mn-ref-parchment-0);   /* Primary paper */
+  --mn-color-surface-editor:   #fffdf8;                     /* Long-form reading paper */
+  --mn-color-surface-panel:    #f7f5ef;                     /* Persistent side furniture */
+  --mn-color-surface-chrome:   #edf2ed;                     /* Bars and fixed controls */
+  --mn-color-surface-raised:   #fffefa;                     /* Controls and cards */
+  --mn-color-surface-elevated: #fffefa;                     /* Menus and drawers */
+  --mn-color-surface-overlay:  #fffefa;                     /* Modal material */
+  --mn-color-surface-subtle:   #f7f5f0;                     /* Quiet grouped content */
+  --mn-color-surface-warm:     #faf6ec;                     /* Editorial callouts */
+  --mn-color-surface-sunken:   var(--mn-ref-parchment-100); /* Recessed wells */
+  --mn-color-surface-hover:    rgba(34, 68, 53, 0.055);     /* Botanical hover wash */
+  --mn-color-surface-active:   rgba(34, 68, 53, 0.10);      /* Chrome pressed wash */
+  --mn-color-surface-accent:   var(--mn-ref-fern-50);       /* Tinted selected-item bg */
+  --mn-color-surface-accent-subtle: rgba(79, 134, 107, 0.09);
+  --mn-color-surface-accent-strong: var(--mn-ref-fern-100);
+  --mn-color-backdrop: rgba(24, 29, 24, 0.26);
+  --mn-atmosphere:
+    radial-gradient(circle at 54% -18%, rgba(114, 160, 135, 0.13), transparent 42%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.42), transparent 38%);
+
+  /* ── Text ─────────────────────────────────────────────────────────────── */
+  --mn-color-text-primary:       var(--mn-ref-parchment-900);
+  --mn-color-text-secondary:     var(--mn-ref-parchment-600);
+  --mn-color-text-tertiary:      #6f6a62;
+  --mn-color-text-muted:         #716c64;
+  --mn-color-text-inverse:       var(--mn-ref-parchment-0);
+  --mn-color-text-link:          var(--mn-ref-indigo-700);
+  --mn-color-text-link-hover:    var(--mn-ref-indigo-900);
+  --mn-color-text-accent:        var(--mn-ref-fern-600);   /* Interactive text, active icons */
+  --mn-color-text-accent-strong: var(--mn-ref-fern-700);   /* Stronger accent for headings */
+  --mn-color-text-on-accent:     var(--mn-ref-parchment-0);
+  --mn-color-text-danger:        var(--mn-ref-carmine-700);
+  --mn-color-text-warning:       var(--mn-ref-ochre-600);
+  --mn-color-text-success:       var(--mn-ref-moss-500);
+  --mn-color-text-title:         var(--mn-ref-parchment-950);
+  --mn-color-text-quiet:         #716c64;
+
+  /* ── Borders ──────────────────────────────────────────────────────────── */
+  --mn-color-border-subtle:  rgba(64, 61, 56, 0.11);
+  --mn-color-border-default: var(--mn-ref-parchment-200);
+  --mn-color-border-strong:  var(--mn-ref-parchment-300);
+  --mn-color-border-accent:  var(--mn-ref-fern-600);
+  --mn-color-border-focus:   var(--mn-ref-fern-600);
+  --mn-color-border:         var(--mn-color-border-default); /* Garden compatibility alias */
+  --mn-color-rule:           rgba(43, 67, 55, 0.13);
+  --mn-color-rule-strong:    rgba(43, 67, 55, 0.22);
+
+  /* ── Accent solids ────────────────────────────────────────────────────── */
+  --mn-color-accent:        var(--mn-ref-fern-600);
+  --mn-color-accent-hover:  var(--mn-ref-fern-700);
+  --mn-color-accent-active: var(--mn-ref-fern-800);
+
+  /* ── Mnemosyne frontend compatibility roles ────────────────────────────
+   * The mature Garden frontend exposed these names globally. Several lifted
+   * secondary surfaces still consume them, while Shrubbery's go-forward
+   * contract uses the semantic roles above. Keep the old vocabulary as
+   * aliases—not a second color system—so every skin/theme continues to flow
+   * through the same semantic cascade. In particular, an undefined
+   * --mn-color-panel-bg made dark secondary surfaces fall through to literal
+   * light CSS fallbacks and rendered pale text on white chrome. */
+  --mn-color-panel-bg:   var(--mn-color-surface-panel);
+  --mn-color-neutral-100: var(--mn-color-surface-subtle);
+  --mn-color-primary-500: var(--mn-color-accent);
+  --mn-color-primary-600: var(--mn-color-accent-hover);
+  --mn-color-primary-700: var(--mn-color-accent-active);
+  --mn-color-accent-700:  var(--mn-color-warning-strong);
+  --mn-color-danger-700:  var(--mn-color-danger-strong);
+
+  /* --mn-color-accent-ch: the RGB channel triple for the current accent hue.
+     Skins override ONLY this one variable to re-tint all interactive washes —
+     no need to replicate rgba() calls. Garden default: fern-500 (79 134 107). */
+  --mn-color-accent-ch: 79 134 107;
+
+  --mn-color-interactive-hover:    rgba(var(--mn-color-accent-ch), 0.08);
+  --mn-color-interactive-active:   rgba(var(--mn-color-accent-ch), 0.15);
+  --mn-color-interactive-selected: rgba(var(--mn-color-accent-ch), 0.12);
+
+  /* ── Focus composites ─────────────────────────────────────────────────── */
+  --mn-focus-ring-color: var(--mn-color-border-focus);
+  --mn-focus-ring:       0 0 0 1px var(--mn-focus-ring-color), 0 0 0 4px rgb(var(--mn-color-accent-ch) / 0.16);
+
+  /* ── Status quads ─────────────────────────────────────────────────────── */
+  --mn-color-success:         var(--mn-ref-moss-500);
+  --mn-color-success-strong:  var(--mn-ref-moss-700);
+  --mn-color-success-surface: var(--mn-ref-moss-50);
+  --mn-color-success-border:  var(--mn-ref-moss-200);
+
+  --mn-color-warning:         var(--mn-ref-ochre-600);
+  --mn-color-warning-strong:  var(--mn-ref-ochre-700);
+  --mn-color-warning-surface: var(--mn-ref-ochre-50);
+  --mn-color-warning-border:  var(--mn-ref-ochre-200);
+
+  --mn-color-danger:          var(--mn-ref-carmine-700);
+  --mn-color-danger-strong:   var(--mn-ref-carmine-800);
+  --mn-color-danger-surface:  var(--mn-ref-carmine-50);
+  --mn-color-danger-border:   var(--mn-ref-carmine-200);
+  --mn-color-action-danger:   var(--mn-ref-carmine-700);
+  --mn-color-on-danger:       var(--mn-ref-parchment-0);
+
+  --mn-color-info:            var(--mn-ref-indigo-600);
+  --mn-color-info-strong:     var(--mn-ref-indigo-700);
+  --mn-color-info-surface:    var(--mn-ref-indigo-50);
+  --mn-color-info-border:     var(--mn-ref-indigo-200);
+  --mn-color-action-warning:  var(--mn-ref-ochre-700);
+  --mn-color-on-warning:      var(--mn-ref-parchment-0);
+
+  /* ── Dataviz — Observatory chart roles (dark override in theme-dark.css) ─
+     GLOBAL, skin-independent: validated against the two canonical surfaces
+     (parchment-0 light / ink-50 dark), so these apply under every skin, not
+     only [data-skin=observatory]. Categorical hues are in FIXED slot order —
+     color follows the entity, never rank; never cycle these programmatically
+     past slot 5, fold a 9th series into "Other" (categorical-other).
+     Sequential = one hue light→dark (no dark-mode override was validated —
+     the ramp reads on both canvases as-is). Diverging = two hues + neutral
+     midpoint, independently re-validated per theme. Status is RESERVED:
+     never a series color, always paired with an icon or label. */
+  --mn-chart-categorical-1: var(--mn-ref-chart-azure-light);
+  --mn-chart-categorical-2: var(--mn-ref-chart-terracotta-light);
+  --mn-chart-categorical-3: var(--mn-ref-chart-violet-light);
+  --mn-chart-categorical-4: var(--mn-ref-chart-chartreuse-light);
+  --mn-chart-categorical-5: var(--mn-ref-chart-magenta-light);
+  --mn-chart-categorical-other: var(--mn-color-text-muted);
+
+  --mn-chart-sequential-100: var(--mn-ref-azure-100);
+  --mn-chart-sequential-200: var(--mn-ref-azure-200);
+  --mn-chart-sequential-300: var(--mn-ref-azure-300);
+  --mn-chart-sequential-400: var(--mn-ref-azure-400);
+  --mn-chart-sequential-500: var(--mn-ref-azure-500);
+  --mn-chart-sequential-600: var(--mn-ref-azure-600);
+  --mn-chart-sequential-700: var(--mn-ref-azure-700);
+
+  --mn-chart-diverging-cool-far:  var(--mn-ref-diverging-light-cool-far);
+  --mn-chart-diverging-cool-mid:  var(--mn-ref-diverging-light-cool-mid);
+  --mn-chart-diverging-cool-near: var(--mn-ref-diverging-light-cool-near);
+  --mn-chart-diverging-mid:       var(--mn-ref-diverging-light-mid);
+  --mn-chart-diverging-warm-near: var(--mn-ref-diverging-light-warm-near);
+  --mn-chart-diverging-warm-mid:  var(--mn-ref-diverging-light-warm-mid);
+  --mn-chart-diverging-warm-far:  var(--mn-ref-diverging-light-warm-far);
+
+  --mn-chart-status-good:     var(--mn-ref-moss-700);
+  --mn-chart-status-warning:  var(--mn-ref-ochre-500);
+  --mn-chart-status-serious:  var(--mn-ref-carmine-600);
+  --mn-chart-status-critical: var(--mn-ref-status-critical-light);
+
+  /* ── `contested` stance annunciator triple (WS1 S1) ───────────────────────
+     Skin-neutral by construction (D-9): a contest is a healthy, expected
+     outcome of concurrent authorship, not an error severity, so this triple
+     lives here rather than as a sixth status-quad role. stance.css re-points
+     `--mn-stance-annunciator-*` at these three when `[data-stance=contested]`
+     is set; theme-dark.css overrides all three to their `-dark` reference
+     swatches. */
+  --mn-stance-contested-ink:  var(--mn-ref-status-critical-light);
+  --mn-stance-contested-edge: var(--mn-ref-status-critical-edge-light);
+  --mn-stance-contested-wash: var(--mn-ref-status-critical-wash-light);
+
+  /* Chart geometry roles — the dataviz skill's thin-mark/recessive-grid
+     rules made consumable, not just prose: 2px lines, 4px rounded data-ends,
+     >=8px markers, 2px surface gap between adjacent fills, recessive
+     grids/axes (routed through the existing border roles so they stay
+     theme/skin-aware automatically). */
+  --mn-chart-axis:        var(--mn-color-border-default);
+  --mn-chart-grid:        var(--mn-color-border-subtle);
+  --mn-chart-mark-width:  2px;
+  --mn-chart-mark-radius: 4px;
+  --mn-chart-marker-min:  8px;
+  --mn-chart-fill-gap:    2px;
+  /* Numerals wear tabular lining figures wherever they appear (dashboards,
+     stat tiles, table cells) — global, not Observatory-only. */
+  --mn-font-numeral: var(--mn-font-mono);
+
+  /* ── Font roles ───────────────────────────────────────────────────────── */
+  /* chrome and prose intentionally share the Literata stack in Garden; the
+     two distinct tokens are the keystone that lets a skin swap chrome to
+     Diatype without touching prose. --mn-font-serif is the Garden compat alias
+     the existing chrome components consume for the masthead name. */
+  --mn-font-chrome:  'Literata Variable', 'Literata', Georgia, 'Times New Roman', serif;
+  --mn-font-prose:   'Literata Variable', 'Literata', Georgia, 'Times New Roman', serif;
+  --mn-font-display: var(--mn-font-chrome);
+  --mn-font-serif:   var(--mn-font-prose);
+  --mn-font-sans:    'Source Sans 3 Variable', 'Source Sans 3', -apple-system, sans-serif;
+  --mn-font-utility: var(--mn-font-sans);
+  --mn-font-mono:    'JetBrains Mono Variable', 'JetBrains Mono', ui-monospace, monospace;
+
+  /* ── Typography size scale ────────────────────────────────────────────── */
+  --mn-text-2xs: 0.625rem;   /* 10px */
+  --mn-text-xs:  0.75rem;    /* 12px */
+  --mn-text-sm:  0.8125rem;  /* 13px */
+  --mn-text-base: 0.9375rem; /* 15px */
+  --mn-text-md:  1rem;       /* 16px */
+  --mn-text-lg:  1.125rem;   /* 18px */
+  --mn-text-xl:  1.25rem;    /* 20px */
+  --mn-text-2xl: 1.5rem;     /* 24px */
+  --mn-text-3xl: 1.875rem;   /* 30px */
+  --mn-text-4xl: 2.375rem;   /* 38px */
+
+  --mn-leading-tight: 1.2;
+  --mn-leading-ui:    1.4;
+  --mn-leading-prose: 1.72;
+  --mn-measure-prose: 72ch;
+
+  /* Mature-frontend aliases retained by lifted textarea/dialog/editor CSS. */
+  --mn-leading-normal:      var(--mn-leading-ui);
+  --mn-leading-relaxed:     var(--mn-leading-prose);
+  --mn-editor-line-height:  var(--mn-leading-prose);
+
+  --mn-font-weight-normal:   400;
+  --mn-font-weight-medium:   500;
+  --mn-font-weight-semibold: 600;
+  --mn-font-weight-bold:     700;
+
+  --mn-tracking-tight:  -0.025em;
+  --mn-tracking-normal: 0;
+  --mn-tracking-wide:   0.025em;
+  /* Skin-tunable label tracking (Emporium widens this for icon-only label hints) */
+  --mn-tracking-label:  0.05em;
+
+  /* ── Spacing scale ────────────────────────────────────────────────────── */
+  --mn-space-0:   0;
+  --mn-space-0-5: 0.125rem;  /* 2px */
+  --mn-space-1:   0.25rem;   /* 4px */
+  --mn-space-1-5: 0.375rem;  /* 6px */
+  --mn-space-2:   0.5rem;    /* 8px */
+  --mn-space-3:   0.75rem;   /* 12px */
+  --mn-space-4:   1rem;      /* 16px */
+  --mn-space-5:   1.25rem;   /* 20px */
+  --mn-space-6:   1.5rem;    /* 24px */
+  --mn-space-7:   1.75rem;   /* 28px */
+  --mn-space-8:   2rem;      /* 32px */
+  --mn-space-10:  2.5rem;    /* 40px */
+  --mn-space-12:  3rem;      /* 48px */
+  --mn-space-16:  4rem;      /* 64px */
+
+  /* ── Radius scale ─────────────────────────────────────────────────────── */
+  --mn-radius-none:    0;
+  --mn-radius-sm:      2px;
+  --mn-radius-default: 4px;
+  --mn-radius-md:      6px;
+  --mn-radius-lg:      8px;
+  --mn-radius-xl:      12px;
+  --mn-radius-2xl:     18px;
+  --mn-radius-full:    9999px;
+
+  /* Radius roles — the skin knob. Garden = rounded; Emporium = square. */
+  --mn-radius-control: var(--mn-radius-md);
+  --mn-radius-surface: var(--mn-radius-xl);
+
+  /* ── Density / layout (the posture-ish knob a skin tightens) ──────────── */
+  --mn-row-height:     30px;
+  --mn-control-height: 30px;
+  /* Input-method posture roles. Visual chrome can remain compact while the
+     interactive hit region expands to the cross-platform 48px touch norm. */
+  --mn-touch-target-size: 48px;
+  --mn-mobile-list-row-height: 56px;
+  --mn-y-slice-1-height: var(--mn-top-bar-height, 46px);
+
+  /* ── Presentation flags (skin overrides; "value-set + flags, never structure") */
+  --mn-label-display:   inline;                                       /* none in icon-only skins */
+  --mn-texture-display: block;                                        /* none for digital-clean skins */
+  --mn-chrome-rule:     1px solid var(--mn-color-border-default);     /* column header dividers */
+
+  /* ── Motion roles ─────────────────────────────────────────────────────── */
+  --mn-ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --mn-ease-emphasized: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --mn-transition-fast:   110ms var(--mn-ease-standard);
+  --mn-transition-normal: 180ms var(--mn-ease-standard);
+  --mn-transition-slow:   320ms var(--mn-ease-emphasized);
+
+  /* ── Depth roles: quiet separation, never dashboard chrome ───────────── */
+  --mn-shadow-xs: 0 1px 1px rgba(30, 27, 22, 0.035), 0 1px 3px rgba(30, 27, 22, 0.045);
+  --mn-shadow-sm: 0 1px 2px rgba(30, 27, 22, 0.055), 0 3px 9px rgba(30, 27, 22, 0.045);
+  --mn-shadow-md: 0 8px 24px rgba(30, 27, 22, 0.075), 0 2px 7px rgba(30, 27, 22, 0.055);
+  --mn-shadow-lg: 0 18px 54px rgba(30, 27, 22, 0.12), 0 5px 16px rgba(30, 27, 22, 0.07);
+  --mn-shadow-xl: 0 28px 72px rgba(30, 27, 22, 0.15), 0 8px 24px rgba(30, 27, 22, 0.08);
+  --mn-shadow-chrome: 0 1px 0 rgba(255, 255, 255, 0.58), 0 1px 5px rgba(30, 45, 36, 0.045);
+  --mn-shadow-card: var(--mn-shadow-xs);
+  --mn-shadow-raised: var(--mn-shadow-md);
+  --mn-shadow-popover: var(--mn-shadow-lg);
+  --mn-shadow-modal: var(--mn-shadow-xl);
+  --mn-shadow-primary: 0 10px 28px rgba(var(--mn-color-accent-ch), 0.16);
+  --mn-shadow-composer: var(--mn-shadow-sm);
+  --mn-shadow-composer-focus: var(--mn-focus-ring), var(--mn-shadow-md);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html:root {
+    --mn-transition-fast: 0ms linear;
+    --mn-transition-normal: 0ms linear;
+    --mn-transition-slow: 0ms linear;
+  }
+}
+
+/* The in-app preference uses the same inherited motion contract as the OS
+   media query. Keep this after :root so the attribute wins at equal specificity. */
+[data-reduced-motion] {
+  --mn-transition-fast: 0ms linear;
+  --mn-transition-normal: 0ms linear;
+  --mn-transition-slow: 0ms linear;
+}

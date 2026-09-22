@@ -1,0 +1,37 @@
+{
+  "name": "@shrubbery/nucleus",
+  "version": "0.0.0",
+  "description": "Pure RDF->UI interpreter + contract for the Shrubbery component library",
+  "type": "module",
+  "license": "LicenseRef-PolyForm-Noncommercial-1.0.0",
+  "private": true,
+  "exports": {
+    ".": "./src/index.ts",
+    "./contract": "./src/contract.ts",
+    "./kinds": "./src/kinds/index.ts",
+    "./workspace": "./src/workspace/index.ts",
+    "./layout": "./src/layout/index.ts",
+    "./component-library": "./src/workspace/component-library.ts",
+    "./component-library/manifest": "./component-library/manifest.ts",
+    "./seed/garden-default.ux.nt": "./src/workspace/__generated__/garden-default.ux.nt"
+  },
+  "scripts": {
+    "build": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:run": "vitest run",
+    "test:watch": "vitest",
+    "generate:ux-seed": "tsx scripts/generate-garden-default.mts"
+  },
+  "dependencies": {
+    "lit": "^3.1.4"
+  },
+  "devDependencies": {
+    "@shrubbery/tokens": "workspace:*",
+    "@types/node": "^22.7.4",
+    "happy-dom": "^15.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.4.5",
+    "vitest": "^4.0.13"
+  }
+}

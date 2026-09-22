@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sophia Observatory</title>
+    <link rel="icon" type="image/png" href="/sophialabslogo.png" />
+    <!--
+      RETIRED STANDALONE PAGE — kept only as a REDIRECT so old links keep
+      working. The Observatory is now a NORMAL graph: the hosted Organism
+      renders the monitoring dashboard whenever the active graph's :ux:config
+      declares a dashboard center (sh-layout-dashboard — see
+      seeds/observatory-workspace.ux.nt and src/cell/layout-dashboard-mount.ts).
+      Access control is the normal gateway graph ACL. The `?graph=` param is
+      preserved (default: observatory).
+    -->
+    <script>
+      ;(function () {
+        var here = new URL(window.location.href)
+        var target = new URL('/', here.origin)
+        target.searchParams.set('graph', here.searchParams.get('graph') || 'observatory')
+        window.location.replace(target.toString())
+      })()
+    </script>
+    <noscript>
+      <meta http-equiv="refresh" content="0;url=/?graph=observatory" />
+    </noscript>
+  </head>
+  <body>
+    <p>
+      The Observatory now lives in the main app.
+      <a href="/?graph=observatory">Continue to the Observatory workspace</a>.
+    </p>
+  </body>
+</html>

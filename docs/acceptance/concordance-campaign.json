@@ -1,0 +1,347 @@
+{
+  "schemaVersion": 1,
+  "pathConvention": "baselines.*.repository are paths the generator dereferences at run time (existsSync + git -C), resolved relative to the repo root (this repo). They intentionally carry NO machine-specific absolute prefix: the oracle repos are expected as siblings (../sophia/mnemosyne-platform, ../sophia/garden); targetStart is '.' (this repo itself). Adjust the relative layout for your checkout if it differs.",
+  "campaignId": "shrubbery-concordance-pleasantness",
+  "title": "Shrubbery concordance + pleasantness campaign",
+  "protocol": "sophia-code-lab/shrubbery-concordance-pleasantness-protocol",
+  "baselines": {
+    "uxOracle": {
+      "repository": "../sophia/mnemosyne-platform",
+      "commit": "da66b0ad01e4be64d666b63b8e3d873c37972887",
+      "role": "Current live OG UX oracle. Browser behavior and frontend/src are primary where richer."
+    },
+    "capabilityOracle": {
+      "manifest": "docs/acceptance/garden-capability-manifest.json",
+      "repository": "../sophia/garden",
+      "commit": "cf0cb9600ba25ee49f7268301bcf3d949ed48f3b",
+      "role": "Existing 80-capability/38-journey coverage spine and Garden-native extensions."
+    },
+    "targetStart": {
+      "repository": ".",
+      "commit": "ed1fb2e98d9840f04e5fc21fb281fd3147737319",
+      "role": "Campaign start commit; generated status records the live dirty-tree fingerprint."
+    }
+  },
+  "allowedStatuses": [
+    "audit-required",
+    "specified",
+    "in-progress",
+    "proof-candidate",
+    "proven",
+    "blocked",
+    "intentional-departure"
+  ],
+  "allowedPriorities": ["P0", "P1", "P2", "P3"],
+  "lanes": [
+    {
+      "id": "CONC-L00",
+      "title": "Acceptance, visual system, accessibility, and cross-cutting truth",
+      "priority": "P0",
+      "status": "in-progress",
+      "capabilities": [
+        "ACC-CAP-DESIGN-001",
+        "ACC-CAP-A11Y-001",
+        "ACC-CAP-ERROR-001",
+        "ACC-CAP-DESTRUCT-001"
+      ],
+      "paths": ["docs/acceptance", "scripts", "apps/organism/acceptance"],
+      "requiredEvidence": ["manifest validation", "source census", "coverage ledger", "real Chromium", "evidence-scoped verdicts"]
+    },
+    {
+      "id": "CONC-L01",
+      "title": "Routes, authentication, sharing, public reading, and operator surfaces",
+      "priority": "P1",
+      "status": "audit-required",
+      "capabilities": [
+        "ACC-CAP-ROUTE-001",
+        "ACC-CAP-AUTH-001",
+        "ACC-CAP-AUTH-002",
+        "ACC-CAP-SHARE-001",
+        "ACC-CAP-SHARE-002",
+        "ACC-CAP-PUBLIC-001",
+        "ACC-CAP-OPS-001"
+      ],
+      "paths": ["apps/organism/src/cell/app-routes.ts", "packages/components/src/mn-access-manager.ts", "packages/components/src/mn-public-shell.ts"],
+      "requiredEvidence": ["Chromium route journeys", "hosted role matrix", "Cognito/gateway proof", "anonymous public proof"]
+    },
+    {
+      "id": "CONC-L02",
+      "title": "Shell topology, panes, top bar, commands, and responsive posture",
+      "priority": "P0",
+      "status": "in-progress",
+      "capabilities": [
+        "ACC-CAP-CHROME-001",
+        "ACC-CAP-CHROME-003",
+        "ACC-CAP-MOBILE-001",
+        "ACC-CAP-KEYBOARD-001"
+      ],
+      "paths": ["packages/runtime/src/render-workspace.ts", "packages/components/src/mn-top-bar.ts", "packages/components/src/mn-bottom-bar.ts", "apps/organism/src/main.ts"],
+      "requiredEvidence": ["Happy DOM contract tests", "pointer geometry", "Class-B/Class-C identity", "desktop and compact Chromium", "keyboard journey"]
+    },
+    {
+      "id": "CONC-L03",
+      "title": "Home, workspace catalog, tenancy, graph handoff, and storage truth",
+      "priority": "P0",
+      "status": "in-progress",
+      "capabilities": [
+        "ACC-CAP-HOME-001",
+        "ACC-CAP-HOME-002",
+        "ACC-CAP-TENANCY-001",
+        "ACC-CAP-TENANCY-002",
+        "ACC-CAP-TENANCY-003",
+        "ACC-CAP-TENANCY-004",
+        "ACC-CAP-STORAGE-001"
+      ],
+      "paths": ["packages/components/src/mn-home-view.ts", "packages/components/src/mn-workspace-selector.ts", "apps/organism/src/main.ts"],
+      "requiredEvidence": ["fresh-context home projection", "workspace role/capability matrix", "graph isolation", "Chromium handoff", "local gardend restart"]
+    },
+    {
+      "id": "CONC-L04",
+      "title": "File pane, sidebar organization, daily notes, pins, and search",
+      "priority": "P0",
+      "status": "in-progress",
+      "capabilities": [
+        "ACC-CAP-NAV-001",
+        "ACC-CAP-NAV-002",
+        "ACC-CAP-NAV-003",
+        "ACC-CAP-NAV-004",
+        "ACC-CAP-NAV-005",
+        "ACC-CAP-SEARCH-001"
+      ],
+      "paths": ["packages/components/src/mn-sidebar-panel.ts", "packages/components/src/file-pane-model.ts", "apps/organism/src/main.ts"],
+      "requiredEvidence": ["Happy DOM tree/columns/search", "real pointer multiselect and drag", "daily-note journey", "fresh-context discovery", "local gardend"]
+    },
+    {
+      "id": "CONC-L05",
+      "title": "Editor core, rich structure, outliner, find, and TTS",
+      "priority": "P0",
+      "status": "in-progress",
+      "capabilities": [
+        "ACC-CAP-EDIT-001",
+        "ACC-CAP-EDIT-002",
+        "ACC-CAP-EDIT-003",
+        "ACC-CAP-EDIT-004",
+        "ACC-CAP-EDIT-005",
+        "ACC-CAP-EDIT-006",
+        "ACC-CAP-EDIT-007",
+        "ACC-CAP-EDIT-008",
+        "ACC-CAP-TTS-001"
+      ],
+      "paths": ["packages/editor-kernel", "packages/runtime/src/editor-host", "apps/organism/scripts/browser-harness.mts"],
+      "requiredEvidence": ["Happy DOM editor semantics", "real Chromium typing/formatting/outliner", "Class-B identity", "CRDT reload", "local gardend projection"]
+    },
+    {
+      "id": "CONC-L06",
+      "title": "Wikilinks, images, tags, citations, and comments",
+      "priority": "P1",
+      "status": "in-progress",
+      "capabilities": [
+        "ACC-CAP-EDIT-009",
+        "ACC-CAP-EDIT-010",
+        "ACC-CAP-TAG-001",
+        "ACC-CAP-CITE-001",
+        "ACC-CAP-COMMENT-001"
+      ],
+      "paths": ["packages/editor-kernel", "packages/components/src/mn-comments-panel.ts", "packages/components/src/mn-citation-picker.ts"],
+      "requiredEvidence": ["Happy DOM picker contracts", "Chromium editor interactions", "artifact retrieval", "multi-client comment correlation", "restart"]
+    },
+    {
+      "id": "CONC-L07",
+      "title": "Presence identity, awareness lifecycle, reconnect, and convergence",
+      "priority": "P0",
+      "status": "in-progress",
+      "capabilities": ["ACC-CAP-COLLAB-001", "ACC-CAP-COLLAB-002"],
+      "paths": ["packages/editor-kernel", "packages/runtime/src/editor-host", "apps/organism/src/cell", "apps/vehicle"],
+      "requiredEvidence": ["two users", "same-user two-tab grouping", "normal close", "hard close", "socket reconnect", "document and graph switch", "bounded ghost cleanup", "local gardend restart"],
+      "acceptanceCriteria": {
+        "lifecycle": [
+          "Different human IDs remain distinct even when display names or colors collide.",
+          "Each same-human logical tab remains live; only repeated Awareness epochs for the exact human/device/client/room identity collapse.",
+          "A reload retains the tab's logical client ID and advances its connection epoch; a Duplicate Tab/window.open sessionStorage clone regenerates its copied client ID before publication.",
+          "Cooperative close and hard transport loss remove only the owning connection's Awareness client within a bounded interval.",
+          "Reconnect supersedes the prior exact-session epoch without evicting another legitimate same-human tab or accumulating raw ghosts.",
+          "Document switch, graph switch, and rapid reload clean the source room while preserving target-room truth."
+        ],
+        "interaction": [
+          "Avatar hover and click expose actor identity plus same-human tab/device grouping without pretending grouped tabs are one cursor.",
+          "Human versus Agent is explicit; self name/color controls exist only for the actual local human and cannot mutate account identity or actor type.",
+          "Self display-name and cursor-color edits update real Awareness state and are reused by that human in the browser.",
+          "Follow targets one cursor-bearing logical client ID, never a display-name/color guess, and stops cleanly.",
+          "The visible avatar stack is bounded while +N overflow retains an inspector path for every additional actor.",
+          "Remote cursor and label DOM are contenteditable=false so cursor decorations are opaque to mobile/Gecko editing and IME behavior."
+        ]
+      },
+      "evidence": {
+        "lifecycle": [
+          "Happy DOM: crdt-presence 6/6 and chrome-controller 8/8, including exact-epoch ownership and copied-sessionStorage collision regeneration.",
+          "Real Google Chrome + fresh real gardend, BroadcastChannel disabled: two users, same-human two tabs, cooperative close 2ms, hard close 2ms, reconnect epoch 4→5, document/graph cleanup 2ms, five rapid reloads with monotonically increasing epochs and max two raw Vera entries.",
+          "Real opener-created window.open journey proved sessionStorage cloning, two distinct regenerated client IDs, and hard-close cleanup in 3ms."
+        ],
+        "interaction": [
+          "Happy DOM: mn-bottom-bar 15/15; shell feature 7/7; runtime collaboration/editor-host 21/21.",
+          "Real Google Chrome + real gardend: grouped-tab explanation, remote Awareness name/color propagation, exact-tab cursor follow, Human/Agent inspector truth, +N overflow, and zero page/console errors.",
+          "Cursor builder asserts stable logical-client data attributes and contenteditable=false on both caret and label."
+        ],
+        "oracle": [
+          "Live OG UX oracle da66b0ad01e4: document-store.ts and document-editor.ts supply avatar/self-profile/cursor precedents; session-store.ts plus lib/tab-id.ts specify independent same-human tabs and cloned-tab detection.",
+          "Intentional correction: retain OG's documented independent-tab model and mobile-safe cursor builder; do not port the later same-user eviction or userId/name-color dedup regression."
+        ]
+      }
+    },
+    {
+      "id": "CONC-L08",
+      "title": "Graph, wires, inspector, SPARQL, Vega, and Mermaid",
+      "priority": "P1",
+      "status": "proof-candidate",
+      "capabilities": [
+        "ACC-CAP-WIRE-001",
+        "ACC-CAP-WIRE-002",
+        "ACC-CAP-WIRE-003",
+        "ACC-CAP-WIRE-004",
+        "ACC-CAP-GRAPH-001",
+        "ACC-CAP-INSPECT-001",
+        "ACC-CAP-QUERY-001",
+        "ACC-CAP-VEGA-001",
+        "ACC-CAP-MERMAID-001"
+      ],
+      "paths": ["packages/components/src/mn-graph-three.ts", "packages/runtime/src/graph-host.ts", "packages/runtime/src/wires-panel", "packages/editor-kernel"],
+      "requiredEvidence": ["real WebGL Chromium", "stable Class-C identity", "wire mutation/oracle", "query persistence", "malformed/empty/error states"]
+    },
+    {
+      "id": "CONC-L09",
+      "title": "Artifacts, Excalidraw, image generation, Zotero, and research surfaces",
+      "priority": "P1",
+      "status": "audit-required",
+      "capabilities": [
+        "ACC-CAP-EXCAL-001",
+        "ACC-CAP-EXCAL-002",
+        "ACC-CAP-ART-001",
+        "ACC-CAP-ART-002",
+        "ACC-CAP-ZOTERO-001"
+      ],
+      "paths": ["packages/components/src/mn-artifact-view.ts", "packages/components/src/mn-excalidraw-canvas.ts", "packages/atelier", "apps/organism/src/cell"],
+      "requiredEvidence": ["Chromium artifact journey", "scene restart", "wire hydration", "real-provider bounded run", "artifact byte oracle"]
+    },
+    {
+      "id": "CONC-L10",
+      "title": "Settings, history, restore, import, originals, export, and Local AI",
+      "priority": "P1",
+      "status": "in-progress",
+      "capabilities": [
+        "ACC-CAP-CHROME-002",
+        "ACC-CAP-IMPORT-001",
+        "ACC-CAP-ORIGINAL-001",
+        "ACC-CAP-ORIGINAL-002",
+        "ACC-CAP-CLIP-001",
+        "ACC-CAP-CLIP-002",
+        "ACC-CAP-EXPORT-001",
+        "ACC-CAP-ARCHIVE-001",
+        "ACC-CAP-SEMANTIC-001",
+        "ACC-CAP-HISTORY-001",
+        "ACC-CAP-RESTORE-001",
+        "ACC-CAP-SET-001",
+        "ACC-CAP-SET-002",
+        "ACC-CAP-SET-003",
+        "ACC-CAP-SET-004",
+        "ACC-CAP-SET-005"
+      ],
+      "paths": ["packages/components/src/mn-settings-page.ts", "apps/organism/src/cell/settings-operations.ts", "apps/organism/scripts/settings-browser-harness.mts"],
+      "requiredEvidence": ["Happy DOM state workbenches", "real file chooser", "local gardend imports", "history diff before restore", "destructive cancel/confirm", "all themes"]
+    },
+    {
+      "id": "CONC-L11",
+      "title": "Chat presentation, sessions, billing states, and Choreograph",
+      "priority": "P1",
+      "status": "audit-required",
+      "capabilities": [
+        "ACC-CAP-CHAT-001",
+        "ACC-CAP-CHAT-002",
+        "ACC-CAP-CHOREO-001",
+        "ACC-CAP-CHOREO-002"
+      ],
+      "paths": ["packages/chat-kernel", "packages/runtime/src/chat-host", "apps/organism/src/cell/app-routes.ts", "apps/choreograph"],
+      "requiredEvidence": ["Happy DOM transport states", "Chromium popout/bring-back", "same-session identity", "successful real chat", "hosted workflow telemetry"]
+    },
+    {
+      "id": "CONC-L12",
+      "title": "Emporium and target-native product extensions",
+      "priority": "P2",
+      "status": "audit-required",
+      "capabilities": ["ACC-CAP-EMP-001", "ACC-CAP-EMP-002"],
+      "paths": ["apps/emporium", "packages/components/src/mn-vtuber.ts"],
+      "requiredEvidence": ["live gardend read", "semantic graph assertions", "target-extension classification", "real Chromium"]
+    }
+  ],
+  "elementRules": [
+    {"lane": "CONC-L01", "prefixes": ["garden-landing", "sophia-labs-landing", "garden-hero-canvas", "sophia-hero-canvas", "mn-auth", "mn-sign-", "mn-verify-", "mn-public", "mn-ops-health", "mn-access-manager", "mn-consent-banner"]},
+    {"lane": "CONC-L02", "prefixes": ["mn-top-bar", "mn-bottom-bar", "mn-mobile-tabs", "mn-app-bar", "mn-ribbon", "document-switcher", "mn-document-switcher", "mn-shortcuts-dialog", "mn-panel-header", "sh-center-panes"]},
+    {"lane": "CONC-L03", "prefixes": ["mn-home-view", "mn-workspace-selector", "mn-storage-banner"]},
+    {"lane": "CONC-L04", "prefixes": ["mn-sidebar-panel", "mn-mobile-file-list", "mn-folder-picker-dialog", "mn-daily-note-", "mn-month-popover"]},
+    {"lane": "CONC-L05", "prefixes": ["document-editor", "sh-editor-host", "mn-editor-toolbar", "mn-calendar-event-specimen", "mn-tts-player"]},
+    {"lane": "CONC-L06", "prefixes": ["citation-picker", "mn-citation-picker", "comments-panel", "mn-comments-panel", "mn-comment-popover", "wikilink-picker", "mn-wikilink-picker", "mn-tag-", "mn-node-link-picker"]},
+    {"lane": "CONC-L07", "prefixes": ["mn-avatar"]},
+    {"lane": "CONC-L08", "prefixes": ["advanced-wire-menu", "mn-advanced-wire-menu", "wire-", "wires-panel", "mn-wire-", "sh-wire", "graph-panel", "mn-graph", "sh-graph", "mn-inspector", "mn-relations"]},
+    {"lane": "CONC-L09", "prefixes": ["mn-artifact", "mn-excalidraw", "mn-zotero", "zotero-", "mn-research-", "mn-vtuber"]},
+    {"lane": "CONC-L10", "prefixes": ["mn-settings", "doc-history", "mn-doc-history", "mn-doc-restore", "mn-restore", "mn-snapshot", "mn-timeline", "mn-original", "mn-export", "mn-quick-clip", "mn-feedback-form", "mn-upgrade-banner"]},
+    {"lane": "CONC-L11", "prefixes": ["chat-", "sh-chat", "wf-", "mn-cloud-mode-"]},
+    {"lane": "CONC-L00", "prefixes": ["mn-badge", "mn-button", "mn-card", "mn-chip", "mn-confirmation-dialog", "mn-context-menu", "mn-dialog", "mn-dropdown-button", "mn-empty-state", "mn-error-boundary", "mn-icon-button", "mn-inline-edit", "mn-input", "mn-loading", "mn-modal", "mn-search-input", "mn-sparkline", "mn-spinner", "mn-textarea", "mn-toast", "mn-toolbar", "mn-tooltip"]}
+  ],
+  "elementAliases": {
+    "advanced-wire-menu": ["mn-advanced-wire-menu"],
+    "chat-panel": ["sh-chat-host", "sh-chat-panel"],
+    "citation-picker": ["mn-citation-picker"],
+    "comments-panel": ["mn-comments-panel"],
+    "doc-history-panel": ["mn-doc-history-panel"],
+    "document-editor": ["sh-editor-host"],
+    "document-switcher": ["mn-document-switcher"],
+    "graph-panel": ["sh-graph-host", "mn-graph-three"],
+    "wikilink-picker": ["mn-wikilink-picker"],
+    "wire-menu-dropdown": ["mn-wire-menu-dropdown"],
+    "wire-picker": ["mn-wire-picker"],
+    "wire-pinned-layer": ["sh-wire-pinned-layer"],
+    "wire-radial-overlay": ["mn-wire-radial-overlay"],
+    "wires-panel": ["sh-wires-panel"],
+    "zotero-library-panel": ["mn-zotero-library-panel"],
+    "zotero-source-workbench": ["mn-zotero-source-workbench"]
+  },
+  "elementDispositions": {
+    "chat-debug-page": "deliberately-omit-development-only",
+    "mn-doc-restore-dialog": "synthesize-in-settings-history-workbench"
+  },
+  "findings": [
+    {"id": "FID-001", "lane": "CONC-L02", "priority": "P0", "status": "proof-candidate", "capabilities": ["ACC-CAP-CHROME-003"], "summary": "Physical pane geometry had been disconnected from split-panel state.", "requiredEvidence": ["integrated pointer geometry", "no cross-pane state overwrite"]},
+    {"id": "FID-002", "lane": "CONC-L02", "priority": "P0", "status": "proof-candidate", "capabilities": ["ACC-CAP-CHROME-003"], "summary": "Pane snap/collapse persistence policy and per-tab authority require final proof.", "requiredEvidence": ["small/large viewport snap", "per-tab isolation", "reload", "Class-B identity"], "evidence": ["versioned graph-scoped mux session codec: 5/5 Happy DOM/Vitest assertions including cloned-then-independent per-tab storage", "production Organism + fresh Gardend + Chromium: exact two-pane location/history/focus/divider/posture projection restored across reload with rebuilt providers/views and zero unexpected request, page, or console errors"]},
+    {"id": "FID-003", "lane": "CONC-L05", "priority": "P1", "status": "audit-required", "capabilities": ["ACC-CAP-EDIT-004"], "summary": "Outliner node bullets and their real pointer semantics require integrated proof.", "requiredEvidence": ["pseudo-element geometry", "wire action", "fold action", "no duplicate list marker"]},
+    {"id": "FID-004", "lane": "CONC-L07", "priority": "P0", "status": "audit-required", "capabilities": ["ACC-CAP-EDIT-001", "ACC-CAP-EDIT-006", "ACC-CAP-COLLAB-002"], "summary": "Live Y.Doc, workspace, snapshot, search, history, and RDF projections may diverge.", "requiredEvidence": ["create/edit UI", "all read authorities", "restart", "projection hashes"]},
+    {"id": "FID-005", "lane": "CONC-L00", "priority": "P0", "status": "audit-required", "capabilities": ["ACC-CAP-IMPORT-001"], "summary": "Production evidence was mislabeled as ACC-J430 and is not coverage-accountable.", "requiredEvidence": ["manifest-derived journey identity", "schema-rejected mismatch"]},
+    {"id": "FID-006", "lane": "CONC-L00", "priority": "P0", "status": "in-progress", "capabilities": ["ACC-CAP-DESIGN-001"], "summary": "The exhaustive runner and terminal verdict ledger are not implemented.", "requiredEvidence": ["terminal verdict per applicable claim", "immutable evidence bundle"]},
+    {"id": "FID-007", "lane": "CONC-L02", "priority": "P1", "status": "audit-required", "capabilities": ["ACC-CAP-CHROME-001", "ACC-CAP-CHROME-003", "ACC-CAP-KEYBOARD-001"], "summary": "The command registry and global keyboard action spine are incomplete.", "requiredEvidence": ["command-ID concordance", "Chromium shortcuts", "focus restore", "Escape precedence"]},
+    {"id": "FID-008", "lane": "CONC-L07", "priority": "P0", "status": "audit-required", "capabilities": ["ACC-CAP-COLLAB-001"], "summary": "Opaque Awareness adapters permit invalid truthy shapes and unhandled rejections.", "requiredEvidence": ["real Awareness or explicit omission", "mount/teardown", "two-client presence"]},
+    {"id": "FID-009", "lane": "CONC-L00", "priority": "P1", "status": "specified", "capabilities": ["ACC-CAP-DESIGN-001"], "summary": "The standalone Garden capability oracle and the live OG UX oracle must stay separate and versioned.", "requiredEvidence": ["dual-oracle source census", "explicit dispositions"]},
+    {"id": "FID-010", "lane": "CONC-L03", "priority": "P0", "status": "audit-required", "capabilities": ["ACC-CAP-HOME-002"], "summary": "Home can report an existing graph as empty because activity is browser-local.", "requiredEvidence": ["externally seeded document", "fresh browser", "graph-scoped pins/recent"]},
+    {"id": "CONC-001", "lane": "CONC-L07", "priority": "P0", "status": "proof-candidate", "capabilities": ["ACC-CAP-COLLAB-001", "ACC-CAP-COLLAB-002"], "summary": "Duplicate-self and stale-ghost presence regressed from the prior-good Hocuspocus behavior; interaction quality also regressed.", "requiredEvidence": ["same-user tab grouping", "different-user identity", "reconnect epoch supersession", "bounded cleanup", "presence interactions"], "acceptanceSplit": {"lifecycle": "Exact-session epoch ownership, legitimate same-human tabs, cloned-tab regeneration, bounded cleanup, reconnect/switch/reload behavior.", "interaction": "Grouped-tab explanation, Human/Agent truth, real self profile controls, exact-client cursor follow, complete overflow, mobile-safe cursor DOM."}, "evidence": {"lifecycle": ["14 focused Happy DOM identity/controller assertions", "real Chrome + fresh gardend full lifecycle journey including actual window.open sessionStorage clone"], "interaction": ["43 focused Happy DOM component/shell/runtime assertions", "real Chrome + fresh gardend inspector/profile/follow/agent/overflow journey with zero errors"]}},
+    {"id": "CONC-002", "lane": "CONC-L02", "priority": "P0", "status": "proof-candidate", "capabilities": ["ACC-CAP-CHROME-003", "ACC-CAP-WIRE-004"], "summary": "A real dual-document center with independent persistent editor bindings is absent while split is advertised.", "requiredEvidence": ["two live editors", "independent focus/history", "divider", "Class-B identity", "same-room provider sharing and last-lease teardown", "coherent same-room alternating undo/redo"], "evidence": ["runtime Happy DOM: 41/41 focused assertions", "isolated Chromium: two editors, independent bindings/history, 133.95px divider delta, zero errors", "production Organism + fresh real Gardend: independent CRDT edits, history round-trip, 139.98px divider delta, stable hosts, close lifecycle, zero errors", "editor multiplexer proof: two TipTap views of one Gardend document share one exact ProviderHandle/Y.Doc/awareness object, converge edits, and preserve the survivor after one attachment releases; zero browser/console/request errors", "EditorRoomPool Happy DOM/Vitest: 7/7 lifecycle, collision, cleanup, and failed-open assertions", "room-owned history implementation: one recording UndoManager per Y.Doc + field, non-recording per-view TipTap adapters, command routing from every EditorView, survivor preservation, and final-lease cleanup", "Happy DOM with two real TipTap views: alternating undo/undo/redo/redo preserves the complete branch; survivor lifecycle, last-release reset, and different-room isolation pass (23/23 focused assertions)", "production Organism + fresh real Gardend + Chromium: alternating physical-pane keyboard undo/redo preserves both capture groups and converges both views; zero page, console, or request errors"]},
+    {"id": "CONC-003", "lane": "CONC-L02", "priority": "P0", "status": "proof-candidate", "capabilities": ["ACC-CAP-CHROME-003", "ACC-CAP-GRAPH-001"], "summary": "Files/Graph changes bottom-bar state but not the actual left surface.", "requiredEvidence": ["real left-surface swap", "stable Class-C graph", "desktop and compact"], "evidence": ["Happy DOM render integration: stable actual left/right topology", "Chromium WebGL: right↔left identity, desktop/compact, projection mutation, zero errors"]},
+    {"id": "CONC-004", "lane": "CONC-L04", "priority": "P0", "status": "proof-candidate", "capabilities": ["ACC-CAP-NAV-001", "ACC-CAP-NAV-002", "ACC-CAP-NAV-003"], "summary": "File pane needs OG tree/columns/search topology plus sort, grouping, multiselect, and status truth.", "requiredEvidence": ["pure model", "Happy DOM", "pointer Chromium", "local gardend"], "evidence": ["component/model/controller Happy DOM tests", "Chromium tree/columns/search/sort/group/selection/path/capability desktop+compact journey with zero errors", "real Gardend production-entry file-pane navigation in center-pane proof"]},
+    {"id": "CONC-005", "lane": "CONC-L03", "priority": "P1", "status": "proof-candidate", "capabilities": ["ACC-CAP-TENANCY-001", "ACC-CAP-TENANCY-004"], "summary": "Workspace selector needs owned/shared parity and a lighter Garden-specific qualitative pass while preserving Shrubbery operational truth.", "requiredEvidence": ["role groups", "keyboard", "compact overlay", "switch continuity", "all themes"], "evidence": ["28 focused Happy DOM assertions", "Chromium desktop/compact and Garden/Emporium/98/Glass light/dark with zero errors"]},
+    {"id": "CONC-006", "lane": "CONC-L02", "priority": "P1", "status": "specified", "capabilities": ["ACC-CAP-CHROME-001", "ACC-CAP-KEYBOARD-001"], "summary": "Top-bar document/navigation grammar is thinner than OG.", "requiredEvidence": ["back/forward", "active-document menu", "new", "search", "split", "keyboard"]},
+    {"id": "CONC-007", "lane": "CONC-L10", "priority": "P1", "status": "specified", "capabilities": ["ACC-CAP-RESTORE-001"], "summary": "Graph history is a reduced restore list rather than an inspectable comparison workbench.", "requiredEvidence": ["timeline", "diff", "target/baseline", "filter/page/export", "cancel/confirm"]},
+    {"id": "CONC-008", "lane": "CONC-L11", "priority": "P1", "status": "specified", "capabilities": ["ACC-CAP-CHAT-002"], "summary": "Chat popout does not yet prove same-session presentation and bring-back lifecycle; transport/billing states are thinner.", "requiredEvidence": ["same session", "popup close", "bring back", "offline/reconnect/read-only/credits"]},
+    {"id": "CONC-009", "lane": "CONC-L10", "priority": "P2", "status": "specified", "capabilities": ["ACC-CAP-IMPORT-001", "ACC-CAP-CLIP-001", "ACC-CAP-CLIP-002"], "summary": "Importer-specific state machines were reduced to generic action cards.", "requiredEvidence": ["input schemas", "per-item progress", "warnings/results/reset", "real files"]},
+    {"id": "CONC-010", "lane": "CONC-L08", "priority": "P1", "status": "proof-candidate", "capabilities": ["ACC-CAP-WIRE-002", "ACC-CAP-WIRE-003", "ACC-CAP-GRAPH-001"], "summary": "Graph and wire richness has a dirty proof candidate and must be reconciled without losing stable host identity.", "requiredEvidence": ["full runtime tests", "real WebGL", "wire browser journey", "zero console/request errors"]},
+    {"id": "CONC-011", "lane": "CONC-L05", "priority": "P0", "status": "proof-candidate", "capabilities": ["ACC-CAP-EDIT-002", "ACC-CAP-EDIT-004", "ACC-CAP-EDIT-009", "ACC-CAP-TAG-001"], "summary": "Semantic editor nodes exist but some OG material styles did not cross the Shadow DOM boundary: wikilinks and tag chips can look like plain text, while blockquotes lack their quote treatment and gutter affordance.", "requiredEvidence": ["shared semantic-style bridge", "real blockquote creation and computed material", "real wikilink insertion and computed material", "tag-chip material", "Garden/Emporium/98/Glass inheritance", "no duplicate outliner marker"], "evidence": ["editor-kernel exports extension-authored wikilink and tag-chip material through one runtime-owned Shadow DOM style bridge; editor-host owns blockquote material and direct-child outliner-marker exclusion", "focused editor-kernel 11/11 and runtime Happy DOM 28/28 assertions pass with affected package typechecks", "production Organism + fresh real Gardend + Chromium: toolbar blockquote transform plus physical # and [[ input produced quote/tag/wikilink nodes with computed semantic material; the same run completed dual-editor CRDT/navigation/undo/reload with zero page, console, or request errors"]},
+    {"id": "CONC-012", "lane": "CONC-L06", "priority": "P0", "status": "proof-candidate", "capabilities": ["ACC-CAP-EDIT-009", "ACC-CAP-TAG-001", "ACC-CAP-CITE-001", "ACC-CAP-KEYBOARD-001"], "summary": "Editor transient surfaces share a fixed mount hard-coded to viewport origin, so wikilink, tag, slash, and existing-wire popovers can render at the top-left instead of near their invocation anchor.", "requiredEvidence": ["one viewport-coordinate placement contract", "caret and pointer anchors", "edge clamping and above/below flip", "real Chromium wikilink/tag/slash geometry", "centered modal surfaces remain viewport-owned", "desktop and compact"], "evidence": ["one pure viewport-coordinate placement function covers below/above preference, edge clamping, compact oversized surfaces, and an intentional non-origin fallback (5/5 Happy DOM assertions)", "the public live-editor handle now supplies caret/block/editor geometry and all editor transient controllers consume that contract; hidden-first mounting removes the first-paint origin flash and default-mount teardown proves ownership across editor rebindings", "production Organism + fresh real Gardend + Chromium: physical /, #, and [[ input opened slash, tag, and wikilink surfaces at the caret-aligned eight-pixel gap, never the viewport origin; zero page, console, or request errors", "shared-mount regression proof: inactive close events from sibling trigger observers do not erase the controller that owns the open surface"]},
+    {"id": "CONC-013", "lane": "CONC-L05", "priority": "P0", "status": "specified", "capabilities": ["ACC-CAP-EDIT-001", "ACC-CAP-EDIT-002", "ACC-CAP-EDIT-005", "ACC-CAP-EDIT-009", "ACC-CAP-TAG-001"], "summary": "The Shadow-DOM material fix exposed a broader semantic-extension contract gap: schema, renderer, mutation policy, host callbacks, persistence side effects, and keyboard semantics are not yet audited as one unit for every editor node and mark.", "requiredEvidence": ["machine-readable node/mark composition roster", "read-only mutation enforcement", "scheduled-tag daily-note materialization", "math and query-block rendering inside the host ShadowRoot", "calendar-event insertion and editing", "wikilink deletion wire cleanup", "migrated heading-level normalization", "table, footnote, comment, link, and keyboard matrices"], "auditInventory": {"P0": ["read-only task-checkbox and image-resize mutation paths", "scheduled tag callback absent from the production shell", "math renderer and styles do not own an in-shadow surface", "calendar-event node has no complete insertion/editing path", "wikilink deletion does not invoke wire cleanup", "legacy string heading levels can mis-render"], "P1": ["query-block styles are document-global", "table editing/material", "footnote/endnote editing", "comment click and pin behavior", "ordinary-link and atom keyboard activation", "ordered-list counter and indent material"], "P2": ["placeholder, horizontal-rule, and mark polish", "nested blockquote material", "composition roster omissions for query-block and citation"]}},
+    {"id": "CONC-014", "lane": "CONC-L00", "priority": "P1", "status": "specified", "capabilities": ["ACC-CAP-A11Y-001", "ACC-CAP-KEYBOARD-001", "ACC-CAP-CHROME-001"], "summary": "The fixed-origin editor popover is one instance of a repository-wide overlay contract gap: floating surfaces, true modals, tooltips, and persisted cards use inconsistent geometry, ownership, focus, dismissal, and viewport-reflow policies.", "requiredEvidence": ["one overlay-stack ownership model", "explicit suggestion/menu/tooltip/modal/persistent-card kinds", "hidden-first measured placement", "visualViewport, scroll, and resize reflow", "focus trap and return", "Escape stack precedence", "pointer and keyboard parity", "desktop and compact edge matrix"], "auditInventory": {"floating": ["month popover lacks lower clamp and flip", "chat context menu uses unclamped pointer coordinates", "pinned wire/document/block cards hydrate stale raw coordinates", "comment missing-anchor fallback is conspicuous", "graph and editor-footnote tooltips do not clamp", "chat model picker can overflow narrow viewports"], "modal": ["export, input, confirmation, folder, shortcuts, switcher, citation, node-link, wire, advanced, cloud, restore, history, and mobile-sheet surfaces vary in native-dialog, focus-trap, focus-return, Escape, and ARIA behavior"], "recommendedContract": ["one OverlayStack", "measured hidden-first placeFloating primitive", "native-dialog controller for true modals", "mn-tooltip ownership for tooltips"]}}
+  ],
+  "workPackages": [
+    {"id": "CONC-WP-PRESENCE", "lane": "CONC-L07", "wave": 1, "priority": "P0", "status": "in-progress", "owner": "editor_host_stability", "findingIds": ["CONC-001", "FID-004", "FID-008"], "writeScope": ["packages/components/src/mn-bottom-bar.ts", "packages/runtime/src/collab/live-editor.ts", "apps/organism/src/cell/presence*", "apps/organism/src/cell/chrome-controller.ts", "apps/organism/src/cell/shell-features.ts", "apps/organism/scripts/*presence*"], "completedSlice": ["CONC-001 lifecycle and interaction proof candidate"], "remainingScope": ["FID-004 projection convergence audit", "FID-008 general Awareness adapter audit beyond the proven production path", "local gardend restart evidence before lane-level proven status"]},
+    {"id": "CONC-WP-DUAL-PANE", "lane": "CONC-L02", "wave": 1, "priority": "P0", "status": "proof-candidate", "owner": "root", "findingIds": ["CONC-002", "FID-002"], "writeScope": ["packages/runtime/src/center-panes*", "packages/runtime/src/editor-host", "packages/components/src/*pane*", "apps/organism/src/cell/editor-room-pool*", "apps/organism/scripts/*pane*", "docs/architecture/TIPTAP_EDITOR_MULTIPLEXER.md"]},
+    {"id": "CONC-WP-LEFT-TOPOLOGY", "lane": "CONC-L02", "wave": 1, "priority": "P0", "status": "proof-candidate", "owner": "root", "findingIds": ["CONC-003"], "writeScope": ["packages/runtime/src/render-workspace.ts", "packages/runtime/src/graph-host.ts", "apps/organism/src/main.ts"]},
+    {"id": "CONC-WP-FILE-PANE", "lane": "CONC-L04", "wave": 1, "priority": "P0", "status": "proof-candidate", "owner": "root", "findingIds": ["CONC-004"], "writeScope": ["packages/components/src/mn-sidebar-panel.ts", "packages/components/src/file-pane-model.ts", "packages/runtime/src/render-workspace.ts", "apps/organism/src/main.ts"]},
+    {"id": "CONC-WP-ACCEPTANCE-SPINE", "lane": "CONC-L00", "wave": 1, "priority": "P0", "status": "in-progress", "owner": "root", "findingIds": ["FID-005", "FID-006", "FID-009"], "writeScope": ["docs/acceptance", "scripts/validate-concordance-campaign.mjs"]},
+    {"id": "CONC-WP-WORKSPACE-SELECTOR", "lane": "CONC-L03", "wave": 1, "priority": "P1", "status": "proof-candidate", "owner": "mobile_home_parity", "findingIds": ["CONC-005"], "writeScope": ["packages/components/src/mn-workspace-selector.ts", "packages/components/src/*workspace-selector*", "apps/organism/scripts/*workspace-selector*"]},
+    {"id": "CONC-WP-EDITOR-SEMANTICS", "lane": "CONC-L05", "wave": 1, "priority": "P0", "status": "in-progress", "owner": "root", "findingIds": ["CONC-011", "CONC-013"], "writeScope": ["packages/editor-kernel/src/extensions/*", "packages/runtime/src/collab/live-editor.ts", "packages/runtime/src/editor-host.ts", "apps/organism/scripts/*editor*"], "completedSlice": ["CONC-011 semantic style bridge and real-browser material proof candidate"], "remainingScope": ["CONC-013 semantic node/mark composition, mutation, callback, persistence, and keyboard matrix", "Garden/Emporium/98/Glass inheritance matrix and nested-quote material", "read-only enforcement and scheduled-tag shell wiring first"]},
+    {"id": "CONC-WP-EDITOR-OVERLAYS", "lane": "CONC-L06", "wave": 1, "priority": "P0", "status": "in-progress", "owner": "root", "findingIds": ["CONC-012", "CONC-014"], "writeScope": ["packages/runtime/src/picker/install-glue.ts", "packages/runtime/src/editor-host.ts", "packages/components/src/mn-wikilink-picker.ts", "apps/organism/scripts/*editor*"], "completedSlice": ["CONC-012 editor transient anchor/placement contract and real-browser proof candidate"], "remainingScope": ["compact and pointer edge matrix for editor transients", "CONC-014 repository-wide OverlayStack, geometry reflow, focus, dismissal, and modal migration"]}
+  ]
+}

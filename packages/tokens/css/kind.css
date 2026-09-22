@@ -1,0 +1,78 @@
+/* DisplayKind register hooks consumed by pure render DOM strings.
+ *
+ * Applies via [data-kind=identity|state|metric|prose|reference|testimony|affordance].
+ * Skins can override the custom properties; render only stamps data-kind/classes.
+ */
+
+:root {
+  --mn-kind-text: var(--mn-color-text-primary);
+  --mn-kind-muted: var(--mn-color-text-secondary);
+  --mn-kind-rule: var(--mn-color-border-subtle);
+  --mn-kind-accent: var(--mn-color-accent);
+  --mn-kind-metric-unit: var(--mn-color-text-secondary);
+  --mn-kind-reference-text: var(--mn-color-accent);
+  --mn-kind-testimony-text: var(--mn-color-text-secondary);
+  --mn-kind-register-current: none;
+}
+
+.mn-kind {
+  color: var(--mn-kind-text);
+}
+
+.mn-kind[data-kind="identity"] {
+  --mn-kind-register-current: identity;
+  font-weight: 650;
+}
+
+.mn-kind[data-kind="state"] {
+  --mn-kind-register-current: state;
+  color: var(--mn-kind-muted);
+}
+
+.mn-kind[data-kind="metric"] {
+  --mn-kind-register-current: metric;
+}
+
+.mn-kind[data-kind="metric"] .mn-kind-value {
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+}
+
+.mn-kind[data-kind="metric"] .mn-kind-unit {
+  color: var(--mn-kind-metric-unit);
+  margin-inline-start: 0.25rem;
+}
+
+.mn-kind[data-kind="prose"] {
+  --mn-kind-register-current: prose;
+  line-height: 1.55;
+}
+
+.mn-kind[data-kind="reference"] {
+  --mn-kind-register-current: reference;
+}
+
+.mn-kind[data-kind="reference"] .mn-kind-link {
+  color: var(--mn-kind-reference-text);
+  text-decoration-color: color-mix(in srgb, var(--mn-kind-reference-text) 45%, transparent);
+  text-underline-offset: 0.14em;
+}
+
+.mn-kind[data-kind="testimony"] .mn-kind-attribution {
+  color: var(--mn-kind-testimony-text);
+  margin-inline-start: 0.4rem;
+}
+
+.mn-kind[data-kind="testimony"] {
+  --mn-kind-register-current: testimony;
+}
+
+.mn-kind[data-kind="testimony"] .mn-kind-attribution::before {
+  content: "— ";
+}
+
+.mn-kind[data-kind="affordance"] {
+  --mn-kind-register-current: affordance;
+  color: var(--mn-kind-accent);
+  font-weight: 600;
+}

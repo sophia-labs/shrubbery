@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Atelier — honest demo</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <header class="masthead">
+      <div class="mast-title">the <b>Atelier</b> · honest demo</div>
+      <div class="mast-sub">
+        every panel below is a shipped achievement of this workstream — nothing staged, nothing borrowed.
+        the avatar is <em>our committed fixture</em>; every control drives <em>the real <code>set_appearance</code> verb</em>
+        against <em>a running gardend cell</em>, and the panel shows <em>the cell's own <code>:ux:control</code> bytes</em> read back.
+        no cell → the honest live-read error, never faked.
+      </div>
+    </header>
+
+    <main class="stage">
+      <section class="panel avatar-panel">
+        <h2>the puppet <span class="prov">packages/atelier · mn-vtuber</span></h2>
+        <mn-vtuber id="avatar" label="Atelier demo avatar" camera-frame="bust"></mn-vtuber>
+        <div class="fixture-row">
+          <label>fixture:
+            <select id="fixture">
+              <option value="seed-san.vrm">seed-san.vrm — VRM 1.0</option>
+              <option value="avatar-sample-a.vrm">avatar-sample-a.vrm — VRM 0.x</option>
+            </select>
+          </label>
+          <pre id="status" class="status">loading…</pre>
+        </div>
+      </section>
+
+      <section class="panel mirror-panel">
+        <h2>the mirror <span class="prov">S3 · render_portrait, made visible</span></h2>
+        <p class="hint">
+          renders the avatar above through the REAL headless mirror (real Chromium, real VRM parse)
+          and archives the PNG as a real artifact on the cell — <code>"the mirror is an artifact."</code>
+        </p>
+        <button id="mirror-btn" type="button" class="mirror-btn">render mirror</button>
+        <img id="mirror-img" class="mirror-img" alt="rendered mirror portrait" hidden />
+        <p id="mirror-caption" class="mirror-caption">—</p>
+      </section>
+
+      <section class="panel controls-panel">
+        <h2>set_appearance <span class="prov">the agent-facing surface · S2</span></h2>
+        <p class="hint">exactly the six fields the curated verb governs. drag anything; the avatar and the channel update together.</p>
+        <div class="ctl"><label for="accentTint">accentTint</label><input type="color" id="accentTint" value="#7c5cff" /></div>
+        <div class="ctl"><label for="eyeTint">eyeTint</label><input type="color" id="eyeTint" value="#39d0d8" /></div>
+        <div class="ctl"><label for="hairTint">hairTint</label><input type="color" id="hairTint" value="#e86a92" /></div>
+        <div class="ctl"><label for="outfitTint">outfitTint</label><input type="color" id="outfitTint" value="#2f5d8a" /></div>
+        <div class="ctl"><label for="skinWarmth">skinWarmth</label><input type="range" id="skinWarmth" min="-1" max="1" step="0.05" value="0" /><output id="skinWarmthOut">0.00</output></div>
+        <div class="ctl"><label for="expression">expression</label>
+          <select id="expression">
+            <option>neutral</option><option selected>focused</option><option>excited</option><option>strained</option>
+          </select>
+        </div>
+      </section>
+
+      <section class="panel evidence-panel">
+        <h2>:ux:control <span class="prov">graph <span id="graph-label">connecting…</span></span></h2>
+        <p class="hint">the cell's own N-Triples, read back by <code>rdf_dump</code> after the real <code>set_vtuber_appearance</code> verb (<code>growVtuberAppearance → sparql_update</code>) mutated exactly this bounded predicate set. drag a control and watch the graph change.</p>
+        <pre id="triples" class="triples">—</pre>
+
+        <h2 class="lic-h">license testimony <span class="prov">glb-inspect · extracted from the .vrm meta</span></h2>
+        <p class="hint">read from the fixture's own VRM meta by our GLB inspector — the credit this workstream is built to honor.</p>
+        <dl id="license" class="license">—</dl>
+      </section>
+    </main>
+
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

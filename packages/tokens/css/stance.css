@@ -1,0 +1,71 @@
+/* STANCE: orthogonal posture/register axis
+ *
+ * Applies via [data-stance=room|bench|constitution|dispatch|contested].
+ * Skins may tune these register variables, but the stance axis is owned here.
+ *
+ * `contested` is the fifth member (WS1 S1): a per-VALUE Law IV posture, never
+ * a whole-room posture (`RoomPostureStance`/`applyStance` exclude it — a
+ * contest is a healthy, expected outcome of concurrent authorship, never a
+ * room-wide mode). Unlike the other four, its block ALSO re-points the
+ * `--mn-stance-annunciator-*` triple — skin-neutral by construction (D-9), so
+ * the contested annunciator lights the same wine everywhere, not only inside
+ * Greenhouse (which still owns the room/bench/constitution/dispatch hues via
+ * its own higher-specificity `[data-skin=greenhouse][data-stance=…]` blocks).
+ */
+
+:root {
+  --mn-stance-register-room:         0;
+  --mn-stance-register-bench:        0;
+  --mn-stance-register-constitution: 0;
+  --mn-stance-register-dispatch:     0;
+  --mn-stance-register-contested:    0;
+  --mn-stance-register-current:      none;
+}
+
+[data-stance="room"] {
+  --mn-stance-register-room:         1;
+  --mn-stance-register-bench:        0;
+  --mn-stance-register-constitution: 0;
+  --mn-stance-register-dispatch:     0;
+  --mn-stance-register-contested:    0;
+  --mn-stance-register-current:      room;
+}
+
+[data-stance="bench"] {
+  --mn-stance-register-room:         0;
+  --mn-stance-register-bench:        1;
+  --mn-stance-register-constitution: 0;
+  --mn-stance-register-dispatch:     0;
+  --mn-stance-register-contested:    0;
+  --mn-stance-register-current:      bench;
+}
+
+[data-stance="constitution"] {
+  --mn-stance-register-room:         0;
+  --mn-stance-register-bench:        0;
+  --mn-stance-register-constitution: 1;
+  --mn-stance-register-dispatch:     0;
+  --mn-stance-register-contested:    0;
+  --mn-stance-register-current:      constitution;
+}
+
+[data-stance="dispatch"] {
+  --mn-stance-register-room:         0;
+  --mn-stance-register-bench:        0;
+  --mn-stance-register-constitution: 0;
+  --mn-stance-register-dispatch:     1;
+  --mn-stance-register-contested:    0;
+  --mn-stance-register-current:      dispatch;
+}
+
+[data-stance="contested"] {
+  --mn-stance-register-room:         0;
+  --mn-stance-register-bench:        0;
+  --mn-stance-register-constitution: 0;
+  --mn-stance-register-dispatch:     0;
+  --mn-stance-register-contested:    1;
+  --mn-stance-register-current:      contested;
+  --mn-stance-annunciator-ink:  var(--mn-stance-contested-ink);
+  --mn-stance-annunciator-edge: var(--mn-stance-contested-edge);
+  --mn-stance-annunciator-wash: var(--mn-stance-contested-wash);
+}

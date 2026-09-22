@@ -1,0 +1,224 @@
+/* ═══ REFERENCE TOKENS (Tier 0) ══════════════════════════════════════════════
+ * Raw-value ramps. Defined ONCE here, never redefined in any theme / skin block.
+ * Never consumed by components directly. Referenced only by the semantic tier.
+ *
+ * Adapted (not copied) from garden/frontend/src/index.css §S2. We carry only the
+ * ramps Shrubbery's chrome + skins actually need: fern (Garden identity),
+ * cobalt (the sophia STRUCTURE source — kept for provenance/comparison),
+ * parchment + ink (neutrals), carmine / moss / ochre (status), and the NEW
+ * purple ramp (the Emporium accent recolor).
+ *
+ * Naming law (greppable forever):
+ *   Reference (Tier 0) tokens ALWAYS end in a numeric ramp step.
+ *   Semantic  (Tier 1) tokens NEVER  end in a numeric ramp step.
+ *   Exception, documented once here: the Observatory dataviz "chart-*",
+ *   "diverging-*", and "status-critical-*" swatches below are FIXED,
+ *   individually machine-validated colors (a categorical slot, a diverging
+ *   pole/midpoint, a status level) — not a lightness progression — so they
+ *   carry a role+theme suffix instead of a numeric step. The azure ramp right
+ *   above them IS a true progressive ramp and keeps the numeric-step law.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+:root {
+  /* ── fern (primary green — Garden identity) ───────────────────────────── */
+  --mn-ref-fern-50:  #eff6f2;
+  --mn-ref-fern-100: #dcebe2;
+  --mn-ref-fern-200: #bfd8c9;
+  --mn-ref-fern-300: #99bea9;
+  --mn-ref-fern-400: #72a087;
+  --mn-ref-fern-500: #4f866b;
+  --mn-ref-fern-600: #376d57;
+  --mn-ref-fern-700: #2b5846;
+  --mn-ref-fern-800: #224438;
+  --mn-ref-fern-900: #183128;
+  --mn-ref-fern-950: #0d1c16;
+
+  /* ── cobalt (Sophia Blue ink — the structure source, kept for provenance) ─ */
+  --mn-ref-cobalt-50:  #f0f5fa;
+  --mn-ref-cobalt-100: #dae8f4;
+  --mn-ref-cobalt-200: #b6d0e8;
+  --mn-ref-cobalt-300: #8fb5d8;
+  --mn-ref-cobalt-400: #5a8cc0;
+  --mn-ref-cobalt-500: #1a5fa3;
+  --mn-ref-cobalt-600: #0f4683;
+  --mn-ref-cobalt-700: #00356b;
+  --mn-ref-cobalt-800: #002952;
+  --mn-ref-cobalt-900: #001b3a;
+  --mn-ref-cobalt-950: #001128;
+
+  /* ── purple (Emporium accent recolor; Vera's pick) ───────────────────────
+     Dark-purple ramp. Emporium = sophia STRUCTURE, recolored: this ramp
+     replaces cobalt as the accent/identity hue ONLY. All sophia structural
+     tokens (Diatype, square, tight density, icon-only, stronger rules) are
+     UNCHANGED — see skin-emporium.css. The skin ACCENT is purple-400 #9472CE
+     (Vera's iter-4a pick over the iter-3 purple-500 #6D28D9); the deeper steps
+     stay as the strong / active shoulders. Exact hexes documented here so Vera
+     can tune them in one place. */
+  --mn-ref-purple-50:  #F5F3FB;
+  --mn-ref-purple-100: #E9E3F6;
+  --mn-ref-purple-200: #D2C4ED;
+  --mn-ref-purple-300: #B59FE0;
+  --mn-ref-purple-400: #9472CE;
+  --mn-ref-purple-500: #6D28D9;
+  --mn-ref-purple-600: #5B21B6;
+  --mn-ref-purple-700: #4C1D95;
+  --mn-ref-purple-800: #3B1577;
+  --mn-ref-purple-900: #2A0E57;
+
+  /* ── parchment (neutral — the page) ──────────────────────────────────── */
+  --mn-ref-parchment-0:    #fbfaf6;
+  --mn-ref-parchment-50:   #f5f3ed;
+  --mn-ref-parchment-100:  #eeeae2;
+  --mn-ref-parchment-200:  #dfdad0;
+  --mn-ref-parchment-300:  #cbc5ba;
+  --mn-ref-parchment-400:  #9d978d;
+  --mn-ref-parchment-500:  #777269;
+  --mn-ref-parchment-600:  #5a564f;
+  --mn-ref-parchment-700:  #403d38;
+  --mn-ref-parchment-800:  #292723;
+  --mn-ref-parchment-900:  #1d1c19;
+  --mn-ref-parchment-950:  #11110f;
+  --mn-ref-parchment-1000: #000000;
+
+  /* ── ink (dark-surface ramp) ─────────────────────────────────────────── */
+  --mn-ref-ink-0:   #141613;
+  --mn-ref-ink-50:  #191c18;
+  --mn-ref-ink-100: #22251f;
+  --mn-ref-ink-200: #30342d;
+  --mn-ref-ink-300: #42473e;
+  --mn-ref-ink-400: #555b50;
+  --mn-ref-ink-500: #767d71;
+  --mn-ref-ink-600: #a2a79d;
+  --mn-ref-ink-700: #bfc2b9;
+  --mn-ref-ink-800: #d8dad3;
+  --mn-ref-ink-900: #eceee8;
+  --mn-ref-ink-950: #f6f7f2;
+
+  /* ── carmine (danger — Tailwind rose) ────────────────────────────────── */
+  --mn-ref-carmine-50:  #fff1f2;
+  --mn-ref-carmine-100: #ffe4e6;
+  --mn-ref-carmine-200: #fecdd3;
+  --mn-ref-carmine-300: #fda4af;
+  --mn-ref-carmine-400: #fb7185;
+  --mn-ref-carmine-500: #f43f5e;
+  --mn-ref-carmine-600: #e11d48;
+  --mn-ref-carmine-700: #be123c;
+  --mn-ref-carmine-800: #9f1239;
+  --mn-ref-carmine-900: #881337;
+  --mn-ref-carmine-950: #4c0519;
+
+  /* ── moss (success — anchored at 500:#469c70) ────────────────────────── */
+  --mn-ref-moss-50:  #eff8f3;
+  --mn-ref-moss-100: #d4ecdf;
+  --mn-ref-moss-200: #aedac4;
+  --mn-ref-moss-300: #85c5a6;
+  --mn-ref-moss-400: #63b08a;
+  --mn-ref-moss-500: #469c70;
+  --mn-ref-moss-600: #36815c;
+  --mn-ref-moss-700: #2b6549;
+  --mn-ref-moss-800: #224c38;
+  --mn-ref-moss-900: #183527;
+  --mn-ref-moss-950: #0d1f16;
+
+  /* ── ochre (warning) ─────────────────────────────────────────────────── */
+  --mn-ref-ochre-50:  #fffbeb;
+  --mn-ref-ochre-100: #fef3c7;
+  --mn-ref-ochre-200: #fde68a;
+  --mn-ref-ochre-300: #fcd34d;
+  --mn-ref-ochre-400: #fbbf24;
+  --mn-ref-ochre-500: #f59e0b;
+  --mn-ref-ochre-600: #d97706;
+  --mn-ref-ochre-700: #b45309;
+  --mn-ref-ochre-800: #92400e;
+  --mn-ref-ochre-900: #78350f;
+  --mn-ref-ochre-950: #451a03;
+
+  /* ── indigo (info / secondary) ───────────────────────────────────────── */
+  --mn-ref-indigo-50:  #eef2ff;
+  --mn-ref-indigo-100: #e0e7ff;
+  --mn-ref-indigo-200: #c7d2fe;
+  --mn-ref-indigo-300: #a5b4fc;
+  --mn-ref-indigo-400: #818cf8;
+  --mn-ref-indigo-500: #6366f1;
+  --mn-ref-indigo-600: #4f46e5;
+  --mn-ref-indigo-700: #4338ca;
+  --mn-ref-indigo-800: #3730a3;
+  --mn-ref-indigo-900: #312e81;
+  --mn-ref-indigo-950: #1e1b4b;
+
+  /* ── azure (Observatory dataviz sequential ramp + categorical slot 1) ───
+     NEW ramp (B1 aesthetic pass, 2026-07): the Observatory chart palette's
+     signal hue and the skin's accent source. Steps 100-700 are the
+     machine-validated sequential ramp (dataviz skill color-formula, one hue
+     light-to-dark). Step 500 IS the light-mode categorical/sequential-pole
+     swatch. Theme-invariant — no separate dark sequential set was validated
+     (this ramp reads on both canvases; only the CATEGORICAL slot below needs
+     a distinct dark-optimized swatch). */
+  --mn-ref-azure-100: #d6f0f9;
+  --mn-ref-azure-200: #9ddcf1;
+  --mn-ref-azure-300: #52c1e1;
+  --mn-ref-azure-400: #02a2c5;
+  --mn-ref-azure-500: #0388a5;
+  --mn-ref-azure-600: #016278;
+  --mn-ref-azure-700: #003f4e;
+
+  /* ── Observatory dataviz — categorical chart hues (5 slots, FIXED order) ──
+     Machine-validated: dataviz skill color-formula, 6 computable checks,
+     both light/dark modes PASS at exit 0 (CVD separation, lightness band,
+     chroma floor, contrast vs surface). Deliberately NEW hues, not reused
+     from fern/cobalt/carmine/moss/ochre/indigo (all reserved elsewhere for
+     identity/provenance/status) — positioned in the open OKLCH hue-angle
+     gaps between those ramps. Purple (Emporium) is likewise left untouched.
+     Each hue is ONE validated swatch per theme (not a progressive ramp) —
+     see the naming-law exception noted at the top of this file. */
+  --mn-ref-chart-azure-light:      var(--mn-ref-azure-500); /* #0388a5 */
+  --mn-ref-chart-azure-dark:       #028fad;
+  --mn-ref-chart-terracotta-light: #c34517;
+  --mn-ref-chart-terracotta-dark:  #d45c36;
+  --mn-ref-chart-violet-light:     #794acb;
+  --mn-ref-chart-violet-dark:      #916cdf;
+  --mn-ref-chart-chartreuse-light: #798201;
+  --mn-ref-chart-chartreuse-dark:  #848f03;
+  --mn-ref-chart-magenta-light:    #a63794;
+  --mn-ref-chart-magenta-dark:     #c158ae;
+
+  /* ── Observatory dataviz — diverging ramp (two hues + neutral midpoint) ──
+     Poles: azure (cool, H≈220) / terracotta (warm, H≈38) — the SAME two
+     hues as categorical slots 1/2, re-validated as a 7-step diverging scale
+     per theme. Midpoints are the literal existing neutral ramp steps. */
+  --mn-ref-diverging-light-cool-far:  #0088a5;
+  --mn-ref-diverging-light-cool-mid:  #6abfd9;
+  --mn-ref-diverging-light-cool-near: #d0e1e7;
+  --mn-ref-diverging-light-mid:       var(--mn-ref-parchment-100);
+  --mn-ref-diverging-light-warm-near: #ebdad5;
+  --mn-ref-diverging-light-warm-mid:  #e39d87;
+  --mn-ref-diverging-light-warm-far:  #c65029;
+  --mn-ref-diverging-dark-cool-far:  #0195b5;
+  --mn-ref-diverging-dark-cool-mid:  #00758e;
+  --mn-ref-diverging-dark-cool-near: #3b5158;
+  --mn-ref-diverging-dark-mid:       var(--mn-ref-ink-300);
+  --mn-ref-diverging-dark-warm-near: #5c4841;
+  --mn-ref-diverging-dark-warm-mid:  #99533d;
+  --mn-ref-diverging-dark-warm-far:  #d0603d;
+
+  /* ── Observatory dataviz — status quad (RESERVED, never a series color) ──
+     good/warning/serious reuse EXACT existing moss/ochre/carmine ramp steps
+     — matches theme-dark.css's own success/danger semantics, so a status
+     dot in a chart and a status dot in chrome agree. critical is the one
+     genuinely new swatch: deeper than carmine-900, a wine/plum that reads
+     as "beyond danger" without leaving the carmine family. */
+  --mn-ref-status-critical-light: #880134;
+  --mn-ref-status-critical-dark:  #b43c6b;
+
+  /* The `contested` stance's reference swatches (§6.6.3, WS1 S1). Reuses the
+     wine above for the light ink verbatim (no new light-ink swatch); the
+     dark band needs its OWN lifted ink (`-ink-dark`, below) so it never has
+     to hardcode a hex in theme-dark.css — `#b43c6b` alone reads too close to
+     the danger/serious carmine in a dark band. Proposed defaults, marked for
+     Vera to tune (a two-file edit with a failing test on drift). */
+  --mn-ref-status-critical-ink-dark:   #e6a3ba;
+  --mn-ref-status-critical-edge-light: #e8c6d2;
+  --mn-ref-status-critical-edge-dark:  #5c2237;
+  --mn-ref-status-critical-wash-light: #fbf1f4;
+  --mn-ref-status-critical-wash-dark:  #2a1019;
+}

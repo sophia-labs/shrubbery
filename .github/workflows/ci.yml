@@ -1,0 +1,160 @@
+name: Shrubbery
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: shrubbery-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Lint, typecheck, test, and build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: "9.0.0"
+
+      - name: Install exact dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Biome lints the whole tree (correctness rules on; formatter deferred to
+      # its own commit — see biome.jsonc). Cheap and fails fast, so it runs first.
+      - name: Lint
+        run: pnpm lint
+
+      # Every workspace member is typechecked, not just organism. --no-bail so a
+      # single regression reports alongside the rest instead of masking them.
+      # The whole workspace is currently green; if a member regresses, FIX it —
+      # do not silently drop it from this gate.
+      - name: Typecheck the whole workspace
+        run: pnpm -r --no-bail run typecheck
+
+      # "No mocks" ratchet: fails if any NEW *.test.ts reaches for
+      # vi.mock/vi.stubGlobal/vi.fn. The known debt is frozen in the script.
+      - name: Guard the no-mocks principle
+        run: node scripts/validate-no-mocks.mjs
+
+      # Source-owned tests only. Browser suites run in the Chromium lane below;
+      # integration/probe suites (they need a real gardend) are excluded here
+      # and live in the workflow_dispatch job below.
+      - name: Run source-owned tests
+        run: pnpm test:source
+
+      # Builds organism plus every other app/package with a build script.
+      # Verified green locally across the workspace, so no exclusion list.
+      - name: Build the whole workspace
+        run: pnpm -r run build
+
+  browser:
+    name: Real Chromium behavior
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: "9.0.0"
+
+      - name: Install exact dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Chromium
+        run: pnpm --filter @shrubbery/organism exec playwright install --with-deps chromium
+
+      - name: Exercise the production shell in Chromium
+        env:
+          SHRUBBERY_ARTIFACT_DIR: ${{ runner.temp }}/shrubbery-browser-artifacts
+          SHRUBBERY_ART_DIRECTION_ARTIFACT_DIR: ${{ runner.temp }}/shrubbery-art-direction
+        run: pnpm --filter @shrubbery/organism test:browser
+
+      - name: Exercise Hoja create, autosave, reload, list, and reopen
+        env:
+          HOJA_BROWSER_ARTIFACT_DIR: ${{ runner.temp }}/hoja-browser-artifacts
+        run: pnpm --filter @shrubbery/hoja-app test:browser
+
+      # Generically owns every *.browser.test.ts suite excluded from test:source.
+      # Today that builds the real multi-page production bundle, serves it with
+      # Vite preview, and loads both shipped entries in the installed Chromium.
+      - name: Exercise browser-owned Vitest suites in Chromium
+        run: pnpm test:browser-suites
+
+      # Additional self-contained organism browser proofs — each builds/serves the
+      # Vite app and drives Chromium against in-memory fixtures (no gardend, no
+      # network). These were run-and-verified to pass; kept in their own step so a
+      # regression here is attributed distinctly from the shell proof above.
+      # Covered: center-panes, file-pane, mobile-parity, pane-parity, wires-panel,
+      # workspace-selector. See apps/organism/package.json `test:browser-verified`.
+      #
+      # NOT gated here: the gardend-dependent browser harnesses (daily-note,
+      # presence, keyboard-parity, center-panes-gardend, layout-workbench,
+      # observatory-dashboard, fid004-cold-projection). They spawn a REAL gardend
+      # (require GARDEN_BIN) and belong to the manual integration lane below.
+      - name: Exercise the self-contained organism proofs in Chromium
+        env:
+          SHRUBBERY_WORKSPACE_SELECTOR_ARTIFACT_DIR: ${{ runner.temp }}/shrubbery-workspace-selector-browser
+        run: pnpm --filter @shrubbery/organism test:browser-verified
+
+      - name: Preserve browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: shrubbery-browser-evidence
+          path: |
+            ${{ runner.temp }}/shrubbery-browser-artifacts
+            ${{ runner.temp }}/shrubbery-art-direction
+            ${{ runner.temp }}/shrubbery-workspace-selector-browser
+            ${{ runner.temp }}/hoja-browser-artifacts
+          if-no-files-found: ignore
+          retention-days: 14
+
+  # ---------------------------------------------------------------------------
+  # Integration lane — the 33 *.integration.test.ts suites that spawn a REAL
+  # gardend binary (no mocks). They cannot run on a stock runner: the binary is
+  # not in this repo, so the job is MANUAL-ONLY (workflow_dispatch) and skipped
+  # on every PR/push. This makes the gap explicit and runnable instead of silent.
+  #
+  # To run it: trigger the workflow manually with a runner (or self-hosted
+  # runner) that has a gardend build available, and set the GARDEN_BIN repo
+  # secret to its absolute path. Without GARDEN_BIN the suites skip/fail fast by
+  # design — see packages/source/src/node/spawn-gardend.ts.
+  # ---------------------------------------------------------------------------
+  integration:
+    name: Integration (real gardend — manual)
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: "9.0.0"
+
+      - name: Install exact dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run integration suites against a real gardend
+        env:
+          GARDEN_BIN: ${{ secrets.GARDEN_BIN }}
+        run: pnpm -r --no-bail exec vitest run integration.test --passWithNoTests

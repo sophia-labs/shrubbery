@@ -1,0 +1,234 @@
+/* ═══ SKIN: emporium (NEW — sophia STRUCTURE, recolored DARK PURPLE) ══════════
+ * Emporium IS the sophia design-language STRUCTURE, verbatim:
+ *   - ABC Diatype sans for chrome + display (Literata stays for prose if used)
+ *   - square / no-radius controls + minimal surface rounding
+ *   - tight 24px density (rows + controls)
+ *   - icon-only labels (--mn-label-display: none)
+ *   - stronger rules (hairline → line → frame, one hue, Albers figure-ground)
+ *   - no parchment grain (digital-clean), cool Swiss paper surfaces
+ *
+ * The ONLY thing swapped from sophia is the accent/identity COLOR ramp:
+ *   cobalt (#1a5fa3 …) → purple (#9472CE …).
+ * Every structural token below is sophia's, untouched; only the hue moves.
+ *
+ * ACCENT = purple-400 #9472CE (Vera's pick, iter-4a — softer than the iter-3
+ * proposal of purple-500 #6D28D9; the deeper purples stay as the strong/active
+ * shoulders). Vera tunes the hexes in reference.css --mn-ref-purple-*.
+ *   light: accent       = purple-400 #9472CE
+ *          accent-strong = purple-700 #4C1D95
+ *          rule-strong   = purple-300 #B59FE0
+ *   dark : accent lightened (purple-300 #B59FE0) for contrast on dark bg,
+ *          mirroring garden's cobalt dark overrides.
+ *
+ * Applies via [data-skin=emporium] (the sux ConfigValue.appliesAttribute hook).
+ * [data-design=emporium] is provided as an alias for the two-host cloud pattern
+ * garden uses ([data-design=sophia]); both resolve identically.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+:root {
+  /* Emporium bespoke tokens — the purple analog of garden's --sophia-* set.
+     Defined once; the [data-skin=emporium] block routes Tier-1 roles through
+     them so a dark override only retunes these four. */
+  --emporium-accent:        var(--mn-ref-purple-400);   /* #9472CE — Vera's pick (iter-4a) */
+  --emporium-accent-strong: var(--mn-ref-purple-700);
+  --emporium-accent-soft:   var(--mn-ref-purple-100);
+  --emporium-accent-line:   var(--mn-ref-purple-200);
+
+  /* Public Sans is bundled so Emporium is deterministic offline. ABC Diatype
+     remains in the provenance stack, but is never required for faithful layout. */
+  --emporium-font-sans:    'Public Sans Variable', 'Public Sans', 'ABC Diatype', -apple-system, 'Helvetica Neue', sans-serif;
+  --emporium-tracking-body: 0.005em;
+
+  /* Square shoulders, hairline rules. */
+  --emporium-radius:      4px;  /* minimal surface rounding (square controls below) */
+}
+
+/* The skin block + its alias. Listed together so they stay byte-identical. */
+[data-skin="emporium"],
+[data-design="emporium"] {
+  /* ── Typography — Diatype replaces Literata for chrome + display ─────────
+     prose is intentionally NOT overridden: Emporium keeps the chrome/prose
+     split, so any document body text stays Literata (serif) while UI chrome +
+     display headings use Diatype (sans). This hybrid is by design. */
+  --mn-font-chrome:  var(--emporium-font-sans);
+  --mn-font-display: var(--emporium-font-sans);
+
+  /* ── Accent system — purple via --emporium-* bespoke tokens ───────────── */
+  --mn-color-accent:             var(--emporium-accent);          /* purple-400 #9472CE */
+  --mn-color-accent-hover:       var(--emporium-accent-strong);   /* purple-700 #4C1D95 */
+  --mn-color-accent-active:      var(--mn-ref-purple-800);        /* purple-800 #3B1577 */
+  --mn-color-text-accent:        var(--emporium-accent);          /* purple-400 */
+  --mn-color-text-accent-strong: var(--emporium-accent-strong);   /* purple-700 — headings/badges (kept deep for legibility) */
+  --mn-color-border-accent:      var(--emporium-accent-line);     /* purple-200 */
+  /* rule-strong = purple-300 (the PROPOSAL); border-strong routes through it so
+     stronger-rule consumers resolve to purple-300 under Emporium. */
+  --mn-color-border-strong:      var(--mn-ref-purple-300);        /* purple-300 #B59FE0 */
+  --mn-color-border-focus:       var(--emporium-accent);
+  --mn-color-surface-accent:     var(--emporium-accent-soft);     /* purple-100 */
+  --mn-focus-ring-color:         var(--emporium-accent);
+  /* info collides with accent under a purple chrome → keep info = accent so
+     status-info badges don't read indigo (mirrors sophia's ⚑3 info=cobalt). */
+  --mn-color-info:               var(--emporium-accent);
+
+  /* Channel triple: purple-400 #9472CE → 148 114 206 (drives interactive washes). */
+  --mn-color-accent-ch: 148 114 206;
+  /* The physical editor page stays cream in every theme, but its ink accents
+     should still unmistakably belong to the selected skin. */
+  --mn-editor-paper-accent:       var(--mn-ref-purple-700);
+  --mn-editor-paper-accent-hover: var(--mn-ref-purple-800);
+  --mn-editor-paper-accent-soft:  var(--mn-ref-purple-50);
+  --mn-editor-paper-accent-ch:    76 29 149;
+
+  /* ── Surfaces — cool Swiss paper (sophia structure; hue-neutralized to
+     purple washes for sunken/hover/active) ──────────────────────────────── */
+  --mn-color-surface-base:   #f7f6fb;   /* cool pale purple-tinged paper */
+  --mn-color-surface-raised: #ffffff;   /* white panels / overlays */
+  --mn-color-surface-canvas:   #f2f0f8;
+  --mn-color-surface-editor:   #fbfaff;
+  --mn-color-surface-panel:    #f4f1f8;
+  --mn-color-surface-chrome:   #f0ecf7;
+  --mn-color-surface-elevated: #ffffff;
+  --mn-color-surface-overlay:  #ffffff;
+  --mn-color-surface-subtle:   #f4f1f8;
+  --mn-color-surface-warm:     #f8f4ff;
+  --mn-color-surface-sunken: rgba(148, 114, 206, 0.05);
+  --mn-color-surface-hover:  rgba(148, 114, 206, 0.07);
+  --mn-color-surface-active: rgba(148, 114, 206, 0.12);
+  --mn-color-surface-accent-subtle: rgba(148, 114, 206, 0.08);
+  --mn-color-surface-accent-strong: var(--mn-ref-purple-100);
+  --mn-color-backdrop: rgba(22, 13, 36, 0.32);
+  --mn-atmosphere:
+    radial-gradient(circle at 54% -18%, rgba(148, 114, 206, 0.10), transparent 40%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.52), transparent 38%);
+
+  /* ── Text — cool near-black Swiss ink (sophia contrast structure) ──────── */
+  --mn-color-text-primary:   #160d24;   /* cool near-black, purple-leaning */
+  --mn-color-text-secondary: #51465f;
+  --mn-color-text-tertiary:  #6f6480;
+  --mn-color-text-muted:     #9890a3;
+  --mn-color-text-inverse:   #f7f6fb;
+  --mn-color-text-title:     #160d24;
+  --mn-color-text-quiet:     #6f6480;
+  --mn-color-text-on-accent: #160d24;
+
+  /* ── Borders — cool hairlines ─────────────────────────────────────────── */
+  --mn-color-border-default: #e3def0;
+  --mn-color-border-subtle:  #efebf8;
+  --mn-color-rule:           rgba(76, 29, 149, 0.13);
+  --mn-color-rule-strong:    rgba(76, 29, 149, 0.22);
+
+  /* ── Top bar — purple masthead (sophia remapped its masthead too) ─────── */
+  --mn-top-bar-bg:         var(--mn-ref-purple-50);
+  --mn-top-bar-border:     var(--mn-ref-purple-200);
+  --mn-top-bar-text:       var(--mn-ref-purple-700);
+  --mn-top-bar-text-muted: var(--mn-ref-purple-500);
+
+  /* ── Bottom bar — cool floor ──────────────────────────────────────────── */
+  --mn-bottom-bar-bg:     #efebf8;
+  --mn-bottom-bar-border: var(--mn-ref-purple-200);
+
+  /* ── Geometry — square shoulders, minimal surface rounding (SOPHIA) ────── */
+  --mn-radius-control: var(--mn-radius-none);     /* 0 — square */
+  --mn-radius-surface: var(--mn-radius-default);  /* 4px */
+
+  /* ── Density — tight 24px (SOPHIA) ────────────────────────────────────── */
+  --mn-row-height:     24px;
+  --mn-control-height: 24px;
+
+  /* ── Presentation flags — icon-only labels, no grain, stronger rules ──── */
+  --mn-label-display:   none;
+  --mn-texture-display: none;
+  --mn-tracking-label:  0.08em;
+
+  /* Albers figure-ground from rule WEIGHT, one hue — purple-recolored sophia.
+     hair = intra-panel seams · line = panel/section/toolbar headers ·
+     frame = region boundaries. */
+  --mn-rule-hair:  1px solid var(--mn-ref-purple-100);
+  --mn-rule-line:  1px solid var(--mn-ref-purple-200);
+  --mn-rule-frame: 1px solid var(--mn-ref-purple-300);
+  --mn-chrome-rule: var(--mn-rule-frame);  /* region boundary; stronger than Garden's parchment rule */
+
+  --mn-shadow-xs: 0 1px 2px rgba(35, 22, 53, 0.055), 0 1px 4px rgba(76, 29, 149, 0.035);
+  --mn-shadow-sm: 0 2px 7px rgba(35, 22, 53, 0.08);
+  --mn-shadow-chrome: 0 1px 0 rgba(255, 255, 255, 0.72), 0 1px 5px rgba(76, 29, 149, 0.05);
+  --mn-shadow-card: var(--mn-shadow-xs);
+
+  /* Inherited non-token host properties (sophia set these too). */
+  font-family:    var(--emporium-font-sans);
+  letter-spacing: var(--emporium-tracking-body);
+}
+
+/* ── Dark theme × Emporium skin (orthogonal compose) ─────────────────────────
+   Accent lightened to purple-300 for contrast on dark bg, mirroring garden's
+   cobalt dark overrides. Surfaces become cool dark Swiss (not warm ink). */
+[data-theme="dark"][data-skin="emporium"],
+[data-theme="dark"][data-design="emporium"] {
+  --emporium-accent:        #B59FE0;   /* purple-300 — lightened for dark contrast */
+  --emporium-accent-strong: #D2C4ED;   /* purple-200 */
+  --emporium-accent-soft:   rgba(181, 159, 224, 0.12);
+  --emporium-accent-line:   rgba(181, 159, 224, 0.22);
+
+  /* accent-active must stay readable on dark; purple-600 keeps white-on legible. */
+  --mn-color-accent-active: var(--mn-ref-purple-600);
+
+  /* surface-accent wash follows the (now-light) accent-ch in dark. */
+  --mn-color-accent-ch:      181 159 224;   /* purple-300 RGB */
+  --mn-color-surface-accent: rgba(var(--mn-color-accent-ch), 0.12);
+
+  /* ── Surfaces — cool dark Swiss (not the warm Garden ink) ──────────────── */
+  --mn-color-surface-base:   #120d1c;   /* deep cool charcoal-purple */
+  --mn-color-surface-raised: #1b1428;   /* lifted cool panel */
+  --mn-color-surface-canvas:   #0e0a16;
+  --mn-color-surface-editor:   #171121;
+  --mn-color-surface-panel:    #100b19;
+  --mn-color-surface-chrome:   #1b1428;
+  --mn-color-surface-elevated: #231a32;
+  --mn-color-surface-overlay:  #291f38;
+  --mn-color-surface-subtle:   #171121;
+  --mn-color-surface-warm:     #21182f;
+  --mn-color-surface-sunken: rgba(0, 0, 0, 0.28);
+  --mn-color-surface-hover:  rgba(181, 159, 224, 0.06);
+  --mn-color-surface-active: rgba(181, 159, 224, 0.10);
+  --mn-color-surface-accent-subtle: rgba(181, 159, 224, 0.08);
+  --mn-color-surface-accent-strong: rgba(181, 159, 224, 0.20);
+  --mn-color-backdrop: rgba(4, 2, 8, 0.68);
+  --mn-atmosphere:
+    radial-gradient(circle at 54% -16%, rgba(181, 159, 224, 0.10), transparent 40%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.012), transparent 34%);
+
+  /* ── Text — cool light on cool dark ───────────────────────────────────── */
+  --mn-color-text-primary:   #ece8f4;
+  --mn-color-text-secondary: #b3a9c4;
+  --mn-color-text-tertiary:  #847a96;
+  --mn-color-text-muted:     #645a76;
+  --mn-color-text-inverse:   #160d24;
+  --mn-color-text-title:     #f5f1fb;
+  --mn-color-text-quiet:     #847a96;
+
+  /* ── Borders — cool dark hairlines ────────────────────────────────────── */
+  --mn-color-border-default: #2e2640;
+  --mn-color-border-subtle:  #221b30;
+  --mn-color-rule:           rgba(181, 159, 224, 0.12);
+  --mn-color-rule-strong:    rgba(181, 159, 224, 0.22);
+
+  /* ── Top bar — deep purple masthead ───────────────────────────────────── */
+  --mn-top-bar-bg:         var(--mn-ref-purple-800);
+  --mn-top-bar-border:     var(--mn-ref-purple-700);
+  --mn-top-bar-text:       var(--mn-ref-purple-100);
+  --mn-top-bar-text-muted: var(--mn-ref-purple-300);
+
+  /* ── Bottom bar ───────────────────────────────────────────────────────── */
+  --mn-bottom-bar-bg:     #160f22;
+  --mn-bottom-bar-border: var(--mn-ref-purple-800);
+
+  /* Rule weights re-tuned for dark purple. */
+  --mn-rule-hair:  1px solid #2a2140;
+  --mn-rule-line:  1px solid var(--mn-ref-purple-800);
+  --mn-rule-frame: 1px solid var(--mn-ref-purple-700);
+  --mn-chrome-rule: var(--mn-rule-frame);
+
+  --mn-shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.28), 0 1px 4px rgba(0, 0, 0, 0.20);
+  --mn-shadow-sm: 0 3px 10px rgba(0, 0, 0, 0.30);
+  --mn-shadow-chrome: 0 1px 0 rgba(255, 255, 255, 0.025), 0 2px 7px rgba(0, 0, 0, 0.24);
+  --mn-shadow-card: var(--mn-shadow-xs);
+}

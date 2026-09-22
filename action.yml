@@ -1,0 +1,95 @@
+name: Materialize authoritative Shrubbery source
+description: Expose this exact pinned Shrubbery revision to a Sophia repository workflow.
+
+inputs:
+  destination:
+    description: Absolute destination strictly below the caller's GitHub workspace.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Materialize immutable source archive
+      shell: bash
+      env:
+        SHRUBBERY_ACTION_SOURCE: ${{ github.action_path }}
+        SHRUBBERY_ACTION_DESTINATION: ${{ inputs.destination }}
+        SHRUBBERY_ACTION_REVISION: ${{ github.action_ref }}
+      run: |
+        set -euo pipefail
+
+        # 1. Pin: refuse anything but an immutable 40-char commit SHA (unchanged).
+        if [[ ! "$SHRUBBERY_ACTION_REVISION" =~ ^[0-9a-f]{40}$ ]]; then
+          echo "Shrubbery must be consumed at an immutable 40-character commit SHA." >&2
+          exit 1
+        fi
+
+        # We are about to destroy and replace whatever lives at the destination, so
+        # the destination is treated as hostile input. A lexical "$GITHUB_WORKSPACE"/*
+        # glob is not enough: it is fooled by '..' components, by a trailing slash that
+        # collapses onto the workspace root, and by symlinked path components. Canonicalize
+        # both paths and verify the destination is STRICTLY below the real workspace.
+        #
+        # realpath -m canonicalizes without requiring the path to exist yet (the
+        # destination normally does not) and resolves any symlinks in the existing
+        # ancestry, so '..' and trailing slashes are folded away deterministically.
+        workspace="$(realpath -m "$GITHUB_WORKSPACE")"
+        workspace_lexical="$(realpath -ms "$GITHUB_WORKSPACE")"
+        destination="$(realpath -m "$SHRUBBERY_ACTION_DESTINATION")"
+
+        # 2. Must be BELOW the workspace, never equal to it. Equality (e.g. a bare or
+        #    trailing-slash "$GITHUB_WORKSPACE/") would rm -rf the workspace root.
+        if [[ "$destination" == "$workspace" ]]; then
+          echo "Shrubbery destination must be below GITHUB_WORKSPACE, not the workspace root itself." >&2
+          exit 1
+        fi
+        case "$destination" in
+          "$workspace"/*) ;;
+          *)
+            echo "Shrubbery destination must resolve to a path below GITHUB_WORKSPACE." >&2
+            exit 1
+            ;;
+        esac
+
+        # 3. Refuse a symlinked destination or ancestor. Canonicalization above
+        #    already rejects a symlink that escapes the workspace, but a symlink whose
+        #    target happens to stay inside the workspace would still let us rm -rf/mv
+        #    through an attacker-controlled indirection. Walk the lexical destination
+        #    itself and its existing ancestors down to (but not including) the
+        #    workspace and reject any symlink component. Keeping the walk lexical also
+        #    strips a trailing slash without resolving the leaf symlink and prevents an
+        #    alias whose target is the workspace itself from evading detection.
+        probe="$(realpath -ms "$SHRUBBERY_ACTION_DESTINATION")"
+        while :; do
+          [[ "$probe" == "$workspace_lexical" ]] && break
+          if [[ -L "$probe" ]]; then
+            echo "Shrubbery destination path contains a symlink component: $probe" >&2
+            exit 1
+          fi
+          [[ "$probe" == "/" || "$probe" == "." ]] && break
+          probe="$(dirname "$probe")"
+        done
+
+        # 4. Build the full tree in a staging dir UNDER the workspace (same filesystem
+        #    as the destination, so the final mv is an atomic rename), then swap it in.
+        #    This replaces the old "rm -rf the live path then cp into it" window, during
+        #    which a crash left a half-populated destination.
+        staging="$(mktemp -d "$workspace/.shrubbery-stage.XXXXXX")"
+        trap 'rm -rf "$staging"' EXIT
+
+        cp -R "$SHRUBBERY_ACTION_SOURCE"/. "$staging"/
+        rm -rf "$staging/.git"
+        printf '%s\n' "$SHRUBBERY_ACTION_REVISION" > \
+          "$staging/.shrubbery-source-revision"
+
+        # 5. Atomically replace the destination. Both paths are validated and the rm
+        #    only ever targets the canonicalized, in-workspace destination.
+        mkdir -p "$(dirname "$destination")"
+        rm -rf "$destination"
+        mv "$staging" "$destination"
+        trap - EXIT
+
+        {
+          echo "SHRUBBERY_DIR=$destination"
+          echo "SHRUBBERY_ARCHIVE_REVISION=$SHRUBBERY_ACTION_REVISION"
+        } >> "$GITHUB_ENV"

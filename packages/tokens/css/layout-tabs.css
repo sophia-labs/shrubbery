@@ -1,0 +1,91 @@
+/* Layout tab strip — rules for the `tabs` layout node's chrome.
+ *
+ * Consumed by DOM the LayoutInterpreter builds directly (not a lit component),
+ * which is why these rules live here alongside kind.css/stance.css rather than
+ * in a component's own `css` block. The interpreter deliberately sets geometry
+ * only — position/size — so appearance stays themeable; before this file it set
+ * nothing else and the strip rendered as browser-default buttons (observed live
+ * on canary, 2026-07-28).
+ *
+ * Selectors match exactly what the interpreter emits (renderTabStrip /
+ * ensureTabsStrip): a [role="tablist"] wrapper carrying
+ * data-layout-node-kind="tabs", holding one <button role="tab"> per tab with
+ * aria-selected and a roving tabIndex. Style hangs off the ARIA state rather
+ * than a parallel class, so the visual truth and the accessibility truth cannot
+ * drift apart.
+ *
+ * Every value is a --mn-layout-tab-* Tier-2 token (component.css). A skin
+ * remaps the family; these rules never name a skin.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+[data-layout-node-kind="tabs"] {
+  display: flex;
+  align-items: stretch;
+  gap: var(--mn-layout-tab-gap);
+  box-sizing: border-box;
+  height: var(--mn-layout-tab-strip-height);
+  padding-inline: var(--mn-space-2);
+  background: var(--mn-layout-tab-strip-bg);
+  border-block-end: 1px solid var(--mn-layout-tab-strip-border);
+  /* The strip is laid out by the interpreter and can be narrower than its
+   * tabs; scroll rather than wrap, because wrapping would desynchronise the
+   * strip's height from the geometry the solver already assigned it. */
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+[data-layout-node-kind="tabs"]::-webkit-scrollbar {
+  display: none;
+}
+
+[data-layout-node-kind="tabs"] button[role="tab"] {
+  flex: 0 0 auto;
+  appearance: none;
+  border: 0;
+  margin: 0;
+  padding: var(--mn-layout-tab-padding);
+  background: transparent;
+  border-radius: var(--mn-layout-tab-radius) var(--mn-layout-tab-radius) 0 0;
+  font: inherit;
+  font-family: var(--mn-layout-tab-font);
+  font-size: 0.8125rem;
+  line-height: 1;
+  color: var(--mn-layout-tab-text);
+  cursor: pointer;
+  white-space: nowrap;
+  /* The selected marker is a bottom border that is always present and merely
+   * transparent when unselected — otherwise selecting a tab would change its
+   * box height and jog the whole strip. */
+  border-block-end: 2px solid transparent;
+}
+
+[data-layout-node-kind="tabs"] button[role="tab"]:hover {
+  color: var(--mn-layout-tab-text-hover);
+  background: var(--mn-layout-tab-bg-hover);
+}
+
+[data-layout-node-kind="tabs"] button[role="tab"][aria-selected="true"] {
+  color: var(--mn-layout-tab-text-selected);
+  background: var(--mn-layout-tab-bg-selected);
+  border-block-end-color: var(--mn-layout-tab-marker);
+  font-weight: 600;
+}
+
+/* Keyboard users get a ring; pointer users do not. The interpreter implements
+ * roving tabIndex + arrow/Home/End navigation, so this is the only affordance
+ * telling a keyboard user where they are. */
+[data-layout-node-kind="tabs"] button[role="tab"]:focus-visible {
+  outline: 2px solid var(--mn-focus-ring-color);
+  outline-offset: -2px;
+}
+
+[data-layout-node-kind="tabs"] button[role="tab"]:focus:not(:focus-visible) {
+  outline: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  [data-layout-node-kind="tabs"] button[role="tab"] {
+    transition: color 120ms ease, background-color 120ms ease, border-color 120ms ease;
+  }
+}

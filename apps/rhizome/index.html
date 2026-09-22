@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en" data-theme="light" data-skin="emporium">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Rhizome — memory observatory</title>
+    <style>
+      html,
+      body {
+        height: 100%;
+      }
+      body {
+        margin: 0;
+        font-family: var(--mn-font-chrome, system-ui, sans-serif);
+        background: var(--mn-color-surface-base, #fff);
+        color: var(--mn-color-text-primary, #111);
+      }
+      #host,
+      .app-container,
+      .main {
+        height: 100%;
+      }
+      .app-container {
+        display: flex;
+        flex-direction: column;
+      }
+      .main {
+        flex: 1;
+        min-height: 0;
+        overflow: hidden;
+        display: flex; /* rail | spine, side by side */
+        flex-direction: row;
+      }
+      .rail-pane {
+        flex: 0 0 auto;
+        width: 13rem;
+        height: 100%;
+        overflow: auto;
+        border-right: 1px solid var(--mn-color-border-subtle, #eee);
+      }
+      .spine-pane {
+        flex: 1 1 auto;
+        min-width: 0;
+        min-height: 0;
+        height: 100%;
+        overflow: hidden; /* the .split-pane inside is the scroller */
+      }
+      .split-pane {
+        height: 100%;
+        min-height: 0;
+        overflow: auto;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="host"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

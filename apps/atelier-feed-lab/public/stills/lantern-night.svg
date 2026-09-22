@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs><linearGradient id="n" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#111a2e"/><stop offset="1" stop-color="#435975"/></linearGradient><linearGradient id="h"><stop stop-color="#a85843"/><stop offset="1" stop-color="#512a2c"/></linearGradient><radialGradient id="l"><stop stop-color="#fff9bd"/><stop offset=".46" stop-color="#edce6a"/><stop offset="1" stop-color="#435370"/></radialGradient></defs>
+  <rect width="1024" height="1024" fill="#0f151f"/>
+  <rect x="61" y="49" width="902" height="712" fill="url(#n)" stroke="#7f6e5a" stroke-width="17"/>
+  <path d="M512 50v712M62 418h901" stroke="#7f6e5a" stroke-width="13"/>
+  <path d="M116 69 58 268M258 50 146 441M433 50 324 399M606 51 484 415M786 52 662 411M922 97 819 442" stroke="#afc2d0" stroke-width="7" opacity=".42"/>
+  <path d="M0 753h1024v271H0Z" fill="#222525"/>
+  <circle cx="773" cy="633" r="280" fill="#f5d978" opacity=".13"/>
+  <path d="M147 1024q35-229 243-258 195 29 235 258" fill="#ece4d1"/>
+  <path d="M220 1024q25-149 172-178 140 22 179 178" fill="#45664a"/>
+  <path d="M230 393q7-246 170-246 173 2 177 250v184q-38 137-181 138-147-3-185-138Z" fill="url(#h)"/>
+  <ellipse cx="397" cy="443" rx="132" ry="166" fill="#efc3a5"/>
+  <path d="M264 393q18-205 144-201 129 4 161 190-95-11-167-102-42 76-138 113Z" fill="url(#h)"/>
+  <path d="M435 198q-25 48-24 138 26-18 69-27 9-62 33-86-34-22-78-25Z" fill="#9bcba4"/>
+  <ellipse cx="342" cy="465" rx="24" ry="34" fill="#b99b3f"/><ellipse cx="463" cy="465" rx="24" ry="34" fill="#b99b3f"/>
+  <circle cx="342" cy="468" r="12" fill="#263026"/><circle cx="463" cy="468" r="12" fill="#263026"/>
+  <path d="M353 553q51 53 103-1" fill="#a34f4e" stroke="#713d3f" stroke-width="8"/>
+  <path d="M546 745q94-79 207-76l-2 71q-80 8-154 68M576 881q91 8 170-40l35 62q-107 76-237 54" fill="#efc3a5" stroke="#b47664" stroke-width="10"/>
+  <path d="M684 489q3-85 88-85t89 85" fill="none" stroke="#c79c4e" stroke-width="15"/>
+  <path d="M668 489h208l30 282H636Z" fill="#314453" stroke="#c79c4e" stroke-width="13"/>
+  <path d="M692 522h159l18 214H667Z" fill="url(#l)"/>
+  <path d="M785 552q-63 27-44 93 15 53 78 53-66 44-117 0-50-42-24-104 31-73 107-42Z" fill="#fff2a3"/>
+  <g fill="#f1b65e"><circle cx="148" cy="540" r="10"/><circle cx="284" cy="613" r="16"/><circle cx="859" cy="247" r="8"/></g>
+</svg>

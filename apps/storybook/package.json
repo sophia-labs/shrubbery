@@ -1,0 +1,53 @@
+{
+  "name": "@shrubbery/storybook",
+  "version": "0.0.0",
+  "description": "Storybook for Shrubbery — renders the REAL chrome components (@shrubbery/components) under the REAL design tokens (@shrubbery/tokens), with the Garden/Sophia/98/Glass/Research/Greenhouse skin × light/dark theme axes as toolbar globals. App/tooling level — the pure library stays backend-free + Storybook-free.",
+  "type": "module",
+  "license": "LicenseRef-PolyForm-Noncommercial-1.0.0",
+  "private": true,
+  "scripts": {
+    "storybook": "storybook dev -p 6010",
+    "build-storybook": "storybook build -o storybook-static",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:run": "vitest run",
+    "test:watch": "vitest",
+    "test-storybook": "test-storybook",
+    "test-storybook:ci": "concurrently -k -s first -n SB,TEST \"http-server storybook-static --port 6011 --silent\" \"wait-on tcp:127.0.0.1:6011 && test-storybook --url http://127.0.0.1:6011\"",
+    "conneg": "tsx conneg/server.ts",
+    "conneg:build": "tsx conneg/build-static.ts",
+    "curl-catalog:serve": "tsx conneg/server.ts",
+    "curl-catalog:build": "tsx conneg/build-static.ts",
+    "curl-emporium:snapshot": "tsx conneg/snapshot-emporium.mts"
+  },
+  "dependencies": {
+    "@shrubbery/atelier-vtuber": "workspace:*",
+    "@shrubbery/chat-kernel": "workspace:*",
+    "@shrubbery/components": "workspace:*",
+    "@shrubbery/editor-kernel": "workspace:*",
+    "@shrubbery/nucleus": "workspace:*",
+    "@shrubbery/organism": "workspace:*",
+    "@shrubbery/render": "workspace:*",
+    "@shrubbery/runtime": "workspace:*",
+    "@shrubbery/tokens": "workspace:*",
+    "lit": "^3.1.4",
+    "yjs": "^13.6.18"
+  },
+  "devDependencies": {
+    "@storybook/addon-essentials": "^8.6.14",
+    "@storybook/test-runner": "^0.19.1",
+    "@storybook/web-components": "^8.6.14",
+    "@storybook/web-components-vite": "^8.6.14",
+    "@types/node": "^22.7.4",
+    "concurrently": "^9.0.1",
+    "happy-dom": "^15.0.0",
+    "http-server": "^14.1.1",
+    "playwright": "^1.48.0",
+    "storybook": "^8.6.14",
+    "tsx": "^4.19.0",
+    "typescript": "^5.4.5",
+    "vite": "^5.4.8",
+    "vitest": "^3.2.6",
+    "wait-on": "^8.0.1"
+  }
+}

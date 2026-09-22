@@ -1,0 +1,34 @@
+{
+  "name": "@shrubbery/atelier-feed-lab",
+  "version": "0.0.0",
+  "description": "A disposable local-first proof of concept for agent-directed VTuber video playout.",
+  "type": "module",
+  "license": "LicenseRef-PolyForm-Noncommercial-1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "vite --port 5184 --strictPort",
+    "build": "vite build",
+    "emit:layout": "tsx scripts/emit-layout.mts",
+    "emit:web": "tsx scripts/emit-reference-web.mts",
+    "prepare:references": "bash scripts/prepare-private-references.sh",
+    "preview": "vite preview --port 5184 --strictPort",
+    "render:clips": "bash scripts/render-local-clips.sh",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@shoelace-style/shoelace": "^2.20.1",
+    "@shrubbery/atelier-vtuber": "workspace:*",
+    "@shrubbery/components": "workspace:*",
+    "@shrubbery/nucleus": "workspace:*",
+    "@shrubbery/runtime": "workspace:*",
+    "@shrubbery/source": "workspace:*",
+    "@shrubbery/tokens": "workspace:*",
+    "lit": "^3.1.4"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.4",
+    "tsx": "^4.19.0",
+    "typescript": "^5.4.5",
+    "vite": "^5.4.8"
+  }
+}

@@ -1,0 +1,58 @@
+# circle-1 — the ecology of the first revolution.
+#
+# Applying this installs definitions and an admission regime.
+# It creates no resource, no world, no workload. That is the point.
+
+apiVersion: nature.sophia.dev/v1alpha2
+kind: Ecology
+metadata:
+  name: circle-1
+  version: 0.1.0
+
+# The dev issuer: a REAL ed25519 key whose seed is deliberately public
+# (sha256 of "nature:dev-issuer:circle-1:v1" — see src/signing.rs). It
+# attests nothing outside development; real issuers arrive at the Cognito
+# seam, after the circle closes.
+identityDomains:
+  members:
+    issuerKey: "ed25519:a09cd5917902672b72a19556aa5425e01d2cdce7c87eb98252a234d21e5b5516"
+
+tierSchemes:
+  member-tiers:
+    domain: members
+    tiers:
+      standard:
+        creatable:
+          garden.graph: { quota: 2 }
+
+resourceClasses:
+  garden.graph:
+    params:
+      graph_id: { type: string, pattern: "^[a-z0-9-]{1,64}$", required: true }
+    constructor: nature.garden.graph/1
+    faculties: [graph.read, graph.append]
+
+admissionRules:
+  member-self-create:
+    domain: members
+    scheme: member-tiers
+    classes: [garden.graph]
+    createFor: self
+
+laws:
+  tier-quota:
+    operator: nature.law.quota/1
+    phase: admission
+
+# Sophia enters as user #1 — and her declaration is bootstrap INTENT, not
+# an externally issued fact (ADR 0005, ratified N3). requestedTier asks;
+# a signed identity-domain fact grants. resourceIntent describes; ordinary
+# CreateResource admission creates.
+domainAgents:
+  sophia:
+    principal: "agent:sophia"
+    domain: members
+    requestedTier: standard
+    resourceIntent:
+      class: garden.graph
+      params: { graph_id: sophia-workspace }

@@ -1,0 +1,204 @@
+/* SKIN: research (SRS scholar desk)
+ *
+ * This skin captures the original SRS wireframe direction as a reusable
+ * presentation value:
+ *   - Literata-led chrome/prose, not Emporium's Swiss sans posture
+ *   - warm paper base with white raised work surfaces
+ *   - muted blue-lavender accent for source/provenance affordances
+ *   - soft lifted shadows for composer/cards/popovers
+ *   - visible labels, gentle rules, comfortable density
+ *
+ * Applies via [data-skin=research].
+ */
+
+:root {
+  --research-accent:        #586f93;
+  --research-accent-hover:  #435b7d;
+  --research-accent-active: #324864;
+  --research-accent-soft:   #edf2f8;
+  --research-accent-line:   #cbd7e7;
+  --research-accent-ch:     88 111 147;
+  --research-font-serif:    'Literata Variable', 'Literata', Georgia, 'Times New Roman', serif;
+}
+
+[data-skin="research"] {
+  /* Typography - the SRS wireframes were prose-forward and serif-led. */
+  --mn-font-chrome:  var(--research-font-serif);
+  --mn-font-display: var(--research-font-serif);
+  --mn-font-prose:   var(--research-font-serif);
+  --mn-font-serif:   var(--research-font-serif);
+
+  /* Accent system - cool research blue, softer than cobalt and not purple. */
+  --mn-color-accent:             var(--research-accent);
+  --mn-color-accent-hover:       var(--research-accent-hover);
+  --mn-color-accent-active:      var(--research-accent-active);
+  --mn-color-text-accent:        var(--research-accent);
+  --mn-color-text-accent-strong: var(--research-accent-active);
+  --mn-color-border-accent:      var(--research-accent-line);
+  --mn-color-border-focus:       var(--research-accent);
+  --mn-color-surface-accent:     var(--research-accent-soft);
+  --mn-focus-ring-color:         rgb(var(--research-accent-ch) / 0.72);
+  --mn-color-accent-ch:          var(--research-accent-ch);
+  --mn-color-info:               var(--research-accent);
+  --mn-editor-paper-accent:       #586f93;
+  --mn-editor-paper-accent-hover: #435b7d;
+  --mn-editor-paper-accent-soft:  #eef2f7;
+  --mn-editor-paper-accent-ch:    88 111 147;
+
+  /* Surfaces - warm paper base, raised white workbench, cool sunk washes. */
+  --mn-color-surface-base:   #f6f4ef;
+  --mn-color-surface-raised: #fffdf8;
+  --mn-color-surface-panel:  rgba(255, 253, 248, 0.74);
+  --mn-color-surface-canvas:   #efede7;
+  --mn-color-surface-editor:   #fffdf8;
+  --mn-color-surface-chrome:   #eef2f7;
+  --mn-color-surface-elevated: #fffdf8;
+  --mn-color-surface-overlay:  #fffdf8;
+  --mn-color-surface-subtle:   #f2f0eb;
+  --mn-color-surface-warm:     #faf6ec;
+  --mn-color-surface-sunken: rgba(var(--research-accent-ch), 0.055);
+  --mn-color-surface-hover:  rgba(var(--research-accent-ch), 0.075);
+  --mn-color-surface-active: rgba(var(--research-accent-ch), 0.12);
+  --mn-color-surface-accent-subtle: rgba(var(--research-accent-ch), 0.08);
+  --mn-color-surface-accent-strong: #dfe8f3;
+  --mn-color-backdrop: rgba(28, 34, 47, 0.30);
+  --mn-atmosphere:
+    radial-gradient(circle at 52% -18%, rgba(88, 111, 147, 0.10), transparent 42%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.42), transparent 38%);
+
+  /* Text - cool ink over paper. */
+  --mn-color-text-primary:   #23242b;
+  --mn-color-text-secondary: #555d6c;
+  --mn-color-text-tertiary:  #777f8e;
+  --mn-color-text-muted:     #9aa1ad;
+  --mn-color-text-inverse:   #fffdf8;
+  --mn-color-text-title:     #23242b;
+  --mn-color-text-quiet:     #657080;
+
+  /* Borders - parchment rules with a cool strong edge for panes. */
+  --mn-color-border-subtle:  #ece6da;
+  --mn-color-border-default: #ded8cc;
+  --mn-color-border-strong:  #c7cedb;
+  --mn-color-border:         var(--mn-color-border-default);
+  --mn-color-rule:           rgba(88, 111, 147, 0.14);
+  --mn-color-rule-strong:    rgba(88, 111, 147, 0.24);
+
+  /* Chrome bands - quiet, blue-tinged paper. */
+  --mn-top-bar-bg:         #eef2f7;
+  --mn-top-bar-border:     #d6deeb;
+  --mn-top-bar-text:       #2f405f;
+  --mn-top-bar-text-muted: #71819b;
+  --mn-bottom-bar-bg:      #ebe7de;
+  --mn-bottom-bar-border:  #d8d1c4;
+
+  /* Geometry and density - more generous than Emporium, softer than core. */
+  --mn-radius-control: var(--mn-radius-md);
+  --mn-radius-surface: 12px;
+  --mn-radius-xl:      14px;
+  --mn-row-height:     30px;
+  --mn-control-height: 30px;
+
+  /* Presentation flags - wireframe labels remain visible; texture stays on. */
+  --mn-label-display:   inline;
+  --mn-texture-display: block;
+  --mn-tracking-label:  0.03em;
+
+  /* Rule hierarchy - moderate, not Emporium's strong frame grid. */
+  --mn-rule-hair:  1px solid #ece6da;
+  --mn-rule-line:  1px solid #ded8cc;
+  --mn-rule-frame: 1px solid #c7cedb;
+  --mn-chrome-rule: var(--mn-rule-line);
+
+  /* Soft raised workbench shadows from the SRS composer/card direction. */
+  --mn-shadow-sm:             0 1px 2px rgba(35, 36, 43, 0.06);
+  --mn-shadow-md:             0 10px 28px rgba(88, 111, 147, 0.12);
+  --mn-shadow-lg:             0 18px 48px rgba(35, 36, 43, 0.12);
+  --mn-shadow-xl:             0 24px 64px rgba(35, 36, 43, 0.14);
+  --mn-shadow-card:           0 1px 3px rgba(35, 36, 43, 0.05), 0 12px 30px rgba(88, 111, 147, 0.08);
+  --mn-shadow-raised:         0 8px 24px rgba(88, 111, 147, 0.12);
+  --mn-shadow-popover:        0 14px 36px rgba(35, 36, 43, 0.16);
+  --mn-shadow-modal:          0 24px 64px rgba(35, 36, 43, 0.18);
+  --mn-shadow-primary:        0 10px 28px rgba(88, 111, 147, 0.16);
+  --mn-shadow-composer:       0 1px 3px rgba(35, 36, 43, 0.04), 0 8px 24px rgba(88, 111, 147, 0.10);
+  --mn-shadow-composer-focus: 0 1px 3px rgba(35, 36, 43, 0.04), 0 10px 28px rgba(88, 111, 147, 0.16);
+  --mn-shadow-status-danger:  0 10px 28px rgba(185, 28, 28, 0.16);
+  --mn-shadow-error-ring:     0 0 0 2px rgba(185, 28, 28, 0.18);
+  --mn-shadow-chrome:         0 1px 0 rgba(255, 255, 255, 0.68), 0 1px 6px rgba(88, 111, 147, 0.055);
+
+  font-family: var(--research-font-serif);
+}
+
+[data-theme="dark"][data-skin="research"] {
+  --research-accent:        #a9bad8;
+  --research-accent-hover:  #c6d3e8;
+  --research-accent-active: #dce5f2;
+  --research-accent-soft:   rgba(169, 186, 216, 0.14);
+  --research-accent-line:   rgba(169, 186, 216, 0.28);
+  --research-accent-ch:     169 186 216;
+
+  --mn-color-accent-ch:      var(--research-accent-ch);
+  --mn-color-surface-accent: rgba(var(--research-accent-ch), 0.14);
+  --mn-focus-ring-color:     rgb(var(--research-accent-ch) / 0.72);
+
+  --mn-color-surface-base:   #141821;
+  --mn-color-surface-raised: #1d2330;
+  --mn-color-surface-panel:  rgba(29, 35, 48, 0.78);
+  --mn-color-surface-canvas:   #10141c;
+  --mn-color-surface-editor:   #191e29;
+  --mn-color-surface-chrome:   #1b2230;
+  --mn-color-surface-elevated: #242b39;
+  --mn-color-surface-overlay:  #293141;
+  --mn-color-surface-subtle:   #191e29;
+  --mn-color-surface-warm:     #24242a;
+  --mn-color-surface-sunken: rgba(0, 0, 0, 0.28);
+  --mn-color-surface-hover:  rgba(var(--research-accent-ch), 0.07);
+  --mn-color-surface-active: rgba(var(--research-accent-ch), 0.12);
+  --mn-color-surface-accent-subtle: rgba(var(--research-accent-ch), 0.08);
+  --mn-color-surface-accent-strong: rgba(var(--research-accent-ch), 0.20);
+  --mn-color-backdrop: rgba(2, 4, 9, 0.66);
+  --mn-atmosphere:
+    radial-gradient(circle at 52% -16%, rgba(169, 186, 216, 0.09), transparent 40%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.012), transparent 36%);
+
+  --mn-color-text-primary:   #eceff4;
+  --mn-color-text-secondary: #b6c0cf;
+  --mn-color-text-tertiary:  #8793a6;
+  --mn-color-text-muted:     #6b7586;
+  --mn-color-text-inverse:   #141821;
+  --mn-color-text-title:     #f3f5f8;
+  --mn-color-text-quiet:     #8793a6;
+
+  --mn-color-border-subtle:  #252c3a;
+  --mn-color-border-default: #313949;
+  --mn-color-border-strong:  #53627a;
+  --mn-color-border:         var(--mn-color-border-default);
+  --mn-color-rule:           rgba(169, 186, 216, 0.12);
+  --mn-color-rule-strong:    rgba(169, 186, 216, 0.22);
+
+  --mn-top-bar-bg:         #192030;
+  --mn-top-bar-border:     #313b51;
+  --mn-top-bar-text:       #dce5f2;
+  --mn-top-bar-text-muted: #a9bad8;
+  --mn-bottom-bar-bg:      #171c27;
+  --mn-bottom-bar-border:  #2d3546;
+
+  --mn-rule-hair:  1px solid #252c3a;
+  --mn-rule-line:  1px solid #313949;
+  --mn-rule-frame: 1px solid #53627a;
+  --mn-chrome-rule: var(--mn-rule-line);
+
+  --mn-shadow-sm:             0 1px 2px rgba(0, 0, 0, 0.28);
+  --mn-shadow-md:             0 10px 28px rgba(0, 0, 0, 0.32);
+  --mn-shadow-lg:             0 18px 48px rgba(0, 0, 0, 0.36);
+  --mn-shadow-xl:             0 24px 64px rgba(0, 0, 0, 0.42);
+  --mn-shadow-card:           0 1px 3px rgba(0, 0, 0, 0.28), 0 12px 30px rgba(0, 0, 0, 0.30);
+  --mn-shadow-raised:         0 8px 24px rgba(0, 0, 0, 0.34);
+  --mn-shadow-popover:        0 14px 36px rgba(0, 0, 0, 0.42);
+  --mn-shadow-modal:          0 24px 64px rgba(0, 0, 0, 0.50);
+  --mn-shadow-primary:        0 10px 28px rgba(169, 186, 216, 0.18);
+  --mn-shadow-composer:       0 1px 3px rgba(0, 0, 0, 0.28), 0 8px 24px rgba(0, 0, 0, 0.34);
+  --mn-shadow-composer-focus: 0 1px 3px rgba(0, 0, 0, 0.28), 0 10px 28px rgba(169, 186, 216, 0.18);
+  --mn-shadow-status-danger:  0 10px 28px rgba(248, 113, 113, 0.18);
+  --mn-shadow-error-ring:     0 0 0 2px rgba(248, 113, 113, 0.18);
+  --mn-shadow-chrome:         0 1px 0 rgba(255, 255, 255, 0.025), 0 2px 7px rgba(0, 0, 0, 0.24);
+}

@@ -1,0 +1,268 @@
+/* SKIN: greenhouse (sans Garden research workspace)
+ *
+ * Greenhouse is the friendly, sans-serif research workspace skin:
+ *   - Garden-adjacent green accent, tuned cooler and lower-chroma for focus
+ *   - sans-serif chrome/prose/display for dense reading and scanning
+ *   - neutral work surfaces with light botanical tinting, not parchment
+ *   - visible labels and larger click targets, with reduced visual texture
+ *   - crisp rules and modest shadows so evidence panes read as tools, not cards
+ *
+ * Applies via [data-skin=greenhouse].
+ */
+
+:root {
+  --greenhouse-accent:        #2f7d5f;
+  --greenhouse-accent-hover:  #286a52;
+  --greenhouse-accent-active: #1f553f;
+  --greenhouse-accent-soft:   #e8f4ee;
+  --greenhouse-accent-line:   #b9d8c8;
+  --greenhouse-accent-ch:     47 125 95;
+  --greenhouse-font-sans:     'Inter Variable', 'Inter', 'Public Sans Variable', 'Public Sans', 'Source Sans 3 Variable', 'Source Sans 3', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+[data-skin="greenhouse"] {
+  /* Typography - Garden friendliness, but sans for serious workspace scanning. */
+  --mn-font-chrome:  var(--greenhouse-font-sans);
+  --mn-font-display: var(--greenhouse-font-sans);
+  --mn-font-prose:   var(--greenhouse-font-sans);
+  --mn-font-sans:    var(--greenhouse-font-sans);
+  --mn-font-serif:   var(--greenhouse-font-sans);
+  --mn-font-utility: var(--greenhouse-font-sans);
+
+  /* Accent system - botanical, calmer than Garden fern, clearly not SRS blue. */
+  --mn-color-accent:             var(--greenhouse-accent);
+  --mn-color-accent-hover:       var(--greenhouse-accent-hover);
+  --mn-color-accent-active:      var(--greenhouse-accent-active);
+  --mn-color-text-accent:        var(--greenhouse-accent);
+  --mn-color-text-accent-strong: var(--greenhouse-accent-active);
+  --mn-color-border-accent:      var(--greenhouse-accent-line);
+  --mn-color-border-focus:       var(--greenhouse-accent);
+  --mn-color-surface-accent:     var(--greenhouse-accent-soft);
+  --mn-focus-ring-color:         rgb(var(--greenhouse-accent-ch) / 0.68);
+  --mn-color-accent-ch:          var(--greenhouse-accent-ch);
+  --mn-color-info:               #3f718b;
+  --mn-color-info-strong:        #2c556c;
+  --mn-color-info-surface:       #e9f2f6;
+  --mn-color-info-border:        #bfd5df;
+  --mn-editor-paper-accent:       #2f7d5f;
+  --mn-editor-paper-accent-hover: #286a52;
+  --mn-editor-paper-accent-soft:  #e8f4ee;
+  --mn-editor-paper-accent-ch:    47 125 95;
+
+  /* Surfaces - crisp, neutral, and slightly living without becoming green soup. */
+  --mn-color-surface-canvas:   #eef2ed;
+  --mn-color-surface-base:     #f4f6f2;
+  --mn-color-surface-editor:   #fbfcfa;
+  --mn-color-surface-raised:   #ffffff;
+  --mn-color-surface-panel:    rgba(250, 252, 249, 0.88);
+  --mn-color-surface-chrome:   #e9f1ec;
+  --mn-color-surface-elevated: #ffffff;
+  --mn-color-surface-overlay:  #ffffff;
+  --mn-color-surface-subtle:   #f1f5f2;
+  --mn-color-surface-warm:     #f5f7ef;
+  --mn-color-surface-sunken:   #e8eeea;
+  --mn-color-surface-hover:    rgba(var(--greenhouse-accent-ch), 0.07);
+  --mn-color-surface-active:   rgba(var(--greenhouse-accent-ch), 0.12);
+  --mn-color-surface-accent-subtle: rgba(var(--greenhouse-accent-ch), 0.08);
+  --mn-color-surface-accent-strong: #d9ebe1;
+  --mn-color-backdrop: rgba(15, 31, 23, 0.28);
+  --mn-atmosphere:
+    radial-gradient(circle at 54% -18%, rgba(47, 125, 95, 0.10), transparent 42%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.48), transparent 38%);
+
+  /* Text - high-contrast botanical ink with muted secondary levels. */
+  --mn-color-text-primary:   #18231e;
+  --mn-color-text-secondary: #526059;
+  --mn-color-text-tertiary:  #737f78;
+  --mn-color-text-muted:     #94a09a;
+  --mn-color-text-inverse:   #ffffff;
+  --mn-color-text-title:     #122019;
+  --mn-color-text-quiet:     #66736c;
+  --mn-color-text-on-accent: #ffffff;
+
+  /* Borders - visible enough for scan paths, quiet enough for long sessions. */
+  --mn-color-border-subtle:  #dfe7e1;
+  --mn-color-border-default: #cfdad2;
+  --mn-color-border-strong:  #adc6b9;
+  --mn-color-border:         var(--mn-color-border-default);
+  --mn-color-rule:           rgba(47, 125, 95, 0.13);
+  --mn-color-rule-strong:    rgba(47, 125, 95, 0.22);
+
+  /* Chrome bands - airy greenhouse glass, with neutral bottom chrome. */
+  --mn-top-bar-bg:         #e9f1ec;
+  --mn-top-bar-border:     #cfe0d6;
+  --mn-top-bar-text:       #213f33;
+  --mn-top-bar-text-muted: #60746a;
+  --mn-bottom-bar-bg:      #eef2ef;
+  --mn-bottom-bar-border:  #d7e1da;
+
+  /* The annunciator (the master switch's lit chip) wears the current stance's hue.
+     Room is the accent (the workspace's own green); Constitution is a quiet violet
+     — exactly two stance colors the shell will ever add (folio 02). These are the
+     defaults; each stance block below overrides them. */
+  --mn-stance-annunciator-ink:  var(--mn-color-accent);
+  --mn-stance-annunciator-edge: var(--mn-color-border-accent);
+  --mn-stance-annunciator-wash: var(--mn-color-surface-accent);
+
+  /* Geometry and density - generous targets, restrained card radius. */
+  --mn-radius-control: var(--mn-radius-md);
+  --mn-radius-surface: var(--mn-radius-lg);
+  --mn-radius-xl:      var(--mn-radius-lg);
+  --mn-row-height:     30px;
+  --mn-control-height: 32px;
+
+  /* Presentation flags - labels visible, texture removed to reduce noise. */
+  --mn-label-display:   inline;
+  --mn-texture-display: none;
+  --mn-tracking-label:  0;
+
+  /* Rule hierarchy - research workspace clarity without a heavy grid. */
+  --mn-rule-hair:  1px solid #e4ebe6;
+  --mn-rule-line:  1px solid #cfdad2;
+  --mn-rule-frame: 1px solid #adc6b9;
+  --mn-chrome-rule: var(--mn-rule-line);
+
+  /* Shadows - intentionally shallow: preserve depth without card clutter. */
+  --mn-shadow-sm:             0 1px 2px rgba(24, 35, 30, 0.05);
+  --mn-shadow-md:             0 6px 18px rgba(47, 90, 70, 0.08);
+  --mn-shadow-lg:             0 12px 32px rgba(24, 35, 30, 0.10);
+  --mn-shadow-xl:             0 18px 44px rgba(24, 35, 30, 0.12);
+  --mn-shadow-card:           0 1px 2px rgba(24, 35, 30, 0.04), 0 6px 18px rgba(47, 90, 70, 0.06);
+  --mn-shadow-raised:         0 6px 18px rgba(47, 90, 70, 0.08);
+  --mn-shadow-popover:        0 14px 34px rgba(24, 35, 30, 0.14);
+  --mn-shadow-modal:          0 22px 56px rgba(24, 35, 30, 0.18);
+  --mn-shadow-primary:        0 8px 24px rgba(47, 125, 95, 0.16);
+  --mn-shadow-chrome:         0 1px 0 rgba(255, 255, 255, 0.62), 0 2px 7px rgba(47, 90, 70, 0.05);
+  --mn-shadow-composer:       0 1px 2px rgba(24, 35, 30, 0.04), 0 6px 18px rgba(47, 90, 70, 0.07);
+  --mn-shadow-composer-focus: 0 1px 2px rgba(24, 35, 30, 0.04), 0 8px 24px rgba(47, 125, 95, 0.14);
+  --mn-shadow-status-danger:  0 8px 24px rgba(185, 28, 28, 0.14);
+  --mn-shadow-error-ring:     0 0 0 2px rgba(185, 28, 28, 0.18);
+
+  font-family: var(--greenhouse-font-sans);
+}
+
+[data-skin="greenhouse"][data-stance="room"] {
+  --greenhouse-stance-register: var(--mn-stance-register-room);
+  --greenhouse-floor-salience: 1;
+  --mn-stance-annunciator-ink:  var(--mn-color-accent);
+  --mn-stance-annunciator-edge: var(--mn-color-border-accent);
+  --mn-stance-annunciator-wash: var(--mn-color-surface-accent);
+}
+
+[data-skin="greenhouse"][data-stance="bench"] {
+  --greenhouse-stance-register: var(--mn-stance-register-bench);
+  --greenhouse-floor-salience: 0.86;
+}
+
+[data-skin="greenhouse"][data-stance="constitution"] {
+  --greenhouse-stance-register: var(--mn-stance-register-constitution);
+  --greenhouse-floor-salience: 0.72;
+  /* Constitution's quiet violet — the second (and last) stance hue. */
+  --mn-stance-annunciator-ink:  #6b5a8e;
+  --mn-stance-annunciator-edge: #cec3e3;
+  --mn-stance-annunciator-wash: #f3eff9;
+}
+
+[data-theme="dark"][data-skin="greenhouse"][data-stance="constitution"] {
+  /* The same violet, lifted for legibility on the dark chrome band. */
+  --mn-stance-annunciator-ink:  #c3b3e6;
+  --mn-stance-annunciator-edge: #4b3f68;
+  --mn-stance-annunciator-wash: #241d33;
+}
+
+[data-skin="greenhouse"][data-stance="dispatch"] {
+  --greenhouse-stance-register: var(--mn-stance-register-dispatch);
+  --greenhouse-floor-salience: 0.94;
+}
+
+[data-skin="greenhouse"][data-floor-state="open"],
+[data-skin="greenhouse"] [data-floor-state="open"] {
+  --greenhouse-floor-tone: var(--mn-color-accent);
+  --greenhouse-floor-weight: 500;
+}
+
+[data-skin="greenhouse"][data-floor-state="held"],
+[data-skin="greenhouse"] [data-floor-state="held"] {
+  --greenhouse-floor-tone: var(--mn-color-warning);
+  --greenhouse-floor-weight: 600;
+}
+
+[data-theme="dark"][data-skin="greenhouse"] {
+  --greenhouse-accent:        #88c9ac;
+  --greenhouse-accent-hover:  #a5dcc3;
+  --greenhouse-accent-active: #c5ecd9;
+  --greenhouse-accent-soft:   rgba(136, 201, 172, 0.14);
+  --greenhouse-accent-line:   rgba(136, 201, 172, 0.30);
+  --greenhouse-accent-ch:     136 201 172;
+
+  --mn-color-accent-ch:      var(--greenhouse-accent-ch);
+  --mn-color-surface-accent: rgba(var(--greenhouse-accent-ch), 0.14);
+  --mn-focus-ring-color:     rgb(var(--greenhouse-accent-ch) / 0.72);
+  --mn-color-info:           #8ec8dd;
+  --mn-color-info-strong:    #b8e1ee;
+  --mn-color-info-surface:   rgba(142, 200, 221, 0.12);
+  --mn-color-info-border:    rgba(142, 200, 221, 0.28);
+
+  --mn-color-surface-canvas:   #0e1311;
+  --mn-color-surface-base:     #121816;
+  --mn-color-surface-editor:   #18201d;
+  --mn-color-surface-raised:   #1b2420;
+  --mn-color-surface-panel:    rgba(20, 28, 25, 0.88);
+  --mn-color-surface-chrome:   #19231f;
+  --mn-color-surface-elevated: #212c27;
+  --mn-color-surface-overlay:  #26322d;
+  --mn-color-surface-subtle:   #18201d;
+  --mn-color-surface-warm:     #22271f;
+  --mn-color-surface-sunken:   rgba(0, 0, 0, 0.26);
+  --mn-color-surface-hover:    rgba(var(--greenhouse-accent-ch), 0.08);
+  --mn-color-surface-active:   rgba(var(--greenhouse-accent-ch), 0.14);
+  --mn-color-surface-accent-subtle: rgba(var(--greenhouse-accent-ch), 0.09);
+  --mn-color-surface-accent-strong: rgba(var(--greenhouse-accent-ch), 0.20);
+  --mn-color-backdrop: rgba(2, 6, 4, 0.66);
+  --mn-atmosphere:
+    radial-gradient(circle at 54% -16%, rgba(136, 201, 172, 0.10), transparent 40%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.012), transparent 36%);
+
+  --mn-color-text-primary:   #edf4f0;
+  --mn-color-text-secondary: #b9c8c0;
+  --mn-color-text-tertiary:  #899b92;
+  --mn-color-text-muted:     #66766f;
+  --mn-color-text-inverse:   #121816;
+  --mn-color-text-title:     #f2f7f4;
+  --mn-color-text-quiet:     #899b92;
+  --mn-color-text-on-accent: #101713;
+
+  --mn-color-border-subtle:  #27312d;
+  --mn-color-border-default: #34423c;
+  --mn-color-border-strong:  #5a7769;
+  --mn-color-border:         var(--mn-color-border-default);
+  --mn-color-rule:           rgba(136, 201, 172, 0.12);
+  --mn-color-rule-strong:    rgba(136, 201, 172, 0.22);
+
+  --mn-top-bar-bg:         #17231e;
+  --mn-top-bar-border:     #33473e;
+  --mn-top-bar-text:       #d9eee4;
+  --mn-top-bar-text-muted: #99bea9;
+  --mn-bottom-bar-bg:      #151d1a;
+  --mn-bottom-bar-border:  #2f3c37;
+
+  --mn-rule-hair:  1px solid #27312d;
+  --mn-rule-line:  1px solid #34423c;
+  --mn-rule-frame: 1px solid #5a7769;
+  --mn-chrome-rule: var(--mn-rule-line);
+
+  --mn-shadow-sm:             0 1px 2px rgba(0, 0, 0, 0.26);
+  --mn-shadow-md:             0 8px 22px rgba(0, 0, 0, 0.30);
+  --mn-shadow-lg:             0 16px 42px rgba(0, 0, 0, 0.34);
+  --mn-shadow-xl:             0 24px 60px rgba(0, 0, 0, 0.42);
+  --mn-shadow-card:           0 1px 2px rgba(0, 0, 0, 0.26), 0 8px 22px rgba(0, 0, 0, 0.26);
+  --mn-shadow-raised:         0 8px 22px rgba(0, 0, 0, 0.30);
+  --mn-shadow-popover:        0 16px 42px rgba(0, 0, 0, 0.42);
+  --mn-shadow-modal:          0 24px 60px rgba(0, 0, 0, 0.50);
+  --mn-shadow-primary:        0 10px 28px rgba(136, 201, 172, 0.18);
+  --mn-shadow-chrome:         0 1px 0 rgba(255, 255, 255, 0.03), 0 2px 7px rgba(0, 0, 0, 0.20);
+  --mn-shadow-composer:       0 1px 2px rgba(0, 0, 0, 0.26), 0 8px 22px rgba(0, 0, 0, 0.28);
+  --mn-shadow-composer-focus: 0 1px 2px rgba(0, 0, 0, 0.26), 0 10px 28px rgba(136, 201, 172, 0.18);
+  --mn-shadow-status-danger:  0 10px 28px rgba(248, 113, 113, 0.18);
+  --mn-shadow-error-ring:     0 0 0 2px rgba(248, 113, 113, 0.18);
+}
