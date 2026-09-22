@@ -22,10 +22,13 @@ Shrubbery depends on a number of third-party npm packages, declared in each
 workspace member's `package.json` and pinned in `pnpm-lock.yaml`. Each
 retains its own license and notices.
 
-A full third-party attribution inventory (a per-dependency license-text
-compilation) has not been assembled yet. This is a known follow-up before a
-first tagged release, matching Garden's practice of completing that review
-before its first public release.
+A full third-party license inventory for the production dependency closure
+of the workspace members that ship in the export (i.e. everything except
+`apps/flow/`, which is permanently excluded — see `EXPORT-MANIFEST.md`) is
+published in [`THIRD-PARTY-NPM.md`](THIRD-PARTY-NPM.md), generated via
+`scripts/gen-third-party-npm.mjs`. A handful of entries there are flagged
+for missing or unusual upstream license metadata — see that file's own
+"Flagged" section. Regenerate it whenever `pnpm-lock.yaml` changes.
 
 An off-main Rust/loom subsystem (a wasm-bindgen projector plus several
 `loom-*` crates, plus a Rust `prebuild` step for `apps/organism`) currently
