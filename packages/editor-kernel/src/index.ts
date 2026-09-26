@@ -238,12 +238,24 @@ export function kernelExtensions(opts: KernelOptions = {}): Extensions {
 }
 
 /**
+ * Options for TipTap's built-in extensions, shared by every editor we mount.
+ *
+ * Copying blocks as plain text puts ONE newline between blocks. TipTap's
+ * default is a blank line ("\n\n"), which pasted every outliner block into a
+ * text file with an empty line after it.
+ */
+export const kernelCoreExtensionOptions = {
+  clipboardTextSerializer: { blockSeparator: '\n' },
+}
+
+/**
  * Mount a REAL TipTap Editor into `element` using the kernel roster.
  */
 export function createKernelEditor(element: HTMLElement, opts: KernelOptions = {}): Editor {
   return new Editor({
     element,
     extensions: kernelExtensions(opts),
+    coreExtensionOptions: kernelCoreExtensionOptions,
   })
 }
 

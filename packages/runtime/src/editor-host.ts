@@ -1173,7 +1173,13 @@ export class ShEditorHost extends LitElement {
     .editor-mount .ProseMirror > h1,
     .editor-mount .ProseMirror > h2,
     .editor-mount .ProseMirror > h3 {
-      margin: 0 0 var(--mn-space-1, 0.25rem);
+      /* A transparent border, not a margin, for the space below: WebKit paints
+         a multi-block selection into the margins between blocks (see the list
+         item rule). !important keeps the background clipped against the
+         background shorthand in the hover and selected rules. */
+      margin: 0;
+      border-bottom: var(--mn-space-1, 0.25rem) solid transparent;
+      background-clip: padding-box !important;
       padding: var(--mn-space-1-5, 0.375rem) var(--mn-space-2, 0.5rem)
         var(--mn-space-1-5, 0.375rem) var(--mn-space-8, 2rem);
       border-radius: var(--mn-radius-md, 6px);
@@ -1522,8 +1528,17 @@ export class ShEditorHost extends LitElement {
       background: var(--mn-color-warning-surface-strong, #ffedd5);
       box-shadow: 0 0 0 2px color-mix(in srgb, var(--mn-color-warning-border, #f59e0b) 28%, transparent);
     }
+    /* The space under each list item is a transparent BORDER, not a margin.
+       WebKit paints a selection across blocks into the margins between them,
+       from the list's left edge: Select All drew a band under every bullet.
+       A border is part of the block, so nothing is painted there. The
+       background stays clipped to the padding box, so the hover and selected
+       washes keep their size; !important holds that against the background
+       shorthand in those rules, which would reset the clip. */
     .editor-mount .ProseMirror > li {
-      margin: 0 0 var(--mn-space-2, 0.5rem);
+      margin: 0;
+      border-bottom: var(--mn-space-2, 0.5rem) solid transparent;
+      background-clip: padding-box !important;
       padding: var(--mn-space-1-5, 0.375rem) var(--mn-space-2, 0.5rem)
         var(--mn-space-1-5, 0.375rem) var(--mn-space-8, 2rem);
       border-radius: var(--mn-radius-md, 6px);
