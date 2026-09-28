@@ -1,5 +1,6 @@
 /** Host-side execution and DOM face for the pure editor-kernel QueryBlock. */
 
+import { adoptStyleSheet } from '@shrubbery/nucleus'
 import type { RestClient } from '@shrubbery/nucleus'
 import type {
   QueryBlockAttrs,
@@ -723,11 +724,9 @@ function ensureStyle(target: HTMLElement): boolean {
       ? target.ownerDocument.head
       : null
   if (!host) return false
-  if (host.querySelector(':scope > [data-shrubbery-query-block-style]')) return true
-  const style = target.ownerDocument.createElement('style')
-  style.dataset.shrubberyQueryBlockStyle = ''
-  style.textContent = QUERY_BLOCK_STYLE
-  host.appendChild(style)
+  // Adopted, not a <style> element: the app's CSP refuses runtime <style>
+  // elements (see adoptStyleSheet).
+  adoptStyleSheet(root instanceof ShadowRoot ? root : target.ownerDocument, 'shrubbery-query-block-style', QUERY_BLOCK_STYLE)
   return true
 }
 

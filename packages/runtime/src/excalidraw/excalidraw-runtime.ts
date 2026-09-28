@@ -1,3 +1,4 @@
+import { adoptStyleSheet, styleRootOf } from '@shrubbery/nucleus'
 /**
  * Excalidraw React-island runtime for the controlled <mn-excalidraw-canvas>.
  *
@@ -673,13 +674,12 @@ class ExcalidrawRuntimeController implements ExcalidrawRuntimeHandle {
   }
 
   private installRuntimeStyle(cssText: string | undefined): void {
-    if (!cssText || this.mountRoot.querySelector('style[data-excalidraw-runtime-style]')) return
-    const style = document.createElement('style')
-    style.dataset.excalidrawRuntimeStyle = 'true'
+    if (!cssText) return
     // Excalidraw's stacking tokens are defined on :root. That selector does
     // not match inside a shadow tree, so bind it to Excalidraw's own root.
-    style.textContent = cssText.replace(/:root\b/g, '.excalidraw')
-    this.mountRoot.insertBefore(style, this.reactContainer)
+    // Adopted onto the root the mount lives in, not a <style> element: the
+    // app's CSP refuses runtime <style> elements (see adoptStyleSheet).
+    adoptStyleSheet(styleRootOf(this.mountRoot), 'excalidraw-runtime', cssText.replace(/:root\b/g, '.excalidraw'))
   }
 
   private claimApi(api: ExcalidrawApi, generation: number): void {

@@ -29,6 +29,8 @@
  *     the dark surface. See each ramp's own comment for the derivation.
  */
 
+import { adoptStyleSheet } from '@shrubbery/nucleus'
+
 // ── The validated palette (see this repo's build-candidates.mjs / palette
 // composition run — categorical: 5 slots, CVD-validated both modes, adjacent
 // pairlist; status: OKLab ΔE checked against the categoricals directly).
@@ -816,10 +818,9 @@ const TOOLTIP_STYLE_ID = 'sh-vega-tooltip-style'
  * `embed()` so the package's own stylesheet never lands first.
  */
 export function ensureVegaTooltipStyles(doc: Document): void {
-  if (doc.getElementById(TOOLTIP_STYLE_ID)) return
-  const style = doc.createElement('style')
-  style.id = TOOLTIP_STYLE_ID
-  style.textContent = `
+  // Adopted, not a <style> element: the app's CSP refuses runtime <style>
+  // elements (see adoptStyleSheet).
+  adoptStyleSheet(doc, TOOLTIP_STYLE_ID, `
 #vg-tooltip-element {
   font-family: var(--mn-font-sans, ${SANS_STACK});
   font-size: var(--mn-text-xs, 12px);
@@ -848,6 +849,5 @@ export function ensureVegaTooltipStyles(doc: Document): void {
   max-width: 300px;
   text-align: left;
 }
-`.trim()
-  doc.head.appendChild(style)
+`.trim())
 }
