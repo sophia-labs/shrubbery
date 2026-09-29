@@ -3,11 +3,25 @@
  *
  * Provides in-document search with highlighting via ProseMirror decorations.
  * Highlights all matches and allows navigating between them.
+ *
+ * Bringing the current match into view is this plugin's job, not
+ * `tr.scrollIntoView()`'s. ProseMirror only scrolls to the selection when the
+ * DOM selection is inside the editor (prosemirror-view scrollToSelection), and
+ * while you type in the find bar it is in the find bar's input. So every
+ * command that moves to a match marks the transaction `reveal`, and the plugin
+ * view scrolls the current match's decoration into view after the update.
+ *
+ * Folded outliner blocks are hidden (display: none), so a match inside one has
+ * nothing to scroll to. Typing never edits the document: while you type, the
+ * current match is the first one outside any fold. Moving to a match on
+ * purpose (next, previous, go-to, replace) opens the folds above it, the same
+ * edit as clicking their fold arrows.
  */
 
 import { Extension } from '@tiptap/core'
-import { Plugin, PluginKey, TextSelection } from '@tiptap/pm/state'
+import { Plugin, PluginKey, TextSelection, type Transaction } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
+import { findParentIndex, getHiddenIndexSet, getOutlinerBlocks, isCollapsed } from '../outliner-tree'
 
 export interface SearchOptions {
   searchTerm: string
@@ -54,6 +68,37 @@ function findMatches(doc: any, searchTerm: string, caseSensitive: boolean): Sear
   })
 
   return results
+}
+
+/** Index of the outliner block holding `pos`, or -1. */
+function blockIndexAt(blocks: ReturnType<typeof getOutlinerBlocks>, pos: number): number {
+  return blocks.findIndex(block => block.pos <= pos && pos < block.end)
+}
+
+/** The first result not hidden inside a folded block, or 0 when all are. */
+function firstVisibleResult(doc: any, results: SearchResult[]): number {
+  const blocks = getOutlinerBlocks(doc)
+  const hidden = getHiddenIndexSet(blocks)
+  if (hidden.size === 0) return 0
+  const index = results.findIndex(result => !hidden.has(blockIndexAt(blocks, result.from)))
+  return index === -1 ? 0 : index
+}
+
+/** Open every folded ancestor of the block holding `pos`. */
+function unfoldAround(tr: Transaction, pos: number): void {
+  const blocks = getOutlinerBlocks(tr.doc)
+  const index = blockIndexAt(blocks, pos)
+  if (index === -1) return
+  for (let parent = findParentIndex(blocks, index); parent !== -1; parent = findParentIndex(blocks, parent)) {
+    const block = blocks[parent]!
+    if (isCollapsed(block.node)) tr.setNodeMarkup(block.pos, null, { ...block.node.attrs, collapsed: false })
+  }
+}
+
+/** Select the match at `pos` after opening the folds that hide it. */
+function moveToMatch(tr: Transaction, pos: number): void {
+  unfoldAround(tr, pos)
+  tr.setSelection(TextSelection.create(tr.doc, pos))
 }
 
 /**
@@ -135,20 +180,20 @@ export const Search = Extension.create<SearchOptions, SearchStorage>({
           const results = findMatches(tr.doc, searchTerm, caseSensitive)
 
           this.storage.results = results
-          this.storage.currentIndex = results.length > 0 ? 0 : -1
+          this.storage.currentIndex = results.length > 0 ? firstVisibleResult(tr.doc, results) : -1
 
           tr.setMeta(searchPluginKey, {
             searchTerm,
             caseSensitive,
             results,
             currentIndex: this.storage.currentIndex,
+            reveal: true,
           })
 
           // Move selection and scroll in the same transaction
           if (results.length > 0) {
-            const firstResult = results[0]
+            const firstResult = results[this.storage.currentIndex]!
             tr.setSelection(TextSelection.create(tr.doc, firstResult.from))
-            tr.scrollIntoView()
           }
 
           if (dispatch) {
@@ -192,11 +237,11 @@ export const Search = Extension.create<SearchOptions, SearchStorage>({
           tr.setMeta(searchPluginKey, {
             results,
             currentIndex: nextIndex,
+            reveal: true,
           })
 
           const result = results[nextIndex]
-          tr.setSelection(TextSelection.create(tr.doc, result.from))
-          tr.scrollIntoView()
+          moveToMatch(tr, result.from)
 
           if (dispatch) {
             dispatch(tr)
@@ -221,11 +266,11 @@ export const Search = Extension.create<SearchOptions, SearchStorage>({
           tr.setMeta(searchPluginKey, {
             results,
             currentIndex: prevIndex,
+            reveal: true,
           })
 
           const result = results[prevIndex]
-          tr.setSelection(TextSelection.create(tr.doc, result.from))
-          tr.scrollIntoView()
+          moveToMatch(tr, result.from)
 
           if (dispatch) {
             dispatch(tr)
@@ -247,11 +292,11 @@ export const Search = Extension.create<SearchOptions, SearchStorage>({
           tr.setMeta(searchPluginKey, {
             results,
             currentIndex: index,
+            reveal: true,
           })
 
           const result = results[index]
-          tr.setSelection(TextSelection.create(tr.doc, result.from))
-          tr.scrollIntoView()
+          moveToMatch(tr, result.from)
 
           if (dispatch) {
             dispatch(tr)
@@ -292,11 +337,11 @@ export const Search = Extension.create<SearchOptions, SearchStorage>({
             caseSensitive,
             results: updatedResults,
             currentIndex: nextIndex,
+            reveal: true,
           })
 
           if (nextIndex >= 0 && updatedResults[nextIndex]) {
-            tr.setSelection(TextSelection.create(tr.doc, updatedResults[nextIndex].from))
-            tr.scrollIntoView()
+            moveToMatch(tr, updatedResults[nextIndex].from)
           }
 
           if (dispatch) {
@@ -335,11 +380,11 @@ export const Search = Extension.create<SearchOptions, SearchStorage>({
             caseSensitive,
             results: updatedResults,
             currentIndex: nextIndex,
+            reveal: true,
           })
 
           if (nextIndex >= 0 && updatedResults[nextIndex]) {
-            tr.setSelection(TextSelection.create(tr.doc, updatedResults[nextIndex].from))
-            tr.scrollIntoView()
+            moveToMatch(tr, updatedResults[nextIndex].from)
           }
 
           if (dispatch) {
@@ -357,6 +402,15 @@ export const Search = Extension.create<SearchOptions, SearchStorage>({
     return [
       new Plugin({
         key: searchPluginKey,
+        view: () => ({
+          update(view, prevState) {
+            const next = searchPluginKey.getState(view.state) as { revealSeq?: number } | undefined
+            const prev = searchPluginKey.getState(prevState) as { revealSeq?: number } | undefined
+            if (!next?.revealSeq || next.revealSeq === prev?.revealSeq) return
+            const current = view.dom.querySelector('.search-match-current')
+            current?.scrollIntoView({ block: 'center', inline: 'nearest' })
+          },
+        }),
         state: {
           init() {
             return {
@@ -364,6 +418,7 @@ export const Search = Extension.create<SearchOptions, SearchStorage>({
               caseSensitive: false,
               results: [] as SearchResult[],
               currentIndex: -1,
+              revealSeq: 0,
               decorations: DecorationSet.empty,
             }
           },
@@ -377,9 +432,11 @@ export const Search = Extension.create<SearchOptions, SearchStorage>({
                 meta.results || [],
                 meta.currentIndex ?? -1
               )
+              const { reveal, ...rest } = meta
               return {
                 ...state,
-                ...meta,
+                ...rest,
+                revealSeq: reveal ? state.revealSeq + 1 : state.revealSeq,
                 decorations,
               }
             }
