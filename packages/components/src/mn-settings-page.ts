@@ -278,6 +278,9 @@ function jobTone(status: string): MnSettingsTone {
   if (normalized === 'failed' || normalized === 'error') return 'danger'
   if (normalized === 'running' || normalized === 'queued') return 'accent'
   if (normalized === 'cancelled') return 'warning'
+  // A Garden restart marks in-flight jobs JOB_INTERRUPTED: the worker died,
+  // but the underlying operation's outcome is unknown — warn, don't alarm.
+  if (normalized === 'interrupted') return 'warning'
   return 'neutral'
 }
 
@@ -289,6 +292,7 @@ function jobStatusLabel(status: string): string {
     case 'failed': return 'Failed'
     case 'cancelled':
     case 'canceled': return 'Cancelled'
+    case 'interrupted': return 'Interrupted'
     case 'ready': return 'Ready'
     case 'idle': return 'Idle'
     default: return status || 'Unknown'

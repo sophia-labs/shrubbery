@@ -258,4 +258,57 @@ describe('GardendLocalAiSettings', () => {
     expect(JSON.stringify(section)).not.toContain('768')
     expect(JSON.stringify(section)).not.toContain('fastembed')
   })
+
+  it('renders a restart-interrupted reindex job as interrupted, never as an operation failure', async () => {
+    const fixture = backend({
+      [`GET /g/${GRAPH_ID}/api/semantic/index/refresh/jobs/semantic-job-1`]: () => json({
+        job_id: 'semantic-job-1',
+        status: 'failed',
+        detail: {
+          error_code: 'JOB_INTERRUPTED',
+          reason: 'owner_restarted',
+          interruption: { outcome: 'unknown' },
+        },
+      }),
+    })
+    const settings = new GardendLocalAiSettings(contract(), GRAPH_ID, {
+      fetch: fixture.fetch,
+      pollIntervalMs: 0,
+      sleep: async () => undefined,
+    })
+    await settings.ensureLoaded()
+    await settings.job('refresh-semantic-index')
+
+    const section = settings.decorateSection(emptySection)
+    expect(section.jobs?.find(job => job.id === 'refresh-semantic-index')).toMatchObject({
+      status: 'interrupted',
+      detail: 'Interrupted (outcome unknown — inspect before retrying).',
+      progress: null,
+    })
+    // The interruption is not an error: it must not land in the notes/errors.
+    expect(JSON.stringify(section.jobs)).not.toContain('failed')
+  })
+
+  it('keeps a plain reindex failure (no JOB_INTERRUPTED code) as an error', async () => {
+    const fixture = backend({
+      [`GET /g/${GRAPH_ID}/api/semantic/index/refresh/jobs/semantic-job-1`]: () => json({
+        job_id: 'semantic-job-1',
+        status: 'failed',
+        error: 'embedding model OOM',
+      }),
+    })
+    const settings = new GardendLocalAiSettings(contract(), GRAPH_ID, {
+      fetch: fixture.fetch,
+      pollIntervalMs: 0,
+      sleep: async () => undefined,
+    })
+    await settings.ensureLoaded()
+    await settings.job('refresh-semantic-index')
+
+    const section = settings.decorateSection(emptySection)
+    expect(section.jobs?.find(job => job.id === 'refresh-semantic-index')).toMatchObject({
+      status: 'failed',
+      detail: 'embedding model OOM',
+    })
+  })
 })
