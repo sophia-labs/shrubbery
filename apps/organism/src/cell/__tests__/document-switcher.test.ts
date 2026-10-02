@@ -97,23 +97,26 @@ describe('document switcher shell projection', () => {
     const rows = [
       {
         block: '<urn:mnemosyne:local:document:doc-beta#block-block-plan>',
-        docUri: '<urn:mnemosyne:local:document:doc-beta>',
+        docId: '"doc-beta"',
         blockId: '"block-plan"',
-        docTitle: '"Beta Plan"',
         text: '"Launch plan and invoice workflow"',
         type: '<http://mnemosyne.dev/doc#Paragraph>',
       },
       {
         block: '<urn:mnemosyne:local:document:doc-alpha#block-block-heading>',
-        docUri: '<urn:mnemosyne:local:document:doc-alpha>',
+        docId: '"doc-alpha"',
         blockId: '"block-heading"',
-        docTitle: '"Alpha Notes"',
         text: '"Invoice architecture"',
         type: '<http://mnemosyne.dev/doc#Heading>',
       },
     ]
+    const titles = new Map([
+      ['doc-alpha', 'Alpha Notes'],
+      ['doc-beta', 'Beta Plan'],
+    ])
+    const resolveTitle = (documentId: string) => titles.get(documentId) ?? null
 
-    expect(documentSwitcherBlockItemsFromRows(rows, 'graph-a', 'invoice', 'smart')).toEqual([
+    expect(documentSwitcherBlockItemsFromRows(rows, 'graph-a', 'invoice', 'smart', resolveTitle)).toEqual([
       {
         kind: 'block',
         id: 'doc-alpha:block-heading',
@@ -143,8 +146,9 @@ describe('document switcher shell projection', () => {
     ])
 
     const sparql = documentSwitcherBlocksSparql('graph-a', 'invoice')
-    expect(sparql).toContain('GRAPH <urn:mnemosyne:local:graph:graph-a:projection:workspace>')
+    expect(sparql).toContain('urn:mnemosyne:local:graph:graph-a:projection:document:')
     expect(sparql).toContain('doc:textContent')
+    expect(sparql).not.toContain('projection:workspace')
 
     const calls: Array<{ graphId: string; sparql: string }> = []
     const loaded = await loadDocumentSwitcherBlocks(
@@ -157,6 +161,7 @@ describe('document switcher shell projection', () => {
       'graph-a',
       'invoice',
       'smart',
+      resolveTitle,
     )
     expect(calls).toHaveLength(1)
     expect(loaded.map((item) => item.id)).toEqual(['doc-alpha:block-heading', 'doc-beta:block-plan'])

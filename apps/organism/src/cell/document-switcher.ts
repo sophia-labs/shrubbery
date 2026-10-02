@@ -16,7 +16,7 @@ import type {
 } from '@shrubbery/components'
 import type { Command, CommandContext, CommandRegistry } from '@shrubbery/nucleus'
 import type { OfflineSemanticSearchHit } from '@shrubbery/source'
-import { workspaceProjectionGraphIri } from '@shrubbery/runtime'
+import { graphSubject } from '@shrubbery/runtime'
 import type { SidebarNode, SidebarSection } from '@shrubbery/runtime'
 
 const RDF_TYPE = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type'
@@ -230,28 +230,29 @@ export function documentSwitcherItems(
 }
 
 export function documentSwitcherBlocksSparql(graphId: string, query: string): string {
-  const ws = workspaceProjectionGraphIri(graphId)
+  // Block text lives ONLY in the per-document projection graphs
+  // ({graph}:projection:document:{id}); the workspace projection carries no
+  // doc:textContent at all, so querying it scans ~2M quads to answer empty
+  // (~6s measured on default_x1). Scanning the per-doc graphs with GRAPH ?g
+  // answers in ~0.4s with real rows. No ORDER BY here: ordering a full scan
+  // forces total materialization before LIMIT; rows are scored and sorted
+  // client-side instead.
+  const docGraphPrefix = `${graphSubject(graphId)}:projection:document:`
   const needle = escapeSparqlLiteral(normalized(query))
   return [
     'PREFIX doc: <http://mnemosyne.dev/doc#>',
-    'PREFIX dcterms: <http://purl.org/dc/terms/>',
-    'SELECT DISTINCT ?block ?docUri ?blockId ?docTitle ?text ?type ?order ?siblingOrder',
-    `WHERE { GRAPH <${ws}> {`,
-    '  ?docUri a doc:TipTapDocument .',
-    `  ?block <${RDF_TYPE}> ?type .`,
-    '  FILTER(STRSTARTS(STR(?block), CONCAT(STR(?docUri), "#block-")))',
-    '  OPTIONAL { ?block doc:blockId ?flatBlockId . }',
-    '  OPTIONAL { ?block doc:nodeId ?nodeBlockId . }',
-    '  OPTIONAL { ?block doc:textContent ?text . }',
-    `  FILTER(BOUND(?text) && CONTAINS(LCASE(STR(?text)), ${needle}))`,
-    '  OPTIONAL { ?block doc:order ?order . }',
-    '  OPTIONAL { ?block doc:siblingOrder ?siblingOrder . }',
-    '  OPTIONAL { ?docUri dcterms:title ?dctitle . }',
-    '  OPTIONAL { ?docUri doc:title ?doctitle . }',
-    '  BIND(COALESCE(?flatBlockId, ?nodeBlockId, STRAFTER(STR(?block), "#block-")) AS ?blockId)',
-    '  BIND(COALESCE(?dctitle, ?doctitle, "Untitled") AS ?docTitle)',
-    '} }',
-    'ORDER BY ?docTitle ?order ?siblingOrder ?blockId',
+    'SELECT ?block ?docId ?blockId ?text ?type',
+    'WHERE {',
+    '  GRAPH ?g {',
+    '    ?block doc:textContent ?text .',
+    `    ?block <${RDF_TYPE}> ?type .`,
+    '    OPTIONAL { ?block doc:nodeId ?nodeBlockId . }',
+    '  }',
+    `  FILTER(STRSTARTS(STR(?g), "${docGraphPrefix}"))`,
+    `  FILTER(CONTAINS(LCASE(STR(?text)), ${needle}))`,
+    '  BIND(STRAFTER(STR(?g), ":projection:document:") AS ?docId)',
+    '  BIND(COALESCE(?nodeBlockId, STRAFTER(STR(?block), "#block-")) AS ?blockId)',
+    '}',
     'LIMIT 40',
   ].join('\n')
 }
@@ -260,12 +261,13 @@ export function documentSwitcherBlockFromRow(
   row: Record<string, string>,
   graphId: string,
   query: string,
+  resolveTitle?: (documentId: string) => string | null,
 ): MnDocumentSwitcherBlockItem | null {
-  const documentId = documentIdFromTerm(row.docUri)
+  const documentId = termText(row.docId) ?? documentIdFromTerm(row.docUri)
   const blockId = termText(row.blockId) ?? blockIdFromBlockTerm(row.block)
   const text = termText(row.text)
   if (!documentId || !blockId || !text) return null
-  const label = termText(row.docTitle) ?? documentId
+  const label = termText(row.docTitle) ?? resolveTitle?.(documentId) ?? documentId
   const type = localName(row.type)
   const path = type ? `${label} / ${type}` : label
   return {
@@ -287,11 +289,12 @@ export function documentSwitcherBlockItemsFromRows(
   graphId: string,
   query: string,
   sort: MnDocumentSwitcherSort,
+  resolveTitle?: (documentId: string) => string | null,
 ): MnDocumentSwitcherBlockItem[] {
   const seen = new Set<string>()
   const items: MnDocumentSwitcherBlockItem[] = []
   for (const row of rows) {
-    const item = documentSwitcherBlockFromRow(row, graphId, query)
+    const item = documentSwitcherBlockFromRow(row, graphId, query, resolveTitle)
     if (!item || seen.has(item.id)) continue
     seen.add(item.id)
     items.push(item)
@@ -304,10 +307,11 @@ export async function loadDocumentSwitcherBlocks(
   graphId: string,
   query: string,
   sort: MnDocumentSwitcherSort,
+  resolveTitle?: (documentId: string) => string | null,
 ): Promise<MnDocumentSwitcherBlockItem[]> {
   if (normalized(query).length < 2) return []
   const result = (await rest.query(graphId, documentSwitcherBlocksSparql(graphId, query))) as QueryResult
-  return documentSwitcherBlockItemsFromRows(result.rows ?? [], graphId, query, sort)
+  return documentSwitcherBlockItemsFromRows(result.rows ?? [], graphId, query, sort, resolveTitle)
 }
 
 export function documentSwitcherOfflineSemanticItems(
