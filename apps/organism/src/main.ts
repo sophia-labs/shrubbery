@@ -5475,6 +5475,15 @@ documentSwitcherEl.addEventListener('mn-document-switcher-sort-change', ((event:
   refreshDocumentSwitcherRows()
 }) as EventListener)
 
+documentSwitcherEl.addEventListener('mn-document-switcher-close', (() => {
+  // A timer that outlives the switcher still fires one backend query against
+  // the closed element's last query — waste on the serialized channel.
+  if (documentSwitcherBlocksTimer) {
+    clearTimeout(documentSwitcherBlocksTimer)
+    documentSwitcherBlocksTimer = null
+  }
+}) as EventListener)
+
 documentSwitcherEl.addEventListener('mn-document-switcher-document-intent', ((
   event: CustomEvent<MnDocumentSwitcherIntentDetail>,
 ) => {

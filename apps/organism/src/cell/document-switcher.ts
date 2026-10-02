@@ -276,7 +276,11 @@ export function documentSwitcherBlocksSparql(graphId: string, query: string): st
     '  BIND(STRAFTER(STR(?g), ":projection:document:") AS ?docId)',
     '  BIND(COALESCE(?nodeBlockId, STRAFTER(STR(?block), "#block-")) AS ?blockId)',
     '}',
-    'LIMIT 40',
+    // 200, not 40: the FILTER scan is the cost either way, and RRF can only
+    // rank the rows it sees — an arbitrary first-40 loses the best matches
+    // for common words (review, 2026-10-02). The fused list is
+    // still capped at 40 after scoring.
+    'LIMIT 200',
   ].join('\n')
 }
 
@@ -290,7 +294,12 @@ export function documentSwitcherBlockFromRow(
   const blockId = termText(row.blockId) ?? blockIdFromBlockTerm(row.block)
   const text = termText(row.text)
   if (!documentId || !blockId || !text) return null
-  const label = termText(row.docTitle) ?? resolveTitle?.(documentId) ?? documentId
+  const resolvedTitle = termText(row.docTitle) ?? resolveTitle?.(documentId)
+  // When a resolver is wired (the sidebar's live document set), a null means
+  // the hit belongs to no document the shell can open — an orphaned
+  // projection. Drop it rather than show a raw id (review).
+  if (resolveTitle && !resolvedTitle) return null
+  const label = resolvedTitle ?? documentId
   const type = localName(row.type)
   const path = type ? `${label} / ${type}` : label
   return {
