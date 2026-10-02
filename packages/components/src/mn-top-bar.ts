@@ -472,6 +472,9 @@ export class MnTopBar extends SkinAware(LitElement) {
          Emporium tight 24px. (Was a fixed 32px before skinning.) */
       width: var(--mn-control-height, 32px);
       height: var(--mn-control-height, 32px);
+      /* WebKit's default button padding on macOS is uneven (2px top, 3px
+         bottom), which set every icon half a pixel high. */
+      padding: 0;
       border: none;
       /* Control radius role: Garden rounded, Emporium square. */
       border-radius: var(--mn-radius-control, 6px);
