@@ -447,8 +447,11 @@ import {
   documentSwitcherDocumentsFromSidebar,
   documentSwitcherOfflineSemanticItems,
   documentSwitcherItems,
+  documentSwitcherSalienceNudgesFromRows,
+  documentSwitcherSalienceSparql,
   loadDocumentSwitcherBlocks,
-  mergeDocumentSwitcherBlockItems,
+  reciprocalRankFuseDocumentSwitcherBlocks,
+  withDocumentSwitcherSalienceNudge,
 } from './cell/document-switcher.js'
 import {
   createSidebarDocument,
@@ -5356,23 +5359,59 @@ function refreshDocumentSwitcherRows(): void {
       sort,
       (documentId) => titleByDocumentId.get(documentId) ?? null,
     )
-      .then((lexicalBlocks) => {
-        if (
+      .then(async (lexicalBlocks) => {
+        const isStale = () =>
           requestId !== latestDocumentSwitcherBlockRequest ||
           store !== activeStore ||
           currentGraphId !== graphId ||
           documentSwitcherEl.query !== query ||
           documentSwitcherEl.scope !== scope ||
           documentSwitcherEl.sort !== sort
-        ) return
+        if (isStale()) return
         const freshDocuments = documentSwitcherDocumentsFromSidebar(currentSidebarSections, graphId)
         const documentRows = scope === 'all'
           ? documentSwitcherItems(freshDocuments, query, 'documents', sort)
           : []
-        const blocks = mergeDocumentSwitcherBlockItems(lexicalBlocks, semanticItems)
+        const fused = reciprocalRankFuseDocumentSwitcherBlocks(lexicalBlocks, semanticItems)
+        const blocks = sort === 'alphabetical'
+          ? [...fused].sort((left, right) =>
+              left.label.localeCompare(right.label, undefined, { sensitivity: 'base' }) ||
+              (left.snippet ?? '').localeCompare(right.snippet ?? '', undefined, { sensitivity: 'base' }))
+          : fused
         documentSwitcherEl.items = [...documentRows, ...blocks]
         documentSwitcherEl.status = 'idle'
         documentSwitcherEl.statusText = documentSwitcherStatusText(scope)
+
+        // Stage 2 (smart only): the salience nudge rides its own graph-wide
+        // scan (~1.5-2s), so RRF results render first and re-rank in place
+        // when valuations land. Exact never pays for this.
+        if (sort !== 'smart' || blocks.length === 0) return
+        try {
+          const salienceResult = (await activeStore.contract.rest.query(
+            graphId,
+            documentSwitcherSalienceSparql(
+              graphId,
+              blocks.map((block) => ({ documentId: block.documentId, blockId: block.blockId })),
+            ),
+          )) as { rows?: ReadonlyArray<Record<string, string>> }
+          if (isStale()) return
+          const nudges = documentSwitcherSalienceNudgesFromRows(salienceResult.rows ?? [])
+          if (nudges.size === 0) return
+          const nudgedDocuments = scope === 'all'
+            ? documentSwitcherItems(
+                documentSwitcherDocumentsFromSidebar(currentSidebarSections, graphId),
+                query,
+                'documents',
+                sort,
+              )
+            : []
+          documentSwitcherEl.items = [
+            ...nudgedDocuments,
+            ...withDocumentSwitcherSalienceNudge(blocks, nudges, sort),
+          ]
+        } catch {
+          // Salience is a nudge, never a blocker: RRF order stays on failure.
+        }
       })
       .catch((error) => {
         if (

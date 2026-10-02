@@ -120,26 +120,49 @@ function scoreDocument(item: MnDocumentSwitcherDocumentItem, query: string): num
 }
 
 function scoreBlock(item: MnDocumentSwitcherBlockItem, query: string): number {
+  // Continuous lexical relevance, not tiers: RRF needs a real ranking signal,
+  // and coarse 100/85/65 tiers collapse every hit to the same score (which is
+  // how "smart" used to render as plain a-z). Components: match quality
+  // (exact > prefix > substring), position of first match, query-token
+  // coverage, and a light brevity bonus so a 2-word heading beats a 900-word
+  // paragraph for the same hit.
   const q = normalized(query)
   if (!q) return item.score ?? 0
   const label = normalized(item.label)
   const snippet = normalized(item.snippet)
-  const path = normalized(item.path)
-  if (snippet === q) return 100
-  if (snippet.startsWith(q)) return 85
-  if (label === q) return 75
-  if (snippet.includes(q)) return 65
-  if (label.includes(q)) return 45
-  if (path.includes(q)) return 25
-  return 0
+  const haystack = snippet || label
+  if (!haystack.includes(q) && !label.includes(q)) return 0
+
+  let score = 0
+  if (snippet === q) score += 100
+  else if (snippet.startsWith(q)) score += 70
+  else if (snippet.includes(q)) score += 45
+  if (label === q) score += 40
+  else if (label.startsWith(q)) score += 25
+  else if (label.includes(q)) score += 12
+
+  const firstHit = haystack.indexOf(q)
+  if (firstHit >= 0) score += Math.max(0, 15 - firstHit / 8)
+
+  const tokens = q.split(' ').filter(Boolean)
+  if (tokens.length > 1) {
+    const covered = tokens.filter((token) => haystack.includes(token)).length
+    score += 20 * (covered / tokens.length)
+  }
+
+  const length = Math.max(haystack.length, 1)
+  score += Math.min(10, 200 / length)
+  return score
 }
 
-function matchesDocument(item: MnDocumentSwitcherDocumentItem, query: string, sort: MnDocumentSwitcherSort): boolean {
+function matchesDocument(item: MnDocumentSwitcherDocumentItem, query: string): boolean {
+  // Sort modes order; they do not filter. ('exact' once filtered to exact
+  // label matches, which emptied the list for almost every query — exact is
+  // an ORDERING: standard reciprocal-rank fusion, see below.)
   const q = normalized(query)
   if (!q) return true
   const label = normalized(item.label)
   const path = normalized(item.path)
-  if (sort === 'exact') return label === q || item.id.toLowerCase() === q
   return label.includes(q) || item.id.toLowerCase().includes(q) || path.includes(q)
 }
 
@@ -223,7 +246,7 @@ export function documentSwitcherItems(
 ): MnDocumentSwitcherItem[] {
   if (scope === 'actions' || scope === 'blocks') return []
   return sortDocuments(
-    documents.filter((item) => matchesDocument(item, query, sort)),
+    documents.filter((item) => matchesDocument(item, query)),
     query,
     sort,
   )
@@ -334,29 +357,147 @@ export function documentSwitcherOfflineSemanticItems(
   }))
 }
 
-export function mergeDocumentSwitcherBlockItems(
+// Reciprocal-rank fusion, k=60 (the standard constant). 'exact' sorts by this
+// fused relevance; 'smart' sorts by the same RRF plus a bounded salience
+// nudge (mirroring the MCP hybrid mode's relevance + salienceBoost split).
+const RRF_K = 60
+const SALIENCE_NUDGE_CAP = 0.006
+const SALIENCE_NUDGE_RATE = 0.0012
+
+function rankMap(items: readonly MnDocumentSwitcherBlockItem[]): Map<string, number> {
+  const sorted = [...items].sort((left, right) => (right.score ?? 0) - (left.score ?? 0))
+  const ranks = new Map<string, number>()
+  sorted.forEach((item, index) => {
+    if (!ranks.has(item.id)) ranks.set(item.id, index)
+  })
+  return ranks
+}
+
+export function reciprocalRankFuseDocumentSwitcherBlocks(
   lexical: readonly MnDocumentSwitcherBlockItem[],
   semantic: readonly MnDocumentSwitcherBlockItem[],
   limit = 40,
 ): MnDocumentSwitcherBlockItem[] {
-  const byId = new Map<string, MnDocumentSwitcherBlockItem>()
-  for (const item of lexical) byId.set(item.id, item)
-  for (const item of semantic) {
+  const lexicalRanks = rankMap(lexical)
+  const semanticRanks = rankMap(semantic)
+  const byId = new Map<string, MnDocumentSwitcherBlockItem & { rrf: number; lexical: boolean; semantic: boolean }>()
+
+  const consider = (
+    item: MnDocumentSwitcherBlockItem,
+    ranks: Map<string, number>,
+    source: 'lexical' | 'semantic',
+  ): void => {
+    const rank = ranks.get(item.id)
+    if (rank === undefined) return
+    const contribution = 1 / (RRF_K + rank + 1)
     const existing = byId.get(item.id)
-    byId.set(item.id, existing
-      ? {
-          ...existing,
-          matchSource: 'both',
-          score: Math.max(existing.score ?? 0, item.score ?? 0),
-        }
-      : item)
+    if (existing) {
+      existing.rrf += contribution
+      existing[source] = true
+    } else {
+      byId.set(item.id, {
+        ...item,
+        rrf: contribution,
+        lexical: source === 'lexical',
+        semantic: source === 'semantic',
+      })
+    }
   }
+  for (const item of lexical) consider(item, lexicalRanks, 'lexical')
+  for (const item of semantic) consider(item, semanticRanks, 'semantic')
+
   return [...byId.values()]
+    .map(({ rrf, lexical: isLexical, semantic: isSemantic, ...item }) => ({
+      ...item,
+      matchSource: (isLexical && isSemantic ? 'both' : isLexical ? 'lexical' : 'semantic') as MnDocumentSwitcherBlockItem['matchSource'],
+      score: rrf,
+      compositeScore: rrf,
+    }))
     .sort((left, right) =>
-      (right.score ?? 0) - (left.score ?? 0)
+      (right.compositeScore ?? 0) - (left.compositeScore ?? 0)
       || left.label.localeCompare(right.label)
       || left.id.localeCompare(right.id))
     .slice(0, limit)
+}
+
+/** Salience rows for RRF candidates: valuations live in the cell's reserved
+ * :projection:salience graph (one scan, graph-wide — the per-document
+ * /salience REST route costs ~3.5s/doc, so fan-out is not an option). */
+export function documentSwitcherSalienceSparql(
+  graphId: string,
+  candidates: ReadonlyArray<{ documentId: string; blockId: string }>,
+): string {
+  const values = candidates
+    .map(({ documentId, blockId }) => {
+      const bare = blockId.startsWith('block-') ? blockId : `block-${blockId}`
+      return `<urn:mnemosyne:local:document:${documentId}#block-${bare}>`
+    })
+    .join(' ')
+  return [
+    'PREFIX local: <https://mnemosyne.local/ns#>',
+    'SELECT ?target ?imp ?val ?count',
+    'WHERE {',
+    `  VALUES ?target { ${values} }`,
+    `  GRAPH <${graphSubject(graphId)}:projection:salience> {`,
+    '    ?valuation a local:BlockValuation .',
+    '    ?valuation local:targetsBlock ?target .',
+    '    ?valuation local:cumulativeImportance ?imp .',
+    '    OPTIONAL { ?valuation local:cumulativeValence ?val . }',
+    '    OPTIONAL { ?valuation local:valuationCount ?count . }',
+    '  }',
+    '}',
+  ].join('\n')
+}
+
+export interface BlockSalienceNudge {
+  readonly importance: number
+  readonly valence: number | null
+}
+
+export function documentSwitcherSalienceNudgesFromRows(
+  rows: readonly Record<string, string>[],
+): Map<string, BlockSalienceNudge> {
+  const nudges = new Map<string, BlockSalienceNudge>()
+  for (const row of rows) {
+    const iri = iriValue(row.target ?? '')
+    const docMarker = ':document:'
+    const blockMarker = '#block-'
+    const docIndex = iri.indexOf(docMarker)
+    const blockIndex = iri.indexOf(blockMarker)
+    const importance = Number(termText(row.imp) ?? NaN)
+    if (docIndex < 0 || blockIndex < 0 || !Number.isFinite(importance)) continue
+    const documentId = iri.slice(docIndex + docMarker.length, blockIndex)
+    const blockId = iri.slice(blockIndex + blockMarker.length)
+    const valenceRaw = termText(row.val)
+    const valence = valenceRaw === null ? null : Number(valenceRaw)
+    nudges.set(`${documentId}:${blockId}`, {
+      importance,
+      valence: valence !== null && Number.isFinite(valence) ? valence : null,
+    })
+  }
+  return nudges
+}
+
+/** 'smart' only: add the bounded salience nudge on top of the RRF score and
+ * re-sort. 'exact' and 'alphabetical' are returned untouched. */
+export function withDocumentSwitcherSalienceNudge(
+  items: readonly MnDocumentSwitcherBlockItem[],
+  nudges: ReadonlyMap<string, BlockSalienceNudge>,
+  sort: MnDocumentSwitcherSort,
+): MnDocumentSwitcherBlockItem[] {
+  if (sort !== 'smart') return [...items]
+  return items
+    .map((item) => {
+      const nudge = nudges.get(item.id)
+      if (!nudge) return item
+      const boost = Math.min(SALIENCE_NUDGE_CAP, SALIENCE_NUDGE_RATE * Math.max(0, nudge.importance))
+      if (boost <= 0) return item
+      return { ...item, compositeScore: (item.compositeScore ?? item.score ?? 0) + boost }
+    })
+    .sort((left, right) =>
+      (right.compositeScore ?? 0) - (left.compositeScore ?? 0)
+      || left.label.localeCompare(right.label)
+      || left.id.localeCompare(right.id))
 }
 
 export function documentSwitcherActionRows(
