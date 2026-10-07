@@ -2,14 +2,20 @@
  * wikilink-block-search-service.ts — graph-scoped block rows for the wikilink picker.
  *
  * Garden's picker fetched `/documents/{graph}/{doc}/blocks` after a document was chosen.
- * Shrubbery's runtime keeps that as a projection read: SELECT block nodes from the same
- * workspace projection graph that powers wikilink document search, map the materialized
- * TipTap tree triples into picker rows, then filter host-side.
+ * Shrubbery's runtime keeps that as a projection read: SELECT block nodes, map the
+ * materialized TipTap tree triples into picker rows, then filter host-side.
+ *
+ * gardend writes a document's block triples into that document's own projection graph
+ * (`...:projection:document:{id}`), not the workspace graph, which holds only the
+ * document node. A query of the workspace graph alone found no blocks in offline Garden,
+ * so the picker's block step was always empty (measured on default_x1, 2026-10-07). The
+ * query reads both graphs, so a store that keeps blocks in the workspace graph still works.
  */
 
 import type { EditorScope, RestClient } from '@shrubbery/nucleus'
 import {
   RDF_TYPE,
+  documentProjectionGraphIri,
   documentRefUri,
   workspaceProjectionGraphIri,
 } from './sparql-terms.js'
@@ -38,19 +44,23 @@ export function wikilinkBlockListSparql(graphId: string, documentId: string): st
   return [
     'PREFIX doc: <http://mnemosyne.dev/doc#>',
     'SELECT DISTINCT ?block ?blockId ?text ?type ?level ?order ?siblingOrder',
-    `WHERE { GRAPH <${ws}> {`,
+    `WHERE {`,
     `  BIND(<${doc}> AS ?docUri)`,
-    '  ?docUri a doc:TipTapDocument .',
+    `  GRAPH <${ws}> { ?docUri a doc:TipTapDocument . }`,
+    `  VALUES ?blockGraph { <${ws}> <${documentProjectionGraphIri(graphId, documentId)}> }`,
+    '  GRAPH ?blockGraph {',
     `  ?block <${RDF_TYPE}> ?type .`,
-    '  FILTER(STRSTARTS(STR(?block), CONCAT(STR(?docUri), "#block-")))',
     '  OPTIONAL { ?block doc:blockId ?flatBlockId . }',
     '  OPTIONAL { ?block doc:nodeId ?nodeBlockId . }',
     '  OPTIONAL { ?block doc:textContent ?text . }',
     '  OPTIONAL { ?block doc:level ?level . }',
     '  OPTIONAL { ?block doc:order ?order . }',
     '  OPTIONAL { ?block doc:siblingOrder ?siblingOrder . }',
+    '  }',
+    // Outside the GRAPH group: ?docUri is bound out here, not inside it.
+    '  FILTER(STRSTARTS(STR(?block), CONCAT(STR(?docUri), "#block-")))',
     '  BIND(COALESCE(?flatBlockId, ?nodeBlockId, STRAFTER(STR(?block), "#block-")) AS ?blockId)',
-    '} }',
+    '}',
     'ORDER BY ?order ?siblingOrder ?blockId',
   ].join('\n')
 }

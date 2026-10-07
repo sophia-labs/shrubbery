@@ -24,6 +24,7 @@
  */
 
 import { describe, it, expect } from 'vitest'
+import { namedNode, quad } from 'oxigraph'
 import type { BlockScore, EditorScope, SalienceService, WireWriter, WireCreateRequest } from '@shrubbery/nucleus'
 import {
   makeOxigraphRestClient,
@@ -317,7 +318,34 @@ describe('WikiLinkBlockSearchService — target-document blocks from the project
     ])
   })
 
-  it('REGRESSION PROOF: block query is GRAPH-scoped, while the GRAPH-less variant is empty', () => {
+  it('finds blocks where gardend writes them: the document projection graph', () => {
+    // gardend keeps only the document node in the workspace graph; a
+    // document's blocks live in ...:projection:document:{id}. Move the seeded
+    // block quads there to match. Before this, the block step found nothing
+    // in offline Garden (2026-10-07).
+    const store = seedWorkspaceStore(GRAPH_ID, [
+      {
+        id: 'doc-billing',
+        title: 'Billing',
+        blocks: [{ id: 'block-title', type: 'heading', level: 1, text: 'Billing', order: 0 }],
+      },
+    ])
+    const ws = namedNode(workspaceProjectionGraphIri(GRAPH_ID))
+    const docGraph = namedNode(`${workspaceProjectionGraphIri(GRAPH_ID).replace(/:projection:workspace$/, '')}:projection:document:doc-billing`)
+    for (const q of store.match(null, null, null, ws)) {
+      if (!q.subject.value.includes('#block-')) continue
+      store.delete(q)
+      store.add(quad(q.subject, q.predicate, q.object, docGraph))
+    }
+    const rows = queryStore(store, wikilinkBlockListSparql(GRAPH_ID, 'doc-billing')).rows
+    expect(wikilinkBlockRowsToItems(rows)).toEqual([
+      { id: 'block-title', type: 'heading', level: 1, text: 'Billing', preview: 'Billing' },
+    ])
+    // Another document's graph is not read.
+    expect(wikilinkBlockRowsToItems(queryStore(store, wikilinkBlockListSparql(GRAPH_ID, 'doc-other')).rows)).toEqual([])
+  })
+
+  it('still finds blocks a store keeps in the workspace graph', () => {
     const store = seedWorkspaceStore(GRAPH_ID, [
       {
         id: 'doc-billing',
@@ -329,12 +357,6 @@ describe('WikiLinkBlockSearchService — target-document blocks from the project
     expect(wikilinkBlockRowsToItems(scoped.rows)).toEqual([
       { id: 'block-title', type: 'heading', level: 1, text: 'Billing', preview: 'Billing' },
     ])
-
-    const ws = workspaceProjectionGraphIri(GRAPH_ID)
-    const noGraph = wikilinkBlockListSparql(GRAPH_ID, 'doc-billing')
-      .replace(`GRAPH <${ws}> {`, '')
-      .replace(/}\s*}\s*ORDER BY/, '} ORDER BY')
-    expect(queryStore(store, noGraph).rows).toEqual([])
   })
 
   it('home scope returns [] without issuing a block query', async () => {

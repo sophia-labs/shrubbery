@@ -45,6 +45,7 @@ import {
   PREDICATE_GROUPS,
   getAllWirePredicates,
   getWirePredicateCategory,
+  getWirePredicateLabel,
   type EditorScope,
 } from '@shrubbery/nucleus'
 import {
@@ -86,6 +87,8 @@ import {
 /** The minimal structural live-editor handle the glue needs (the host's liveEditor). */
 export interface PickerEditorHandle {
   getActiveBlockId?(): string | null
+  /** The quick wire flow reads the source block's text for its sentence. */
+  getBlockElement?(blockId: string): HTMLElement | null
   insertWikiLink(attrs: LiveWikiLinkAttrs): boolean
   insertCitation?(attrs: LiveCitationAttrs): boolean
   insertWikiLinkAt?(range: { from: number; to: number }, attrs: LiveWikiLinkAttrs): boolean
@@ -306,6 +309,27 @@ export interface WireCreatedDetail {
 
 export interface BlockWireCreatedDetail extends WireCreatedDetail {
   readonly sourceBlockId: string
+  /**
+   * Set by the quick wire flow (Mod-;), which pins the new wire so it can be
+   * read and corrected at once. Ends are as stored, after any reverse.
+   */
+  readonly pin?: QuickWirePin
+}
+
+export interface QuickWirePinEnd {
+  readonly documentId: string
+  readonly blockId?: string
+  readonly title: string
+  readonly text: string
+}
+
+export interface QuickWirePin {
+  readonly source: QuickWirePinEnd
+  readonly target: QuickWirePinEnd
+  readonly predicateLabel: string
+  /** Where the picker stood, in viewport coordinates. */
+  readonly x: number
+  readonly y: number
 }
 
 export interface BlockWireDeletedDetail {
@@ -333,6 +357,16 @@ interface CandidateSelection {
   readonly document: WikiLinkSuggestionItem
   readonly block?: PickerBlockItem
   readonly predicate?: PickerPredicateItem
+  /** Set by the wire flow only. */
+  readonly direction?: WireDirection
+}
+
+type PickerFlow = 'link' | 'wire'
+
+interface CandidateDropdownOptions {
+  readonly flow?: PickerFlow
+  /** The wire flow's source block text, for the sentence on the predicate step. */
+  readonly sourceText?: string
 }
 
 function allPickerPredicates(): PickerPredicateItem[] {
@@ -355,6 +389,31 @@ function filterPickerPredicates(query: string): PickerPredicateItem[] {
     const category = predicate.category ?? ''
     return predicate.label.toLowerCase().includes(q) || category.toLowerCase().includes(q)
   })
+}
+
+/**
+ * The drum's ring, starting from its middle. Down from "is related to" come
+ * Critique, Genesis, then Structure. Up from it, the ring wraps to Ground, so
+ * Ground reads top to bottom above the middle. Each group's predicates stay
+ * together, and the order never changes, so the hands can learn it.
+ */
+const DRUM_ORDER = [
+  'relatedTo',
+  'supports', 'contradicts', 'qualifies',
+  'flowsInto', 'produces', 'intensifiesWith',
+  'contains', 'precedes', 'consequenceOf',
+  'grounds', 'requires', 'enables', 'exemplifies',
+]
+
+function drumRank(uri: string): number {
+  const local = uri.slice(Math.max(uri.lastIndexOf('#'), uri.lastIndexOf('/')) + 1)
+  const rank = DRUM_ORDER.indexOf(local)
+  return rank === -1 ? DRUM_ORDER.length : rank
+}
+
+/** Predicates in drum order: "is related to" first, so the drum opens on it. */
+function drumPredicates(query: string): PickerPredicateItem[] {
+  return filterPickerPredicates(query).sort((a, b) => drumRank(a.uri) - drumRank(b.uri))
 }
 
 function selectionWireOptions(
@@ -705,22 +764,59 @@ async function openBlockWirePicker(
     return
   }
 
+  // The advanced menu (createOptions) chose predicate and direction already,
+  // so it keeps the link flow. Mod-; and a plain bubble click get the wire flow.
+  const flow: PickerFlow = createOptions ? 'link' : 'wire'
+  const sourceText = blockText(opts, sourceBlockId)
   dropdown.open(
     candidates,
     query,
-    (selection) => {
+    (selection, placement) => {
+      const wireOptions = flow === 'wire'
+        ? {
+            predicate: selection.predicate?.uri ?? DEFAULT_WIRE_PREDICATE_URI,
+            direction: selection.direction ?? 'forward',
+          }
+        : selectionWireOptions(createOptions, selection.predicate)
       void onBlockWireSelect(
         opts,
         sourceDocumentId,
         sourceBlockId,
         selection.document,
-        selectionWireOptions(createOptions, selection.predicate),
+        wireOptions,
+        flow === 'wire'
+          ? {
+              block: selection.block,
+              sourceText,
+              predicateLabel: selection.predicate?.label ?? getWirePredicateLabel(DEFAULT_WIRE_PREDICATE_URI),
+              placement,
+            }
+          : undefined,
       )
     },
     (nextQuery) => opts.services.wikiLinkSearch.suggest(nextQuery),
     (documentId, nextQuery) => opts.services.wikiLinkBlocks.suggest(documentId, nextQuery),
     currentAnchor(opts, detail),
+    { flow, sourceText },
   )
+}
+
+/**
+ * The written text of a block in the open editor, or '' when it is not
+ * rendered. Widgets inside the block (wire badges, drag handles) are
+ * contenteditable=false and are left out: with them, a block that already
+ * had a wire read "> supportsBilling model" before its own words.
+ */
+function blockText(opts: InstallPickerGlueOptions, blockId: string): string {
+  try {
+    const element = opts.getEditor()?.getBlockElement?.(blockId)
+    if (!element) return ''
+    const copy = element.cloneNode(true) as HTMLElement
+    copy.querySelectorAll('[contenteditable="false"]').forEach((widget) => widget.remove())
+    return (copy.textContent ?? '').replace(/\s+/g, ' ').trim()
+  } catch {
+    return ''
+  }
 }
 
 function openExistingWireMenu(
@@ -864,22 +960,44 @@ async function onDocumentWireSelect(
   )
 }
 
+interface QuickWireSelection {
+  readonly block?: PickerBlockItem
+  readonly sourceText: string
+  readonly predicateLabel: string
+  readonly placement: EditorOverlayPlacement
+}
+
 async function onBlockWireSelect(
   opts: InstallPickerGlueOptions,
   sourceDocumentId: string,
   sourceBlockId: string,
   pick: WikiLinkSuggestionItem,
   createOptions?: WireCreateOptions,
+  quick?: QuickWireSelection,
 ): Promise<void> {
   const direction = createOptions?.direction ?? 'forward'
   const predicate = createOptions?.predicate ?? DEFAULT_WIRE_PREDICATE_URI
   const bidirectional = direction === 'bidirectional'
   const reverse = direction === 'reverse'
+  const targetBlockId = quick?.block?.id
+  const here: QuickWirePinEnd = {
+    documentId: sourceDocumentId,
+    blockId: sourceBlockId,
+    title: '',
+    text: quick?.sourceText ?? '',
+  }
+  const there: QuickWirePinEnd = {
+    documentId: pick.id,
+    ...(targetBlockId ? { blockId: targetBlockId } : {}),
+    title: pick.label,
+    text: quick?.block ? quick.block.preview ?? quick.block.text : '',
+  }
+  const [from, to] = reverse ? [there, here] : [here, there]
   const { wireId } = await opts.services.wire.create({
-    sourceDocumentId: reverse ? pick.id : sourceDocumentId,
-    ...(reverse ? {} : { sourceBlockId }),
-    targetDocumentId: reverse ? sourceDocumentId : pick.id,
-    ...(reverse ? { targetBlockId: sourceBlockId } : {}),
+    sourceDocumentId: from.documentId,
+    ...(from.blockId ? { sourceBlockId: from.blockId } : {}),
+    targetDocumentId: to.documentId,
+    ...(to.blockId ? { targetBlockId: to.blockId } : {}),
     ...(createOptions ? { predicate } : {}),
     ...(bidirectional ? { bidirectional } : {}),
   })
@@ -891,9 +1009,21 @@ async function onBlockWireSelect(
         sourceDocumentId,
         sourceBlockId,
         targetDocumentId: pick.id,
+        ...(targetBlockId ? { targetBlockId } : {}),
         predicate,
         direction,
         bidirectional,
+        ...(quick
+          ? {
+              pin: {
+                source: from,
+                target: to,
+                predicateLabel: quick.predicateLabel,
+                x: quick.placement.left,
+                y: quick.placement.top,
+              },
+            }
+          : {}),
       },
     }),
   )
@@ -1127,8 +1257,10 @@ class CandidateDropdown {
   private selectedDocument: WikiLinkSuggestionItem | null = null
   private selectedBlock: PickerBlockItem | null = null
   private selectedPredicate: PickerPredicateItem | null = null
+  private flow: PickerFlow = 'link'
+  private sourceText = ''
   private loading = false
-  private onPick: ((pick: CandidateSelection) => void) | null = null
+  private onPick: ((pick: CandidateSelection, placement: EditorOverlayPlacement) => void) | null = null
   private onSearch: ((query: string) => Promise<WikiLinkSuggestionItem[]>) | null = null
   private onBlockSearch: ((documentId: string, query: string) => Promise<PickerBlockItem[]>) | null = null
   private isOpen = false
@@ -1143,14 +1275,17 @@ class CandidateDropdown {
   open(
     items: WikiLinkSuggestionItem[],
     query: string,
-    onPick: (pick: CandidateSelection) => void,
+    onPick: (pick: CandidateSelection, placement: EditorOverlayPlacement) => void,
     onSearch?: (query: string) => Promise<WikiLinkSuggestionItem[]>,
     onBlockSearch?: (documentId: string, query: string) => Promise<PickerBlockItem[]>,
     anchor: EditorOverlayAnchorRect | null = null,
+    options: CandidateDropdownOptions = {},
   ): void {
+    this.flow = options.flow ?? 'link'
+    this.sourceText = options.sourceText ?? ''
     this.items = items
     this.blocks = []
-    this.predicates = filterPickerPredicates('')
+    this.predicates = this.predicateList('')
     this.phase = 'document'
     this.query = query
     this.selectedIndex = 0
@@ -1206,8 +1341,9 @@ class CandidateDropdown {
   /** Resolve a candidate by index (Enter / click). */
   private pick(selection: CandidateSelection): void {
     const onPick = this.onPick
+    const placement = this.placement
     this.close()
-    onPick?.(selection)
+    onPick?.(selection, placement)
   }
 
   private pickSelection(selection: CandidateSelection): void {
@@ -1217,11 +1353,15 @@ class CandidateDropdown {
     this.pick(selection)
   }
 
+  private predicateList(query: string): PickerPredicateItem[] {
+    return this.flow === 'wire' ? drumPredicates(query) : filterPickerPredicates(query)
+  }
+
   private queryPicker(detail: { readonly query: string; readonly phase: string }): void {
     this.query = detail.query
     this.selectedIndex = 0
     if (detail.phase === 'predicate') {
-      this.predicates = filterPickerPredicates(detail.query)
+      this.predicates = this.predicateList(detail.query)
       this.renderDropdown()
       return
     }
@@ -1264,8 +1404,9 @@ class CandidateDropdown {
       this.query = ''
       this.selectedIndex = 0
       this.selectedDocument = detail.document ?? this.selectedDocument ?? this.items[this.selectedIndex] ?? null
-      this.selectedBlock = detail.block ?? this.selectedBlock
-      this.predicates = filterPickerPredicates('')
+      // The wire flow's whole-document row sends no block, and means none.
+      this.selectedBlock = this.flow === 'wire' ? detail.block ?? null : detail.block ?? this.selectedBlock
+      this.predicates = this.predicateList('')
       this.renderDropdown()
       return
     }
@@ -1328,6 +1469,8 @@ class CandidateDropdown {
     render(html`
       <mn-wikilink-picker
         open
+        .flow=${this.flow}
+        .sourceText=${this.sourceText}
         .x=${this.placement.left}
         .y=${this.placement.top}
         .phase=${this.phase}

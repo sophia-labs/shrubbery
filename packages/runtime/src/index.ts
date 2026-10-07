@@ -489,6 +489,8 @@ export {
   installWikiLinkPickerGlue,
   type BlockWireCreatedDetail,
   type BlockWireDeletedDetail,
+  type QuickWirePin,
+  type QuickWirePinEnd,
   type CitationGroundingRequest,
   type CitationMaterializedSource,
   type CitationPickerItem,
