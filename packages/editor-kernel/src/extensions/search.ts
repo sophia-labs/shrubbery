@@ -11,12 +11,16 @@
  * command that moves to a match marks the transaction `reveal`, and the plugin
  * view scrolls the current match's decoration into view after the update.
  *
- * It sets the scroll container's scrollTop itself rather than calling
- * scrollIntoView({ block: 'center' }) on the match. In the desktop app's
- * WKWebView that call left a match far down the page off screen (Eschaton,
- * 2026-10-07), while the same steps scrolled in Playwright's newer WebKit.
- * The match sits inside the editor's shadow root, so the walk to its scroll
- * container crosses shadow boundaries.
+ * The scroll runs after ProseMirror's update finishes, never inside it. Plugin
+ * views update inside updateStateInner, and right after them ProseMirror puts
+ * the scroll position back where it was before the redraw (resetScrollPos ->
+ * restoreScrollStack, which keeps the text under the viewport from jumping).
+ * In Safari and the desktop app's WKWebView that restore found its anchor
+ * inside the editor's shadow root and undid every reveal: the match far down
+ * the page stayed off screen until find closed (2026-10-07).
+ * Chromium, Firefox and Playwright's WebKit did not restore, so their tests
+ * passed. The scroll sets the container's scrollTop, found by a walk that
+ * crosses shadow roots.
  *
  * Folded outliner blocks are hidden (display: none), so a match inside one has
  * nothing to scroll to. Typing never edits the document: while you type, the
@@ -441,8 +445,11 @@ export const Search = Extension.create<SearchOptions, SearchStorage>({
             const next = searchPluginKey.getState(view.state) as { revealSeq?: number } | undefined
             const prev = searchPluginKey.getState(prevState) as { revealSeq?: number } | undefined
             if (!next?.revealSeq || next.revealSeq === prev?.revealSeq) return
-            const current = view.dom.querySelector('.search-match-current')
-            if (current instanceof HTMLElement) revealInScrollContainer(current)
+            // After the update: see the header on resetScrollPos.
+            queueMicrotask(() => {
+              const current = view.dom.querySelector('.search-match-current')
+              if (current instanceof HTMLElement) revealInScrollContainer(current)
+            })
           },
         }),
         state: {
