@@ -371,6 +371,10 @@ export class MnZoteroLibraryPanel extends SkinAware(LitElement) {
       <div class="search">
         <span class="search-icon" aria-hidden="true">${icon('search', { size: 14 })}</span>
         <input
+          autocapitalize="off"
+          autocorrect="off"
+          spellcheck="false"
+          writingsuggestions="false"
           data-zotero-search
           type="text"
           placeholder="Search library..."

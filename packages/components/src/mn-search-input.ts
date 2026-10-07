@@ -226,6 +226,7 @@ export class MnSearchInput extends SkinAware(LitElement) {
       >
         <span class="search-icon" aria-hidden="true">${icon('search', { size: 14 })}</span>
         <input
+          writingsuggestions="false"
           type="search"
           .value=${this.value}
           placeholder=${this.placeholder}

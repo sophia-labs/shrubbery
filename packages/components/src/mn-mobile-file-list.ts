@@ -1908,6 +1908,10 @@ export class MnMobileFileList extends LitElement {
       <div class="search-row" role="search" aria-label="Search documents">
         <span class="search-icon" aria-hidden="true">${icon('folder-search', { size: 18 })}</span>
         <input
+          autocapitalize="off"
+          autocorrect="off"
+          spellcheck="false"
+          writingsuggestions="false"
           class="search-input"
           type="search"
           aria-label="Search folders and documents"

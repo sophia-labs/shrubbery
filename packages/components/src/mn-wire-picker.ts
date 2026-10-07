@@ -752,6 +752,10 @@ export class MnWirePicker extends SkinAware(LitElement) {
           ? html`<span class="search">${this.predicate.label} / ${DIRECTION_LABELS[this.direction]}</span>`
           : html`
               <input
+                autocapitalize="off"
+                autocorrect="off"
+                spellcheck="false"
+                writingsuggestions="false"
                 class="search"
                 data-wire-picker-search
                 type="text"

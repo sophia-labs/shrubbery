@@ -835,6 +835,10 @@ export class MnDocumentSwitcher extends SkinAware(LitElement) {
                 >${icon('search', { size: 14 })}</button>
               `}
           <input
+            autocapitalize="off"
+            autocorrect="off"
+            spellcheck="false"
+            writingsuggestions="false"
             class="input"
             type="text"
             placeholder=${actionsMode ? 'Run a command...' : 'Search graph...'}
