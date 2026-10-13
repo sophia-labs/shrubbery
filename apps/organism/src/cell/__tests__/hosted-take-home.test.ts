@@ -8,7 +8,14 @@
 import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
-import { HostedTakeHome, TAKE_HOME_ACTION, TAKE_HOME_DESCRIPTION, TAKE_HOME_MESSAGES } from '../hosted-take-home.js'
+import {
+  HostedTakeHome,
+  SELF_HOST_GUIDE_ACTION,
+  SELF_HOST_GUIDE_URL,
+  TAKE_HOME_ACTION,
+  TAKE_HOME_DESCRIPTION,
+  TAKE_HOME_MESSAGES,
+} from '../hosted-take-home.js'
 import { createDefaultSettingsService } from '../settings-service.js'
 
 interface Seen { method: string; path: string; authorization: string | undefined }
@@ -37,8 +44,15 @@ beforeEach(() => { seen.length = 0 })
 
 function takeHomeOn(gateway: string) {
   const downloads: string[] = []
-  const takeHome = new HostedTakeHome({ userId: () => 'alice', token: () => 'id-token' }, gateway, undefined, url => { downloads.push(url) })
-  return { takeHome, downloads }
+  const opened: string[] = []
+  const takeHome = new HostedTakeHome(
+    { userId: () => 'alice', token: () => 'id-token' },
+    gateway,
+    undefined,
+    url => { downloads.push(url) },
+    url => { opened.push(url) },
+  )
+  return { takeHome, downloads, opened }
 }
 
 const account = { id: 'account', title: 'Account' } as const
@@ -47,8 +61,9 @@ describe('Download my gardens', () => {
   it('sits first in Account with its one line, and only on hosted Account', () => {
     const { takeHome } = takeHomeOn(base)
     const view = takeHome.decorate({ ...account, actions: [{ id: 'sign-out', label: 'Sign out', variant: 'danger' }] })
-    expect(view.actions?.map(action => action.id)).toEqual([TAKE_HOME_ACTION, 'sign-out'])
+    expect(view.actions?.map(action => action.id)).toEqual([TAKE_HOME_ACTION, SELF_HOST_GUIDE_ACTION, 'sign-out'])
     expect(view.actions?.[0]).toMatchObject({ label: 'Download my gardens', description: TAKE_HOME_DESCRIPTION, disabled: false })
+    expect(view.actions?.[1]).toMatchObject({ label: 'How to run it yourself', icon: 'external-link' })
     expect(TAKE_HOME_DESCRIPTION).toMatch(/own computer/)
     expect(takeHome.decorate({ id: 'billing', title: 'Billing' }).actions).toBeUndefined()
   })
@@ -105,8 +120,21 @@ describe('Download my gardens', () => {
     const after = await hosted.load()
     expect(after.sections.find(section => section.id === 'account')?.notes?.join(' ')).toContain('(1 garden)')
 
+    expect(before.sections.find(section => section.id === 'account')?.actions?.[1]?.id).toBe(SELF_HOST_GUIDE_ACTION)
     const local = createDefaultSettingsService({ runtimeMode: 'local', takeHome })
     const localAccount = (await local.load()).sections.find(section => section.id === 'account')
     expect(localAccount?.actions?.some(action => action.id === TAKE_HOME_ACTION) ?? false).toBe(false)
+    expect(localAccount?.actions?.some(action => action.id === SELF_HOST_GUIDE_ACTION) ?? false).toBe(false)
+  })
+
+  it('opens the self-host guide from the row beside the download, and fetches nothing', async () => {
+    const { takeHome, downloads, opened } = takeHomeOn(base)
+    const hosted = createDefaultSettingsService({ runtimeMode: 'hosted', takeHome })
+    await hosted.load()
+    await hosted.action({ sectionId: 'account', actionId: SELF_HOST_GUIDE_ACTION })
+    expect(opened).toEqual([SELF_HOST_GUIDE_URL])
+    expect(SELF_HOST_GUIDE_URL).toBe('https://github.com/sophia-labs/gardend/blob/main/docs/self-host-cloudflare-tunnel.md')
+    expect(downloads).toEqual([])
+    expect(seen).toEqual([])
   })
 })

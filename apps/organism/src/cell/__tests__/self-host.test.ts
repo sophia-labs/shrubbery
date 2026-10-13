@@ -4,10 +4,12 @@ import {
   SELF_HOST_KEY_STORAGE_KEY,
   SelfHostSettingsService,
   claimSelfHostKey,
+  isLoopbackOrigin,
   isPermissionRefusal,
   keyFromPastedText,
   parseSelfHostDescriptor,
   selfHostBuild,
+  selfHostSignIn,
   selfHostTransport,
   type SelfHostSession,
 } from '../self-host.js'
@@ -59,6 +61,36 @@ describe('self-host build flavor', () => {
       transport: 'fetch',
     })
     expect(selfHostTransport('http://127.0.0.1:7091', 'k-123').token).toBe('k-123')
+  })
+})
+
+describe('signing in on this computer', () => {
+  it('knows a loopback page from one reached through Cloudflare', () => {
+    expect(isLoopbackOrigin('http://127.0.0.1:7674')).toBe(true)
+    expect(isLoopbackOrigin('http://localhost:7674')).toBe(true)
+    expect(isLoopbackOrigin('http://localhost')).toBe(true)
+    expect(isLoopbackOrigin('https://sophia.example.com')).toBe(false)
+    expect(isLoopbackOrigin('https://127.0.0.1.example.com')).toBe(false)
+    expect(isLoopbackOrigin('http://localhost.example.com:7674')).toBe(false)
+    expect(isLoopbackOrigin('null')).toBe(false)
+  })
+
+  it('uses the key on 127.0.0.1 and localhost even when gardend is behind Cloudflare Access', () => {
+    const access = { auth: 'cloudflare-access' } as const
+    expect(selfHostSignIn(access, 'http://127.0.0.1:7674')).toBe('key')
+    expect(selfHostSignIn(access, 'http://localhost:7674')).toBe('key')
+    expect(selfHostSignIn(access, 'https://sophia.example.com')).toBe('cloudflare-access')
+    expect(selfHostSignIn({ auth: 'key' }, 'http://127.0.0.1:7674')).toBe('key')
+    expect(selfHostSignIn({ auth: 'key' }, 'https://sophia.example.com')).toBe('key')
+  })
+
+  it('takes the #key= link on 127.0.0.1 under Access, or the key this browser already holds', () => {
+    const storage = freshStorage()
+    const replaced: string[] = []
+    expect(claimSelfHostKey(new URL('http://127.0.0.1:7674/#key=k-123'), storage, url => replaced.push(url))).toBe('k-123')
+    expect(replaced).toEqual(['/'])
+    expect(claimSelfHostKey(new URL('http://127.0.0.1:7674/'), storage, () => {})).toBe('k-123')
+    expect(selfHostTransport('http://127.0.0.1:7674', 'k-123').token).toBe('k-123')
   })
 })
 

@@ -15,6 +15,12 @@ import type { MnSettingsSection } from '@shrubbery/components'
 export const TAKE_HOME_ACTION = 'download-gardens'
 export const TAKE_HOME_DESCRIPTION =
   'For running Sophia on your own computer: a copy of every garden you own, to open with gardend.'
+/** The row beside the download: the public step-by-step guide, opened in a new tab. */
+export const SELF_HOST_GUIDE_ACTION = 'self-host-guide'
+export const SELF_HOST_GUIDE_URL =
+  'https://github.com/sophia-labs/gardend/blob/main/docs/self-host-cloudflare-tunnel.md'
+export const SELF_HOST_GUIDE_DESCRIPTION =
+  'Step by step: install gardend, open your gardens, and reach them from your phone and your family.'
 const DOWNLOAD_PATH = '/me/export/garden.tar'
 
 export const TAKE_HOME_MESSAGES = {
@@ -37,6 +43,11 @@ interface TakeHomeAuth {
   userId(): string
   token(): string | null | undefined
   whenReady?(): Promise<void>
+}
+
+/** Open `url` in a new tab, with no way back into this page. */
+export function openInNewTab(url: string): void {
+  globalThis.open?.(url, '_blank', 'noopener,noreferrer')
 }
 
 /** Start a native download of `url` without leaving the page: a hidden frame the browser saves from. */
@@ -63,7 +74,7 @@ async function errorCode(response: Response): Promise<string> {
   }
 }
 
-/** The account's take-home download: one gateway call, then the browser's own download. */
+/** The account's take-home download (one gateway call, then the browser's own download) and its guide. */
 export class HostedTakeHome {
   private readonly base: URL
   private readonly fetchImpl: typeof fetch
@@ -77,6 +88,7 @@ export class HostedTakeHome {
     gatewayBaseUrl: string,
     fetchImpl: typeof fetch = globalThis.fetch,
     private readonly download: (url: string) => void = url => startFrameDownload(url),
+    private readonly openGuideUrl: (url: string) => void = openInNewTab,
   ) {
     // Native browser fetch requires the Window receiver, not this service.
     this.fetchImpl = fetchImpl.bind(globalThis) as typeof fetch
@@ -99,6 +111,11 @@ export class HostedTakeHome {
     if (response.status === 401 || response.status === 403) return TAKE_HOME_MESSAGES.signIn
     if (response.status === 429) return TAKE_HOME_MESSAGES.dailyLimit
     return TAKE_HOME_MESSAGES.unavailable
+  }
+
+  /** Open the self-host guide. Called straight from the click, so the browser allows the new tab. */
+  openGuide(): void {
+    this.openGuideUrl(SELF_HOST_GUIDE_URL)
   }
 
   /** Mint the one-time link, then hand it to the browser. Never throws: the outcome is a note on Account. */
@@ -137,7 +154,7 @@ export class HostedTakeHome {
     }
   }
 
-  /** The Account section, with the download action first and its outcome as a note. */
+  /** The Account section, with the download action first, the guide beside it, and the outcome as a note. */
   decorate(section: MnSettingsSection): MnSettingsSection {
     if (section.id !== 'account') return section
     return {
@@ -149,6 +166,12 @@ export class HostedTakeHome {
           description: TAKE_HOME_DESCRIPTION,
           icon: 'download',
           disabled: this.pending,
+        },
+        {
+          id: SELF_HOST_GUIDE_ACTION,
+          label: 'How to run it yourself',
+          description: SELF_HOST_GUIDE_DESCRIPTION,
+          icon: 'external-link',
         },
         ...(section.actions ?? []),
       ],

@@ -1,5 +1,5 @@
 import type { HostedBilling } from './hosted-billing.js'
-import { TAKE_HOME_ACTION, type HostedTakeHome } from './hosted-take-home.js'
+import { SELF_HOST_GUIDE_ACTION, TAKE_HOME_ACTION, type HostedTakeHome } from './hosted-take-home.js'
 import type { BillingCreditsPort } from './add-credits.js'
 import type { AuthProfile } from '@shrubbery/nucleus/contract'
 import type { UsageReader } from './usage-explorer.js'
@@ -534,6 +534,11 @@ export class DefaultOrganismSettingsService implements OrganismSettingsService {
   }
 
   async action(detail: MnSettingsActionDetail): Promise<void> {
+    // Before any await, so the new tab still counts as the person's click.
+    if (detail.actionId === SELF_HOST_GUIDE_ACTION && this.options.runtimeMode === 'hosted' && this.options.takeHome) {
+      this.options.takeHome.openGuide()
+      return
+    }
     if (detail.actionId === TAKE_HOME_ACTION && this.options.runtimeMode === 'hosted' && this.options.takeHome) {
       await this.options.takeHome.start()
       return

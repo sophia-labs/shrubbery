@@ -13,6 +13,9 @@
  *   - `key`: the open-URL `gardend serve` printed, `http://127.0.0.1:<port>/#key=<token>`. The key is
  *     stored in this browser and the fragment stripped; then it travels as `Authorization: Bearer`
  *     and the `bearer.<token>` WebSocket subprotocol, exactly as in local mode.
+ * A page on a loopback origin (`127.0.0.1`, `localhost`) is always the person's own computer talking
+ * to gardend directly: no Cloudflare edge is in the path, so it signs in with the key even when
+ * gardend says `cloudflare-access` (gardend takes a valid bearer before looking for an Access pass).
  *
  * Nothing here talks to a gateway, Cognito or Choreograph.
  */
@@ -43,6 +46,25 @@ export interface SelfHostDescriptor {
   readonly auth: SelfHostAuthMode
   /** Filled when a valid Access JWT came with the request. */
   readonly user: { readonly email: string } | null
+}
+
+/** The page is on this computer's loopback, where no Cloudflare edge can add an Access pass. */
+export function isLoopbackOrigin(origin: string): boolean {
+  let hostname: string
+  try {
+    hostname = new URL(origin).hostname
+  } catch {
+    return false
+  }
+  return hostname === '127.0.0.1' || hostname === 'localhost'
+}
+
+/**
+ * How this page signs in: gardend's mode, except on a loopback origin, where the key is the only
+ * credential that can reach gardend (Access attaches its pass at the Cloudflare edge, not here).
+ */
+export function selfHostSignIn(descriptor: Pick<SelfHostDescriptor, 'auth'>, origin: string): SelfHostAuthMode {
+  return descriptor.auth === 'cloudflare-access' && isLoopbackOrigin(origin) ? 'key' : descriptor.auth
 }
 
 /** The self-host build flag, read the same way as `VITE_SHRUBBERY_FLOW_APP`. */
@@ -163,6 +185,7 @@ export function selfHostTransport(origin: string, token: string | undefined): Lo
 export interface SelfHostSession {
   readonly descriptor: SelfHostDescriptor
   readonly origin: string
+  /** How this page signed in ({@link selfHostSignIn}): a loopback page uses the key even under Access. */
   readonly auth: SelfHostAuthMode
   /** The key this browser holds (key mode only). Cloudflare Access mode sends no bearer at all. */
   readonly token: string | undefined
@@ -181,21 +204,22 @@ export function activeSelfHostSession(): SelfHostSession | null {
 
 function createSession(
   descriptor: SelfHostDescriptor,
+  auth: SelfHostAuthMode,
   origin: string,
   token: string | undefined,
   storage: KeyStorage | null,
   assign: (url: string) => void,
 ): SelfHostSession {
-  const email = descriptor.user?.email ?? null
+  const email = auth === 'cloudflare-access' ? descriptor.user?.email ?? null : null
   return {
     descriptor,
     origin,
-    auth: descriptor.auth,
+    auth,
     token,
     userId: email ?? 'garden-self-host',
     email,
     signOut() {
-      if (descriptor.auth === 'cloudflare-access') {
+      if (auth === 'cloudflare-access') {
         assign(CLOUDFLARE_ACCESS_LOGOUT_PATH)
         return
       }
@@ -279,8 +303,9 @@ export async function bootstrapSelfHostCell(options: SelfHostBootOptions): Promi
   const descriptor = await readSelfHostDescriptor(fetchImpl)
   const url = new URL(options.location.href)
   const origin = options.location.origin
+  const auth = selfHostSignIn(descriptor, origin)
   let token: string | undefined
-  if (descriptor.auth === 'key') {
+  if (auth === 'key') {
     token = claimSelfHostKey(url, options.storage, options.replaceUrl) ?? undefined
     if (!token) return { kind: 'needs-key', reason: 'missing' }
   } else if (/(^#|&)key=/.test(url.hash)) {
@@ -292,11 +317,11 @@ export async function bootstrapSelfHostCell(options: SelfHostBootOptions): Promi
   try {
     await probeAccess(transport, fetchImpl)
   } catch (error) {
-    if (error instanceof SelfHostAccessError && descriptor.auth === 'key' && error.status === 401) {
+    if (error instanceof SelfHostAccessError && auth === 'key' && error.status === 401) {
       forgetSelfHostKey(options.storage)
       return { kind: 'needs-key', reason: 'rejected' }
     }
-    if (error instanceof SelfHostAccessError && (error.status === 401 || error.status === 403)) {
+    if (error instanceof SelfHostAccessError && auth === 'cloudflare-access' && (error.status === 401 || error.status === 403)) {
       throw new Error(
         `Cloudflare Access let you in, but this Sophia did not accept the sign-in${descriptor.user?.email ? ` for ${descriptor.user.email}` : ''}. `
         + `Ask its owner to add your email to gardend's Access settings.\n\n${error.message}`,
@@ -305,7 +330,7 @@ export async function bootstrapSelfHostCell(options: SelfHostBootOptions): Promi
     throw error
   }
 
-  const session = createSession(descriptor, origin, token, options.storage, options.assign)
+  const session = createSession(descriptor, auth, origin, token, options.storage, options.assign)
   const contract = createGardendContract({ transport, userId: session.userId })
   const { graphId, seededUxConfig, refused } = await openLocalCellGraph(contract, {
     requestedGraphId: options.requestedGraphId,

@@ -29,7 +29,7 @@ it('uses a documented font-level extent when both PDF.js metrics are zero', asyn
     { str: 'Visible footnote', transform: [12, 0, 0, 12, 72, 650], width: 120, height: 12, fontName: 'f1' },
   ] }) })
   const anchor = decodePdfSourceAnchor(value.tiptapJson.content![1]!.attrs![PDF_SOURCE_ANCHOR_ATTRIBUTE])
-  expect(anchor?.targets[0]!.rects).toEqual([[72, 647.6, 192, 659.6]])
+  expect(anchor!.targets[0]!.rects).toEqual([[72, 647.6, 192, 659.6]])
   expect(value.warnings).toEqual([])
 })
 it('preserves valid metrics and text beside a zero-metric contributing span', async () => {
@@ -40,7 +40,7 @@ it('preserves valid metrics and text beside a zero-metric contributing span', as
     { str: 'second', transform: [12, 0, 0, 12, 105, 650], width: 36, height: 12, fontName: 'f2' },
   ] }) })
   const node = value.tiptapJson.content![1]!, anchor = decodePdfSourceAnchor(node.attrs![PDF_SOURCE_ANCHOR_ATTRIBUTE])
-  expect(anchor?.targets[0]!.rects).toEqual([[72, 647, 102, 659], [105, 647.6, 141, 659.6]])
+  expect(anchor!.targets[0]!.rects).toEqual([[72, 647, 102, 659], [105, 647.6, 141, 659.6]])
   expect(node.content).toEqual([{ type: 'text', text: 'First second' }])
   expect(value.warnings).toEqual([])
 })

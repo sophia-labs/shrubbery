@@ -56,6 +56,7 @@ async function openHarness(
   const page = await context.newPage()
   await page.goto(pageUrl, { waitUntil: 'domcontentloaded' })
   await page.evaluate(async () => {
+    // biome-ignore lint/security/noGlobalEval: an indirect dynamic import the page's bundler must not rewrite (operator script)
     const module = await (0, eval)(
       'import("/src/cell/source-mirror-indexeddb.ts")',
     ) as {

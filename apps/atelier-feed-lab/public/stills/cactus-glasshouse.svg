@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024"><title>Cactus glasshouse</title>
   <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#f0d07b"/><stop offset="1" stop-color="#597049"/></linearGradient><linearGradient id="h"><stop stop-color="#a85843"/><stop offset="1" stop-color="#552e2d"/></linearGradient></defs>
   <rect width="1024" height="1024" fill="url(#g)"/>
   <path d="m32 486 480-386 480 386v538H32Z" fill="#dae3ad" opacity=".24" stroke="#2e4435" stroke-width="19"/>

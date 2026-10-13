@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024"><title>Lantern glasshouse</title>
   <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#efd17f"/><stop offset="1" stop-color="#58724b"/></linearGradient><linearGradient id="h"><stop stop-color="#a85843"/><stop offset="1" stop-color="#552e2d"/></linearGradient><radialGradient id="l"><stop stop-color="#fff8b7"/><stop offset=".5" stop-color="#e8c966"/><stop offset="1" stop-color="#5d7259"/></radialGradient></defs>
   <rect width="1024" height="1024" fill="url(#g)"/>
   <path d="m30 486 482-386 482 386v538H30Z" fill="#dce5b0" opacity=".25" stroke="#2e4435" stroke-width="19"/>

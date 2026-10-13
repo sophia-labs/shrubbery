@@ -67,7 +67,7 @@ async function check(page: Page, shot: string): Promise<Check> {
   const result = await page.evaluate((expr) => {
     const bars = [...document.querySelectorAll('mn-top-bar'),
       ...[...document.querySelectorAll('hoja-app')].flatMap(h => [...h.shadowRoot!.querySelectorAll('mn-top-bar')])]
-    // eslint-disable-next-line no-eval
+    // biome-ignore lint/security/noGlobalEval: an operator proof evaluates its own selector expression inside the page
     const bar = (0, eval)(expr) as HTMLElement | undefined
     if (!bar) return { bars: bars.length, rows: [], checked: [], toolbar: [], controls: [], overflow: -1, barHeight: 0 }
     const root = bar.shadowRoot!
@@ -101,7 +101,7 @@ async function shoot(page: Page, name: string, width: number, withLauncher = tru
   await check(page, name)
   if (!withLauncher) return
   await page.evaluate((expr) => {
-    // eslint-disable-next-line no-eval
+    // biome-ignore lint/security/noGlobalEval: an operator proof evaluates its own selector expression inside the page
     const bar = (0, eval)(expr) as HTMLElement
     bar.shadowRoot!.querySelector<HTMLButtonElement>('.app-picker')!.click()
   }, VISIBLE_BAR)
@@ -199,7 +199,7 @@ try {
       const dark = await page.evaluate(() => document.documentElement.dataset.theme === 'dark')
       if (dark !== (theme === 'dark')) {
         await page.evaluate((expr) => {
-          // eslint-disable-next-line no-eval
+          // biome-ignore lint/security/noGlobalEval: an operator proof evaluates its own selector expression inside the page
           ((0, eval)(expr) as HTMLElement).shadowRoot!.querySelector<HTMLButtonElement>('[data-action="theme"]')!.click()
         }, VISIBLE_BAR)
         await frames(page)

@@ -207,6 +207,8 @@ function bootFixture(path = '/', authenticated = true) {
   const initial = deferred<StarterStartupPreference | null>()
   const handle = { initial: initial.promise, done: Promise.resolve({ status: 'not-applicable', reason: 'old' }), isCurrent: () => true, cancel: vi.fn() }
   const context = {
+    // The hosted build: bootOrganism's self-host branch (main.ts `SELF_HOST`) is off.
+    SELF_HOST: false,
     URL, URLSearchParams, applyCurrent: vi.fn(), gardenGraphLocation,
     window: { location, localStorage: { getItem: () => null, setItem: vi.fn() }, history: { state: null, replaceState: vi.fn() } },
     document: { body: { dataset: {} }, title: '' }, cellGraphId: { value: '' }, currentGraphId: '',

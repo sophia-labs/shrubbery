@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024"><title>Moss reference</title>
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#e7d9b6"/><stop offset="1" stop-color="#a7bd73"/></linearGradient>
     <linearGradient id="hair" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#9f4f3d"/><stop offset="1" stop-color="#5c302d"/></linearGradient>

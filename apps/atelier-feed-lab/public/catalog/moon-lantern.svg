@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024"><title>Moon lantern</title>
   <defs><radialGradient id="glow"><stop stop-color="#fff4a8"/><stop offset=".42" stop-color="#e7c462"/><stop offset="1" stop-color="#35465d"/></radialGradient></defs>
   <rect width="1024" height="1024" fill="#263143"/>
   <path d="M0 757 222 588l229 158 241-223 332 245v256H0Z" fill="#18222f"/>

@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024"><title>Idle night</title>
   <defs><linearGradient id="n" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#18233b"/><stop offset="1" stop-color="#4a5e7c"/></linearGradient><linearGradient id="h"><stop stop-color="#a85843"/><stop offset="1" stop-color="#512a2c"/></linearGradient></defs>
   <rect width="1024" height="1024" fill="#121822"/>
   <rect x="78" y="65" width="868" height="694" fill="url(#n)" stroke="#806d59" stroke-width="18"/>
