@@ -71,6 +71,16 @@ export type ResourceLocator =
       readonly graphId: string
       readonly queryId: string
       readonly revision?: string
+      /**
+       * The FOCUS a focus-driven surface binds into this query (el Despacho,
+       * plans/2026-09-15-despacho-design.md §4/§7): an absolute IRI the
+       * runtime substitutes for the `{{focus}}` placeholder the query text
+       * (raw or named) carries. Stamped by the shell's focus binding at load
+       * time, never authored by hand — a layout document carries the
+       * placeholder, the SESSION supplies the focus. Part of the resource
+       * identity: two focuses are two resources.
+       */
+      readonly focus?: string
     }
   | { readonly kind: 'chat'; readonly graphId: string; readonly sessionId: string }
   | { readonly kind: 'iri'; readonly iri: string }

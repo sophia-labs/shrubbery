@@ -55,7 +55,8 @@ export function queryHandleResourceKey(locator: ResourceLocator): ResourceKey {
     throw new Error(`query-handle resource adapter given a non-query locator (kind '${locator.kind}')`)
   }
   // Collision-safe tagged tuple, not a naive colon-join — see resource-key.ts.
-  return resourceKeyTuple('query', locator.graphId, locator.queryId, locator.revision)
+  // `focus` is part of the identity: the SAME query over two focuses is two resources (focus-binding.ts).
+  return resourceKeyTuple('query', locator.graphId, locator.queryId, locator.revision, locator.focus)
 }
 
 /**

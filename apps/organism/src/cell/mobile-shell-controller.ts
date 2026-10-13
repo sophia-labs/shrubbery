@@ -37,13 +37,37 @@ import type {
   SidebarNode,
   SidebarNodeDetail,
 } from '@shrubbery/runtime'
+import { fragmentNodeId } from '@shrubbery/runtime/layout'
 import type { ShellContext } from './shell-context.js'
 import type { ShellFeature } from './shell-feature-host.js'
+import { APP_TOOLBAR_ACTIONS } from '@shrubbery/components/app-toolbar'
+import { PHONE_BREAKPOINT_QUERY } from './phone-breakpoint.js'
+
+/**
+ * The mobile header wears the SAME Sophia top bar as every desktop app. It is
+ * a second `<mn-top-bar>` (the workspace's own is inside `.app-container`,
+ * hidden on phones) whose app catalogue and appearance are mirrored from the
+ * workspace bar, and whose events are re-dispatched FROM the workspace bar, so
+ * the shell and the render host hear one bar whichever the user pressed.
+ */
+const MIRRORED_CHROME_PROPERTIES = [
+  'activeApp', 'apps', 'appLinks', 'hojaHref', 'brand', 'glyph', 'badge', 'suiteName',
+  'isDark', 'activeSkin', 'skins', 'toolbarActions',
+] as const
+const MIRRORED_CHROME_EVENTS: readonly string[] = [...new Set([
+  'mn-app-change', 'mn-theme-toggle', 'mn-skin-select', 'mn-settings-toggle', 'mn-appearance-menu',
+  ...Object.values(APP_TOOLBAR_ACTIONS).flat().map(action => action.event),
+])]
+/** Phones get the controls that fit and make sense without a live document desk. */
+const MOBILE_CHROME_CONTROLS = Object.freeze(['theme', 'skin', 'settings'])
 
 const ADAPTIVE_BREAKPOINT = '(max-width: 1024px)'
-const COMPACT_BREAKPOINT = '(max-width: 600px)'
+const COMPACT_BREAKPOINT = PHONE_BREAKPOINT_QUERY
 const KEYBOARD_THRESHOLD_PX = 150
 const STYLE_ID = 'organism-mobile-shell-styles'
+const NOTEBOOK_SURFACE_PREFIX = 'urn:sophia:ux:surface:agent-notebook:'
+const NOTEBOOK_REGION = 'region-center'
+const NOTEBOOK_GEOMETRY = ['left', 'top', 'width', 'height'] as const
 
 export type MobileCenterMode = 'document' | 'home'
 export type MobilePosture = 'compact' | 'medium' | 'expanded'
@@ -351,8 +375,10 @@ const MOBILE_CSS = `
   body[data-organism-mobile-shell-active] {
     --organism-safe-area-top: env(safe-area-inset-top, 0px);
     --organism-safe-area-bottom: env(safe-area-inset-bottom, 0px);
-    --organism-mobile-header-height: 56px;
-    --organism-mobile-navigation-height: 64px;
+    /* The header IS the Sophia top bar: the same height it has in every app
+       (46px under Garden's material, 40px under Mithras). */
+    --organism-mobile-header-height: var(--mn-top-bar-height, 46px);
+    --organism-mobile-navigation-height: 72px;
     --organism-mobile-content-top: calc(
       var(--organism-safe-area-top) + var(--organism-mobile-header-height)
     );
@@ -411,6 +437,9 @@ const MOBILE_CSS = `
   [data-organism-mobile-shell='true'][data-mobile-root='sophia'] > .app-container {
     top: 0 !important;
   }
+  [data-organism-mobile-shell='true'][data-mobile-app='choreograph'] > .app-container {
+    bottom: 0 !important;
+  }
   [data-organism-mobile-shell='true'] > .app-container > header,
   [data-organism-mobile-shell='true'] > .app-container > footer {
     display: none !important;
@@ -438,6 +467,16 @@ const MOBILE_CSS = `
   [data-organism-mobile-shell='true'] .main .split-pane {
     display: none !important;
   }
+  [data-organism-mobile-shell='true'][data-mobile-app='choreograph']
+    .main .split-pane[data-region='region-choreo-center'] {
+    position: absolute !important;
+    inset: 0 !important;
+    display: flex !important;
+    width: 100% !important;
+    height: 100% !important;
+    min-width: 0 !important;
+    border: 0 !important;
+  }
   [data-organism-mobile-shell='true'] .main sh-workspace-surface [data-layout-node-kind='leaf'] {
     display: none !important;
   }
@@ -447,6 +486,22 @@ const MOBILE_CSS = `
     display: block !important;
     width: 100% !important;
     height: 100% !important;
+  }
+  /* Only the actual active notebook fragment is projected. Surface wrappers
+     are flat root-absolute siblings, so keep them mounted and normalize their
+     existing allocation into this host's mobile content rectangle. The
+     engine's inline geometry, authored split, and unrelated leaves remain
+     untouched; expanded posture immediately resumes that same geometry. */
+  [data-organism-mobile-shell='true'][data-mobile-notebook='true']
+    .main sh-workspace-surface [data-mobile-notebook-node] {
+    left: var(--mobile-notebook-left) !important;
+    top: var(--mobile-notebook-top) !important;
+    width: var(--mobile-notebook-width) !important;
+    height: var(--mobile-notebook-height) !important;
+  }
+  [data-organism-mobile-shell='true'][data-mobile-notebook='true']
+    .main sh-workspace-surface [data-mobile-notebook-node][data-layout-node-kind='leaf'] {
+    display: block !important;
   }
   [data-organism-mobile-shell='true'][data-mobile-view='document']
     .main sh-workspace-surface [data-surface-part='center-content'][data-active='true'] {
@@ -537,7 +592,7 @@ const MOBILE_CSS = `
     display: flex;
     align-items: center;
     height: var(--organism-mobile-content-top);
-    padding: var(--organism-safe-area-top) 4px 0;
+    padding: var(--organism-safe-area-top) 0 0;
     border-bottom: 1px solid var(--mn-top-bar-border, var(--mn-color-rule, var(--mn-color-border-default, #ddd)));
     background: var(--mn-top-bar-bg, var(--mn-color-surface-chrome, var(--mn-color-surface-base, #fff)));
     box-shadow: var(--mn-shadow-chrome, none);
@@ -547,18 +602,19 @@ const MOBILE_CSS = `
   .organism-mobile-back,
   .organism-mobile-search {
     display: flex;
-    flex: 0 0 48px;
+    flex: 0 0 44px;
     align-items: center;
     justify-content: center;
-    width: 48px;
-    height: 48px;
+    width: 44px;
+    height: 44px;
     padding: 0;
-    border: 0;
-    border-radius: 10px;
-    background: transparent;
-    color: var(--mn-top-bar-text-muted, currentColor);
+    border: 1px solid var(--mn-garden-control-edge, var(--mn-color-border-subtle, transparent));
+    border-radius: 14px;
+    background: var(--mn-garden-control-bg, transparent);
+    color: var(--mn-garden-control-text, var(--mn-top-bar-text-muted, currentColor));
+    box-shadow: var(--mn-garden-control-shadow, none);
     font: inherit;
-    font-size: 24px;
+    font-size: 22px;
     touch-action: manipulation;
     transition:
       color var(--mn-transition-fast, 110ms ease),
@@ -575,19 +631,72 @@ const MOBILE_CSS = `
     outline-offset: -4px;
   }
   .organism-mobile-back[hidden],
-  .organism-mobile-search[hidden] { visibility: hidden; display: flex; }
+  .organism-mobile-search[hidden],
+  .organism-mobile-shell[data-view='root'] .organism-mobile-back { display: none; }
+  /* The shared Sophia top bar, filling the header: picker + app toolbar on
+     the left, the back / title in its breadcrumb region, search + theme +
+     settings on the right. The header itself paints the chrome. */
+  .organism-mobile-chrome {
+    flex: 1 1 auto;
+    min-width: 0;
+    height: 100%;
+    min-height: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+  .organism-mobile-chrome > .organism-mobile-back {
+    flex-basis: 36px;
+    width: 36px;
+    height: 36px;
+    border-radius: 12px;
+    font-size: 20px;
+  }
+  /* Search sits among the bar's own action buttons and wears their shape. */
+  .organism-mobile-chrome > .organism-mobile-search {
+    flex-basis: var(--mn-control-height, 32px);
+    width: var(--mn-control-height, 32px);
+    height: var(--mn-control-height, 32px);
+    border: 0;
+    border-radius: var(--mn-radius-control, 6px);
+    background: transparent;
+    box-shadow: none;
+    color: var(--mn-top-bar-text-muted, currentColor);
+    font-size: 17px;
+  }
+  .organism-mobile-shell[data-view='root'] .organism-mobile-title::before {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
   .organism-mobile-title {
     flex: 1;
     min-width: 0;
     overflow: hidden;
     padding: 0 4px;
     font-family: var(--mn-font-display, var(--mn-font-prose, Georgia, serif));
-    font-size: var(--mn-type-heading-size, 18px);
+    font-size: 22px;
     font-weight: var(--mn-font-weight-semibold, 600);
-    letter-spacing: -0.018em;
-    text-align: center;
+    letter-spacing: -0.035em;
+    text-align: left;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+  .organism-mobile-shell[data-view='root'] .organism-mobile-title::before {
+    display: block;
+    margin-bottom: 2px;
+    color: var(--mn-top-bar-text-muted, var(--mn-color-text-muted));
+    content: 'YOUR WORKSPACE';
+    font: 700 9px/1 var(--mn-font-utility, system-ui, sans-serif);
+    letter-spacing: 0.14em;
+  }
+  .organism-mobile-shell[data-view='root'] .organism-mobile-title { font-size: 17px; letter-spacing: -0.02em; }
+  .organism-mobile-shell[data-view='document'] .organism-mobile-title {
+    font-size: 18px;
+    text-align: center;
   }
   .organism-mobile-continuity {
     position: absolute;
@@ -646,6 +755,8 @@ const MOBILE_CSS = `
   }
   .organism-mobile-shell[data-keyboard='true'] > mn-mobile-tabs { display: none; }
   .organism-mobile-shell[data-modal='true'] > mn-mobile-tabs { display: none; }
+  .organism-mobile-shell[data-app='choreograph'] > mn-mobile-tabs { display: none; }
+  .organism-mobile-shell[data-app='choreograph'] :is(.organism-mobile-files, .organism-mobile-home) { display: none !important; }
   @media (min-width: 601px) {
     body[data-organism-mobile-shell-active],
     .organism-mobile-shell {
@@ -667,6 +778,17 @@ export class OrganismMobileShellController<TContract = unknown> {
   private title: HTMLSpanElement | null = null
   private backButton: HTMLButtonElement | null = null
   private searchButton: HTMLButtonElement | null = null
+  private chromeBar: HTMLElement | null = null
+  private readonly forwardChromeEvent = (event: Event): void => {
+    const source = this.host?.querySelector('mn-top-bar')
+    if (!source || event.target !== this.chromeBar) return
+    event.stopPropagation()
+    source.dispatchEvent(new CustomEvent(event.type, {
+      detail: (event as CustomEvent).detail,
+      bubbles: true,
+      composed: true,
+    }))
+  }
   private continuityPanel: HTMLDivElement | null = null
   private continuityStatus: MnContinuityStatus | null = null
   private continuityAction: MobileContinuityAction = 'none'
@@ -689,6 +811,9 @@ export class OrganismMobileShellController<TContract = unknown> {
   private readonly activeModalOverlays = new Set<string>()
   private viewportUpdateScheduled = false
   private destroyed = false
+  private notebookGraphId: string | null = null
+  private notebookObserver: MutationObserver | null = null
+  private readonly notebookNodes = new Set<HTMLElement>()
 
   constructor(environment: MobileShellEnvironment = {}) {
     const win = globalThis.window
@@ -802,6 +927,13 @@ export class OrganismMobileShellController<TContract = unknown> {
     this.viewport = this.environment.visualViewport ?? null
     this.viewport?.addEventListener('resize', this.onViewportChange)
     this.viewport?.addEventListener('scroll', this.onViewportChange)
+    // renderWorkspace's Surface may finish after afterWorkspaceRender. Watch
+    // its existing allocations rather than remounting or manufacturing a
+    // second Surface. Own style writes are equality-guarded below.
+    this.notebookObserver = new MutationObserver(() => {
+      this.applyNotebookProjection()
+    })
+    this.notebookObserver.observe(context.host, { childList: true, subtree: true, attributes: true, attributeFilter: ['style'] })
     if (this.viewport) this.applyViewportRect()
   }
 
@@ -826,6 +958,15 @@ export class OrganismMobileShellController<TContract = unknown> {
     const title = doc.createElement('span')
     title.className = 'organism-mobile-title'
     const search = createButton(doc, 'organism-mobile-search', 'Search documents', '⌕')
+    const chrome = doc.createElement('mn-top-bar')
+    chrome.className = 'organism-mobile-chrome'
+    back.slot = 'breadcrumbs'
+    title.slot = 'breadcrumbs'
+    search.slot = 'actions'
+    ;(chrome as HTMLElement & { controls?: readonly string[] }).controls = MOBILE_CHROME_CONTROLS
+    for (const name of MIRRORED_CHROME_EVENTS) chrome.addEventListener(name, this.forwardChromeEvent)
+    // Mounted only while the phone/tablet posture is active (placeChrome), so
+    // a desktop page has exactly one <mn-top-bar>.
     top.append(back, title, search)
 
     const continuityPanel = doc.createElement('div')
@@ -921,6 +1062,7 @@ export class OrganismMobileShellController<TContract = unknown> {
     this.title = title
     this.backButton = back
     this.searchButton = search
+    this.chromeBar = chrome
     this.continuityPanel = continuityPanel
     this.continuityStatus = continuityStatus
     this.filesPanel = files
@@ -994,6 +1136,18 @@ export class OrganismMobileShellController<TContract = unknown> {
   }
 
   private changeRoot(root: MnMobileTab): void {
+    if (root === 'home' && this.notebookGraphId === this.context?.graphId) {
+      this.activeRoot = 'home'
+      this.rootDocuments.home = null
+      this.applyProjection()
+      // The shell, not this controller, owns the document route and the
+      // config-derived notebook view. Use the existing Home intent to leave
+      // an explicit route; never persist or replace a fragment here.
+      if (this.context?.documentId) {
+        this.host?.dispatchEvent(new CustomEvent('mn-navigate-home', { bubbles: true, composed: true }))
+      }
+      return
+    }
     if (root === this.activeRoot) return
     this.activeRoot = root
     this.environment.vibrate?.(8)
@@ -1063,12 +1217,72 @@ export class OrganismMobileShellController<TContract = unknown> {
     this.applyProjection()
   }
 
+  private applyNotebookProjection(): void {
+    if (!this.host || this.destroyed) return
+    const region = this.snapshot.fragments?.regions?.[NOTEBOOK_REGION]
+    const show = Boolean(this.adaptiveMedia?.matches && this.activeRoot === 'home'
+      && this.currentView() === 'root' && region?.surfaceIri.startsWith(NOTEBOOK_SURFACE_PREFIX))
+    this.host.dataset.mobileNotebook = String(show)
+    const next = new Set<HTMLElement>()
+    if (show && region) {
+      const wrappers = [...this.host.querySelectorAll<HTMLElement>('.main sh-workspace-surface [data-layout-node-id]')]
+      const statusId = `workspace-fragment-status:${NOTEBOOK_REGION}`
+      const rootId = region.state.status === 'ready'
+        ? fragmentNodeId(NOTEBOOK_REGION, region.state.doc.rootNodeId) : statusId
+      // An invalid ready document is rendered as the real region status leaf.
+      const root = wrappers.find(el => el.dataset.layoutNodeId === rootId)
+        ?? wrappers.find(el => el.dataset.layoutNodeId === statusId)
+      const ids = new Set<string>()
+      if (root?.dataset.layoutNodeId === statusId) ids.add(statusId)
+      else if (region.state.status === 'ready') {
+        const doc = region.state.doc
+        const visit = (id: string): void => {
+          const qualified = fragmentNodeId(NOTEBOOK_REGION, id)
+          if (ids.has(qualified)) return
+          const node = doc.nodes[id]
+          if (!node) return
+          ids.add(qualified)
+          if (node.kind === 'split') { visit(node.startNodeId); visit(node.endNodeId) }
+          else if (node.kind === 'tabs') visit(node.activeNodeId)
+        }
+        visit(doc.rootNodeId)
+      }
+      const x = Number.parseFloat(root?.style.left ?? ''), y = Number.parseFloat(root?.style.top ?? '')
+      const width = Number.parseFloat(root?.style.width ?? ''), height = Number.parseFloat(root?.style.height ?? '')
+      if (Number.isFinite(x) && Number.isFinite(y) && width > 0 && height > 0) {
+        for (const el of wrappers) {
+          if (!ids.has(el.dataset.layoutNodeId ?? '') || el.style.display === 'none') continue
+          const geometry = [
+            (Number.parseFloat(el.style.left) - x) / width * 100,
+            (Number.parseFloat(el.style.top) - y) / height * 100,
+            Number.parseFloat(el.style.width) / width * 100,
+            Number.parseFloat(el.style.height) / height * 100,
+          ]
+          if (!geometry.every(Number.isFinite)) continue
+          next.add(el)
+          el.setAttribute('data-mobile-notebook-node', '')
+          NOTEBOOK_GEOMETRY.forEach((name, index) => {
+            const property = `--mobile-notebook-${name}`, value = `${geometry[index]}%`
+            if (el.style.getPropertyValue(property) !== value) el.style.setProperty(property, value)
+          })
+        }
+      }
+    }
+    for (const el of this.notebookNodes) if (!next.has(el)) {
+      el.removeAttribute('data-mobile-notebook-node')
+      NOTEBOOK_GEOMETRY.forEach(name => el.style.removeProperty(`--mobile-notebook-${name}`))
+    }
+    this.notebookNodes.clear()
+    next.forEach(el => this.notebookNodes.add(el))
+  }
+
   private applyProjection(): void {
     if (!this.host || !this.portal || !this.context) return
     const active = this.adaptiveMedia?.matches ?? false
     const posture = this.posture()
-    const view = this.currentView()
-    const route = this.activeDocumentRoute()
+    const choreograph = this.context.app === 'choreograph'
+    const view = choreograph ? 'root' : this.currentView()
+    const route = choreograph ? null : this.activeDocumentRoute()
     const home = this.mobileHome()
     const title = route
       ? route.title
@@ -1079,20 +1293,19 @@ export class OrganismMobileShellController<TContract = unknown> {
           : graphTitle(this.context as ShellContext<unknown>, this.snapshot)
     const sync = this.snapshot.chrome?.syncState ?? 'idle'
     const fileContinuity = projectMobileFileContinuity(this.snapshot)
-    const continuity = projectMobileContinuity(
-      this.snapshot,
-      this.activeRoot,
-      view,
-      title,
-    )
+    const continuity = choreograph
+      ? quietContinuity()
+      : projectMobileContinuity(this.snapshot, this.activeRoot, view, title)
 
     this.host.dataset.organismMobileShell = String(active)
+    this.host.dataset.mobileApp = this.context.app
     this.host.dataset.mobileRoot = this.activeRoot
     this.host.dataset.mobileView = view
     this.host.dataset.mobilePosture = posture
     this.host.dataset.mobileKeyboard = String(this.keyboardOpen)
     this.host.dataset.mobileContinuity = String(continuity.visible)
     this.portal.dataset.active = String(active)
+    this.portal.dataset.app = this.context.app
     this.portal.dataset.keyboard = String(this.keyboardOpen)
     this.portal.dataset.modal = String(this.activeModalOverlays.size > 0)
     this.portal.dataset.root = this.activeRoot
@@ -1100,12 +1313,15 @@ export class OrganismMobileShellController<TContract = unknown> {
     this.portal.dataset.posture = posture
     this.portal.dataset.continuity = String(continuity.visible)
     this.title!.textContent = title
+    this.title!.title = title
+    this.placeChrome(active)
+    this.mirrorChrome()
     this.backButton!.hidden = route === null
     this.backButton!.setAttribute(
       'aria-label',
       `Back to ${this.activeRoot === 'browse' ? 'Browse' : 'Home'}`,
     )
-    this.searchButton!.hidden = this.activeRoot === 'sophia'
+    this.searchButton!.hidden = choreograph || this.activeRoot === 'sophia'
       || (this.activeRoot === 'browse' && view === 'root')
     this.searchButton!.setAttribute(
       'aria-label',
@@ -1118,11 +1334,13 @@ export class OrganismMobileShellController<TContract = unknown> {
     this.continuityStatus!.actionLabel = continuity.actionLabel
     this.continuityAction = continuity.action
     this.filesPanel!.dataset.visible = String(
-      this.activeRoot === 'browse' && view === 'root',
+      !choreograph && this.activeRoot === 'browse' && view === 'root',
     )
     this.homePanel!.dataset.visible = String(
-      this.activeRoot === 'home' && view === 'root',
+      !choreograph && this.activeRoot === 'home' && view === 'root'
+      && !this.snapshot.fragments?.regions?.[NOTEBOOK_REGION]?.surfaceIri.startsWith(NOTEBOOK_SURFACE_PREFIX),
     )
+    this.applyNotebookProjection()
 
     this.homeView!.status = continuity.retainHomeContent
       && (home?.status === 'loading' || home?.status === 'error')
@@ -1194,7 +1412,7 @@ export class OrganismMobileShellController<TContract = unknown> {
     this.fileList!.workspaceError = this.snapshot.chrome?.workspaceError ?? ''
     this.fileList!.allowNewWorkspace = Boolean(this.snapshot.chrome?.onWorkspaceCreate)
 
-    if (active && view === 'document') {
+    if (active && this.host.dataset.mobileView === 'document') {
       this.environment.requestAnimationFrame(() => {
         const editor = this.host?.querySelector('#mn-editor-host') as {
           requestUpdate?: () => void
@@ -1209,7 +1427,9 @@ export class OrganismMobileShellController<TContract = unknown> {
     snapshot: Readonly<RenderWorkspaceOptions>,
   ): void {
     if (this.destroyed) return
+    if (context.app === 'choreograph' && this.context?.app !== 'choreograph') this.activeRoot = 'home'
     if (context.graphId !== this.lastGraphId) {
+      this.notebookGraphId = null
       this.lastGraphId = context.graphId
       this.lastDocumentId = null
       this.lastDocumentTitle = ''
@@ -1221,6 +1441,9 @@ export class OrganismMobileShellController<TContract = unknown> {
     this.observedDocumentId = context.documentId
     this.context = context
     this.snapshot = snapshot
+    if (snapshot.fragments?.regions?.[NOTEBOOK_REGION]?.surfaceIri.startsWith(NOTEBOOK_SURFACE_PREFIX)) {
+      this.notebookGraphId = context.graphId
+    }
     this.ensureLifecycle(context)
     this.ensurePortal()
     const routeRoot: DocumentRoot = this.activeRoot === 'sophia'
@@ -1253,9 +1476,43 @@ export class OrganismMobileShellController<TContract = unknown> {
     this.applyResponsiveState()
   }
 
+  /** Mount the mobile Sophia bar (holding back / title / search) only while the mobile shell is active. */
+  private placeChrome(active: boolean): void {
+    const chrome = this.chromeBar
+    const top = this.portal?.querySelector('.organism-mobile-top-bar')
+    if (!chrome || !top || !this.backButton || !this.title || !this.searchButton) return
+    const parts = [this.backButton, this.title, this.searchButton]
+    if (active) {
+      if (chrome.parentElement !== top) top.prepend(chrome)
+      for (const part of parts) if (part.parentElement !== chrome) chrome.append(part)
+    } else if (chrome.isConnected) {
+      for (const part of parts) top.append(part)
+      chrome.remove()
+    }
+  }
+
+  /** Copy the workspace bar's catalogue + appearance onto the mobile bar. */
+  private mirrorChrome(): void {
+    const bar = this.chromeBar as (HTMLElement & Record<string, unknown>) | null
+    if (!bar || !this.host) return
+    const source = this.host.querySelector('mn-top-bar') as (HTMLElement & Record<string, unknown>) | null
+    if (!source) return
+    for (const key of MIRRORED_CHROME_PROPERTIES) {
+      if (bar[key] !== source[key]) bar[key] = source[key]
+    }
+  }
+
   destroy(): void {
     if (this.destroyed) return
     this.destroyed = true
+    this.notebookObserver?.disconnect()
+    this.notebookObserver = null
+    for (const el of this.notebookNodes) {
+      el.removeAttribute('data-mobile-notebook-node')
+      NOTEBOOK_GEOMETRY.forEach(name => el.style.removeProperty(`--mobile-notebook-${name}`))
+    }
+    this.notebookNodes.clear()
+    this.host?.removeAttribute('data-mobile-notebook')
     this.adaptiveMedia?.removeEventListener('change', this.onMediaChange)
     this.compactMedia?.removeEventListener('change', this.onMediaChange)
     this.host?.ownerDocument.removeEventListener(

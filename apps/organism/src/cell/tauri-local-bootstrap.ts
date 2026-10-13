@@ -7,6 +7,7 @@
  */
 
 import SEED_NT from '@shrubbery/nucleus/seed/garden-default.ux.nt?raw'
+import { isTauriHost } from './native-host.js'
 import { uxConfigGraphIri } from '@shrubbery/nucleus'
 import {
   createGardendContract,
@@ -29,9 +30,7 @@ export interface TauriLocalBootstrap {
 
 type TauriInvoke = <T>(command: string) => Promise<T>
 
-export function isTauriHost(root: object = globalThis): boolean {
-  return '__TAURI_INTERNALS__' in root
-}
+export { isTauriHost }
 
 export function transportFromTauriManifest(
   manifest: TauriLoopbackManifest,
@@ -80,6 +79,56 @@ async function ensureUxConfig(
   return true
 }
 
+/**
+ * Choose the graph a local cell opens on (URL, then the stored choice, then
+ * the most recently updated), creating a first `garden` graph in an empty
+ * profile, and seed the Shrubbery UX config when the graph has none. Shared by
+ * every shell that owns a whole gardend: the desktop app and a self-host.
+ *
+ * `tolerateRefusal` (a self-host): a person whose grant may not create graphs
+ * or load RDF still opens the workspace. A refused seed leaves the graph
+ * without a stored layout, and the shell shows its built-in default one.
+ */
+export async function openLocalCellGraph(
+  contract: GardendContract,
+  options: {
+    readonly requestedGraphId?: string | null
+    readonly storedGraphId?: string | null
+    readonly tolerateRefusal?: (error: unknown) => boolean
+  } = {},
+): Promise<{ readonly graphId: string; readonly seededUxConfig: boolean; readonly refused: boolean }> {
+  let catalog = await contract.restConcrete.graphs()
+  let graphId = selectTauriGraphId(
+    catalog.graphs,
+    options.requestedGraphId,
+    options.storedGraphId,
+  )
+  if (!graphId) {
+    graphId = 'garden'
+    try {
+      await contract.mcp.toolsCall('create_graph', {
+        graph_id: graphId,
+        title: 'Garden',
+      })
+    } catch (error) {
+      if (!options.tolerateRefusal?.(error)) throw error
+      throw new Error('This Sophia has no workspace yet, and only its owner can make one. Ask them to open it first.')
+    }
+    catalog = await contract.restConcrete.graphs()
+    if (!catalog.graphs.some(graph => graph.graph_id === graphId)) {
+      throw new Error('Garden graph creation completed without cataloging the graph')
+    }
+  }
+
+  try {
+    const seededUxConfig = await ensureUxConfig(contract, graphId)
+    return { graphId, seededUxConfig, refused: false }
+  } catch (error) {
+    if (!options.tolerateRefusal?.(error)) throw error
+    return { graphId, seededUxConfig: false, refused: true }
+  }
+}
+
 async function resolveHealthyContract(
   invoke: TauriInvoke,
   userId: string,
@@ -125,24 +174,9 @@ export async function bootstrapTauriLocalCell(options: {
     options.userId ?? 'garden-native',
   )
 
-  let catalog = await contract.restConcrete.graphs()
-  let graphId = selectTauriGraphId(
-    catalog.graphs,
-    options.requestedGraphId,
-    options.storedGraphId,
-  )
-  if (!graphId) {
-    graphId = 'garden'
-    await contract.mcp.toolsCall('create_graph', {
-      graph_id: graphId,
-      title: 'Garden',
-    })
-    catalog = await contract.restConcrete.graphs()
-    if (!catalog.graphs.some(graph => graph.graph_id === graphId)) {
-      throw new Error('Garden native graph creation completed without cataloging the graph')
-    }
-  }
-
-  const seededUxConfig = await ensureUxConfig(contract, graphId)
+  const { graphId, seededUxConfig } = await openLocalCellGraph(contract, {
+    requestedGraphId: options.requestedGraphId,
+    storedGraphId: options.storedGraphId,
+  })
   return { contract, graphId, seededUxConfig }
 }

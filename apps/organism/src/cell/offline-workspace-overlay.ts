@@ -57,7 +57,8 @@ function number(value: unknown, fallback: number): number {
 
 function entities(doc: Y.Doc, name: EntityKind): Map<string, Entity> {
   const json = doc.getMap(name).toJSON()
-  return new Map(Object.entries(json).map(([id, value]) => [
+  // A trashed document (the cell's `trashed` flag) is not part of the live tree: it is neither listed nor projected.
+  return new Map(Object.entries(json).filter(([, value]) => !(name === 'documents' && record(value).trashed === true)).map(([id, value]) => [
     id,
     { id, ...record(value) },
   ]))
@@ -69,6 +70,15 @@ function visibleOutbox(bundle: SourceBundle, outbox: readonly SourceOutboxRecord
     .filter(item => !witnessed.has(item.operation.operationId))
     .filter(item => item.status === 'pending' || item.status === 'accepted' || item.status === 'applied')
     .sort((left, right) => left.createdAt - right.createdAt || left.key.localeCompare(right.key))
+}
+
+function replayKey(replay: readonly SourceOutboxRecord[]): string {
+  return replay.map(item => `${item.operation.operationId}:${item.status}:${item.updatedAt}`).join('|')
+}
+
+/** The same optimistic read identity as the query engine, without replaying a Y.Doc. */
+export function offlineWorkspaceOverlayKey(bundle: SourceBundle, outbox: readonly SourceOutboxRecord[]): string {
+  return replayKey(visibleOutbox(bundle, outbox))
 }
 
 function setEntity(
@@ -92,7 +102,11 @@ export function offlineWorkspaceOverlay(
   outbox: readonly SourceOutboxRecord[],
 ): OfflineWorkspaceOverlay {
   const ydoc = new Y.Doc()
-  Y.applyUpdate(ydoc, decodeBase64(bundle.workspace.updateBase64))
+  // gardend's source_pull carries a never-written workspace (a graph just created) as zero
+  // bytes, not as Yjs's own two-byte empty update; zero bytes are an empty workspace, and
+  // applying them throws lib0's "Unexpected end of array" (Files then failed on a new graph).
+  const workspaceUpdate = decodeBase64(bundle.workspace.updateBase64)
+  if (workspaceUpdate.byteLength > 0) Y.applyUpdate(ydoc, workspaceUpdate)
   const documents = entities(ydoc, 'documents')
   const folders = entities(ydoc, 'folders')
   const artifacts = entities(ydoc, 'artifacts')
@@ -260,7 +274,7 @@ export function offlineWorkspaceOverlay(
     artifacts,
     wires,
     touched,
-    key: replay.map(item => `${item.operation.operationId}:${item.status}:${item.updatedAt}`).join('|'),
+    key: replayKey(replay),
   }
 }
 

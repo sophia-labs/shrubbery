@@ -25,7 +25,9 @@
       // reaches apps/flow/src/** (this app's OWN code, still linted
       // normally) or packages/runtime/src/layout/hosts/** (S1, also still
       // linted normally).
-      "!apps/flow/vendor/**"
+      "!apps/flow/vendor/**",
+      // Excalidraw's snapping.ts, vendored byte for byte below its header (packages/nucleus/src/workspace/files-canvas/vendor/excalidraw/LICENSE).
+      "!packages/nucleus/src/workspace/files-canvas/vendor/**"
     ]
   },
   "json": {

@@ -246,11 +246,12 @@ export function createBlockSelectionPlugin(): Plugin<BlockSelectionState> {
           if (!handle) return false
 
           const blockElement = handle.closest('[data-block-id]') as HTMLElement | null
-          if (!blockElement) return false
+          const positional = handle.closest('[data-outliner-pos]') as HTMLElement | null
+          if (!blockElement && !positional) return false
 
           try {
-            const inside = view.posAtDOM(blockElement, 0)
-            const blockPos = view.state.doc.resolve(inside).before(1)
+            const blockPos = positional ? Number(positional.dataset.outlinerPos)
+              : view.state.doc.resolve(view.posAtDOM(blockElement!, 0)).before(1)
             const meta = selectionMetaForClick(view.state, blockPos, event.shiftKey)
             view.dispatch(setSelectionMeta(view.state.tr, meta))
             event.preventDefault()

@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeEach } from 'vitest'
+import { describe, expect, it, beforeEach, vi } from 'vitest'
 import type { MenuEntry, MenuSelectDetail } from '@shrubbery/nucleus'
 import '../mn-context-menu.js'
 import type { MnContextMenu } from '../mn-context-menu.js'
@@ -26,6 +26,56 @@ async function mountMenu(items: readonly MenuEntry[] = ITEMS): Promise<MnContext
 describe('mn-context-menu', () => {
   beforeEach(() => {
     document.body.innerHTML = ''
+  })
+
+  it('repositions an already-open menu, including changed item dimensions', async () => {
+    const menu = await mountMenu()
+    menu.show({ x: 100, y: 100 })
+    await menu.updateComplete
+    const surface = menu.shadowRoot!.querySelector('.menu')!
+    const dimensions = vi.spyOn(surface, 'getBoundingClientRect')
+      .mockReturnValue({ width: 180, height: 90 } as DOMRect)
+    menu.show({ x: 100, y: 100 })
+    await menu.updateComplete
+    menu.show({ x: 420, y: 320 })
+    await menu.updateComplete
+    expect(menu.style.left).toBe('420px')
+    expect(menu.style.top).toBe('320px')
+    menu.items = [{ id: 'new', label: 'A different command' }]
+    dimensions.mockReturnValue({ width: 250, height: 140 } as DOMRect)
+    menu.show({ x: 420, y: 320 }, 'bottom-right')
+    await menu.updateComplete
+    expect([menu.style.left, menu.style.top]).toEqual(['170px', '180px'])
+    menu.hide()
+  })
+
+  it('restores the element that opened the menu when Escape dismisses it', async () => {
+    const opener = document.createElement('button')
+    document.body.append(opener)
+    const menu = await mountMenu()
+    opener.focus()
+    menu.show({ x: 80, y: 80 })
+    await menu.updateComplete
+    expect(menu.shadowRoot!.activeElement).not.toBeNull()
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    await menu.updateComplete
+    expect(document.activeElement).toBe(opener)
+  })
+
+  it('keeps a lower-right cursor origin until viewport constraints require clamping', async () => {
+    const menu = await mountMenu()
+    menu.show({ x: 100, y: 120 })
+    await menu.updateComplete
+    vi.spyOn(menu.shadowRoot!.querySelector('.menu')!, 'getBoundingClientRect')
+      .mockReturnValue({ width: 180, height: 90 } as DOMRect)
+    menu.show({ x: 100, y: 120 })
+    await menu.updateComplete
+    expect([menu.style.left, menu.style.top]).toEqual(['100px', '120px'])
+    menu.show({ x: window.innerWidth - 1, y: window.innerHeight - 1 })
+    await menu.updateComplete
+    expect(Number.parseFloat(menu.style.left) + 180).toBeLessThanOrEqual(window.innerWidth - 8)
+    expect(Number.parseFloat(menu.style.top) + 90).toBeLessThanOrEqual(window.innerHeight - 8)
+    menu.hide()
   })
 
   it('renders Garden-style command entries from the shared MenuEntry model', async () => {
@@ -118,11 +168,35 @@ describe('mn-context-menu', () => {
     menu.show({ x: 8, y: 8 })
     await menu.updateComplete
     await nextTick()
-    document.body.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, composed: true }))
+    document.body.dispatchEvent(new Event('pointerdown', { bubbles: true, composed: true }))
     await menu.updateComplete
 
     expect(menu.open).toBe(false)
     expect(closed).toBe(2)
+  })
+
+  it('closes even over a surface that stops its keys and prevents default on pointerdown (the Files canvas, 10-08)', async () => {
+    const menu = await mountMenu()
+    // What a canvas does: handle Escape itself (stopping propagation) and own its pointer gestures (preventDefault on
+    // pointerdown, which also suppresses the compatibility mousedown). A bubble-phase menu never saw either.
+    const surface = document.createElement('div')
+    surface.addEventListener('keydown', (e) => { e.stopPropagation(); e.preventDefault() })
+    surface.addEventListener('pointerdown', (e) => { e.stopPropagation(); e.preventDefault() })
+    document.body.appendChild(surface)
+
+    menu.show({ x: 8, y: 8 })
+    await menu.updateComplete
+    surface.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, composed: true }))
+    await menu.updateComplete
+    expect(menu.open).toBe(false)
+
+    menu.show({ x: 8, y: 8 })
+    await menu.updateComplete
+    await nextTick()
+    surface.dispatchEvent(new Event('pointerdown', { bubbles: true, composed: true, cancelable: true }))
+    await menu.updateComplete
+    expect(menu.open).toBe(false)
+    surface.remove()
   })
 
   it('clears popover state when disconnected while open, and does not resurrect it on reinsertion (regression r1)', async () => {

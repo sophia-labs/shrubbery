@@ -8,6 +8,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./gateway": "./src/gateway/index.ts",
+    "./access-control": "./src/gateway/control-access.ts",
+    "./features": "./src/features.ts",
     "./node": "./src/node/index.ts",
     "./emporium": "./src/emporium/index.ts",
     "./conformance": "./src/conformance/suite.ts"

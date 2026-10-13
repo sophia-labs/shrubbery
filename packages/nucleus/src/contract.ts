@@ -30,11 +30,21 @@ export type CrdtAwareness = unknown
 
 // ── (1) Auth-token supply ─────────────────────────────────────────────────────
 
+/** Display attributes of the current session; never an authorization source. */
+export interface AuthProfile {
+  readonly userId: string
+  readonly username: string
+  readonly name: string
+  readonly email: string
+  readonly emailVerified: boolean | null
+}
+
 export interface AuthProvider {
   /** ID token; `undefined` in dev / skip-auth. */
   token(): string | undefined
   /** Stable presence/scoping id (Cognito sub or dev id). */
   userId(): string
+  profile?(): AuthProfile | null
   isAuthenticated(): boolean
   /** Gates the FIRST connect — kills the "WS 401 before token" race. */
   whenReady(): Promise<void>

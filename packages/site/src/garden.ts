@@ -11,12 +11,12 @@ import {
 } from '@shrubbery/tokens'
 import { SITE_BUNDLE_SCHEMA, type SiteBundle, type SiteComponentBinding } from './types.js'
 
-/** sha256 of the body bytes in the canonical 275-triple Garden seed. A test
+/** sha256 of the body bytes in the canonical 282-triple Garden seed. A test
  * hashes the artifact, so a legitimate layout edit forces this
  * provenance pin to move with it. */
-export const GARDEN_LAYOUT_SEED_SHA256 = 'c00aa0a84a386ea02046d43e614d2cff3d04170636c18a9731e9fe543a606cd1'
+export const GARDEN_LAYOUT_SEED_SHA256 = 'fb379ae9ad80ad2190ecd1abfa2d776236bc86de425dbea2cb932de9f739dad8'
 
-const LIVE_HOST_TAGS = new Set(['mn-top-bar', 'mn-bottom-bar', 'mn-sidebar-panel', 'mn-comments-panel', 'mn-graph-panel', 'mn-inspector', 'wf-studio-shell'])
+const LIVE_HOST_TAGS = new Set(['mn-top-bar', 'mn-bottom-bar', 'mn-sidebar-panel', 'mn-comments-panel', 'mn-graph-panel', 'mn-inspector', 'choreo-modes-surface'])
 const SERVICE_BOUND_TAGS = new Map<string, string>([
   ['mn-document-editor', 'requires the EditorHostBinding + document/CRDT contract'],
   ['mn-chat-panel', 'requires a ChatService session contract'],
@@ -109,7 +109,7 @@ export const GARDEN_SITE_BUNDLE: SiteBundle = Object.freeze({
     { id: 'layout-live-read', state: 'supported', note: 'Workspace layout is read from the bound TripleSource and polled with testimony.' },
     { id: 'four-faces', state: 'supported', note: 'Markdown, Turtle, JSON-LD and HTML are rendered from the same live read.' },
     { id: 'garden-home', state: 'supported', note: 'The controlled Garden home shell renders graph identity without fabricating document data.' },
-    { id: 'appearance', state: 'supported', note: 'Garden, Sophia, 98 and Glass skins; light/dark; continuous/paper/classic-word material.' },
+    { id: 'appearance', state: 'supported', note: 'Garden, Sophia, 98, Glass, Mithras and Hotdog Stand skins; light/dark; continuous/paper/classic-word material.' },
     { id: 'panel-layout', state: 'supported', note: 'Controlled widths, collapse/expand and Garden discrete snap points.' },
     { id: 'documents-editor', state: 'deferred', note: 'No document/CRDT authority exists in TripleSource.', laterContract: 'EditorHostBinding + document CRDT contract' },
     { id: 'daily-notes', state: 'deferred', note: 'Daily-note lookup/create is a write-capable product service.', laterContract: 'document service + write authority' },

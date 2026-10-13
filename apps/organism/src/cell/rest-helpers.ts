@@ -16,6 +16,9 @@
 import type { EditorImageInsert, ArtifactHistoryRevision, DocHistorySnapshot } from '@shrubbery/runtime'
 import type { CellContract } from './session-store.js'
 import { gardendResponseError } from './document-transfer.js'
+import { cellAuthHeaders } from './cell-auth-headers.js'
+import { ARTIFACT_TEXT_MAX_BYTES, ArtifactTextReadError, type ArtifactTextSnapshot } from './artifact-live-preview.js'
+import { sha256Digest } from '@shrubbery/nucleus/web-crypto'
 
 const IMAGE_UPLOAD_ACCEPT = 'image/png,image/jpeg,image/gif,image/webp,image/svg+xml'
 
@@ -60,9 +63,7 @@ export function pickImageFile(): Promise<File | null> {
 
 export async function uploadImageForEditor(contract: CellContract, graphId: string, file: File): Promise<EditorImageInsert> {
   const apiBase = trimTrailingSlash(contract.runtime.graphBaseUrl(graphId))
-  const headers: Record<string, string> = { 'X-User-ID': contract.auth.userId() }
-  const token = contract.auth.token()
-  if (token) headers.Authorization = `Bearer ${token}`
+  const headers = cellRequestHeaders(contract)
 
   const formData = new FormData()
   formData.append('file', file)
@@ -92,23 +93,77 @@ function artifactRequestHeaders(contract: CellContract): Record<string, string> 
 }
 
 export function cellRequestHeaders(contract: CellContract): Record<string, string> {
-  const headers: Record<string, string> = { 'X-User-ID': contract.auth.userId() }
-  const token = contract.auth.token()
-  if (token) headers.Authorization = `Bearer ${token}`
-  return headers
+  return cellAuthHeaders(contract)
 }
 
 export async function fetchArtifactBlob(contract: CellContract, graphId: string, artifactId: string): Promise<Blob> {
   const apiBase = trimTrailingSlash(contract.runtime.graphBaseUrl(graphId))
   const response = await fetch(
     `${apiBase}/artifacts/${encodeURIComponent(graphId)}/${encodeURIComponent(artifactId)}/download`,
-    { headers: artifactRequestHeaders(contract) },
+    { headers: artifactRequestHeaders(contract), cache: 'no-store' },
   )
   if (!response.ok) {
     const detail = await response.text().catch(() => response.statusText)
     throw new Error(detail || `artifact download failed: ${response.status}`)
   }
   return response.blob()
+}
+
+/** Authoritative bounded UTF-8 read, never the mutable download cache or RDF. */
+export async function fetchArtifactText(
+  contract: CellContract,
+  graphId: string,
+  artifactId: string,
+  signal?: AbortSignal,
+): Promise<ArtifactTextSnapshot> {
+  const response = await fetch(
+    graphCellUrl(contract, graphId, `/artifacts/${encodeURIComponent(graphId)}/${encodeURIComponent(artifactId)}/text`),
+    { headers: artifactRequestHeaders(contract), cache: 'no-store', signal },
+  )
+  if (!response.ok) {
+    throw new ArtifactTextReadError(`Artifact read failed (HTTP ${response.status}).`, [401, 403, 404, 410].includes(response.status))
+  }
+  // JSON escaping can multiply a UTF-8 byte by six. Bound even a faulty server
+  // before parsing; the stricter content-byte limit is enforced again below.
+  const limit = ARTIFACT_TEXT_MAX_BYTES * 6 + 8192
+  const reader = response.body?.getReader()
+  if (!reader) throw new ArtifactTextReadError('Artifact response has no body.', true)
+  const chunks: Uint8Array[] = []
+  let total = 0
+  try {
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      total += value.byteLength
+      if (total > limit) throw new ArtifactTextReadError('Artifact response exceeds the text limit.', true)
+      chunks.push(value)
+    }
+  } catch (error) { await reader.cancel().catch(() => {}); throw error }
+  finally { reader.releaseLock() }
+  const bytes = new Uint8Array(total)
+  let offset = 0
+  for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength }
+  let value: ArtifactTextSnapshot
+  try { value = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)) as ArtifactTextSnapshot }
+  catch { throw new ArtifactTextReadError('Artifact text response is malformed.', true) }
+  if (!value || value.graphId !== graphId || value.artifactId !== artifactId
+    || typeof value.graphIncarnation !== 'string' || !value.graphIncarnation.trim()
+    || typeof value.filename !== 'string' || typeof value.text !== 'string'
+    || typeof value.mimeType !== 'string' || !/^\s*text\/html\s*(?:;\s*charset\s*=\s*(?:utf-8|"utf-8")\s*)?$/i.test(value.mimeType)
+    || !/^[0-9a-f]{64}$/.test(value.contentHashSha256 ?? '')) {
+    throw new ArtifactTextReadError('Artifact response does not describe this HTML artifact.', true)
+  }
+  const content = new TextEncoder().encode(value.text)
+  if (new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(content) !== value.text) {
+    throw new ArtifactTextReadError('Artifact text is not exact valid UTF-8.', true)
+  }
+  if (content.byteLength > ARTIFACT_TEXT_MAX_BYTES || value.sizeBytes !== content.byteLength) {
+    throw new ArtifactTextReadError('Artifact text size is invalid or too large.', true)
+  }
+  const digest = new Uint8Array(await sha256Digest(content))
+  const hash = Array.from(digest, byte => byte.toString(16).padStart(2, '0')).join('')
+  if (hash !== value.contentHashSha256) throw new ArtifactTextReadError('Artifact content does not match its committed hash.', true)
+  return value
 }
 
 interface HostedArtifactRevisionEntry {
@@ -190,6 +245,47 @@ export async function restoreArtifactRevision(
     const detail = await response.text().catch(() => response.statusText)
     throw new Error(detail || `artifact revision restore failed: ${response.status}`)
   }
+}
+
+class ArtifactTextRestoreOutcomeError extends Error {}
+
+/** A text restore is a guarded write against the bytes the person confirmed.
+ * Never fall back to the legacy restore endpoint and never retry a POST here.
+ */
+export async function restoreArtifactTextRevision(
+  contract: CellContract,
+  snapshot: ArtifactTextSnapshot,
+  revisionId: string,
+  operationId: string,
+): Promise<void> {
+  if (!snapshot.graphId || !snapshot.artifactId || !snapshot.graphIncarnation.trim()
+    || !/^[a-f0-9]{64}$/.test(snapshot.contentHashSha256) || !revisionId || !operationId) {
+    throw new Error('A verified current artifact identity is required to restore text.')
+  }
+  const abort = new AbortController()
+  const timer = setTimeout(() => abort.abort(), 15_000)
+  try {
+    const response = await fetch(graphCellUrl(contract, snapshot.graphId,
+      `/artifacts/${encodeURIComponent(snapshot.graphId)}/${encodeURIComponent(snapshot.artifactId)}/text/restore`), {
+      method: 'POST', cache: 'no-store', signal: abort.signal,
+      headers: { ...artifactRequestHeaders(contract), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ graphIncarnation: snapshot.graphIncarnation,
+        expectedContentSha256: snapshot.contentHashSha256, operationId, revisionId }),
+    })
+    if (!response.ok) {
+      throw new ArtifactTextRestoreOutcomeError(`Text restore was not confirmed (HTTP ${response.status}). Refresh and inspect the artifact before trying again. Operation: ${operationId}`)
+    }
+    const receipt = await response.json() as Record<string, unknown>
+    if (!receipt || receipt.status !== 'committed' || receipt.artifactId !== snapshot.artifactId
+      || receipt.graphIncarnation !== snapshot.graphIncarnation || receipt.operationId !== operationId
+      || typeof receipt.contentHashSha256 !== 'string' || !/^[a-f0-9]{64}$/.test(receipt.contentHashSha256)
+      || receipt.refreshPending !== false) {
+      throw new ArtifactTextRestoreOutcomeError(`Text restore returned an unverified receipt. Refresh and inspect the artifact. Operation: ${operationId}`)
+    }
+  } catch (error) {
+    if (error instanceof ArtifactTextRestoreOutcomeError) throw error
+    throw new ArtifactTextRestoreOutcomeError(`Text restore outcome is uncertain. Refresh and inspect before retrying. Operation: ${operationId}`, { cause: error })
+  } finally { clearTimeout(timer) }
 }
 
 function dataUrlBase64Payload(dataUrl: string): string {

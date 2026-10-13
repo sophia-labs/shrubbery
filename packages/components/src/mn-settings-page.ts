@@ -11,6 +11,7 @@
 import { LitElement, css, html, nothing, unsafeCSS, type PropertyValues, type TemplateResult } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 import { SkinAware } from './skin-aware.js'
+import { BEVELLED } from './bevelled-skins.js'
 import { icon, iconStyles } from './icons.js'
 import './mn-empty-state.js'
 import './mn-loading.js'
@@ -1400,7 +1401,7 @@ export class MnSettingsPage extends SkinAware(LitElement) {
     /* 98 treats Settings as a real control-panel window: the chrome and
        grouped regions are raised, form wells are sunken, and the selected
        navigation row uses the system selection color. */
-    :host([data-skin='98']) .header {
+    :host(${BEVELLED}) .header {
       border: 2px solid var(--mn-98-face, #c0c0c0);
       border-bottom-color: var(--mn-98-dark, #000);
       background: var(--mn-top-bar-bg);
@@ -1408,55 +1409,55 @@ export class MnSettingsPage extends SkinAware(LitElement) {
       color: var(--mn-top-bar-text, #fff);
       box-shadow: none;
     }
-    :host([data-skin='98']) .root,
-    :host([data-skin='98']) .main,
-    :host([data-skin='98']) .content {
+    :host(${BEVELLED}) .root,
+    :host(${BEVELLED}) .main,
+    :host(${BEVELLED}) .content {
       background: var(--mn-98-settings-bg, var(--mn-98-face, #c0c0c0));
     }
-    :host([data-skin='98']) .brand-title,
-    :host([data-skin='98']) .brand-subtitle {
+    :host(${BEVELLED}) .brand-title,
+    :host(${BEVELLED}) .brand-subtitle {
       color: var(--mn-top-bar-text, #fff);
     }
-    :host([data-skin='98']) .close {
+    :host(${BEVELLED}) .close {
       border: 0;
       border-radius: 0;
       background: var(--mn-98-face, #c0c0c0);
       color: var(--mn-color-text-primary, #000);
       box-shadow: var(--mn-98-raised);
     }
-    :host([data-skin='98']) .close:active {
+    :host(${BEVELLED}) .close:active {
       box-shadow: var(--mn-98-sunken);
       transform: translate(1px, 1px);
     }
-    :host([data-skin='98']) .sidebar {
+    :host(${BEVELLED}) .sidebar {
       background: var(--mn-98-face, #c0c0c0);
       border-right: 2px groove var(--mn-98-face, #c0c0c0);
     }
-    :host([data-skin='98']) .nav-item,
-    :host([data-skin='98']) .back-button,
-    :host([data-skin='98']) .button,
-    :host([data-skin='98']) select {
+    :host(${BEVELLED}) .nav-item,
+    :host(${BEVELLED}) .back-button,
+    :host(${BEVELLED}) .button,
+    :host(${BEVELLED}) select {
       border: 0;
       border-radius: 0;
       background: var(--mn-98-face, #c0c0c0);
       color: var(--mn-color-text-primary, #000);
       box-shadow: var(--mn-98-raised);
     }
-    :host([data-skin='98']) .nav-item[data-active='true'] {
+    :host(${BEVELLED}) .nav-item[data-active='true'] {
       background: var(--mn-98-selection, #000080);
-      color: #fff;
+      color: var(--mn-98-selection-text, #fff);
       box-shadow: var(--mn-98-sunken);
     }
-    :host([data-skin='98']) .button:active:not(:disabled),
-    :host([data-skin='98']) .back-button:active {
+    :host(${BEVELLED}) .button:active:not(:disabled),
+    :host(${BEVELLED}) .back-button:active {
       box-shadow: var(--mn-98-sunken);
       transform: translate(1px, 1px);
     }
-    :host([data-skin='98']) select {
+    :host(${BEVELLED}) select {
       background-color: var(--mn-color-surface-sunken, #fff);
       box-shadow: var(--mn-98-sunken);
     }
-    :host([data-skin='98']) :is(
+    :host(${BEVELLED}) :is(
       .panel,
       .metric,
       .feature-card,
@@ -1475,39 +1476,39 @@ export class MnSettingsPage extends SkinAware(LitElement) {
       background: var(--mn-98-face, #c0c0c0);
       box-shadow: var(--mn-98-raised);
     }
-    :host([data-skin='98']) :is(.panel-heading, .note, .identity-mark, .capability-state-icon) {
+    :host(${BEVELLED}) :is(.panel-heading, .note, .identity-mark, .capability-state-icon) {
       border-radius: 0;
       background: var(--mn-98-face, #c0c0c0);
     }
-    :host([data-skin='98']) .toggle,
-    :host([data-skin='98']) .progress {
+    :host(${BEVELLED}) .toggle,
+    :host(${BEVELLED}) .progress {
       border-radius: 0;
       box-shadow: var(--mn-98-sunken);
     }
-    :host([data-skin='98']) .toggle::after {
+    :host(${BEVELLED}) .toggle::after {
       border-radius: 0;
       box-shadow: var(--mn-98-raised);
     }
-    :host([data-skin='98']) .toggle[aria-pressed='true'] {
+    :host(${BEVELLED}) .toggle[aria-pressed='true'] {
       background: var(--mn-98-selection, #000080);
     }
-    :host([data-skin='98']) :is(.secret-state, .job-state, .nav-badge) {
+    :host(${BEVELLED}) :is(.secret-state, .job-state, .nav-badge) {
       border-radius: 0;
       background: var(--mn-98-face, #c0c0c0);
       box-shadow: var(--mn-98-sunken);
     }
-    :host([data-skin='98']) :is(.section-header, .row, .panel-heading, .identity-row, .timeline-row) {
+    :host(${BEVELLED}) :is(.section-header, .row, .panel-heading, .identity-row, .timeline-row) {
       border-color: var(--mn-98-shadow, #808080);
     }
-    :host([data-skin='98']) button:focus-visible,
-    :host([data-skin='98']) select:focus-visible,
-    :host([data-skin='98']) input:focus-visible,
-    :host([data-skin='98']) textarea:focus-visible {
+    :host(${BEVELLED}) button:focus-visible,
+    :host(${BEVELLED}) select:focus-visible,
+    :host(${BEVELLED}) input:focus-visible,
+    :host(${BEVELLED}) textarea:focus-visible {
       outline: 1px dotted currentColor;
       outline-offset: -4px;
       box-shadow: var(--mn-focus-ring), var(--mn-98-raised);
     }
-    :host([data-skin='98']) :is(input, textarea) {
+    :host(${BEVELLED}) :is(input, textarea) {
       border: 0;
       border-radius: 0;
       background: var(--mn-color-surface-sunken);
@@ -1592,6 +1593,234 @@ export class MnSettingsPage extends SkinAware(LitElement) {
       backdrop-filter: var(--mn-window-backdrop-filter);
     }
 
+    /* ── GARDEN: Settings in the Sophia-button language ─────────────────────
+       Garden only (the host mirrors "[data-skin] absent" or garden). Content
+       sits on OPAQUE cards; the only material effects are the lit capsule
+       controls and the fern orb, both on solid surfaces (never glass on
+       glass, never glass under text). Every colour is a token from
+       tokens/css/material-garden.css, so dark mode and the reduced-
+       transparency / more-contrast fallbacks come from one place. */
+    :host(:is(:not([data-skin]), [data-skin='garden'])) .header {
+      padding-inline: var(--mn-space-6, 24px) var(--mn-space-4, 16px);
+    }
+    :host(:is(:not([data-skin]), [data-skin='garden'])) .brand {
+      gap: 10px;
+    }
+    .brand-orb,
+    .section-mark {
+      display: none;
+    }
+    .brand-glyph {
+      display: inline-flex;
+    }
+    :host(:is(:not([data-skin]), [data-skin='garden'])) .brand-glyph {
+      display: none;
+    }
+    :host(:is(:not([data-skin]), [data-skin='garden'])) :is(.brand-orb, .section-mark) {
+      display: inline-grid;
+      place-items: center;
+      flex: 0 0 auto;
+      border-radius: 50%;
+      background: var(--mn-garden-orb, var(--mn-color-accent));
+      color: var(--mn-garden-orb-mark, var(--mn-color-text-on-accent));
+      box-shadow: var(--mn-garden-orb-shadow, none);
+    }
+    :host(:is(:not([data-skin]), [data-skin='garden'])) .brand-orb {
+      width: 26px;
+      height: 26px;
+    }
+    :host(:is(:not([data-skin]), [data-skin='garden'])) .section-mark {
+      width: 44px;
+      height: 44px;
+    }
+    :host(:is(:not([data-skin]), [data-skin='garden'])) .brand-title {
+      font-size: var(--mn-text-lg, 18px);
+      letter-spacing: -0.01em;
+    }
+
+    /* Capsule controls: close, nav, back, buttons. Concentric with the
+       20px card radius (card 20 − row inset 8 ≈ 12 for fields). */
+    :host(:is(:not([data-skin]), [data-skin='garden'])) :is(.close, .button, .back-button) {
+      border: 1px solid var(--mn-garden-control-edge, var(--mn-color-border-subtle));
+      border-radius: var(--mn-radius-full, 999px);
+      background: var(--mn-garden-control-bg, var(--mn-color-surface-raised));
+      color: var(--mn-garden-control-text, var(--mn-color-text-primary));
+      box-shadow: var(--mn-garden-control-shadow, none);
+    }
+    :host(:is(:not([data-skin]), [data-skin='garden'])) .close {
+      width: 32px;
+      height: 32px;
+    }
+    :host(:is(:not([data-skin]), [data-skin='garden'])) .button {
+      min-height: 32px;
+      padding: 0 14px;
+      font-size: var(--mn-text-sm, 13px);
+    }
+    :host(:is(:not([data-skin]), [data-skin='garden'])) :is(.close, .button, .back-button):hover:not(:disabled) {
+      background: var(--mn-garden-control-bg-hover, var(--mn-color-surface-hover));
+      color: var(--mn-garden-control-text, var(--mn-color-text-primary));
+    }
+    :host(:is(:not([data-skin]), [data-skin='garden'])) :is(.close, .button, .back-button):active:not(:disabled) {
+      background: var(--mn-garden-control-bg-active, var(--mn-color-surface-active));
+      box-shadow: var(--mn-garden-control-shadow-active, none);
+    }
+    :host(:is(:not([data-skin]), [data-skin='garden'])) .button[data-variant='danger'] {
+      border-color: var(--mn-color-danger-border, currentColor);
+      color: var(--mn-color-text-danger, var(--mn-color-danger));
+    }
+    :host(:is(:not([data-skin]), [data-skin='garden'])) .button[data-variant='danger']:hover:not(:disabled) {
+      background: var(--mn-color-danger-surface, var(--mn-color-surface-hover));
+      color: var(--mn-color-text-danger, var(--mn-color-danger));
+    }
+
+    /* Section navigation: a quiet rail of capsules; the current section wears
+       the lit control material instead of the old inset stripe. */
+    :host(:is(:not([data-skin]), [data-skin='garden'])) .sidebar {
+      width: 244px;
+      flex-basis: 244px;
+      border-right-color: var(--mn-color-rule, var(--mn-color-border-subtle));
+    }
+    :host(:is(:not([data-skin]), [data-skin='garden'])) .nav {
+      padding: var(--mn-space-5, 20px) var(--mn-space-3, 12px);
+    }
+    :host(:is(:not([data-skin]), [data-skin='garden'])) .nav-group {
+      margin-bottom: var(--mn-space-5, 20px);
+    }
+    :host(:is(:not([data-skin]), [data-skin='garden'])) .nav-label {
+      padding-inline: 14px;
+      color: var(--mn-color-text-muted, #67625b);
+      letter-spacing: 0.08em;
+    }
+    :host(:is(:not([data-skin]), [data-skin='garden'])) .nav-item {
+      min-height: 36px;
+      margin-bottom: 2px;
+      padding: 0 14px 0 12px;
+      border: 1px solid transparent;
+      border-radius: var(--mn-radius-full, 999px);
+      font-size: var(--mn-text-sm, 13px);
+    }
+    :host(:is(:not([data-skin]), [data-skin='garden'])) .nav-item:hover:not(:disabled) {
+      background: var(--mn-color-interactive-hover, var(--mn-color-surface-hover));
+    }
+    :host(:is(:not([data-skin]), [data-skin='garden'])) .nav-item[data-active='true'] {
+      border-color: var(--mn-garden-control-edge, var(--mn-color-border-subtle));
+      background: var(--mn-garden-control-bg, var(--mn-color-surface-raised));
+      color: var(--mn-garden-control-text, var(--mn-color-text-primary));
+      box-shadow: var(--mn-garden-control-shadow, none);
+    }
+    :host(:is(:not([data-skin]), [data-skin='garden'])) .nav-item .mn-icon {
+      opacity: 0.8;
+    }
+    :host(:is(:not([data-skin]), [data-skin='garden'])) .sidebar-footer {
+      padding: var(--mn-space-3, 12px) var(--mn-space-3, 12px) var(--mn-space-4, 16px);
+      border-top-color: var(--mn-color-rule, var(--mn-color-border-subtle));
+    }
+    :host(:is(:not([data-skin]), [data-skin='garden'])) .back-button {
+      justify-content: center;
+      font-weight: 600;
+    }
+
+    /* Content: opaque cards on the canvas, generous rhythm. */
+    :host(:is(:not([data-skin]), [data-skin='garden'])) .main {
+      padding: var(--mn-space-10, 40px) var(--mn-space-12, 48px) var(--mn-space-16, 64px);
+      background: transparent;
+    }
+    :host(:is(:not([data-skin]), [data-skin='garden'])) .content {
+      max-width: 800px;
+    }
+    :host(:is(:not([data-skin]), [data-skin='garden'])) .section-header {
+      align-items: center;
+      margin-bottom: var(--mn-space-7, 28px);
+      padding-bottom: 0;
+      border-bottom: 0;
+    }
+    :host(:is(:not([data-skin]), [data-skin='garden'])) .section-heading {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      column-gap: var(--mn-space-4, 16px);
+      align-items: center;
+    }
+    :host(:is(:not([data-skin]), [data-skin='garden'])) .section-mark {
+      grid-row: 1 / span 2;
+    }
+    :host(:is(:not([data-skin]), [data-skin='garden'])) .section-kicker {
+      margin-bottom: 4px;
+    }
+    :host(:is(:not([data-skin]), [data-skin='garden'])) .section-title {
+      margin-bottom: 0;
+      font-size: var(--mn-text-3xl, 30px);
+      letter-spacing: -0.025em;
+    }
+    :host(:is(:not([data-skin]), [data-skin='garden'])) .section-description {
+      grid-column: 1 / -1;
+      margin-top: var(--mn-space-4, 16px);
+    }
+    :host(:is(:not([data-skin]), [data-skin='garden'])) :is(.panel, .metric, .feature-card, .identity-card) {
+      border-color: var(--mn-garden-card-edge, var(--mn-color-border-subtle));
+      border-radius: 18px;
+      background: var(--mn-color-surface-raised, #fffefa);
+      box-shadow: var(--mn-garden-card-shadow, var(--mn-shadow-card));
+    }
+    :host(:is(:not([data-skin]), [data-skin='garden'])) .panel {
+      margin-bottom: var(--mn-space-6, 24px);
+    }
+    :host(:is(:not([data-skin]), [data-skin='garden'])) .panel-heading {
+      align-items: center;
+      padding: var(--mn-space-4, 16px) var(--mn-space-6, 24px) var(--mn-space-3, 12px);
+      border-bottom-color: var(--mn-color-rule, var(--mn-color-border-subtle));
+      background: transparent;
+    }
+    :host(:is(:not([data-skin]), [data-skin='garden'])) .panel-title {
+      font-family: var(--mn-font-display, var(--mn-font-serif, Georgia, serif));
+      font-size: var(--mn-text-md, 16px);
+    }
+    :host(:is(:not([data-skin]), [data-skin='garden'])) .row {
+      padding: var(--mn-space-4, 16px) var(--mn-space-6, 24px);
+      border-bottom-color: var(--mn-color-rule, var(--mn-color-border-subtle));
+    }
+    :host(:is(:not([data-skin]), [data-skin='garden'])) .row-description {
+      margin-top: 4px;
+      font-size: var(--mn-text-sm, 13px);
+    }
+    :host(:is(:not([data-skin]), [data-skin='garden'])) .note {
+      border: 1px solid var(--mn-garden-card-edge, var(--mn-color-border-subtle));
+      border-left: 3px solid var(--mn-color-border-accent, #326f4c);
+      border-radius: 12px;
+    }
+
+    /* Fields and switches. */
+    :host(:is(:not([data-skin]), [data-skin='garden'])) select {
+      min-height: 34px;
+      padding: 0 12px;
+      border-color: var(--mn-color-border-strong, #cbc5ba);
+      border-radius: 12px;
+      background-color: var(--mn-color-surface-raised, #fffefa);
+    }
+    :host(:is(:not([data-skin]), [data-skin='garden'])) .toggle {
+      width: 44px;
+      height: 26px;
+      border-color: var(--mn-garden-track-edge, var(--mn-color-border-strong));
+      background: var(--mn-garden-track-off, var(--mn-color-surface-sunken));
+    }
+    :host(:is(:not([data-skin]), [data-skin='garden'])) .toggle::after {
+      top: 2px;
+      left: 2px;
+      width: 20px;
+      height: 20px;
+      background: #ffffff;
+      box-shadow: 0 0 0 1px rgb(0 0 0 / 0.10), 0 1px 0 rgb(0 0 0 / 0.14);
+    }
+    :host(:is(:not([data-skin]), [data-skin='garden'])) .toggle[aria-pressed='true'] {
+      border-color: var(--mn-color-accent-active, #1e4530);
+      background: var(--mn-garden-track-on, var(--mn-color-accent));
+    }
+    :host(:is(:not([data-skin]), [data-skin='garden'])) .toggle[aria-pressed='true']::after {
+      transform: translateX(18px);
+    }
+    :host(:is(:not([data-skin]), [data-skin='garden'])) .progress-bar {
+      background: var(--mn-color-accent, #326f4c);
+    }
+
     @media (max-width: 760px) {
       .layout {
         flex-direction: column;
@@ -1607,13 +1836,32 @@ export class MnSettingsPage extends SkinAware(LitElement) {
         border-bottom: 1px solid var(--mn-color-border-subtle, #e5e7eb);
       }
 
-      :host([data-skin='98']) .sidebar,
+      :host(${BEVELLED}) .sidebar,
       :host([data-skin='glass']) .sidebar {
         border-right: 0;
       }
 
+      :host(:is(:not([data-skin]), [data-skin='garden'])) .sidebar {
+        width: 100%;
+        flex-basis: auto;
+      }
+
+      :host(:is(:not([data-skin]), [data-skin='garden'])) .main {
+        padding: var(--mn-space-5, 20px);
+      }
+
+      :host(:is(:not([data-skin]), [data-skin='garden'])) .nav-item {
+        margin-bottom: 0;
+      }
+
       .nav {
+        /* The strip scrolls INSIDE its own box and is the containing block of what it holds, including the section labels, which are visually
+           hidden here (below). An absolutely positioned label whose containing block lay outside the strip sat at its static position, which for
+           the second group's label is wherever that group starts: past the edge of the view when the first group is wide (a Linux face, a long
+           translation), unclipped by the strip's overflow, and so a horizontal scrollbar on the whole page. */
+        position: relative;
         display: flex;
+        min-width: 0;
         gap: var(--mn-space-2, 8px);
         overflow-x: auto;
         overflow-y: hidden;
@@ -1635,6 +1883,9 @@ export class MnSettingsPage extends SkinAware(LitElement) {
 
       .nav-label {
         position: absolute;
+        /* Anchored to the strip's corner, not left to follow its group's static position. */
+        top: 0;
+        left: 0;
         width: 1px;
         height: 1px;
         overflow: hidden;
@@ -1658,6 +1909,7 @@ export class MnSettingsPage extends SkinAware(LitElement) {
       }
 
       .back-button {
+        position: relative;
         width: 34px;
         min-height: 34px;
         justify-content: center;
@@ -1666,6 +1918,8 @@ export class MnSettingsPage extends SkinAware(LitElement) {
 
       .back-button span {
         position: absolute;
+        top: 0;
+        left: 0;
         width: 1px;
         height: 1px;
         overflow: hidden;
@@ -1767,6 +2021,10 @@ export class MnSettingsPage extends SkinAware(LitElement) {
   @property({ type: String }) activeSection: MnSettingsSectionId = 'account'
   @property({ type: String }) userName = ''
   @property({ type: String }) userEmail = ''
+  @property({ type: String }) runtimeMode: 'local' | 'hosted' | '' = ''
+  @property({ type: String }) userId = ''
+  @property({ type: String }) userUsername = ''
+  @property({ attribute: false }) emailVerified: boolean | null = null
   @property({ attribute: false }) navGroups: readonly MnSettingsNavGroup[] = DEFAULT_NAV
   @property({ attribute: false }) sections: readonly MnSettingsSection[] = []
   /**
@@ -1823,7 +2081,12 @@ export class MnSettingsPage extends SkinAware(LitElement) {
         .filter((item) => available.has(item.id))
         .map((item) => {
           used.add(item.id)
-          return { ...item, ...configured.get(item.id), id: item.id }
+          const configuredItem = { ...item, ...configured.get(item.id), id: item.id }
+          // The same semantic settings surface can describe an on-device
+          // runtime or hosted embeddings. Its controlled title owns that copy.
+          return item.id === 'local-ai'
+            ? { ...configuredItem, label: available.get(item.id)?.title || configuredItem.label }
+            : configuredItem
         })
         .filter((item) => !item.hidden),
     })).filter((group) => group.items.length)
@@ -2150,6 +2413,11 @@ export class MnSettingsPage extends SkinAware(LitElement) {
     return html`<div class="notes">${notes.map((note) => html`<div class="note" data-tone=${noteTone(note)}>${note}</div>`)}</div>`
   }
 
+  /** The nav glyph for a section, reused as its heading mark. */
+  private _sectionIcon(sectionId: MnSettingsSectionId): string {
+    return this._navItems().find((item) => item.id === sectionId)?.icon || 'settings'
+  }
+
   private _sectionTitle(section: MnSettingsSection): string {
     if (section.id === 'api-keys') return 'AI Provider Keys'
     if (section.id === 'history' && section.title === 'History') return 'Version History'
@@ -2187,6 +2455,7 @@ export class MnSettingsPage extends SkinAware(LitElement) {
       <div class="content" data-wide=${section.wide ? 'true' : 'false'}>
         <header class="section-header">
           <div class="section-heading">
+            <span class="section-mark" aria-hidden="true">${icon(this._sectionIcon(section.id), { size: 20 })}</span>
             <p class="section-kicker">${this._sectionGroupLabel(section.id)}</p>
             <h2 class="section-title" id="settings-section-title">${this._sectionTitle(section)}</h2>
             ${trimmed(section.description) ? html`<p class="section-description">${section.description}</p>` : nothing}
@@ -2256,6 +2525,7 @@ export class MnSettingsPage extends SkinAware(LitElement) {
     const nonIdentityMetrics = (section.metrics ?? []).filter((metric) => metric.id !== 'identity')
     const actions = (section.actions ?? []).filter((action) => !(action.id === 'sign-out' && action.disabled))
     const hasEmail = Boolean(trimmed(this.userEmail))
+    const hosted = this.runtimeMode ? this.runtimeMode === 'hosted' : hasEmail
     const displayName = trimmed(this.userName) || (hasEmail ? this.userEmail : 'Local Garden profile')
     const initial = displayName.slice(0, 1) || 'G'
     return this._renderSectionFrame(section, [
@@ -2264,17 +2534,35 @@ export class MnSettingsPage extends SkinAware(LitElement) {
           <span class="identity-mark" aria-hidden="true">${initial}</span>
           <div>
             <div class="row-title">${displayName}</div>
-            <div class="identity-kind">${hasEmail ? 'Hosted account' : 'On-device identity'}</div>
+            <div class="identity-kind">${hosted ? 'Hosted account' : 'On-device identity'}</div>
           </div>
         </header>
         <div class="identity-row">
-          <div class="field-label">${hasEmail ? 'Display name' : 'Local profile'}</div>
+          <div class="field-label">${hosted ? 'Display name' : 'Local profile'}</div>
           <div class="identity-value" data-identity="name">${displayName}</div>
         </div>
+        ${hosted && trimmed(this.userUsername) ? html`
+          <div class="identity-row">
+            <div class="field-label">Username</div>
+            <div class="identity-value" data-identity="username">${this.userUsername}</div>
+          </div>
+        ` : nothing}
         ${hasEmail ? html`
           <div class="identity-row">
             <div class="field-label">Email</div>
             <div class="identity-value" data-identity="email">${this.userEmail}</div>
+          </div>
+        ` : nothing}
+        ${hosted && hasEmail && this.emailVerified !== null ? html`
+          <div class="identity-row">
+            <div class="field-label">Email status</div>
+            <div class="identity-value">${this.emailVerified ? 'Verified' : 'Not verified'}</div>
+          </div>
+        ` : nothing}
+        ${hosted && trimmed(this.userId) ? html`
+          <div class="identity-row">
+            <div class="field-label">Cognito user ID</div>
+            <div class="identity-value" data-identity="id" style="user-select:all;overflow-wrap:anywhere">${this.userId}</div>
           </div>
         ` : nothing}
       </section>`,
@@ -2487,6 +2775,7 @@ export class MnSettingsPage extends SkinAware(LitElement) {
         'No external endpoint is exposed',
         'This runtime did not provide an API base or MCP endpoint.',
       ),
+      html`<slot name="api-key-manager"></slot>`,
       this._renderActions(actions.filter((action) => !used.has(action.id))),
       this._renderNotes(section.notes),
       this._renderToggles(section.toggles),
@@ -2834,7 +3123,7 @@ export class MnSettingsPage extends SkinAware(LitElement) {
     return html`
       <section class="root" role="region" aria-label="Settings">
         <header class="header">
-          <span class="brand">${icon('settings', { size: 18 })}<h1 class="brand-title">Settings</h1></span>
+          <span class="brand"><span class="brand-glyph">${icon('settings', { size: 18 })}</span><span class="brand-orb" aria-hidden="true">${icon('settings', { size: 15 })}</span><h1 class="brand-title">Settings</h1></span>
           ${this.showClose ? html`<button type="button" class="close" aria-label="Close settings" @click=${() => this._close()}>
             ${icon('x', { size: 18 })}
           </button>` : nothing}

@@ -4,10 +4,10 @@
  * These are shell routes, not component logic. Components stay controlled and
  * backend-free; the Organism shell decides which full-page surface owns the host
  * for URL-level routes such as /settings, /ops-health, standalone chat, and
- * Choreograph Studio.
+ * Choreograph (modes).
  */
 
-import { html, nothing, render as litRender } from 'lit'
+import { html, noChange, nothing, render as litRender } from 'lit'
 import type {
   MnAuthPage,
   MnAuthMode,
@@ -28,13 +28,6 @@ import type {
   MnSettingsSectionChangeDetail,
   MnSettingsSelectChangeDetail,
   MnSettingsToggleChangeDetail,
-  WfRunConnectDetail,
-  WfRunCompareDetail,
-  WfRunDetail,
-  WfStudioGraphDetail,
-  WfStudioScreenChangeDetail,
-  WfWorkflowLaunchDetail,
-  WfWorkflowRequestDetail,
 } from '@shrubbery/components'
 import {
   makeLocalChatService,
@@ -42,11 +35,7 @@ import {
   type ChatService,
   type ChatSurfaceActionIntent,
 } from '@shrubbery/runtime'
-import {
-  ChoreographStudioController,
-  type ChoreographStudioService,
-  type ChoreographStudioSnapshot,
-} from './choreograph-studio-service.js'
+import { bindChoreographModesSurface } from './choreograph-modes-feature.js'
 import type {
   OrganismSettingsService,
   OrganismSettingsSnapshot,
@@ -56,7 +45,35 @@ import {
   type OrganismGardenHomeService,
 } from './garden-home-route.js'
 import type { ReapplyView } from './reapply-controller.js'
+import {
+  billingPlanSignature,
+  checkoutReturnFrom,
+  defaultCheckoutStorage,
+  hasCheckoutParam,
+  pollBalanceAfterCheckout,
+  pollPlanAfterCheckout,
+  showCheckoutResultToast,
+  showCheckoutReturnToast,
+  takePendingCheckout,
+  withoutCheckoutParam,
+  type CheckoutKind,
+  type CheckoutReturnState,
+  type PendingCheckoutStorage,
+} from './checkout-return.js'
+import { ACCOUNT_CONFIRMED_MESSAGE } from './cognito-auth-session.js'
+import { topUpPreselectFromUrl, type BillingCreditsPort } from './add-credits.js'
+import './add-credits-view.js'
+import './credit-history-view.js'
 import './phanes-control-editor.js'
+import './usage-explorer-view.js'
+import type { ChoreoModesSurface, ChromeAppLink, ChromeAppTab, ChromeControl } from '@shrubbery/components'
+
+/** The route IS Choreograph: its one in-shell tab; everything else is a link. */
+const CHOREOGRAPH_ROUTE_TABS: readonly ChromeAppTab[] = Object.freeze([
+  { id: 'choreograph', label: 'Choreograph', icon: 'workflow' },
+])
+/** No live document here, so no Custom CSS / quick clip / sharing controls. */
+const CHOREOGRAPH_ROUTE_CONTROLS: readonly ChromeControl[] = Object.freeze(['theme', 'skin', 'settings'])
 
 export type OrganismAppRouteKind =
   | 'home'
@@ -145,6 +162,8 @@ export interface MountOrganismAppRouteOptions {
   /** Called after a sign-in or email verification completes successfully. */
   readonly onAuthSuccess?: (kind: 'signin' | 'verify', route: AuthAppRoute) => void | Promise<void>
   readonly onLandingAction?: (detail: MnLandingActionDetail, route: LandingAppRoute) => void | Promise<void>
+  /** Deployment-owned signup destination; absent hosts retain the component default. */
+  readonly gardenAppHref?: string
   readonly onChatSurfaceAction?: (action: ChatSurfaceActionIntent) => void
   /**
    * Host-selected chat transport for standalone/debug routes. Local echo is the
@@ -155,10 +174,34 @@ export interface MountOrganismAppRouteOptions {
   readonly opsHealthService?: OrganismOpsHealthService
   /** Poll cadence; null disables polling. Garden's production cadence is 15 seconds. */
   readonly opsHealthPollIntervalMs?: number | null
-  /** Concrete run-index, provenance, and live telemetry effects for Studio routes. */
-  readonly choreographStudioService?: ChoreographStudioService
+  /**
+   * The cell contract the Choreograph modes route reaches MCP through
+   * (`rawMcp`, plus `gateway.graphs()` for scope suggestions when hosted).
+   */
+  readonly choreographContract?: unknown
+  /** Graph the modes route edits when the URL names none (`?graph=`). */
+  readonly choreographGraphId?: string
+  /**
+   * The Sophia top bar's cross-app links for the Choreograph route, for the
+   * route's graph (Garden back into the same workspace; Hoja when permitted).
+   * Absent: the bar still renders, with Garden linking to `/`.
+   */
+  readonly choreographAppLinks?: (graphId: string) => readonly ChromeAppLink[]
   /** Shell-owned settings state/effects. Components receive only controlled rows. */
   readonly settingsService?: OrganismSettingsService
+  /**
+   * Replace the current history entry without navigating. The settings route
+   * uses it to drop a Stripe `checkout=` return marker so reloads stay quiet.
+   */
+  readonly replaceUrl?: (url: URL) => void
+  /** Re-read budget after `checkout=success`, for the balance (top-up) or the plan (defaults: 4s × 8). */
+  readonly checkoutPlanPoll?: { readonly intervalMs: number; readonly attempts: number }
+  /**
+   * Where the tab left its pre-checkout marker (what was bought, the balance from
+   * before). Default: this tab's session storage; `null`: none, so a return falls
+   * back to reading the balance for itself.
+   */
+  readonly checkoutStorage?: PendingCheckoutStorage | null
   /** Account/catalog effects for the global Garden doorway. */
   readonly gardenHomeService?: OrganismGardenHomeService
   /**
@@ -318,7 +361,10 @@ function choreographRoute(url: URL): ChoreographAppRoute {
   const parts = normalizedPath(url).split('/').filter(Boolean)
   const screen = url.searchParams.get('screen')?.trim() || parts[1] || 'home'
   const runId = url.searchParams.get('runId')?.trim() || url.searchParams.get('run')?.trim() || (screen === 'run' ? parts[2] ?? '' : '')
-  const graphId = url.searchParams.get('graphId')?.trim() || url.searchParams.get('g')?.trim() || ''
+  // `?graph=` is the suite-wide workspace parameter (Garden, Hoja); the older
+  // `graphId` / `g` spellings still open the same graph.
+  const graphId = url.searchParams.get('graph')?.trim() || url.searchParams.get('graphId')?.trim()
+    || url.searchParams.get('g')?.trim() || ''
   return { kind: 'choreograph', screen, graphId, runId }
 }
 
@@ -489,8 +535,20 @@ function routeFrame(route: OrganismAppRoute, body: unknown, options: MountOrgani
   }
 
   if (route.kind === 'choreograph') {
+    // The same Sophia top bar Garden and Hoja wear: Choreograph checked, its
+    // Overview / New mode toolbar, Garden (and Hoja) one click away in the
+    // same workspace. The workspace is the route's `?graph=`, else the shell's.
+    const graphId = route.graphId || options.choreographGraphId?.trim() || ''
+    const appLinks = options.choreographAppLinks?.(graphId)
+      ?? [{ id: 'garden', label: 'Garden', icon: 'sprout', href: '/' }]
     return html`
       <div class="app-container organism-route-frame" data-organism-route="choreograph">
+        <mn-top-bar
+          active-app="choreograph"
+          .apps=${CHOREOGRAPH_ROUTE_TABS}
+          .appLinks=${appLinks}
+          .controls=${CHOREOGRAPH_ROUTE_CONTROLS}
+        ></mn-top-bar>
         ${lifetimeBannerTemplate(options.lifetime)}
         <mn-upgrade-banner></mn-upgrade-banner>
         <mn-storage-banner></mn-storage-banner>
@@ -514,7 +572,9 @@ function routeFrame(route: OrganismAppRoute, body: unknown, options: MountOrgani
 
 async function copyOpsSnapshot(detail: MnOpsHealthCopyJsonDetail, options: MountOrganismAppRouteOptions): Promise<void> {
   const text = JSON.stringify(detail.snapshot, null, 2)
-  await options.clipboard?.writeText(text)
+  // navigator.clipboard exists only in secure contexts (HTTPS, localhost); a plain-HTTP LAN page has none.
+  if (!options.clipboard?.writeText) throw new Error('Copying needs the clipboard, which this browser offers only over HTTPS or on localhost.')
+  await options.clipboard.writeText(text)
 }
 
 async function renderOpsHealthRoute(
@@ -553,7 +613,10 @@ async function renderOpsHealthRoute(
       @mn-ops-health-refresh=${() => { void refresh() }}
       @mn-ops-health-back=${() => routeBack(route, options)}
       @mn-ops-health-copy-json=${(event: CustomEvent<MnOpsHealthCopyJsonDetail>) => {
-        void copyOpsSnapshot(event.detail, options)
+        const page = event.currentTarget as MnOpsHealthPage
+        void copyOpsSnapshot(event.detail, options).catch(error => {
+          page.error = error instanceof Error ? error.message : String(error)
+        })
       }}
     ></mn-ops-health-page>
   `, options), host)
@@ -579,8 +642,13 @@ async function renderSettingsRoute(
   route: SettingsAppRoute,
   options: MountOrganismAppRouteOptions,
   isActive: () => boolean,
+  checkout: CheckoutReturnState | null = null,
+  topUpPreselect: number | null = null,
 ): Promise<() => void> {
   const service = options.settingsService
+  const credits = service?.billingCredits
+  // Bumped when a top-up lands, so the credit history reloads and shows it.
+  let creditsVersion = 0
   let requestId = 0
   let activeSection = route.sectionId
   let status: 'loading' | 'ready' | 'error' = service ? 'loading' : 'ready'
@@ -598,8 +666,13 @@ async function renderSettingsRoute(
         .activeSection=${activeSection}
         .userName=${snapshot.userName}
         .userEmail=${snapshot.userEmail}
+        .runtimeMode=${snapshot.runtimeMode ?? ''}
+        .userId=${snapshot.account?.userId ?? ''}
+        .userUsername=${snapshot.account?.username ?? ''}
+        .emailVerified=${snapshot.account?.emailVerified ?? null}
         .sections=${snapshot.sections}
         @mn-settings-section-change=${(event: CustomEvent<MnSettingsSectionChangeDetail>) => {
+          if (activeSection === 'api-mcp' && event.detail.sectionId !== 'api-mcp') service?.apiKeyStore?.discardOneTimeSecret()
           activeSection = event.detail.sectionId
           draw()
         }}
@@ -621,6 +694,14 @@ async function renderSettingsRoute(
         @mn-settings-refresh=${() => { void refresh() }}
         @mn-settings-close=${() => routeBack(route, options)}
       >
+        ${activeSection === 'api-mcp' && service?.apiKeyStore ? html`<mn-api-key-manager slot="api-key-manager" .store=${service.apiKeyStore} .gatewayUrl=${service.apiKeyGatewayUrl ?? ''} .listGraphs=${service.apiKeyGraphs}></mn-api-key-manager>` : nothing}
+        ${activeSection === 'usage' && service?.usageExplorer ? html`<mn-usage-explorer slot="usage-explorer" .reader=${service.usageExplorer} .feePercent=${credits?.feePercent() ?? null}></mn-usage-explorer>` : nothing}
+        ${activeSection === 'billing' && credits ? html`
+          <div slot="billing-credits" style="display:grid;gap:var(--mn-space-4,16px)">
+            <mn-add-credits .port=${credits} .preselect=${topUpPreselect}></mn-add-credits>
+            <mn-credit-history .reader=${credits.history} .refreshKey=${creditsVersion}></mn-credit-history>
+          </div>
+        ` : nothing}
         ${service?.phanesControl ? html`
           <mn-phanes-control-editor
             slot="phanes-control"
@@ -681,6 +762,57 @@ async function renderSettingsRoute(
       })
     })
   }
+  const budget = options.checkoutPlanPoll ?? { intervalMs: 4_000, attempts: 8 }
+
+  /** A top-up has landed when the balance is above what it was before the payment. */
+  const followTopUp = async (port: BillingCreditsPort, remembered: number | null): Promise<void> => {
+    const read = async (): Promise<number | null> => {
+      await port.refreshBalance()
+      return port.balanceMicroUsd()
+    }
+    let first: number | null
+    try { first = await read() } catch { first = null }
+    if (!isActive()) return
+    // The tab's own marker knows the balance from before the payment; without one
+    // the first read after the return is all there is to compare against.
+    const baseline = remembered ?? first
+    if (baseline === null) return
+    const result = first !== null && first > baseline
+      ? 'changed'
+      : await pollBalanceAfterCheckout({ read, baseline, isActive, ...budget })
+    if (!isActive()) return
+    if (result === 'changed') {
+      creditsVersion += 1
+      draw()
+      showCheckoutResultToast(host.ownerDocument, 'credited', port.balanceMicroUsd())
+    } else if (result === 'unreadable' && first === null) {
+      // Not one read succeeded after the return: nothing is known, and "late" would claim more.
+      showCheckoutResultToast(host.ownerDocument, 'unreadable', null)
+    } else if (result !== 'stopped' && remembered !== null) {
+      // Only a tab that knew the balance from before can say the credit is late. A balance read
+      // once after the return and then lost still counts as read: as far as anyone can tell, it had not arrived.
+      showCheckoutResultToast(host.ownerDocument, 'late', null)
+    }
+  }
+
+  if (checkout?.outcome === 'success' && service && isActive()) {
+    if (checkout.kind === 'topup') {
+      if (credits) void followTopUp(credits, checkout.baselineMicroUsd)
+    } else if (billingPlanSignature(snapshot.sections)) {
+      // A billing section with a plan is the hosted signal; local runtimes skip.
+      const reread = async (): Promise<string> => {
+        await service.action({ sectionId: 'billing', actionId: 'refresh-usage' })
+        await refresh(false)
+        return billingPlanSignature(snapshot.sections)
+      }
+      void (async () => {
+        let baseline: string
+        try { baseline = await reread() } catch { return }
+        if (!baseline || !isActive()) return
+        await pollPlanAfterCheckout({ refresh: reread, baseline, isActive, ...budget })
+      })()
+    }
+  }
   return () => {
     requestId += 1
     unsubscribe()
@@ -712,105 +844,14 @@ async function renderChoreographRoute(
   options: MountOrganismAppRouteOptions,
   isActive: () => boolean,
 ): Promise<() => void> {
-  const service = options.choreographStudioService
-  if (!service) {
-    litRender(routeFrame(route, html`
-      <wf-studio-shell
-        style="width:100%;height:100%;"
-        .screen=${route.screen}
-        .graphId=${route.graphId}
-        .runId=${route.runId}
-      ></wf-studio-shell>
-    `, options), host)
-    return () => {}
-  }
-
-  const controller = new ChoreographStudioController(service)
-  const renderSnapshot = (snapshot: ChoreographStudioSnapshot): void => {
-    if (!isActive()) return
-    litRender(routeFrame(route, html`
-      <wf-studio-shell
-        style="width:100%;height:100%;"
-        .screen=${route.screen}
-        .graphId=${route.graphId}
-        .runId=${route.runId}
-        .historyStatus=${snapshot.historyStatus}
-        .historyError=${snapshot.historyError}
-        .historyRuns=${snapshot.historyRuns}
-        .monitorStatus=${snapshot.monitorStatus}
-        .monitorError=${snapshot.monitorError}
-        .provenance=${snapshot.provenance}
-        .telemetry=${snapshot.telemetry}
-        .liveMessage=${snapshot.liveMessage}
-        .workflowStatus=${snapshot.workflowStatus}
-        .workflowError=${snapshot.workflowError}
-        .workflows=${snapshot.workflows}
-        .selectedWorkflowName=${snapshot.selectedWorkflowName}
-        .launchPending=${snapshot.launchPending}
-        .launchError=${snapshot.launchError}
-        .launchedRunId=${snapshot.launchedRunId}
-        .anatomyStatus=${snapshot.anatomyStatus}
-        .anatomyError=${snapshot.anatomyError}
-        .anatomy=${snapshot.anatomy}
-        .gatesStatus=${snapshot.gatesStatus}
-        .gatesError=${snapshot.gatesError}
-        .gates=${snapshot.gates}
-        .compareStatus=${snapshot.compareStatus}
-        .compareError=${snapshot.compareError}
-        .comparePending=${snapshot.comparePending}
-        .comparison=${snapshot.comparison}
-        @choreo-refresh=${() => { void controller.refreshHistory() }}
-        @choreo-workflows-refresh=${(event: CustomEvent<WfStudioGraphDetail>) => {
-          void controller.refreshWorkflows(event.detail.graphId ?? route.graphId)
-        }}
-        @choreo-workflow-launch=${(event: CustomEvent<WfWorkflowLaunchDetail>) => {
-          void controller.launchWorkflow(event.detail)
-        }}
-        @choreo-anatomy-request=${(event: CustomEvent<WfWorkflowRequestDetail>) => {
-          void controller.loadAnatomy(
-            event.detail.graphId ?? route.graphId,
-            event.detail.workflowName,
-          )
-        }}
-        @choreo-gates-request=${(event: CustomEvent<WfWorkflowRequestDetail>) => {
-          controller.loadGates(
-            event.detail.graphId ?? route.graphId,
-            event.detail.workflowName,
-          )
-        }}
-        @choreo-run-compare=${(event: CustomEvent<WfRunCompareDetail>) => {
-          void controller.compareRuns(
-            event.detail.graphId ?? route.graphId,
-            event.detail.leftRunId,
-            event.detail.rightRunId,
-          )
-        }}
-        @choreo-run-connect=${(event: CustomEvent<WfRunConnectDetail>) => {
-          void controller.openRun(event.detail.graphId ?? route.graphId, event.detail.runId)
-        }}
-        @choreo-retry=${(_event: CustomEvent<WfRunDetail>) => controller.retry()}
-        @choreo-replay=${(event: CustomEvent<WfRunDetail>) => {
-          void controller.openRun(route.graphId, event.detail.runId)
-        }}
-        @choreo-provenance-refresh=${() => { void controller.refreshProvenance() }}
-        @choreo-screen-change=${(event: CustomEvent<WfStudioScreenChangeDetail>) => {
-          const graphId = event.detail.graphId ?? route.graphId
-          if (event.detail.screen === 'run' && event.detail.runId) {
-            void controller.openRun(graphId, event.detail.runId)
-          } else if (event.detail.screen === 'home' || event.detail.screen === 'runs') {
-            void controller.refreshHistory(graphId)
-          }
-        }}
-      ></wf-studio-shell>
-    `, options), host)
-  }
-
-  const unsubscribe = controller.subscribe(renderSnapshot)
-  await controller.start(route.screen, route.graphId, route.runId)
-  return () => {
-    unsubscribe()
-    controller.destroy()
-  }
+  if (!isActive()) return () => {}
+  litRender(routeFrame(route, html`
+    <choreo-modes-surface style="width:100%;height:100%;"></choreo-modes-surface>
+  `, options), host)
+  const surface = host.querySelector<ChoreoModesSurface>('choreo-modes-surface')
+  if (!surface) return () => {}
+  const graphId = route.graphId || options.choreographGraphId?.trim() || ''
+  return bindChoreographModesSurface(surface, options.choreographContract ?? null, graphId)
 }
 
 function renderSyncRoute(
@@ -831,6 +872,7 @@ function renderSyncRoute(
       : html`
         <garden-landing
           style="width:100%;min-height:100%;"
+          .appHref=${options.gardenAppHref ?? noChange}
           @mn-landing-action=${(event: CustomEvent<MnLandingActionDetail>) => {
             void options.onLandingAction?.(event.detail, route)
           }}
@@ -850,6 +892,54 @@ function renderSyncRoute(
     const errorMessage = (error: unknown): string => error instanceof Error ? error.message : String(error)
     const userNotConfirmed = (error: unknown): boolean =>
       Boolean(error && typeof error === 'object' && 'isUserNotConfirmed' in error && error.isUserNotConfirmed)
+    const alreadyConfirmed = (error: unknown): boolean =>
+      Boolean(error && typeof error === 'object' && 'isAlreadyConfirmed' in error && error.isAlreadyConfirmed)
+
+    // What this page's person typed to sign up or sign in, held in memory only until the ONE automatic
+    // sign-in it is held for begins (then it is gone, whatever comes of it; see `continueAsConfirmed`), so that
+    // an account that turns out to be confirmed can be signed in without asking again. Never stored; also
+    // dropped the moment the account is confirmed by the person's own code, or signs in.
+    let held: { readonly identities: readonly string[]; readonly password: string } | null = null
+    const sameAccount = (a: string, b: string): boolean => a.trim().toLowerCase() === b.trim().toLowerCase()
+
+    /**
+     * The account is confirmed (Cognito said so in its own words: the trigger failed after the
+     * confirmation committed, or the confirmation or the resend found it already done). Say so. When
+     * the person was confirming (`attemptSignIn`) and this page still holds the password for the account,
+     * sign in; a resend is a request for a new code, not to be signed in, so it only says so and opens
+     * the sign-in form. Never claim more than is known: if the sign-in itself says the account is not
+     * confirmed, the code form stays and says that.
+     */
+    const continueAsConfirmed = async (page: MnAuthPage, identity: string, attemptSignIn: boolean): Promise<void> => {
+      page.verifyError = ''
+      // The held password is SPENT by this one attempt, and gone the moment it begins (Vera, 2026-10-03: not for
+      // the page's life): taken out of `held` before anything is awaited, so whatever comes of the sign-in
+      // (signed in, refused, "not confirmed" after all) and whatever arrives while it is in flight (a second
+      // confirmation, a resend) finds nothing to use. Only the call below still holds it, for as long as it runs.
+      const credentials = attemptSignIn && held?.identities.some(known => sameAccount(known, identity)) ? held : null
+      held = null
+      if (credentials && options.authActions) {
+        try {
+          await options.authActions.signIn({ identity: credentials.identities[0] ?? identity, password: credentials.password })
+          page.verifyStatus = 'success'
+          await options.onAuthSuccess?.('signin', route)
+          return
+        } catch (error) {
+          if (userNotConfirmed(error)) {
+            page.verifyStatus = 'error'
+            page.verifyError = errorMessage(error)
+            return
+          }
+          // Any other refusal of this automatic attempt is not the person's to read: the sign-in
+          // form below says what to do.
+        }
+      }
+      page.verifyStatus = 'success'
+      page.signInStatus = 'idle'
+      page.signInError = ''
+      page.successMessage = ACCOUNT_CONFIRMED_MESSAGE
+      page.mode = 'signin'
+    }
 
     const signIn = async (event: CustomEvent<MnAuthSignInDetail>): Promise<void> => {
       const page = pageFrom(event)
@@ -859,12 +949,14 @@ function renderSyncRoute(
         await options.onAuthSignIn?.(event.detail, route)
         if (!options.authActions) return
         await options.authActions.signIn(event.detail)
+        held = null
         page.signInStatus = 'success'
         await options.onAuthSuccess?.('signin', route)
       } catch (error) {
         page.signInStatus = 'error'
         page.signInError = errorMessage(error)
         if (userNotConfirmed(error)) {
+          held = { identities: [event.detail.identity], password: event.detail.password }
           page.mode = 'verify'
           page.pendingIdentity = event.detail.identity
         }
@@ -882,9 +974,11 @@ function renderSyncRoute(
         page.signUpStatus = 'success'
         page.pendingIdentity = result.identity ?? event.detail.username
         if (result.confirmed) {
+          held = null
           page.mode = 'signin'
           page.successMessage = 'Account created. Sign in to continue.'
         } else {
+          held = { identities: [page.pendingIdentity, event.detail.email], password: event.detail.password }
           page.mode = 'verify'
           page.deliveryDestination = result.deliveryDestination ?? event.detail.email
           page.deliveryMedium = result.deliveryMedium ?? ''
@@ -904,11 +998,16 @@ function renderSyncRoute(
         await options.onAuthVerifyEmail?.(event.detail, route)
         if (!options.authActions) return
         await options.authActions.verifyEmail(event.detail)
+        held = null
         page.verifyStatus = 'success'
         page.mode = 'signin'
         page.successMessage = 'Email verified. Sign in to continue.'
         await options.onAuthSuccess?.('verify', route)
       } catch (error) {
+        if (alreadyConfirmed(error)) {
+          await continueAsConfirmed(page, event.detail.identity, true)
+          return
+        }
         page.verifyStatus = 'error'
         page.verifyError = errorMessage(error)
       }
@@ -927,6 +1026,10 @@ function renderSyncRoute(
         page.deliveryMedium = result.deliveryMedium ?? page.deliveryMedium
         page.successMessage = 'A new verification code has been sent.'
       } catch (error) {
+        if (alreadyConfirmed(error)) {
+          await continueAsConfirmed(page, event.detail.identity, false)
+          return
+        }
         page.verifyStatus = 'error'
         page.verifyError = errorMessage(error)
       }
@@ -961,13 +1064,28 @@ function renderSyncRoute(
   }
 
   litRender(routeFrame(route, html`
-    <wf-studio-shell
-      style="width:100%;height:100%;"
-      .screen=${route.screen}
-      .graphId=${route.graphId}
-      .runId=${route.runId}
-    ></wf-studio-shell>
+    <choreo-modes-surface style="width:100%;height:100%;"></choreo-modes-surface>
   `, options), host)
+}
+
+/** Scrub `checkout=` from history first, then report the outcome once. */
+function takeCheckoutReturn(url: URL, host: HTMLElement, options: MountOrganismAppRouteOptions): CheckoutReturnState | null {
+  if (!hasCheckoutParam(url)) return null
+  options.replaceUrl?.(withoutCheckoutParam(url))
+  const outcome = checkoutReturnFrom(url)
+  if (!outcome) return null
+  // What was bought, and the balance from before, come from this tab's own
+  // marker; the return is the only reader, and reading consumes it.
+  const storage = options.checkoutStorage === undefined ? defaultCheckoutStorage() : options.checkoutStorage
+  const pending = takePendingCheckout(storage)
+  // Credits are what is on sale; a plan return is one the tab said it started.
+  const kind: CheckoutKind = pending?.kind ?? 'topup'
+  showCheckoutReturnToast(host.ownerDocument, outcome, kind)
+  return {
+    outcome,
+    kind,
+    baselineMicroUsd: outcome === 'success' && kind === 'topup' ? pending?.baselineMicroUsd ?? null : null,
+  }
 }
 
 export function mountOrganismAppRoute(
@@ -982,6 +1100,7 @@ export function mountOrganismAppRoute(
 
   let destroyed = false
   let cleanup: (() => void) | null = null
+  const checkout = route.kind === 'settings' ? takeCheckoutReturn(asUrl(locationLike), host, options) : null
   const ready = (async () => {
     if (route.kind === 'home') {
       litRender(routeFrame(route, html`<div class="garden-home-route-mount"></div>`, options), host)
@@ -1010,7 +1129,9 @@ export function mountOrganismAppRoute(
       return
     }
     if (route.kind === 'settings' && options.settingsService) {
-      const routeCleanup = await renderSettingsRoute(host, route, options, () => !destroyed)
+      const routeCleanup = await renderSettingsRoute(
+        host, route, options, () => !destroyed, checkout, topUpPreselectFromUrl(asUrl(locationLike)),
+      )
       if (destroyed) routeCleanup()
       else cleanup = routeCleanup
       return

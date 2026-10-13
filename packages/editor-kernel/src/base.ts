@@ -32,6 +32,7 @@
  */
 
 import type { Extensions } from '@tiptap/core'
+import { Node } from '@tiptap/core'
 import { StarterKit } from '@tiptap/starter-kit'
 import { TextAlign } from '@tiptap/extension-text-align'
 import { TextStyle } from '@tiptap/extension-text-style'
@@ -50,7 +51,7 @@ import {
 } from './extensions/copyable-code-block'
 
 /** The schema/interaction posture selected by a kernel host. */
-export type KernelProfile = 'document' | 'composer'
+export type KernelProfile = 'document' | 'composer' | 'source'
 
 /** Options for the base roster. */
 export interface BaseExtensionsOptions {
@@ -83,6 +84,20 @@ export interface BaseExtensionsOptions {
  * Collaboration extension owns it. See the HISTORY-OWNERSHIP HANDOFF note above.
  */
 export function baseExtensions(opts: BaseExtensionsOptions = {}): Extensions {
+  if (opts.profile === 'source') {
+    return [
+      Node.create({ name: 'doc', topNode: true, content: 'codeBlock' }),
+      StarterKit.configure({
+        document: false, paragraph: false, blockquote: false, bulletList: false,
+        heading: false, horizontalRule: false, listItem: false, listKeymap: false,
+        orderedList: false, bold: false, italic: false, code: false, strike: false,
+        underline: false, link: false, hardBreak: false, trailingNode: false,
+        gapcursor: false, dropcursor: false,
+        codeBlock: { exitOnTripleEnter: false, exitOnArrowDown: false },
+        undoRedo: opts.collaborative ? false : {},
+      }),
+    ]
+  }
   if (opts.profile === 'composer') {
     return [
       StarterKit.configure({

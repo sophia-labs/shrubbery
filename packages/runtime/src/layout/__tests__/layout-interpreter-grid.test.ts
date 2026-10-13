@@ -51,6 +51,19 @@ afterEach(() => {
 // ── fixed-source grids ──────────────────────────────────────────────────────
 
 describe('LayoutInterpreter — fixed grid: initial mount', () => {
+  it('caps a reflow track minimum at the available width without changing authored data', async () => {
+    const { registry } = buildTestRegistry()
+    const { broker } = buildTestBroker()
+    const interpreter = new LayoutInterpreter(root, { registry, broker })
+    const doc = freshDocument('grid-1', {
+      'grid-1': gridNode('grid-1', fixedGridChildren([gridCell('x', documentDescriptor('doc-x'))]), { minCellWidth: 640 }),
+    })
+    await interpreter.reconcile(doc, { width: 280, height: 400 })
+    expect(interpreter.gridInteriorElement('grid-1')!.style.gridTemplateColumns).toBe('repeat(auto-fill, minmax(min(100%, 640px), 1fr))')
+    expect(doc.nodes['grid-1']).toMatchObject({ minCellWidth: 640, flow: 'reflow' })
+    await interpreter.dispose()
+  })
+
   it('mounts every cell INSIDE the grid wrapper (the sanctioned nesting exception) with real leases', async () => {
     const { registry, documentFace, mediaFace } = buildTestRegistry()
     const { broker, documentAdapter, blobAdapter } = buildTestBroker()

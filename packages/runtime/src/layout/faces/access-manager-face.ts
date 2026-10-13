@@ -18,7 +18,7 @@
  * property bag.
  *
  * LIVE-VS-DERIVED VERDICT: DERIVED (task brief: "derived/stamp"). Member
- * grants (`GET /graphs/{id}/access`) are a fetch-on-demand, explicitly-
+ * grants (canonical control MCP) are a fetch-on-demand, explicitly-
  * refetchable query (a "Refresh" button, a mutation-triggered reload), never
  * a subscribed/streaming resource. `compute()` bundles the real
  * `AccessGrantService` reference alongside its first-fetch snapshot — the
@@ -60,6 +60,7 @@
  * guard, byte-identical error strings included.
  */
 import type { ResourceLocator, ViewDescriptor } from '@shrubbery/nucleus/layout'
+import { accessUserPrincipal } from '@shrubbery/source/access-control'
 import type {
   AccessGrantEntry,
   AccessGrantService,
@@ -86,6 +87,7 @@ export interface AccessManagerParams {
 /** The derived resource `access.manager`'s adapter computes — a fresh grant-list fetch bundled with the SAME real service for later add/role-change/remove/refresh (this file's own header). */
 export interface AccessManagerResource {
   readonly graphId: string
+  readonly owner?: string
   readonly status: 'ready' | 'error'
   readonly grants: readonly AccessGrantEntry[]
   readonly error: string
@@ -105,8 +107,8 @@ function accessResourceKey(locator: ResourceLocator): ResourceKey {
 
 async function fetchAccessSnapshot(service: AccessGrantService, graphId: string): Promise<AccessManagerResource> {
   try {
-    const grants = await service.list(graphId)
-    return { graphId, status: 'ready', grants, error: '', service }
+    const [grants, owner] = await Promise.all([service.list(graphId), service.owner?.(graphId)])
+    return { graphId, owner, status: 'ready', grants, error: '', service }
   } catch (error) {
     return { graphId, status: 'error', grants: [], error: error instanceof Error ? error.message : String(error), service }
   }
@@ -207,8 +209,12 @@ function memberName(grant: AccessGrantEntry): string {
   return grant.displayName?.trim() || grant.email?.trim() || grant.userId
 }
 
-function currentRoleOf(grants: readonly AccessGrantEntry[], currentUserId: string): WorkspaceGraphRole | 'unknown' {
-  return grants.find((grant) => grant.userId === currentUserId)?.role ?? 'unknown'
+function currentRoleOf(grants: readonly AccessGrantEntry[], currentUserId: string, owner?: string): WorkspaceGraphRole | 'unknown' {
+  // AuthProvider.userId may be the verified bare subject; recipient inputs must
+  // still supply an explicit typed principal. This comparison invents no owner.
+  const principal = currentUserId.includes(':') ? currentUserId : `user:${currentUserId}`
+  if (owner && principal === owner) return 'owner'
+  return grants.find((grant) => grant.userId === principal || grant.userId === currentUserId)?.role ?? 'unknown'
 }
 
 /**
@@ -266,12 +272,13 @@ export function createAccessManagerFace(
       }
       let disposed = false
       let generation = 0
+      let graphOwner = resource.owner
 
       function render(): void {
         el.model = {
           graphId,
           graphTitle,
-          currentRole: currentRoleOf(state.grants, currentUserId()),
+          currentRole: currentRoleOf(state.grants, currentUserId(), graphOwner),
           status: state.status,
           grants: state.grants,
           error: state.error || null,
@@ -282,15 +289,16 @@ export function createAccessManagerFace(
       }
 
       async function reload(): Promise<void> {
-        if (disposed) return
+        if (disposed || (state.busyAction && state.busyAction !== 'refresh')) return
         const gen = ++generation
         state = { ...state, status: 'loading', busyAction: 'refresh', busyUserId: null, error: '', notice: '' }
         render()
         const snapshot = await fetchAccessSnapshot(resource.service, graphId)
         if (disposed || gen !== generation) return
+        if (snapshot.owner) graphOwner = snapshot.owner
         state = {
           status: snapshot.status,
-          grants: snapshot.grants,
+          grants: snapshot.status === 'ready' ? snapshot.grants : state.grants,
           error: snapshot.error,
           notice: '',
           busyUserId: null,
@@ -300,8 +308,13 @@ export function createAccessManagerFace(
       }
 
       function ownerGuarded(): boolean {
-        if (currentRoleOf(state.grants, currentUserId()) !== 'owner') {
+        if (currentRoleOf(state.grants, currentUserId(), graphOwner) !== 'owner') {
           state = { ...state, error: 'Only the workspace owner can manage member access.', notice: '' }
+          render()
+          return false
+        }
+        if (state.status !== 'ready') {
+          state = { ...state, error: state.error || 'Refresh the member list before making an access change.', notice: '' }
           render()
           return false
         }
@@ -313,6 +326,7 @@ export function createAccessManagerFace(
         userId: string,
         operation: () => Promise<void>,
         notice: string,
+        confirmedBy: (rows: readonly AccessGrantEntry[]) => boolean,
       ): Promise<void> {
         if (disposed || state.busyAction || !ownerGuarded()) return
         const gen = ++generation
@@ -322,20 +336,24 @@ export function createAccessManagerFace(
         try {
           await operation()
           mutationAccepted = true
+          if (disposed || gen !== generation) return
           const snapshot = await fetchAccessSnapshot(resource.service, graphId)
           if (disposed || gen !== generation) return
+          if (snapshot.status !== 'ready') throw new Error(snapshot.error)
+          if (!confirmedBy(snapshot.grants)) throw new Error('The refreshed list does not yet confirm the requested grant state.')
+          if (snapshot.owner) graphOwner = snapshot.owner
           state = { status: snapshot.status, grants: snapshot.grants, error: snapshot.error, notice, busyUserId: null, busyAction: null }
         } catch (error) {
           if (disposed || gen !== generation) return
           const detail = error instanceof Error ? error.message : String(error)
           state = {
             ...state,
-            status: state.grants.length > 0 ? 'ready' : 'error',
+            status: 'error',
             busyUserId: null,
             busyAction: null,
             notice: '',
             error: mutationAccepted
-              ? `The access change was accepted, but the member list could not be refreshed. Retry before making another change. ${detail}`
+              ? `The access change was accepted, but current membership could not be confirmed. Refresh before making another change. ${detail}`
               : detail,
           }
         }
@@ -349,8 +367,10 @@ export function createAccessManagerFace(
       el.addEventListener('mn-access-add', (event) => {
         const detail = (event as CustomEvent<AddDetail>).detail
         const userId = detail.userId.trim()
-        if (!userId) {
-          state = { ...state, error: 'A stable member user ID is required.' }
+        try {
+          accessUserPrincipal(userId)
+        } catch (error) {
+          state = { ...state, error: error instanceof Error ? error.message : String(error) }
           render()
           return
         }
@@ -361,16 +381,27 @@ export function createAccessManagerFace(
         }
         const email = detail.email?.trim()
         const displayName = detail.displayName?.trim()
+        if (email || displayName) {
+          state = { ...state, error: 'Access grants do not support email or display-name metadata; use a typed user ID.' }
+          render()
+          return
+        }
         void mutate(
           'add',
           userId,
-          () => resource.service.put(graphId, userId, { role: detail.role, ...(email ? { email } : {}), ...(displayName ? { displayName } : {}) }),
-          `Added ${displayName || email || userId} as ${detail.role}.`,
+          () => resource.service.put(graphId, userId, { role: detail.role }),
+          `Added ${userId} as ${detail.role}.`,
+          rows => rows.some(row => row.userId === userId && row.role === detail.role),
         )
       })
       el.addEventListener('mn-access-role-change', (event) => {
         const detail = (event as CustomEvent<RoleChangeDetail>).detail
         const userId = detail.userId.trim()
+        if (userId === graphOwner) {
+          state = { ...state, error: 'The owner grant cannot be changed through the member access API.', notice: '' }
+          render()
+          return
+        }
         const grant = state.grants.find((candidate) => candidate.userId === userId)
         if (!grant) {
           state = { ...state, error: 'That member is no longer present. Refresh the member list.' }
@@ -393,10 +424,9 @@ export function createAccessManagerFace(
           userId,
           () => resource.service.put(graphId, userId, {
             role: detail.role,
-            ...(grant.email ? { email: grant.email } : {}),
-            ...(grant.displayName ? { displayName: grant.displayName } : {}),
           }),
           `Updated ${memberName(grant)} to ${detail.role}.`,
+          rows => rows.some(row => row.userId === userId && row.role === detail.role),
         )
       })
       el.addEventListener('mn-access-remove', (event) => {
@@ -412,6 +442,11 @@ export function createAccessManagerFace(
         // "The owner grant cannot be removed" (the next one) — production's
         // own ordering, preserved here byte-for-byte.
         if (!ownerGuarded()) return
+        if (userId === graphOwner) {
+          state = { ...state, error: 'The owner grant cannot be removed.', notice: '' }
+          render()
+          return
+        }
         const grant = state.grants.find((candidate) => candidate.userId === userId)
         if (!grant) {
           state = { ...state, error: 'That member is no longer present. Refresh the member list.' }
@@ -426,6 +461,8 @@ export function createAccessManagerFace(
           return
         }
         const proceed = async (): Promise<void> => {
+          const confirmedGeneration = generation
+          const confirmedUser = currentUserId()
           // `confirmRemove` is REQUIRED (wave1 review r1 WRONG: it used to be
           // optional, so an unwired harness removed ANY member — owner grant
           // included, per the guard above notwithstanding — with zero
@@ -436,15 +473,19 @@ export function createAccessManagerFace(
             confirmLabel: 'Remove member',
             cancelLabel: 'Cancel',
           })
-          if (!confirmed) return
+          if (!confirmed || disposed || confirmedGeneration !== generation || confirmedUser !== currentUserId()) return
           // Re-check after the confirm resolves — the SAME defensive re-check
           // `access-grant-controller.ts`'s own `remove()` runs
           // (`this.currentRole !== 'owner'`) for the case role/grants moved
           // while the dialog was open.
           if (!ownerGuarded()) return
-          await mutate('remove', userId, () => resource.service.remove(graphId, userId), `Removed ${memberName(grant)}.`)
+          await mutate('remove', userId, () => resource.service.remove(graphId, userId), `Removed ${memberName(grant)}.`, rows => !rows.some(row => row.userId === userId))
         }
-        void proceed()
+        void proceed().catch(error => {
+          if (disposed) return
+          state = { ...state, error: error instanceof Error ? error.message : String(error), notice: '' }
+          render()
+        })
       })
 
       render()

@@ -97,7 +97,9 @@ const refRoot = refBlocks.get(':root') ?? {}
 // references a scale token like var(--mn-radius-none) resolves it from here.
 const semanticRoot = parseBlocks(read('semantic.css')).get(':root') ?? {}
 const componentRoot = parseBlocks(read('component.css')).get(':root') ?? {}
-const baseRoot: Block = { ...refRoot, ...semanticRoot, ...componentRoot }
+// Mithras Flow's generated reference values (Tier 0, like the ramps).
+const flowRoot = parseBlocks(read('flow-tokens.css')).get(':root') ?? {}
+const baseRoot: Block = { ...refRoot, ...flowRoot, ...semanticRoot, ...componentRoot }
 
 /** Normalize a resolved leaf value: lowercase bare hex colors, leave others. */
 function norm(v: string): string {
@@ -150,7 +152,7 @@ describe('@shrubbery/tokens — reference ramp (Tier 0)', () => {
   })
 
   it('keeps the fern + cobalt ramps for Garden identity + sophia provenance', () => {
-    expect(refRoot['--mn-ref-fern-600']).toBe('#376d57')
+    expect(refRoot['--mn-ref-fern-600']).toBe('#326f4c')
     expect(refRoot['--mn-ref-cobalt-500']).toBe('#1a5fa3') // sophia source, unchanged
   })
 })
@@ -329,7 +331,7 @@ describe('@shrubbery/tokens — Garden skin (the default fern identity)', () => 
   const gBlocks = parseBlocks(read('skin-garden.css'))
   const g = gBlocks.get('[data-skin="garden"]') ?? {}
 
-  it('accent resolves to the quiet-archive FERN-600 #376d57', () => {
+  it('accent resolves to the quiet-archive FERN-600 #326f4c', () => {
     expect(resolveRef(g['--mn-color-accent'])).toBe(GARDEN_ACCENT.accent.toLowerCase())
   })
 
@@ -799,6 +801,9 @@ describe('@shrubbery/tokens — editor material axis', () => {
     ['emporium', 'skin-emporium.css', '[data-skin="emporium"]', '[data-theme="dark"][data-skin="emporium"]', '#4c1d95'],
     ['98', 'skin-98.css', '[data-skin="98"]', '[data-theme="dark"][data-skin="98"]', '#000080'],
     ['glass', 'skin-glass.css', '[data-skin="glass"]', '[data-theme="dark"][data-skin="glass"]', '#168cb8'],
+    ['mithras', 'skin-mithras.css', '[data-skin="mithras"]', '[data-theme="dark"][data-skin="mithras"]', '#111'],
+    // The physical-page accent is the Highlight slot, by reference (the scheme's own selection colour).
+    ['hotdog-stand', 'skin-hotdog-stand.css', '[data-skin="hotdog-stand"]', '[data-theme="dark"][data-skin="hotdog-stand"]', 'var(--mn-hds-highlight)'],
     ['research', 'skin-research.css', '[data-skin="research"]', '[data-theme="dark"][data-skin="research"]', '#586f93'],
     ['greenhouse', 'skin-greenhouse.css', '[data-skin="greenhouse"]', '[data-theme="dark"][data-skin="greenhouse"]', '#2f7d5f'],
     ['observatory', 'skin-observatory.css', '[data-skin="observatory"]', '[data-theme="dark"][data-skin="observatory"]', '#028fad'],
@@ -884,6 +889,8 @@ describe('@shrubbery/tokens — z-layer contract (Tier 1, theme-invariant)', () 
       'skin-emporium.css',
       'skin-98.css',
       'skin-glass.css',
+      'skin-mithras.css',
+      'flow-tokens.css',
       'skin-research.css',
       'skin-greenhouse.css',
       'skin-observatory.css',
@@ -1081,6 +1088,13 @@ describe('@shrubbery/tokens — the {skin,theme} → root-attribute applier', ()
     expect(attrs.get('data-theme')).toBe('light')
   })
 
+  it('hotdog-stand + light stamps [data-skin=hotdog-stand] [data-theme=light]', () => {
+    const { target, attrs } = makeTarget()
+    applySkinTheme({ skin: 'hotdog-stand', theme: 'light', target })
+    expect(attrs.get('data-skin')).toBe('hotdog-stand')
+    expect(attrs.get('data-theme')).toBe('light')
+  })
+
   it('research + light stamps [data-skin=research] [data-theme=light]', () => {
     const { target, attrs } = makeTarget()
     applySkinTheme({ skin: 'research', theme: 'light', target })
@@ -1117,6 +1131,7 @@ describe('@shrubbery/tokens — the {skin,theme} → root-attribute applier', ()
     expect(SKIN_APPLICATIONS.emporium.appliesAttribute).toBe('[data-skin=emporium]')
     expect(SKIN_APPLICATIONS['98'].appliesAttribute).toBe('[data-skin=98]')
     expect(SKIN_APPLICATIONS.glass.appliesAttribute).toBe('[data-skin=glass]')
+    expect(SKIN_APPLICATIONS['hotdog-stand'].appliesAttribute).toBe('[data-skin=hotdog-stand]')
     expect(SKIN_APPLICATIONS.research.appliesAttribute).toBe('[data-skin=research]')
     expect(SKIN_APPLICATIONS.greenhouse.appliesAttribute).toBe('[data-skin=greenhouse]')
     expect(SKIN_APPLICATIONS.observatory.appliesAttribute).toBe('[data-skin=observatory]')
@@ -1143,12 +1158,14 @@ describe('@shrubbery/tokens — the {skin,theme} → root-attribute applier', ()
     expect(attrs.get('data-theme')).toBe('light')
   })
 
-  it('defines one explicit Garden → Sophia → 98 → Glass cycle', () => {
-    expect(VISUAL_IDENTITY_SKINS).toEqual(['garden', 'emporium', '98', 'glass'])
+  it('defines one explicit Garden → Sophia → 98 → Glass → Mithras → Hotdog Stand cycle', () => {
+    expect(VISUAL_IDENTITY_SKINS).toEqual(['garden', 'emporium', '98', 'glass', 'mithras', 'hotdog-stand'])
     expect(nextVisualIdentitySkin('garden')).toBe('emporium')
     expect(nextVisualIdentitySkin('emporium')).toBe('98')
     expect(nextVisualIdentitySkin('98')).toBe('glass')
-    expect(nextVisualIdentitySkin('glass')).toBe('garden')
+    expect(nextVisualIdentitySkin('glass')).toBe('mithras')
+    expect(nextVisualIdentitySkin('mithras')).toBe('hotdog-stand')
+    expect(nextVisualIdentitySkin('hotdog-stand')).toBe('garden')
     expect(nextVisualIdentitySkin('research')).toBe('garden')
   })
 

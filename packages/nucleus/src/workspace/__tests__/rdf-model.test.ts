@@ -7,7 +7,7 @@
  *   - the codec round-trips term-for-term for the subset this codebase emits
  *     (IRIs, plain + typed literals, escaped lexical forms);
  *   - parseNT is a faithful inverse of triplesToNT over a REAL payload
- *     (serializeConfigToTriples(GARDEN_DEFAULT), 275 triples);
+ *     (serializeConfigToTriples(GARDEN_DEFAULT), 282 triples);
  *   - the committed .nt seed artifact parses back to the same triple multiset;
  *   - the generic layer carries no vocabulary constants.
  *
@@ -117,7 +117,7 @@ describe('rdf-model — parseNT (the new seam)', () => {
 describe('rdf-model — codec round-trip over the REAL GARDEN_DEFAULT payload', () => {
   it('parseNT(triplesToNT(serialize(GARDEN_DEFAULT))) recovers the triple set', () => {
     const triples = serializeConfigToTriples(GARDEN_DEFAULT)
-    expect(triples.length).toBe(275) // real seed size (239 base + 36 for the 6 slice-1/2 edges) — not a fabricated fixture
+    expect(triples.length).toBe(282) // real seed size: 270 after Choreograph stopped declaring Garden's bottom bar + 6 for the mithras skin value + 6 for the hotdog-stand skin value — not a fabricated fixture
     const back = parseNT(triplesToNT(triples))
     expect(back.length).toBe(triples.length)
     // Multiset equality (order-independent): the codec is a faithful inverse.

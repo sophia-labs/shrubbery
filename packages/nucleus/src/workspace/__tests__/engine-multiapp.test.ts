@@ -151,9 +151,9 @@ describe('WP0.0 — per-app region-sets', () => {
       const choreo = planFor(GARDEN_DEFAULT, 'choreograph')
       expect(choreo.spineHeadId).toBe('region-choreo-center')
       expect(choreo).not.toEqual(planFor(GARDEN_DEFAULT))
-      // shared chrome brackets the choreo-center head on both sides
+      // Choreograph shares the top bar; Garden alone owns the bottom status bar.
       expect(choreo.topChrome).toEqual(['region-top-bar'])
-      expect(choreo.bottomChrome).toEqual(['region-bottom-bar'])
+      expect(choreo.bottomChrome).toEqual([])
     })
 
     it('an app NOT listed in appRootRegions still falls back to garden (WP2.1 safety)', () => {

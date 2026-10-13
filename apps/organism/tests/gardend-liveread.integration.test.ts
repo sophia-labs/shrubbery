@@ -2,7 +2,7 @@
  * REAL integration test — the gardend live-read, end to end, NO MOCKS.
  *
  * This stands up a REAL headless gardend cell (fresh temp profile), seeds its
- * :ux:config NAMED graph with the REAL 275-triple committed seed body, then
+ * :ux:config NAMED graph with the REAL 282-triple committed seed body, then
  * reads it back THROUGH the shell-side ShrubberyContract (createGardendContract
  * → loadConfigFromCell), parses it via the production read path, plans + renders
  * it through @shrubbery/runtime, and asserts the REAL happy-dom DOM (6 regions /
@@ -38,7 +38,7 @@ const nucleusEntry = require_.resolve('@shrubbery/nucleus')
 const nucleusSrcDir = dirname(nucleusEntry)
 const SEED_NT_PATH = resolve(nucleusSrcDir, 'workspace/__generated__/garden-default.ux.nt')
 const SEED_NT = readFileSync(SEED_NT_PATH, 'utf8')
-const EXPECTED_SEED_TRIPLES = 275
+const EXPECTED_SEED_TRIPLES = 282
 
 const GRAPH_ID = 'shrubbery-organism-it'
 
@@ -77,12 +77,12 @@ describe('REAL INTEGRATION — gardend live-read of :ux:config through the contr
     if (cell) await cell.kill()
   })
 
-  it('the seed body we feed the cell is the real 275-triple committed body', () => {
+  it('the seed body we feed the cell is the real 282-triple committed body', () => {
     const triples = parseNT(SEED_NT)
     expect(triples.length).toBe(EXPECTED_SEED_TRIPLES)
   })
 
-  it('reads :ux:config back from the live cell — 275 triples via BOTH read paths', async () => {
+  it('reads :ux:config back from the live cell — 282 triples via BOTH read paths', async () => {
     const read = await loadConfigFromCell(contract, GRAPH_ID)
     // rdf_dump body line count is authoritative (NOT the envelope quadCount).
     expect(read.tripleCount).toBe(EXPECTED_SEED_TRIPLES)

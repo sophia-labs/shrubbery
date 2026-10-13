@@ -13,7 +13,8 @@
  * RENDERS them.
  *
  * The 9 variants map cleanly onto the projector reducers (a later rung's
- * sandbox-adapter folds them):
+ * sandbox-adapter folds them; `cost` is a host addition, not part of the copied
+ * union: it adds up what the calls behind a reply cost and touches nothing else):
  *   text       -> appendDelta
  *   thinking   -> appendReasoningDelta
  *   tool_call  -> updateToolCall (pending/running)
@@ -35,12 +36,17 @@ export type ChatEvent =
   | { type: 'turn_start'; turn: number }
   | { type: 'text'; content: string }
   | { type: 'thinking'; content: string }
-  | { type: 'tool_call'; gate: string; args: Record<string, unknown> }
-  | { type: 'tool_result'; gate: string; result: string; is_error: boolean }
+  /** `metadata` is a host addition (like `cost`): the host's id-only receipt of what the call touched
+   * (`targets`), when its record keeps one. The fold puts it on `ToolCall.metadata`. */
+  | { type: 'tool_call'; gate: string; args: Record<string, unknown>; metadata?: Record<string, unknown> }
+  | { type: 'tool_result'; gate: string; result: string; is_error: boolean; metadata?: Record<string, unknown> }
   | { type: 'turn_end'; turn: number }
   | { type: 'done'; output: string }
   | { type: 'truncated'; output: string; turns: number }
   | { type: 'error'; message: string }
+  /** The settled cost of ONE model call behind the current reply, in micro-USD. The host
+   * reads it off the session's ledger; the fold adds the calls of a reply up. */
+  | { type: 'cost'; microUsd: number }
 
 /** Congruent provenance alias — the choreograph wire name for the same union. */
 export type SandboxEvent = ChatEvent

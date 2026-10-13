@@ -5,6 +5,8 @@ import {
   NamedQueryRegistry,
   NamedQueryRegistrySealedError,
   NamedQueryResolutionError,
+  createQueryTextResolver,
+  isEmbeddableFocusIri,
   isEmbeddableGraphId,
   isNamedQueryRef,
 } from '../named-query-registry.js'
@@ -72,5 +74,71 @@ describe('NamedQueryRegistry', () => {
     } catch (error) {
       expect(error).toMatchObject({ reason: 'unsafe-graph-id' })
     }
+  })
+})
+
+describe('NamedQueryRegistry — the {{focus}} placeholder (el Despacho W1)', () => {
+  const FOCUS = 'urn:mnemosyne:local:graph:sophia-cluster:projection:cuentas:cuenta:sirin-g-slice-accepted'
+  const focused = {
+    name: 'urn:sophia:query:cuenta.children',
+    text: 'SELECT ?item WHERE { GRAPH ?g { ?item ?edge <{{focus}}> } }',
+    description: 'beads pointing at the focus',
+  } as const
+
+  it('registers a focus-bearing definition and reports usesFocus; still refuses unknown placeholders', () => {
+    const registry = new NamedQueryRegistry()
+    registry.register(focused)
+    registry.register(definition)
+    expect(registry.usesFocus(focused.name)).toBe(true)
+    expect(registry.usesFocus(definition.name)).toBe(false)
+    expect(registry.usesFocus('urn:sophia:query:never.registered')).toBe(false)
+    expect(invalid('urn:sophia:query:x', 'SELECT {{cursor}}').reason).toBe('unknown-placeholder')
+  })
+
+  it('substitutes the focus into a named query and refuses a missing or unsafe one, in that order', () => {
+    const registry = new NamedQueryRegistry()
+    registry.register(focused)
+    expect(registry.resolve(focused.name, 'sophia-cluster', FOCUS)).toBe(
+      `SELECT ?item WHERE { GRAPH ?g { ?item ?edge <${FOCUS}> } }`,
+    )
+    expect(() => registry.resolve(focused.name, 'sophia-cluster')).toThrowError(NamedQueryResolutionError)
+    try {
+      registry.resolve(focused.name, 'sophia-cluster')
+    } catch (error) {
+      expect(error).toMatchObject({ reason: 'missing-focus' })
+    }
+    try {
+      registry.resolve(focused.name, 'sophia-cluster', 'urn:x> } } DROP ALL #')
+    } catch (error) {
+      expect(error).toMatchObject({ reason: 'unsafe-focus' })
+    }
+    // A definition WITHOUT the placeholder ignores a supplied focus.
+    registry.register(definition)
+    expect(registry.resolve(definition.name, 'observatory', FOCUS)).not.toContain(FOCUS)
+  })
+
+  it('gates the focus grammar: absolute IRIs only, none of the splice-breaking characters', () => {
+    expect(isEmbeddableFocusIri(FOCUS)).toBe(true)
+    expect(isEmbeddableFocusIri('https://sophia.ai/x#y')).toBe(true)
+    for (const focus of ['', 'sirin-g-slice-accepted', 'urn:a b', 'urn:a"b', "urn:a'b", 'urn:a<b>', 'urn:a\\b', 'urn:{{focus}}', 'urn:a|b', `urn:${'a'.repeat(2001)}`]) {
+      expect(isEmbeddableFocusIri(focus), focus).toBe(false)
+    }
+  })
+
+  it('the resolver honours the placeholder in raw text under allow-raw and refuses it without a focus', () => {
+    const registry = new NamedQueryRegistry()
+    registry.register(focused)
+    registry.seal()
+    const resolver = createQueryTextResolver({ registry, rawTextPolicy: 'allow-raw' })
+    const raw = 'SELECT ?p ?o WHERE { GRAPH ?g { <{{focus}}> ?p ?o } }'
+    expect(resolver.resolve({ kind: 'query', graphId: 'sophia-cluster', queryId: raw, focus: FOCUS })).toBe(
+      `SELECT ?p ?o WHERE { GRAPH ?g { <${FOCUS}> ?p ?o } }`,
+    )
+    expect(() => resolver.resolve({ kind: 'query', graphId: 'sophia-cluster', queryId: raw })).toThrowError(
+      NamedQueryResolutionError,
+    )
+    expect(resolver.resolve({ kind: 'query', graphId: 'sophia-cluster', queryId: focused.name, focus: FOCUS })).toContain(FOCUS)
+    // Raw text WITHOUT the placeholder is untouched by a supplied focus.
+    expect(resolver.resolve({ kind: 'query', graphId: 'sophia-cluster', queryId: 'SELECT 1', focus: FOCUS })).toBe('SELECT 1')
   })
 })

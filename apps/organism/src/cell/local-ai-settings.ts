@@ -13,10 +13,14 @@ import type {
   MnSettingsSection,
 } from '@shrubbery/components'
 import type { ShrubberyContract } from '@shrubbery/nucleus'
+import { cellAuthHeaders } from './cell-auth-headers.js'
 
 type LocalAiContract = Pick<ShrubberyContract, 'auth' | 'runtime'>
 
 export interface GardendLocalAiSettingsOptions {
+  readonly runtimeMode?: 'local' | 'hosted'
+  /** Fresh authenticated role hint; the server still checks every mutation. */
+  readonly canWrite?: () => Promise<boolean>
   readonly fetch?: typeof fetch
   readonly pollIntervalMs?: number
   readonly jobTimeoutMs?: number
@@ -51,12 +55,14 @@ interface SemanticModelDescriptor extends JsonRecord {
 }
 
 interface SemanticIndexStatus extends JsonRecord {
+  readonly exists?: boolean
   readonly documentCount?: number
   readonly blockCount?: number
   readonly staleDocumentCount?: number
   readonly indexedAt?: string | null
   readonly compatible?: boolean
   readonly reason?: string | null
+  readonly compatibilityReason?: string | null
 }
 
 interface PdfEngineDescriptor extends JsonRecord {
@@ -159,15 +165,16 @@ async function responseValue(response: Response): Promise<unknown> {
 
 function modelReadiness(status: SemanticModelStatus | null): { label: string; tone: 'success' | 'warning' | 'danger' | 'neutral' } {
   if (!status) return { label: 'Unavailable', tone: 'danger' }
+  if (status.runtimeAvailable === false) return { label: 'Runtime unavailable', tone: 'danger' }
   if (status.prepared && status.loaded) return { label: 'Prepared and loaded', tone: 'success' }
   if (status.loaded) return { label: 'Loaded for this run', tone: 'success' }
   if (status.prepared) return { label: 'Prepared', tone: 'warning' }
-  if (status.runtimeAvailable === false) return { label: 'Runtime unavailable', tone: 'danger' }
   return { label: 'Setup required', tone: 'warning' }
 }
 
 function indexReadiness(status: SemanticIndexStatus | null): { label: string; tone: 'success' | 'warning' | 'danger' | 'neutral' } {
   if (!status) return { label: 'Unavailable', tone: 'danger' }
+  if (status.exists === false) return { label: 'Not built', tone: 'neutral' }
   if (status.compatible === false) return { label: 'Incompatible', tone: 'danger' }
   if (finiteNumber(status.staleDocumentCount) > 0) return { label: 'Stale', tone: 'warning' }
   if (stringValue(status.indexedAt)) return { label: 'Ready', tone: 'success' }
@@ -180,6 +187,9 @@ function formatCount(value: unknown, singular: string, plural = `${singular}s`):
 }
 
 export class GardendLocalAiSettings {
+  private readonly hosted: boolean
+  private readonly canWrite: () => Promise<boolean>
+  private writable = false
   private readonly fetchImpl: typeof fetch
   private readonly pollIntervalMs: number
   private readonly jobTimeoutMs: number
@@ -196,12 +206,15 @@ export class GardendLocalAiSettings {
   private doclingStatus: DoclingRuntimeStatus | null = null
   private pdfStatus: PdfPipelineStatus | null = null
   private operation: LocalAiOperation | null = null
+  private indexSession: { subject: string; token: string | null | undefined } | null = null
 
   constructor(
     private readonly contract: LocalAiContract,
     private readonly graphId: string,
     options: GardendLocalAiSettingsOptions = {},
   ) {
+    this.hosted = options.runtimeMode === 'hosted'
+    this.canWrite = options.canWrite ?? (async () => !this.hosted)
     const fetchImpl = options.fetch ?? globalThis.fetch
     if (typeof fetchImpl !== 'function') throw new Error('GardendLocalAiSettings: fetch is unavailable')
     this.fetchImpl = fetchImpl.bind(globalThis)
@@ -227,12 +240,7 @@ export class GardendLocalAiSettings {
   }
 
   private headers(extra: HeadersInit = {}): Headers {
-    const headers = new Headers(extra)
-    const token = this.contract.auth.token()
-    if (token) headers.set('Authorization', `Bearer ${token}`)
-    const userId = this.contract.auth.userId()
-    if (userId) headers.set('X-User-ID', userId)
-    return headers
+    return new Headers(cellAuthHeaders(this.contract, Object.fromEntries(new Headers(extra).entries())))
   }
 
   private async request(path: string, init: RequestInit = {}, label = 'Local AI request'): Promise<unknown> {
@@ -257,6 +265,18 @@ export class GardendLocalAiSettings {
   private async read<T>(key: LoadKey, path: string): Promise<T | null> {
     try {
       const value = await this.request(path, {}, `Read ${key}`)
+      if (this.hosted && key === 'model' && (!isRecord(value)
+        || !stringValue(value.modelId) || !stringValue(value.providerId)
+        || typeof value.runtimeAvailable !== 'boolean')) {
+        throw new Error('Hosted embedding service returned an invalid model status.')
+      }
+      if (this.hosted && key === 'index' && (!isRecord(value)
+        || value.graphId !== this.graphId
+        || typeof value.exists !== 'boolean' || typeof value.compatible !== 'boolean'
+        || !['documentCount', 'blockCount', 'staleDocumentCount'].every(field =>
+          typeof value[field] === 'number' && Number.isFinite(value[field]) && (value[field] as number) >= 0))) {
+        throw new Error('Hosted embedding service returned an invalid index status.')
+      }
       this.errors.delete(key)
       return value as T
     } catch (error) {
@@ -266,17 +286,23 @@ export class GardendLocalAiSettings {
   }
 
   async ensureLoaded(force = false): Promise<void> {
-    if (this.loading || (this.loaded && !force)) return
+    if (this.loading) return
+    if (this.loaded && !force) {
+      this.writable = await this.canWrite().catch(() => false)
+      return
+    }
     this.loading = true
-    const [model, approaches, docling, pdf] = await Promise.all([
+    const [model, approaches, docling, pdf, writable] = await Promise.all([
       this.read<SemanticModelStatus>('model', '/api/semantic/model/status'),
-      this.read<readonly IngestionApproach[]>('approaches', '/api/artifacts/ingestion/approaches'),
-      this.read<DoclingRuntimeStatus>('docling', '/api/artifacts/ingestion/docling/status'),
-      this.read<PdfPipelineStatus>('pdf', '/api/artifacts/ingestion/pdf/pipeline'),
+      this.hosted ? null : this.read<readonly IngestionApproach[]>('approaches', '/api/artifacts/ingestion/approaches'),
+      this.hosted ? null : this.read<DoclingRuntimeStatus>('docling', '/api/artifacts/ingestion/docling/status'),
+      this.hosted ? null : this.read<PdfPipelineStatus>('pdf', '/api/artifacts/ingestion/pdf/pipeline'),
+      this.canWrite().catch(() => false),
     ])
     const [models, index] = model
       ? await Promise.all([
-          this.read<readonly SemanticModelDescriptor[]>('models', '/api/semantic/models'),
+          this.hosted || model.providerId === 'remote-embeddings-pool'
+            ? null : this.read<readonly SemanticModelDescriptor[]>('models', '/api/semantic/models'),
           this.read<SemanticIndexStatus>('index', `/api/semantic/index/status/${encodeURIComponent(this.graphId)}`),
         ])
       : [null, null]
@@ -293,6 +319,7 @@ export class GardendLocalAiSettings {
     this.approaches = Array.isArray(approaches) ? approaches.filter(isRecord) : []
     this.doclingStatus = isRecord(docling) ? docling : null
     this.pdfStatus = isRecord(pdf) ? pdf : null
+    this.writable = writable
     this.loading = false
     this.loaded = true
   }
@@ -310,10 +337,13 @@ export class GardendLocalAiSettings {
 
   private selectedModel(): SemanticModelDescriptor | null {
     const selectedId = stringValue(this.modelStatus?.modelId)
-    return this.models.find(model => model.selected)
-      ?? this.models.find(model => stringValue(model.modelId) === selectedId)
-      ?? this.models[0]
-      ?? null
+    return selectedId
+      ? this.models.find(model => stringValue(model.modelId) === selectedId) ?? null
+      : null
+  }
+
+  private hostManagedModel(): boolean {
+    return this.hosted || this.modelStatus?.providerId === 'remote-embeddings-pool'
   }
 
   private currentBatchSize(): number {
@@ -326,6 +356,10 @@ export class GardendLocalAiSettings {
   }
 
   async select(settingId: string, value: string): Promise<void> {
+    if ((settingId === 'semanticModel' || settingId === 'semanticBatchSize') && this.hostManagedModel()) {
+      throw new Error('The hosted embedding model is service-managed, not a workspace setting.')
+    }
+    if (this.hosted && settingId === 'pdfEngine') throw new Error('Local parser configuration is unavailable in hosted settings.')
     this.errors.delete('operation')
     try {
       if (settingId === 'semanticModel') {
@@ -381,15 +415,20 @@ export class GardendLocalAiSettings {
     if (this.operation?.id === 'refresh-semantic-index'
       && (this.operation.status === 'queued' || this.operation.status === 'running')
       && this.operation.backendJobId) {
-      await this.request(
+      const cancelled = await this.indexRequest(
         `/api/semantic/index/refresh/jobs/${encodeURIComponent(this.operation.backendJobId)}`,
         { method: 'DELETE' },
         'Cancel semantic index refresh',
       )
-      this.patchOperation({ status: 'cancelled', detail: 'Semantic index refresh cancelled.', progress: null })
+      if (!isRecord(cancelled) || cancelled.job_id !== this.operation.backendJobId || typeof cancelled.cancelled !== 'boolean') {
+        throw new Error('Semantic index cancellation returned an invalid acknowledgement.')
+      }
+      if (cancelled.cancelled) this.patchOperation({ status: 'cancelled', detail: 'Semantic index refresh cancelled.', progress: null })
+      else this.patchOperation({ detail: stringValue(cancelled.message) || 'Cancellation was not applied; the existing job outcome is unchanged.' })
       return
     }
 
+    this.indexSession = { subject: this.contract.auth.userId(), token: this.contract.auth.token() }
     this.setOperation({
       id: 'refresh-semantic-index',
       label: 'Refresh graph semantic index',
@@ -397,9 +436,9 @@ export class GardendLocalAiSettings {
       detail: `Queuing semantic indexing for ${this.graphId}…`,
       progress: 0,
     })
-    const submit = await this.json('/api/semantic/index/refresh/jobs', 'POST', {
-      graphId: this.graphId,
-      flushBoundary: 'required',
+    const submit = await this.indexRequest('/api/semantic/index/refresh/jobs', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ graphId: this.graphId, flushBoundary: 'required' }),
     }, 'Start semantic index refresh')
     if (!isRecord(submit)) throw new Error('Semantic index refresh returned an invalid job envelope.')
     const jobId = stringValue(submit.job_id ?? submit.jobId)
@@ -409,13 +448,16 @@ export class GardendLocalAiSettings {
     const startedAt = this.now()
     while (true) {
       if (this.now() - startedAt > this.jobTimeoutMs) throw new Error('Semantic index refresh timed out.')
-      const payload = await this.request(
+      const payload = await this.indexRequest(
         `/api/semantic/index/refresh/jobs/${encodeURIComponent(jobId)}`,
         {},
         'Read semantic index refresh',
       )
       if (!isRecord(payload)) throw new Error('Semantic index job returned an invalid status.')
       const status = stringValue(payload.status).toLowerCase()
+      if (this.hosted && (payload.job_id !== jobId || !['queued', 'running', 'succeeded', 'failed', 'cancelled'].includes(status))) {
+        throw new Error('Semantic index job returned an invalid or mismatched status receipt.')
+      }
       const progress = isRecord(payload.progress) ? payload.progress : {}
       const detail = stringValue(progress.message) || `Semantic index refresh ${status || 'running'}.`
       const percent = clampPercent(progress.percent)
@@ -433,6 +475,16 @@ export class GardendLocalAiSettings {
     }
   }
 
+  private async indexRequest(path: string, init: RequestInit = {}, label: string): Promise<unknown> {
+    const session = this.indexSession
+    const sameSession = () => session && session.subject === this.contract.auth.userId()
+      && session.token === this.contract.auth.token()
+    if (!sameSession()) throw new Error('Session changed; reopen Settings before controlling this index job.')
+    const result = await this.request(path, init, label)
+    if (!sameSession()) throw new Error('Session changed while reading the index job; its outcome is unconfirmed.')
+    return result
+  }
+
   private async prepareDocling(): Promise<void> {
     this.setOperation({
       id: 'prepare-docling',
@@ -447,6 +499,17 @@ export class GardendLocalAiSettings {
   }
 
   async job(jobId: string): Promise<void> {
+    if (jobId === 'prepare-semantic-model' && this.hostManagedModel()) {
+      throw new Error('The hosted embedding model is prepared by the service.')
+    }
+    if (this.hosted && jobId === 'prepare-docling') throw new Error('Local parser preparation is unavailable in hosted settings.')
+    if (jobId === 'refresh-semantic-index' && !await this.canWrite()) {
+      throw new Error('An editor or owner role is required to refresh this workspace’s semantic index.')
+    }
+    if (jobId === 'refresh-semantic-index' && this.hosted
+      && (!this.indexStatus || !this.modelStatus || this.modelStatus.runtimeAvailable === false)) {
+      throw new Error('The hosted embedding runtime and graph index status must be available before refreshing.')
+    }
     this.errors.delete('operation')
     if (jobId === 'refresh-local-ai') {
       await this.ensureLoaded(true)
@@ -475,8 +538,8 @@ export class GardendLocalAiSettings {
       actionLabel: this.operation.status === 'queued' || this.operation.status === 'running'
         ? (id === 'refresh-semantic-index' ? 'Cancel' : null)
         : fallback.actionLabel,
-      disabled: (this.operation.status === 'queued' || this.operation.status === 'running')
-        && id !== 'refresh-semantic-index',
+      disabled: fallback.disabled || ((this.operation.status === 'queued' || this.operation.status === 'running')
+        && id !== 'refresh-semantic-index'),
     }
   }
 
@@ -492,9 +555,13 @@ export class GardendLocalAiSettings {
       metrics.push({
         id: 'semantic-model-status',
         label: 'Embedding model',
-        value: stringValue(model?.displayName ?? this.modelStatus.displayName ?? model?.modelId ?? this.modelStatus.modelId) || 'Unknown',
+        value: stringValue(this.modelStatus.displayName) || stringValue(this.modelStatus.modelId) || 'Unknown',
         detail: modelState.label,
         tone: modelState.tone,
+      })
+      if (this.hosted) metrics.push({
+        id: 'semantic-provider', label: 'Embedding provider',
+        value: stringValue(this.modelStatus.providerId), detail: stringValue(this.modelStatus.modelId),
       })
     }
     if (this.indexStatus) {
@@ -525,7 +592,7 @@ export class GardendLocalAiSettings {
     }
 
     const selects: Array<NonNullable<MnSettingsSection['selects']>[number]> = []
-    if (this.models.length && model) {
+    if (this.models.length && model && !this.hostManagedModel()) {
       selects.push({
         id: 'semanticModel',
         label: 'Embedding model',
@@ -569,7 +636,7 @@ export class GardendLocalAiSettings {
     }
 
     const jobs: MnSettingsJob[] = []
-    if (this.modelStatus && this.models.length) {
+    if (this.modelStatus && this.models.length && !this.hostManagedModel()) {
       jobs.push(this.operationJob('prepare-semantic-model', {
         id: 'prepare-semantic-model',
         label: 'Prepare embedding model',
@@ -583,13 +650,15 @@ export class GardendLocalAiSettings {
       jobs.push(this.operationJob('refresh-semantic-index', {
         id: 'refresh-semantic-index',
         label: 'Refresh graph semantic index',
-        status: this.indexStatus.indexedAt ? (finiteNumber(this.indexStatus.staleDocumentCount) ? 'idle' : 'ready') : 'idle',
-        detail: stringValue(this.indexStatus.reason) || `Flush persisted document projections, then index ${this.graphId}.`,
+        status: this.indexStatus.exists !== false && this.indexStatus.compatible !== false && this.indexStatus.indexedAt
+          ? (finiteNumber(this.indexStatus.staleDocumentCount) ? 'idle' : 'ready') : 'idle',
+        detail: stringValue(this.indexStatus.compatibilityReason) || stringValue(this.indexStatus.reason)
+          || (this.writable ? `Flush persisted document projections, then index ${this.graphId}.` : 'An editor or owner role is required to refresh this workspace’s index.'),
         actionLabel: 'Refresh',
-        disabled: this.loading || this.modelStatus?.runtimeAvailable === false,
+        disabled: this.loading || !this.writable || this.modelStatus?.runtimeAvailable === false,
       }))
     }
-    if (this.doclingStatus?.supported !== false) {
+    if (!this.hosted && this.doclingStatus && this.doclingStatus.supported !== false) {
       const available = this.doclingStatus?.available === true
       jobs.push(this.operationJob('prepare-docling', {
         id: 'prepare-docling',
@@ -604,12 +673,14 @@ export class GardendLocalAiSettings {
       id: 'refresh-local-ai',
       label: 'Refresh runtime status',
       status: this.loading ? 'running' : 'idle',
-      detail: this.loading ? 'Reading model, index, and ingestion state…' : 'Read current state from the local cell.',
+      detail: this.loading ? 'Reading runtime state…' : this.hosted
+        ? 'Read current embedding model and graph-index state from the hosted cell.' : 'Read current state from the local cell.',
       actionLabel: 'Refresh',
       disabled: this.loading,
     })
 
     const notes = [...(base.notes ?? [])]
+    if (this.hostManagedModel()) notes.push('The embedding model and pool are managed by the hosted service. Workspace settings do not switch or prepare that shared model.')
     for (const key of LOAD_KEYS) {
       const message = this.errors.get(key)
       if (message) notes.push(`${key === 'pdf' ? 'PDF pipeline' : key === 'index' ? 'Semantic index' : key === 'model' || key === 'models' ? 'Embedding runtime' : key === 'approaches' ? 'Importer catalog' : 'Docling runtime'}: ${message}`)

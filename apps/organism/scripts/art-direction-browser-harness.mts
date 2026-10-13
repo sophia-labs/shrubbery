@@ -17,7 +17,7 @@ const appDir = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const requestedPort = Number(process.env.SHRUBBERY_ART_DIRECTION_BROWSER_PORT ?? 0)
 const artifactDir = process.env.SHRUBBERY_ART_DIRECTION_ARTIFACT_DIR
   ?? '/private/tmp/shrubbery-art-direction-matrix'
-const skins = ['garden', 'emporium', '98', 'glass', 'research', 'greenhouse'] as const
+const skins = ['garden', 'emporium', '98', 'glass', 'hotdog-stand', 'research', 'greenhouse'] as const
 const themes = ['light', 'dark'] as const
 // The adaptive interaction system (mobile branch, commit 9a781ac) collapses the
 // three-pane desktop workspace into the single-pane mobile shell at and below
@@ -191,8 +191,8 @@ async function appearanceSnapshot(page: Page): Promise<AppearanceSnapshot> {
     const top = document.querySelector<HTMLElement>('mn-top-bar')
     const bottom = document.querySelector<HTMLElement>('mn-bottom-bar')
     const themeButton = top?.shadowRoot?.querySelector<HTMLButtonElement>('button[aria-label="Toggle theme"]')
-    const skinButton = top?.shadowRoot?.querySelector<HTMLButtonElement>('button[data-action="skin"]')
-    if (!top || !bottom || !themeButton || !skinButton) throw new Error('workspace chrome is incomplete')
+    const skinPicker = top?.shadowRoot?.querySelector<HTMLElement>('mn-skin-picker[data-action="skin"]')
+    if (!top || !bottom || !themeButton || !skinPicker) throw new Error('workspace chrome is incomplete')
     // Focus was already driven onto this control via real keyboard navigation
     // (see appearanceSnapshot) so it matches :focus-visible; just read it.
     const focus = getComputedStyle(themeButton)
@@ -211,8 +211,10 @@ async function appearanceSnapshot(page: Page): Promise<AppearanceSnapshot> {
       focusShadow: focus.boxShadow,
       mirroredSkin: top.getAttribute('data-skin'),
       mirroredTheme: top.getAttribute('data-theme'),
-      controlledSkin: skinButton.dataset.activeSkin ?? null,
-      skinActionLabel: skinButton.getAttribute('aria-label'),
+      controlledSkin: (skinPicker as HTMLElement & { value?: string }).value ?? null,
+      // The picker's trigger names the skin that is on ("Visual style: Glass").
+      skinActionLabel: skinPicker.shadowRoot?.querySelector('mn-dropdown-button')?.shadowRoot
+        ?.querySelector<HTMLButtonElement>('.trigger')?.getAttribute('aria-label') ?? null,
       chatComposerBackground: getComputedStyle(composer).backgroundColor,
     }
   })
@@ -422,7 +424,10 @@ try {
         ?.querySelector<HTMLElement>('.toolbar-scroll-shell')
       const editorToolbarEnd = editorToolbar?.shadowRoot
         ?.querySelector<HTMLElement>('[data-toolbar-scroll="end"]')
-      const chromeGroups = ['.masthead', '.app-switcher', '.breadcrumbs', '.actions']
+      // The app launcher (.app-switcher) is a top-layer popover; the visible
+      // chrome groups are the app title, the per-app toolbar, the crumbs and
+      // the actions, left to right.
+      const chromeGroups = ['.app-title', '.app-toolbar', '.breadcrumbs', '.actions']
         .map(selector => topBar.shadowRoot?.querySelector<HTMLElement>(selector)?.getBoundingClientRect())
       const chromeGroupsOrdered = chromeGroups.every((rect, index) => {
         if (!rect) return false

@@ -1,19 +1,23 @@
 <!doctype html>
-<html lang="en" data-skin="garden" data-theme="light">
+<html lang="en" data-theme="light">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />
     <meta name="theme-color" content="#faf9f6" />
     <meta name="description" content="hoja — a quiet notes app. Each note is a seed." />
-    <link rel="icon" type="image/svg+xml" href="./hoja-mark.svg" />
+    <link rel="icon" type="image/svg+xml" href="/hoja-mark.svg" />
     <title>hoja</title>
+    <!-- Garden identity is the token :root default, so no data-skin here:
+         stamping data-skin="garden" re-applied the LIGHT fern top bar and
+         accents over the dark theme (QA P1-5). First paint honours the
+         reader's stored choice; hoja-app owns the theme after that. -->
     <script>
-      const dark = matchMedia('(prefers-color-scheme: dark)')
-      const apply = () => {
-        document.documentElement.dataset.theme = dark.matches ? 'dark' : 'light'
-      }
-      apply()
-      dark.addEventListener('change', apply)
+      ;(() => {
+        let choice = 'system'
+        try { choice = localStorage.getItem('shrubbery.hoja.theme') || 'system' } catch {}
+        const dark = choice === 'dark' || (choice !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches)
+        document.documentElement.dataset.theme = dark ? 'dark' : 'light'
+      })()
     </script>
     <style>
       html,

@@ -539,6 +539,37 @@ describe('C3 — <sh-chat-host> mounts once + survives interface-grow + hydrates
     expect(panelOf(host0)).toBe(panel0)
   })
 
+  it('IMPORTED HISTORY: browsing the private archive preserves the active session and mounted panel', async () => {
+    const svc = makeLocalChatService()
+    const archived = 'urn:sophia:conversation-archive:conversation:' + 'a'.repeat(64)
+    Object.defineProperty(svc, 'archive', { value: {
+      list: async () => ({
+        items: [{ conversationId: archived, graphId: 'cloud1-opencode-archive', revision: { revisionId: 'b'.repeat(64), title: 'An old chat', messageCount: 2, partCount: 2 }, revisionCount: 1 }],
+        nextCursor: null,
+      }),
+    } })
+    const session = await svc.createSession({ title: 'Keep working' })
+    const container = connectedContainer()
+    renderFrame(container, { service: svc, sessionId: session.id })
+    await settle(container)
+    const host = chatHost(container)!, panel = panelOf(host)!
+    await panel.onSessionAction?.({ type: 'open-history' })
+    await settle(container)
+    const option = (name: string) => host.shadowRoot!.querySelector(`[data-chat-history-filter-option="${name}"]`) as HTMLButtonElement | null
+    await until(() => option('imported') !== null)
+    option('imported')!.click()
+    await settle(container)
+    expect(Array.from(host.shadowRoot!.querySelectorAll('[data-chat-history-open]')).map(node => node.getAttribute('data-chat-history-open'))).toEqual([archived])
+    expect(host.shadowRoot!.querySelector('[data-chat-history-select]')).toBeNull()
+    expect(host.store!.getState().sessionId).toBe(session.id)
+    expect(panelOf(host)).toBe(panel)
+    option('all')!.click()
+    await settle(container)
+    expect(host.shadowRoot!.querySelector('[data-chat-history-select]')).not.toBeNull()
+    expect(host.store!.getState().sessionId).toBe(session.id)
+    expect(panelOf(host)).toBe(panel)
+  })
+
   it('SESSION CHROME KEYBOARD: traps the drawer, closes on Escape with focus return, and creates a new active chat', async () => {
     const svc = makeLocalChatService()
     const initial = await svc.createSession({ title: 'Initial' })
@@ -845,7 +876,8 @@ describe('C3 — <sh-chat-host> mounts once + survives interface-grow + hydrates
     expect(callbackDetails).toEqual(eventDetails)
     expect(eventDetails[0].sessionId).toBe(s.id)
     expect(eventDetails[0].messages.some((msg) => msg.content.includes('header context'))).toBe(true)
-    expect(eventDetails[0].defaultHandled).toBe(false)
+    // Save chat to Garden has a default now (the host opens its save dialog); the shell still hears of it.
+    expect(eventDetails[0].defaultHandled).toBe(true)
     expect(eventDetails[1].defaultHandled).toBe(true)
     expect(eventDetails[1].error).toBeNull()
   })
@@ -975,11 +1007,13 @@ describe('C3 — <sh-chat-host> mounts once + survives interface-grow + hydrates
     await until(() => assistantBubble(h)?.textContent?.includes('You said: again') ?? false)
     const assistant = h.store!.getState().messages.find((msg) => msg.role === 'assistant')!
 
+    // A live reply draws no Regenerate button (nothing in the shell acts on it, so none is offered);
+    // the seam behind it still bridges to the Garden-compatible event when something raises it.
     const regenerateButton = panelOf(h)!.querySelector(
       '.message.assistant .message-action-btn[aria-label="Regenerate"]',
     ) as HTMLButtonElement | null
-    expect(regenerateButton).not.toBeNull()
-    regenerateButton!.click()
+    expect(regenerateButton).toBeNull()
+    await panelOf(h)!.onMessageAction!(assistant.id, 'regenerate')
 
     await until(() => actionDetail !== null && regenerateDetail !== null)
     expect(regenerateDetail).toEqual({ messageId: assistant.id, message: assistant })

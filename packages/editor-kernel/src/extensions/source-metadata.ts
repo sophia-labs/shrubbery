@@ -23,6 +23,7 @@ const SOURCE_METADATA_ATTRIBUTES = [
   'data-source-id',
   'data-pdf-page',
   'data-pdf-role',
+  'data-pdf-anchor',
 ] as const
 
 export interface SourceMetadataOptions {
@@ -50,7 +51,7 @@ export const SourceMetadata = Extension.create<SourceMetadataOptions>({
               parseHTML: (element: HTMLElement) => element.getAttribute(attribute),
               renderHTML: (attributes: Record<string, unknown>) => {
                 const value = attributes[attribute]
-                if (value === undefined || value === null || value === '') return {}
+                if (value === undefined || value === null || (value === '' && attribute !== 'data-pdf-anchor')) return {}
                 return { [attribute]: String(value) }
               },
             },

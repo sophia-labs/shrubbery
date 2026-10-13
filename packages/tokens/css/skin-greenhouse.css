@@ -61,9 +61,9 @@
   --mn-color-surface-subtle:   #f1f5f2;
   --mn-color-surface-warm:     #f5f7ef;
   --mn-color-surface-sunken:   #e8eeea;
-  --mn-color-surface-hover:    rgba(var(--greenhouse-accent-ch), 0.07);
-  --mn-color-surface-active:   rgba(var(--greenhouse-accent-ch), 0.12);
-  --mn-color-surface-accent-subtle: rgba(var(--greenhouse-accent-ch), 0.08);
+  --mn-color-surface-hover:    rgb(var(--greenhouse-accent-ch) / 0.07);
+  --mn-color-surface-active:   rgb(var(--greenhouse-accent-ch) / 0.12);
+  --mn-color-surface-accent-subtle: rgb(var(--greenhouse-accent-ch) / 0.08);
   --mn-color-surface-accent-strong: #d9ebe1;
   --mn-color-backdrop: rgba(15, 31, 23, 0.28);
   --mn-atmosphere:
@@ -196,7 +196,7 @@
   --greenhouse-accent-ch:     136 201 172;
 
   --mn-color-accent-ch:      var(--greenhouse-accent-ch);
-  --mn-color-surface-accent: rgba(var(--greenhouse-accent-ch), 0.14);
+  --mn-color-surface-accent: rgb(var(--greenhouse-accent-ch) / 0.14);
   --mn-focus-ring-color:     rgb(var(--greenhouse-accent-ch) / 0.72);
   --mn-color-info:           #8ec8dd;
   --mn-color-info-strong:    #b8e1ee;
@@ -214,10 +214,10 @@
   --mn-color-surface-subtle:   #18201d;
   --mn-color-surface-warm:     #22271f;
   --mn-color-surface-sunken:   rgba(0, 0, 0, 0.26);
-  --mn-color-surface-hover:    rgba(var(--greenhouse-accent-ch), 0.08);
-  --mn-color-surface-active:   rgba(var(--greenhouse-accent-ch), 0.14);
-  --mn-color-surface-accent-subtle: rgba(var(--greenhouse-accent-ch), 0.09);
-  --mn-color-surface-accent-strong: rgba(var(--greenhouse-accent-ch), 0.20);
+  --mn-color-surface-hover:    rgb(var(--greenhouse-accent-ch) / 0.08);
+  --mn-color-surface-active:   rgb(var(--greenhouse-accent-ch) / 0.14);
+  --mn-color-surface-accent-subtle: rgb(var(--greenhouse-accent-ch) / 0.09);
+  --mn-color-surface-accent-strong: rgb(var(--greenhouse-accent-ch) / 0.20);
   --mn-color-backdrop: rgba(2, 6, 4, 0.66);
   --mn-atmosphere:
     radial-gradient(circle at 54% -16%, rgba(136, 201, 172, 0.10), transparent 40%),

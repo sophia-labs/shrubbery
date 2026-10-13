@@ -41,7 +41,7 @@ import {
   mergeMessage,
   parseTokens,
 } from './message-projector.js'
-import type { ChatMessage, TokenUsage } from './types.js'
+import type { ChatMessage, TokenUsage, ToolCall } from './types.js'
 
 /** The terminal event the fold observed (drives the host's streaming lifecycle).
  * `null` means the stream ended without an explicit terminal event. */
@@ -53,6 +53,8 @@ export type TerminalType = 'done' | 'truncated' | 'error' | null
 interface FoldCtx {
   /** Resolved streaming assistant message id for the current turn(s). */
   msgId: string | null
+  /** What the model calls seen so far in this fold settled at, in micro-USD. */
+  costMicroUsd: number
   /** In-flight (opened-but-unresolved) synthesized call ids per gate, FIFO. */
   openByGate: Map<string, string[]>
   /** Monotonic per-gate counter — PERSISTS across turns within a spawn. */
@@ -60,7 +62,7 @@ interface FoldCtx {
 }
 
 function createCtx(): FoldCtx {
-  return { msgId: null, openByGate: new Map(), seqByGate: new Map() }
+  return { msgId: null, costMicroUsd: 0, openByGate: new Map(), seqByGate: new Map() }
 }
 
 /** Mint the next `${gate}#${n}` id for a gate and bump its counter. */
@@ -102,7 +104,18 @@ export function projectEvents(
     state = r.state
     if (r.terminal) terminalType = r.terminal
   }
+  // What the calls behind the reply cost, put on the reply once the whole stream has been
+  // read: a call settled before the reply had a single word (it asked for a tool) is not
+  // lost, and folding the same events again never counts a call twice.
+  if (ctx.costMicroUsd > 0 && ctx.msgId) state = withCost(state, ctx.msgId, ctx.costMicroUsd)
   return { state, terminalType }
+}
+
+/** Put a reply's settled cost on it, beside any cost it already carried into the fold. */
+function withCost(state: ProjectorState, id: string, microUsd: number): ProjectorState {
+  const msg = state.messages.find((m) => m.id === id)
+  if (!msg) return state
+  return mergeMessage(state, id, { costMicroUsd: (msg.costMicroUsd ?? 0) + microUsd })
 }
 
 /** Fold a single `ChatEvent` onto the projector. Pure w.r.t. `state`; mutates
@@ -152,6 +165,7 @@ function foldEvent(
           tool: ev.gate,
           status: 'running',
           input: ev.args,
+          ...receiptPatch(state, ctx.msgId!, callId, ev.metadata),
         }),
       }
     }
@@ -170,6 +184,7 @@ function foldEvent(
           tool: ev.gate,
           status: ev.is_error ? 'error' : 'completed',
           output: ev.result,
+          ...receiptPatch(state, ctx.msgId!, callId, ev.metadata),
         }),
       }
     }
@@ -180,28 +195,24 @@ function foldEvent(
     }
     case 'done': {
       // Terminal. Text deltas already built the content; `output` is the
-      // canonical full text used ONLY as a reconciliation fallback when content
-      // is empty (e.g. a turn that produced only tool calls).
+      // canonical full text, used only to RECONCILE: it fills an empty message
+      // (a turn that produced only tool calls) and completes a message the
+      // stream left short. See `settleWithOutput`. A reply that came with no
+      // stream at all is opened from it (see `openUnstreamedReply`).
+      const opened = ctx.msgId ? null : openUnstreamedReply(state, ev.output)
+      if (opened) { state = opened.state; ctx.msgId = opened.messageId }
       const id = ctx.msgId
       if (!id) return { state, terminal: 'done' }
-      const patch: Partial<ChatMessage> = { isStreaming: false }
-      const msg = state.messages.find((m) => m.id === id)
-      if (msg && !msg.content && ev.output) patch.content = ev.output
-      let next = mergeMessage(state, id, patch)
-      next = { ...next, streamingMessageId: null }
-      return { state: next, terminal: 'done' }
+      return { state: settleWithOutput(state, id, ev.output), terminal: 'done' }
     }
     case 'truncated': {
       // Treat as terminal (same as done). The `turns` count is host telemetry,
-      // not render data; `output` reconciles empty content.
+      // not render data; `output` reconciles the content the same way.
+      const opened = ctx.msgId ? null : openUnstreamedReply(state, ev.output)
+      if (opened) { state = opened.state; ctx.msgId = opened.messageId }
       const id = ctx.msgId
       if (!id) return { state, terminal: 'truncated' }
-      const patch: Partial<ChatMessage> = { isStreaming: false }
-      const msg = state.messages.find((m) => m.id === id)
-      if (msg && !msg.content && ev.output) patch.content = ev.output
-      let next = mergeMessage(state, id, patch)
-      next = { ...next, streamingMessageId: null }
-      return { state: next, terminal: 'truncated' }
+      return { state: settleWithOutput(state, id, ev.output), terminal: 'truncated' }
     }
     case 'error': {
       const id = ctx.msgId
@@ -210,7 +221,79 @@ function foldEvent(
       next = { ...next, streamingMessageId: null }
       return { state: next, terminal: 'error' }
     }
+    case 'cost': {
+      // Not a terminal, and not a write: the amounts are added up and put on the reply
+      // when the fold ends. Anything that is not a positive number is nothing.
+      if (Number.isFinite(ev.microUsd) && ev.microUsd > 0) ctx.costMicroUsd += ev.microUsd
+      return { state }
+    }
   }
+}
+
+/**
+ * The host's receipt for a tool call, merged over whatever the call already carried. No receipt, no
+ * key: a call the host said nothing about keeps the metadata it had (null for a new one).
+ */
+function receiptPatch(
+  state: ProjectorState,
+  messageId: string,
+  callId: string,
+  metadata: Record<string, unknown> | undefined,
+): Partial<Pick<ToolCall, 'metadata'>> {
+  if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) return {}
+  const existing = state.messages.find((m) => m.id === messageId)?.toolCalls.find((t) => t.id === callId)?.metadata
+  return { metadata: { ...(existing ?? {}), ...metadata } }
+}
+
+/**
+ * Open the reply for a terminal `output` that arrived with no stream at all, or nothing.
+ *
+ * Seen live (2026-10-01, D-A): a follow-up the host delivers to a still-warm Session is
+ * answered and billed, but its event log carries no `turn.started`, `message.delta` or
+ * `message.completed`; the service ends the turn with `done` carrying the durable answer.
+ * Without this the answer was dropped until the next message or a reload.
+ *
+ * Nothing is opened for an empty output, nor when the reply to the person's last message is
+ * already on screen (the store seeds the fold from a read that may already hold it): a reply
+ * is never shown twice. The new message is built as a streamed one would be (one text part),
+ * so `settleWithOutput` then closes it the same way.
+ */
+function openUnstreamedReply(state: ProjectorState, output: string): { state: ProjectorState; messageId: string } | null {
+  if (!output) return null
+  const last = state.messages[state.messages.length - 1]
+  if (last && last.role === 'assistant') return null
+  const r = adoptMessageId(state, null, true)
+  if (!r.messageId) return null
+  return { state: appendDelta(r.state, r.messageId, output), messageId: r.messageId }
+}
+
+/**
+ * End a turn's message and reconcile its text with the authoritative `output`.
+ *
+ * `output` may only EXTEND what was streamed: when the streamed text is a strict
+ * prefix of it, the missing tail is appended (so `content` and the last text part
+ * agree). It never rewrites text the person has already read, never shortens it,
+ * and never swaps a multi-step reply (text, tools, more text) for its last step:
+ * an output that is not an extension of the streamed text changes nothing. An
+ * empty message takes the output whole.
+ *
+ * Why it exists: a host whose event stream closes early can hand the client the
+ * first words of a reply and then only the durable answer. The service ends such
+ * a turn with a `done` carrying that answer; without this the bubble stayed at
+ * "Read" for "Read and search workspace."
+ */
+function settleWithOutput(state: ProjectorState, id: string, output: string): ProjectorState {
+  const msg = state.messages.find((m) => m.id === id)
+  let next = state
+  if (msg && output) {
+    if (!msg.content) {
+      next = mergeMessage(next, id, { content: output })
+    } else if (output.length > msg.content.length && output.startsWith(msg.content)) {
+      next = appendDelta(next, id, output.slice(msg.content.length))
+    }
+  }
+  next = mergeMessage(next, id, { isStreaming: false })
+  return { ...next, streamingMessageId: null }
 }
 
 /**

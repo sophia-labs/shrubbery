@@ -28,7 +28,7 @@ const PADDING = 4
 const SOURCE_HIGHLIGHT_CSS = [
   'position: fixed',
   'pointer-events: none',
-  'z-index: 999',
+  'z-index: var(--mn-z-wire-overlay, 800)',
   'border: 2px solid var(--mn-color-primary-500, #4a8b6f)',
   'border-radius: 4px',
   'background: rgba(74, 139, 111, 0.1)',
@@ -39,7 +39,7 @@ const SOURCE_HIGHLIGHT_CSS = [
 const TARGET_HIGHLIGHT_CSS = [
   'position: fixed',
   'pointer-events: none',
-  'z-index: 1000',
+  'z-index: calc(var(--mn-z-wire-overlay, 800) + 1)',
   'border: 3px solid var(--mn-color-wire-target, #8b5cf6)',
   'border-radius: 4px',
   'background: rgba(139, 92, 246, 0.15)',

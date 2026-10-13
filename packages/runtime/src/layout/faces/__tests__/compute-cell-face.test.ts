@@ -57,6 +57,12 @@ function result(overrides: Record<string, string> = {}): QueryBlockResult {
 }
 
 describe('compute.cell — closed face and graph adapter', () => {
+  it('fits a narrow allocation and delegates long-output scrolling to its leaf wrapper', () => {
+    const face = createComputeCellFace()
+    const descriptor = { schemaVersion: 1 as const, faceId: COMPUTE_CELL_FACE_ID, resource: { kind: 'iri' as const, iri: CELL_IRI }, params: { graphId: 'fixture' } }
+    expect(face.constraints?.(descriptor)).toEqual({ minWidth: 0, minHeight: 180, overflow: 'scroll' })
+  })
+
   it('is admitted by the graph-authored fragment catalogue', () => {
     const registry = createFragmentFaceRegistry()
     expect(registry.has(COMPUTE_CELL_FACE_ID)).toBe(true)

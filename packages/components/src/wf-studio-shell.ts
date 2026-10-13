@@ -14,6 +14,10 @@ import { icon, iconStyles } from './icons.js'
 import './mn-empty-state.js'
 import './mn-loading.js'
 import './wf-choreograph-view.js'
+import './wf-agent-status-view.js'
+import './wf-development-workspace.js'
+import type { DevelopmentWorkspaceViewState } from '@shrubbery/nucleus'
+import type { WfAgentStatusSubject, WfAgentStatusReadState } from './wf-agent-status-view.js'
 import type {
   WfChoreographStatus,
   WfRunDetail,
@@ -129,7 +133,8 @@ export interface WfRunComparison {
 }
 
 const NAV: ReadonlyArray<{ screen: WfStudioScreen; label: string; iconName: string }> = [
-  { screen: 'home', label: 'Home', iconName: 'history' },
+  { screen: 'development', label: 'Development', iconName: 'code' },
+  { screen: 'home', label: 'Agents', iconName: 'bot' },
   { screen: 'runs', label: 'Runs', iconName: 'database' },
   { screen: 'run', label: 'Monitor', iconName: 'graph' },
   { screen: 'launch', label: 'Launch', iconName: 'zap' },
@@ -154,6 +159,7 @@ export class WfStudioShell extends SkinAware(LitElement) {
 
     :host {
       display: flex;
+      container-type: inline-size;
       width: 100%;
       height: 100%;
       min-height: 0;
@@ -167,6 +173,7 @@ export class WfStudioShell extends SkinAware(LitElement) {
     .shell {
       display: flex;
       width: 100%;
+      height: 100%;
       min-width: 0;
       min-height: 0;
       flex-direction: column;
@@ -632,7 +639,7 @@ export class WfStudioShell extends SkinAware(LitElement) {
       border-radius: var(--mn-radius-control, 4px);
     }
 
-    @media (max-width: 720px) {
+    @container (max-width: 720px) {
       .chrome {
         align-items: flex-start;
         flex-wrap: wrap;
@@ -664,6 +671,7 @@ export class WfStudioShell extends SkinAware(LitElement) {
   `
 
   @property({ type: String }) screen: WfStudioScreen = 'home'
+  @property({ attribute: false }) developmentWorkspace: DevelopmentWorkspaceViewState | null = null
   @property({ type: String }) graphId = ''
   @property({ type: String }) runId = ''
   @property({ type: String, attribute: 'history-status' }) historyStatus: WfChoreographStatus = 'idle'
@@ -674,6 +682,14 @@ export class WfStudioShell extends SkinAware(LitElement) {
   @property({ attribute: false }) provenance: WfRunProvenance | null = null
   @property({ attribute: false }) telemetry: WfTelemetryRun | null = null
   @property({ type: String }) liveMessage = ''
+  @property({ type: String }) agentStatus: WfAgentStatusReadState = 'idle'
+  @property({ type: String }) agentStatusError = ''
+  @property({ type: String }) agentStatusSource = ''
+  @property({ attribute: false }) agentSubjects: readonly WfAgentStatusSubject[] = []
+  @property({ type: String }) selectedAgentIri = ''
+  @property({ type: Boolean }) agentConversationAvailable = false
+  @property({ type: Number }) agentObservedAtMs = 0
+  @property({ type: Number }) agentReceivedAtMonotonicMs = 0
 
   /** Workflow registry + launch contract. */
   @property({ type: String, attribute: 'workflow-status' }) workflowStatus: WfStudioDataStatus = 'idle'
@@ -768,12 +784,13 @@ export class WfStudioShell extends SkinAware(LitElement) {
   }
 
   private _navButton(item: { screen: string; label: string; iconName: string }, active: string): TemplateResult {
-    const isActive = active === item.screen || (active === 'home' && item.screen === 'runs')
+    const isActive = (active==='agents'?'home':active) === item.screen
     return html`
       <button
         type="button"
         class="nav-button"
         data-active=${isActive ? 'true' : 'false'}
+        aria-current=${isActive ? 'page' : 'false'}
         @click=${() => this._navigate(item.screen)}
       >
         ${icon(item.iconName, { size: 13 })} ${item.label}
@@ -807,6 +824,17 @@ export class WfStudioShell extends SkinAware(LitElement) {
         .liveMessage=${this.liveMessage}
       ></wf-choreograph-view>
     `
+  }
+
+  private _renderAgents(): TemplateResult {
+    return html`<wf-agent-status-view
+      .graphId=${this.graphId} .source=${this.agentStatusSource}
+      .status=${this.agentStatus} .error=${this.agentStatusError}
+      .agents=${this.agentSubjects} .selectedAgentIri=${this.selectedAgentIri}
+      .conversationAvailable=${this.agentConversationAvailable}
+      .observedAtMs=${this.agentObservedAtMs} .receivedAtMonotonicMs=${this.agentReceivedAtMonotonicMs}
+      @choreo-run-select=${this._handleRunSelect}
+    ></wf-agent-status-view>`
   }
 
   private _empty(iconName: string, title: string, description: string, mood: 'default' | 'danger' = 'default'): TemplateResult {
@@ -965,7 +993,7 @@ export class WfStudioShell extends SkinAware(LitElement) {
                   this._launchValidation = ''
                 }}
               ></textarea>
-              <span class="field-hint">Fields are projected by the host into the workflow run body; for survey-synthesize use question, doc_ids, doc_query, and k.</span>
+              <span class="field-hint">These fields are sent with the run. For survey-synthesize, use question, doc_ids, doc_query, and k.</span>
             </label>
             ${this._launchValidation ? html`<div class="validation" role="alert">${this._launchValidation}</div>` : nothing}
             ${this.launchError ? html`<div class="validation" role="alert">${this.launchError}</div>` : nothing}
@@ -1035,7 +1063,7 @@ export class WfStudioShell extends SkinAware(LitElement) {
                   </tr>
                 `)}</tbody>
               </table>
-            ` : html`<div class="panel-body node-copy">This projection declares the phase but does not expose agent-node detail.</div>`}
+            ` : html`<div class="panel-body node-copy">This phase is declared, but there is no agent-node detail to show for it.</div>`}
           </section>
         `)}
       </div>
@@ -1251,7 +1279,11 @@ export class WfStudioShell extends SkinAware(LitElement) {
 
   private _renderScreen(screen: string): TemplateResult | typeof nothing {
     switch (screen) {
+      case 'development':
+        return html`<wf-development-workspace .state=${this.developmentWorkspace}></wf-development-workspace>`
       case 'home':
+      case 'agents':
+        return this._renderAgents()
       case 'runs':
         return this._renderHistory()
       case 'run':

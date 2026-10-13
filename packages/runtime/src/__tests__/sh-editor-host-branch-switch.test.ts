@@ -18,7 +18,7 @@
  *       a child of .main, NOT inside any sl-split-panel.
  *     Render 2: renderWorkspaceTemplate(GARDEN_DEFAULT, {app:'choreograph',
  *       editorHost}) — the choreograph branch (region-choreo-center /
- *       wf-studio-shell) has NO editor region, so the anchor VANISHES. THE PROOF:
+ *       choreo-modes-surface) has NO editor region, so the anchor VANISHES. THE PROOF:
  *       host1===host0 && body1===body0 (mount-once survives the anchor disappearing).
  *
  *   SECONDARY — GARDEN_VARIANT relocation (editor → spine leaf) → same identity.
@@ -193,12 +193,17 @@ describe('SE4 — <sh-editor-host> mounts once and survives an app/branch switch
 
     // The choreograph spine has no editor region → the anchor is GONE.
     expect(container.querySelector('[data-center-slot]')).toBeNull()
-    expect(container.querySelector('wf-studio-shell')).not.toBeNull()
+    expect(container.querySelector('choreo-modes-surface')).not.toBeNull()
 
     // THE PROOF: same DOM node + same shadow body across the branch switch.
     expect(host1).toBe(host0)
+    expect(host1?.hidden).toBe(true)
     expect(body1).toBe(body0)
     expect(body1).not.toBeNull()
+
+    await renderAndSettle(container, renderWorkspaceTemplate(GARDEN_DEFAULT, { editorHost: binding }))
+    expect(host(container)).toBe(host0)
+    expect(host0?.hidden).toBe(false)
   })
 
   it('SECONDARY: host survives GARDEN_DEFAULT→GARDEN_VARIANT (editor relocates to the spine leaf)', async () => {
@@ -329,7 +334,7 @@ describe('SE4 — <sh-editor-host> mounts once and survives an app/branch switch
   it('LIVE-MOUNT-ONCE: a LIVE editor (real Y.Doc) survives default→choreograph→default — host + EditorView + content + collab-undo all held, NO remount/data-loss', async () => {
     // The rung B2 load-bearing proof, driven through the REAL workspace template
     // app switch (not just direct binding.set emissions): the default→choreograph
-    // switch VANISHES the editor anchor (region-choreo-center / wf-studio-shell has
+    // switch VANISHES the editor anchor (region-choreo-center / choreo-modes-surface has
     // no editor region — proven by PRIMARY above). With a LIVE editor mounted, the
     // host + its EditorView + the typed content + its room-history lease
     // must ALL survive that switch because render() keeps returning the live body
@@ -388,7 +393,7 @@ describe('SE4 — <sh-editor-host> mounts once and survives an app/branch switch
 
     // The choreograph spine has NO editor region → the anchor is GONE.
     expect(container.querySelector('[data-center-slot]')).toBeNull()
-    expect(container.querySelector('wf-studio-shell')).not.toBeNull()
+    expect(container.querySelector('choreo-modes-surface')).not.toBeNull()
 
     // PROOF (a) — the host ELEMENT identity survived the anchor disappearing.
     expect(host1).toBe(host0)

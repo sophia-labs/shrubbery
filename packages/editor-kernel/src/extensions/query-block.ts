@@ -126,6 +126,8 @@ function createQueryBlockNodeView(options: QueryBlockOptions) {
     const dom = editor.view.dom.ownerDocument.createElement('div')
     dom.className = 'query-block'
     dom.dataset.queryBlock = ''
+    // An embed: the outliner's guide line stops at it.
+    dom.dataset.blockEmbed = ''
     dom.contentEditable = 'false'
 
     const makeRequest = (): QueryBlockRenderRequest => ({

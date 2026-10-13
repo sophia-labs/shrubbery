@@ -1,0 +1,267 @@
+/* ═══ SKIN: Mithras ═══════════════════════════════════════════════════════════
+ * Garden wearing Mithras Flow's own clothes, so Garden beside Flow (the
+ * mithras.local app picker) reads as one product.
+ *
+ * Every Flow value comes from css/flow-tokens.css (--mn-ref-flow-*), which is
+ * GENERATED from Flow's vendored stylesheet and drift-checked by the token
+ * test. This file only MAPS those values onto the --mn-* roles; where Flow has
+ * no value for a role, the value is DERIVED from Flow's tokens (color-mix of
+ * its greys) and marked "derived" below.
+ *
+ * Flow's language, carried over:
+ *   - the whiteboard palette: paper white, near-black ink, three greys, one
+ *     warning red; colour is opt-in, so the accent IS the ink;
+ *   - square corners everywhere; hairline #d9d9d9 rules; ink-edged controls;
+ *   - one shadow: a hard, zero-blur 2px offset (Flow's floating controls);
+ *   - one face: Flow's fallback stack ('Segoe UI', system-ui) — GT Eesti is
+ *     NOT shipped (licence unresolved; Flow on mithras.local renders the same
+ *     fallback), light 300 body with 500 for emphasis;
+ *   - focus = a solid 2px ink ring offset 2px from the edge.
+ *
+ * Floating chrome (menus, popovers, toasts) is SOLID paper with an ink
+ * hairline and the hard offset shadow — Flow has no glass, so neither does
+ * this skin; reduced-transparency is honoured by construction.
+ *
+ * Theme: Flow has no dark mode, so Mithras is a LIGHT-ONLY identity (like
+ * Observatory is dark-only). The dark selector below restates the light roles
+ * at higher specificity so [data-theme=dark] cannot bleed through, and
+ * applySkinTheme() stamps data-theme=light for this skin (SKIN_FIXED_THEME).
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+[data-skin="mithras"],
+[data-theme="dark"][data-skin="mithras"] {
+  color-scheme: light;
+
+  /* ── Type ──────────────────────────────────────────────────────────────── */
+  --mn-font-chrome:  var(--mn-ref-flow-font);
+  --mn-font-prose:   var(--mn-ref-flow-font);
+  --mn-font-display: var(--mn-ref-flow-font-display);
+  --mn-font-serif:   var(--mn-ref-flow-font);
+  --mn-font-sans:    var(--mn-ref-flow-font);
+  --mn-font-utility: var(--mn-ref-flow-font);
+  --mn-font-weight-normal:   var(--mn-ref-flow-weight-body);
+  --mn-font-weight-medium:   var(--mn-ref-flow-weight-strong);
+  --mn-font-weight-semibold: var(--mn-ref-flow-weight-strong);
+  --mn-font-weight-bold:     var(--mn-ref-flow-weight-strong);
+  --mn-tracking-label: var(--mn-ref-flow-label-tracking);
+  --mn-leading-prose: 1.6;
+
+  /* ── Surfaces: paper, and paper-dim for side furniture ─────────────────── */
+  --mn-color-surface-canvas:   var(--mn-ref-flow-paper);
+  --mn-color-surface-base:     var(--mn-ref-flow-paper);
+  --mn-color-surface-editor:   var(--mn-ref-flow-paper);
+  --mn-color-surface-panel:    var(--mn-ref-flow-paper-dim);
+  --mn-color-surface-chrome:   var(--mn-ref-flow-paper);
+  --mn-color-surface-raised:   var(--mn-ref-flow-paper);
+  --mn-color-surface-elevated: var(--mn-ref-flow-paper);
+  --mn-color-surface-overlay:  var(--mn-ref-flow-paper);
+  --mn-color-surface-subtle:   var(--mn-ref-flow-paper-dim);
+  --mn-color-surface-warm:     var(--mn-ref-flow-paper-dim);
+  /* derived: a recessed well, one step below paper-dim toward the line grey */
+  --mn-color-surface-sunken:   color-mix(in srgb, var(--mn-ref-flow-line) 30%, var(--mn-ref-flow-paper-dim));
+  /* Flow's own marquee wash (ink at 5%), and twice that for pressed */
+  --mn-color-surface-hover:    color-mix(in srgb, var(--mn-ref-flow-ink) var(--mn-ref-flow-selection-wash), transparent);
+  --mn-color-surface-active:   color-mix(in srgb, var(--mn-ref-flow-ink) calc(2 * var(--mn-ref-flow-selection-wash)), transparent);
+  /* derived: selected rows are a solid pale grey (the ink wash, flattened) */
+  --mn-color-surface-accent:   color-mix(in srgb, var(--mn-ref-flow-ink) 7%, var(--mn-ref-flow-paper));
+  --mn-color-surface-accent-subtle: color-mix(in srgb, var(--mn-ref-flow-ink) var(--mn-ref-flow-selection-wash), transparent);
+  --mn-color-surface-accent-strong: color-mix(in srgb, var(--mn-ref-flow-ink) 12%, var(--mn-ref-flow-paper));
+  --mn-color-backdrop: color-mix(in srgb, var(--mn-ref-flow-ink) 24%, transparent);
+  --mn-atmosphere: none;
+
+  /* ── Ink ───────────────────────────────────────────────────────────────── */
+  --mn-color-text-primary:       var(--mn-ref-flow-ink);
+  --mn-color-text-title:         var(--mn-ref-flow-ink);
+  --mn-color-text-secondary:     var(--mn-ref-flow-ink-soft);
+  /* derived: Flow's ink-faint (#999) is 2.8:1 on paper — below AA for text —
+     so tertiary/muted text sits between ink-soft and ink-faint, AA on every
+     Mithras surface. ink-faint itself is kept for non-text (disabled edges). */
+  --mn-color-text-tertiary:      color-mix(in srgb, var(--mn-ref-flow-ink-soft) 80%, var(--mn-ref-flow-ink-faint));
+  --mn-color-text-muted:         color-mix(in srgb, var(--mn-ref-flow-ink-soft) 80%, var(--mn-ref-flow-ink-faint));
+  --mn-color-text-quiet:         color-mix(in srgb, var(--mn-ref-flow-ink-soft) 80%, var(--mn-ref-flow-ink-faint));
+  --mn-color-text-inverse:       var(--mn-ref-flow-paper);
+  --mn-color-text-link:          var(--mn-ref-flow-ink);
+  --mn-color-text-link-hover:    var(--mn-ref-flow-ink-soft);
+  --mn-color-text-accent:        var(--mn-ref-flow-ink);
+  --mn-color-text-accent-strong: var(--mn-ref-flow-ink);
+  --mn-color-text-on-accent:     var(--mn-ref-flow-paper);
+  --mn-color-text-danger:        var(--mn-ref-flow-warn);
+  /* derived: Flow is monochrome outside `warn`; status text stays near-ink */
+  --mn-color-text-warning:       #8a4b00;
+  --mn-color-text-success:       #1f6b3a;
+
+  /* ── Rules and edges ───────────────────────────────────────────────────── */
+  --mn-color-border-subtle:  var(--mn-ref-flow-line);
+  --mn-color-border-default: var(--mn-ref-flow-line);
+  --mn-color-border-strong:  var(--mn-ref-flow-ink-soft);
+  --mn-color-border-accent:  var(--mn-ref-flow-ink);
+  --mn-color-border-focus:   var(--mn-ref-flow-ink);
+  --mn-color-rule:           var(--mn-ref-flow-line);
+  --mn-color-rule-strong:    var(--mn-ref-flow-ink-faint);
+
+  /* ── Accent = ink (Flow's toggled buttons invert to ink on paper) ──────── */
+  --mn-color-accent:        var(--mn-ref-flow-ink);
+  --mn-color-accent-hover:  color-mix(in srgb, var(--mn-ref-flow-ink) 82%, var(--mn-ref-flow-ink-soft));
+  --mn-color-accent-active: #000;
+  --mn-color-accent-ch:     17 17 17;
+  --mn-color-interactive-hover:    color-mix(in srgb, var(--mn-ref-flow-ink) var(--mn-ref-flow-selection-wash), transparent);
+  --mn-color-interactive-active:   color-mix(in srgb, var(--mn-ref-flow-ink) calc(2 * var(--mn-ref-flow-selection-wash)), transparent);
+  --mn-color-interactive-selected: color-mix(in srgb, var(--mn-ref-flow-ink) 8%, transparent);
+
+  /* Flow's focus: a solid ink outline offset from the edge (paper gap). */
+  --mn-focus-ring-width: var(--mn-ref-flow-focus-width);
+  --mn-focus-ring-color: var(--mn-ref-flow-ink);
+  --mn-focus-ring:
+    0 0 0 var(--mn-ref-flow-focus-offset) var(--mn-ref-flow-paper),
+    0 0 0 calc(var(--mn-ref-flow-focus-offset) + var(--mn-ref-flow-focus-width)) var(--mn-ref-flow-ink);
+
+  /* ── Status: Flow's warn red; the rest derived, quiet, AA as text ──────── */
+  --mn-color-danger:          var(--mn-ref-flow-warn);
+  --mn-color-danger-strong:   color-mix(in srgb, var(--mn-ref-flow-warn) 80%, #000);
+  --mn-color-danger-surface:  color-mix(in srgb, var(--mn-ref-flow-warn) 8%, var(--mn-ref-flow-paper));
+  --mn-color-danger-border:   var(--mn-ref-flow-warn);
+  --mn-color-action-danger:   var(--mn-ref-flow-warn);
+  --mn-color-on-danger:       var(--mn-ref-flow-paper);
+  --mn-color-warning:         #8a4b00;
+  --mn-color-warning-strong:  #6b3a00;
+  --mn-color-warning-surface: color-mix(in srgb, #8a4b00 8%, var(--mn-ref-flow-paper));
+  --mn-color-warning-border:  #8a4b00;
+  --mn-color-action-warning:  #8a4b00;
+  --mn-color-on-warning:      var(--mn-ref-flow-paper);
+  --mn-color-success:         #1f6b3a;
+  --mn-color-success-strong:  #154a28;
+  --mn-color-success-surface: color-mix(in srgb, #1f6b3a 8%, var(--mn-ref-flow-paper));
+  --mn-color-success-border:  #1f6b3a;
+  --mn-color-info:            var(--mn-ref-flow-ink-soft);
+  --mn-color-info-strong:     var(--mn-ref-flow-ink);
+  --mn-color-info-surface:    var(--mn-ref-flow-paper-dim);
+  --mn-color-info-border:     var(--mn-ref-flow-line);
+
+  /* Roles theme-dark.css also sets: pinned to their light values here so the
+     dark theme cannot bleed into this light-only identity. */
+  --mn-chart-categorical-1: var(--mn-ref-chart-azure-light);
+  --mn-chart-categorical-2: var(--mn-ref-chart-terracotta-light);
+  --mn-chart-categorical-3: var(--mn-ref-chart-violet-light);
+  --mn-chart-categorical-4: var(--mn-ref-chart-chartreuse-light);
+  --mn-chart-categorical-5: var(--mn-ref-chart-magenta-light);
+  --mn-chart-diverging-cool-far:  var(--mn-ref-diverging-light-cool-far);
+  --mn-chart-diverging-cool-mid:  var(--mn-ref-diverging-light-cool-mid);
+  --mn-chart-diverging-cool-near: var(--mn-ref-diverging-light-cool-near);
+  --mn-chart-diverging-mid:       var(--mn-ref-diverging-light-mid);
+  --mn-chart-diverging-warm-near: var(--mn-ref-diverging-light-warm-near);
+  --mn-chart-diverging-warm-mid:  var(--mn-ref-diverging-light-warm-mid);
+  --mn-chart-diverging-warm-far:  var(--mn-ref-diverging-light-warm-far);
+  --mn-chart-status-good:     var(--mn-ref-moss-700);
+  --mn-chart-status-serious:  var(--mn-ref-carmine-600);
+  --mn-chart-status-critical: var(--mn-ref-status-critical-light);
+  --mn-stance-contested-ink:  var(--mn-ref-status-critical-light);
+  --mn-stance-contested-edge: var(--mn-ref-status-critical-edge-light);
+  --mn-stance-contested-wash: var(--mn-ref-status-critical-wash-light);
+
+  /* ── Bars: Flow's toolbar is paper with a hairline under it ────────────── */
+  --mn-top-bar-height:        40px;
+  --mn-top-bar-bg:            var(--mn-ref-flow-paper);
+  --mn-top-bar-border:        var(--mn-ref-flow-line);
+  --mn-top-bar-text:          var(--mn-ref-flow-ink);
+  --mn-top-bar-text-muted:    var(--mn-ref-flow-ink-soft);
+  --mn-bottom-bar-bg:         var(--mn-ref-flow-paper-dim);
+  --mn-bottom-bar-border:     var(--mn-ref-flow-line);
+  --mn-bottom-bar-text:       var(--mn-ref-flow-ink-soft);
+  --mn-bottom-bar-text-muted: var(--mn-ref-flow-ink-soft);
+  --mn-layout-tab-strip-bg:   var(--mn-ref-flow-paper);
+
+  /* ── Geometry: square, compact ─────────────────────────────────────────── */
+  --mn-radius-sm:      0;
+  --mn-radius-default: 0;
+  --mn-radius-md:      0;
+  --mn-radius-lg:      0;
+  --mn-radius-xl:      0;
+  --mn-radius-2xl:     0;
+  --mn-radius-control: 0;
+  --mn-radius-surface: 0;
+  --mn-radius-popover: 0;
+  --mn-row-height:     28px;
+  --mn-control-height: 28px;
+  --mn-texture-display: none;
+  --mn-chrome-rule: 1px solid var(--mn-ref-flow-line);
+
+  /* ── Depth: hairlines at rest; Flow's one hard offset shadow when floating */
+  --mn-shadow-xs: none;
+  --mn-shadow-sm: none;
+  --mn-shadow-md: var(--mn-ref-flow-shadow-hard);
+  --mn-shadow-lg: var(--mn-ref-flow-shadow-hard);
+  --mn-shadow-xl: var(--mn-ref-flow-shadow-hard);
+  --mn-shadow-chrome: none;
+  --mn-shadow-card: none;
+  --mn-shadow-raised: var(--mn-ref-flow-shadow-hard);
+  --mn-shadow-popover: var(--mn-ref-flow-shadow-hard);
+  --mn-shadow-modal: var(--mn-ref-flow-shadow-hard);
+  --mn-shadow-primary: none;
+  --mn-shadow-composer: none;
+  --mn-shadow-composer-focus: var(--mn-focus-ring);
+
+  /* ── Floating-chrome material: solid paper, ink hairline, hard shadow ──── */
+  --mn-material-popover-tint:   var(--mn-ref-flow-paper);
+  --mn-material-popover-solid:  var(--mn-ref-flow-paper);
+  --mn-material-popover-bg:     var(--mn-ref-flow-paper);
+  --mn-material-popover-filter: none;
+  --mn-material-popover-edge:   var(--mn-ref-flow-ink);
+  --mn-material-specular:       0 0 0 transparent;
+  --mn-material-lift:           var(--mn-ref-flow-shadow-hard);
+  --mn-material-popover-shadow: var(--mn-ref-flow-shadow-hard);
+  --mn-window-backdrop-filter:  none;
+
+  /* Physical editor modes keep white paper and take the ink accent. */
+  --mn-editor-paper-accent:       var(--mn-ref-flow-ink);
+  --mn-editor-paper-accent-hover: var(--mn-ref-flow-ink-soft);
+  --mn-editor-paper-accent-soft:  var(--mn-ref-flow-paper-dim);
+  --mn-editor-paper-accent-ch:    17 17 17;
+
+  font-family: var(--mn-font-chrome);
+  font-weight: var(--mn-ref-flow-weight-body);
+}
+
+[data-skin="mithras"] :where(b, strong) {
+  font-weight: var(--mn-ref-flow-weight-strong);
+}
+
+/* More contrast: every grey text role goes to ink-soft, every edge to ink. */
+@media (prefers-contrast: more) {
+  [data-skin="mithras"],
+  [data-theme="dark"][data-skin="mithras"] {
+    --mn-color-text-tertiary: var(--mn-ref-flow-ink-soft);
+    --mn-color-text-muted:    var(--mn-ref-flow-ink-soft);
+    --mn-color-text-quiet:    var(--mn-ref-flow-ink-soft);
+    --mn-color-text-secondary: var(--mn-ref-flow-ink);
+    --mn-top-bar-text-muted:  var(--mn-ref-flow-ink);
+    --mn-bottom-bar-text:     var(--mn-ref-flow-ink);
+    --mn-bottom-bar-text-muted: var(--mn-ref-flow-ink);
+    --mn-color-border-subtle:  var(--mn-ref-flow-ink-soft);
+    --mn-color-border-default: var(--mn-ref-flow-ink-soft);
+    --mn-color-border-strong:  var(--mn-ref-flow-ink);
+    --mn-color-rule:           var(--mn-ref-flow-ink-soft);
+    --mn-top-bar-border:       var(--mn-ref-flow-ink);
+  }
+}
+
+/* Reduced transparency: the washes become solid greys. (The material is
+   already solid; this covers the hover/selection washes.) */
+@media (prefers-reduced-transparency: reduce) {
+  [data-skin="mithras"],
+  [data-theme="dark"][data-skin="mithras"] {
+    --mn-color-surface-hover:        color-mix(in srgb, var(--mn-ref-flow-ink) 5%, var(--mn-ref-flow-paper));
+    --mn-color-surface-active:       color-mix(in srgb, var(--mn-ref-flow-ink) 10%, var(--mn-ref-flow-paper));
+    --mn-color-interactive-hover:    color-mix(in srgb, var(--mn-ref-flow-ink) 5%, var(--mn-ref-flow-paper));
+    --mn-color-interactive-active:   color-mix(in srgb, var(--mn-ref-flow-ink) 10%, var(--mn-ref-flow-paper));
+    --mn-color-interactive-selected: color-mix(in srgb, var(--mn-ref-flow-ink) 8%, var(--mn-ref-flow-paper));
+    --mn-color-backdrop:             color-mix(in srgb, var(--mn-ref-flow-ink) 40%, transparent);
+  }
+}
+
+@media (forced-colors: active) {
+  [data-skin="mithras"],
+  [data-theme="dark"][data-skin="mithras"] {
+    --mn-material-popover-bg:   Canvas;
+    --mn-material-popover-edge: CanvasText;
+  }
+}

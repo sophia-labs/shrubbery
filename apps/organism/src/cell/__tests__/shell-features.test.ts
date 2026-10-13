@@ -64,6 +64,20 @@ class Awareness {
 }
 
 describe('createOrganismShellFeatureHost', () => {
+  it('projects the current hosted profile through the real settings feature', async () => {
+    const host = createOrganismShellFeatureHost()
+    let profile = { userId: 'subject-1', username: 'vera', name: 'Véra', email: 'vera@example.test', emailVerified: true }
+    const base = context(document.createElement('div'))
+    const hosted = { ...base, deploymentMode: 'hosted' as const, contract: {
+      ...base.contract, auth: { ...base.contract!.auth, profile: () => profile },
+    } }
+    try {
+      const service = host.routeOptions(hosted, {}).settingsService!
+      expect(await service.load()).toMatchObject({ runtimeMode: 'hosted', account: profile, userName: 'Véra', userEmail: profile.email })
+      profile = { ...profile, name: 'Updated name', email: '' }
+      expect(await service.load()).toMatchObject({ runtimeMode: 'hosted', account: profile, userName: 'Updated name', userEmail: '' })
+    } finally { host.destroy() }
+  })
   it('persists and reapplies the classic Word editor preference through the shell seam', async () => {
     const values = new Map<string, string>()
     vi.stubGlobal('localStorage', {

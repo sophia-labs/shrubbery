@@ -2,7 +2,7 @@
  * mn-bottom-bar — the CHROME bottom-bar shell (backend-free).
  *
  * STRUCTURE lifted from garden/frontend/src/components/layout/mn-bottom-bar.ts
- * (READ-ONLY source). What garden's bottom bar is: a 3-column grid
+ * (READ-ONLY source). Garden's bottom bar supplies three areas:
  *   left-section(panel toggles + item count) |
  *   center-section(doc stats / selection / block-type) |
  *   right-section(presence + sync + cloud-pill + panel toggles).
@@ -31,7 +31,7 @@
  *     `mn-panel-toggle` and the shell applies the legacy select-or-close grammar.
  *     (detail.panel) and mutates no store.
  *
- * This is a REAL @customElement, not a stub-that-pretends: the grid + the toggle
+ * This is a REAL @customElement, not a stub-that-pretends: the layout + toggle
  * chrome work; the three data areas are inert, clearly-labeled slots rather than
  * faked data.
  *
@@ -60,9 +60,11 @@
  * the hoisted element anymore; THIS shell is too.
  */
 
-import { LitElement, css, html, nothing } from 'lit'
-import { customElement, property } from 'lit/decorators.js'
+import { LitElement, css, html, nothing, type PropertyValues } from 'lit'
+import { customElement, property, state } from 'lit/decorators.js'
 import { SkinAware } from './skin-aware.js'
+import { BEVELLED } from './bevelled-skins.js'
+import { PopoverController } from './popover.js'
 import './mn-presence-inspector.js'
 import './mn-badge.js'
 
@@ -155,6 +157,8 @@ export interface ChromeSourceBadge {
  */
 export interface ChromeSourceStatus {
   readonly badges: readonly ChromeSourceBadge[]
+  /** Current local graph incarnation/epoch, when supplied by the host. */
+  readonly scopeKey?: string
 }
 
 /** The badge kinds that actually open a destination surface (build bundle
@@ -183,12 +187,17 @@ const SOURCE_BADGE_TONE: Readonly<Record<Exclude<ChromeSourceBadgeKind, 'contest
 export class MnBottomBar extends SkinAware(LitElement) {
   static styles = css`
     :host {
-      display: grid;
-      grid-template-columns: var(--mn-left-panel-width, 240px) 1fr var(--mn-right-panel-width, 320px);
-      align-items: center;
-      height: var(--mn-bottom-bar-height, 26px);
+      /* Splitter widths are preferred alignment inputs, not a text budget.
+         When statuses need more space, grow/wrap rather than painting over
+         adjacent controls. A fixed-height grid silently overlapped Connected,
+         mirror badges and panel controls even at 1280px. */
+      display: flex;
+      flex-wrap: wrap;
+      align-items: stretch;
+      height: auto;
       min-height: var(--mn-bottom-bar-height, 26px);
-      flex: 0 0 var(--mn-bottom-bar-height, 26px);
+      flex: 0 0 auto;
+      min-width: 0;
       overflow: visible;
       background: var(--mn-bottom-bar-bg, #fafafa);
       border-top: 1px solid var(--mn-bottom-bar-border, #e5e7eb);
@@ -202,26 +211,24 @@ export class MnBottomBar extends SkinAware(LitElement) {
       z-index: 2;
     }
 
-    /* Collapsed states — driven by reflected boolean attrs (chrome-only). */
-    :host([left-collapsed]) {
-      grid-template-columns: 0 1fr var(--mn-right-panel-width, 320px);
-    }
-    :host([right-collapsed]) {
-      grid-template-columns: var(--mn-left-panel-width, 240px) 1fr min-content;
-    }
-    :host([left-collapsed][right-collapsed]) {
-      grid-template-columns: 0 1fr min-content;
+    .left-section, .center-section, .right-section {
+      box-sizing: border-box;
+      min-width: 0;
+      max-width: 100%;
+      min-height: var(--mn-bottom-bar-height, 26px);
     }
 
     /* ── LEFT section ── */
     .left-section {
       display: flex;
+      flex: 0 1 var(--mn-left-panel-width, 240px);
+      flex-wrap: wrap;
       align-items: center;
       gap: var(--mn-space-2, 6px);
       padding: 0 var(--mn-space-3, 8px);
-      height: 100%;
+      padding-top: 2px;
+      padding-bottom: 2px;
       border-right: 1px solid var(--mn-bottom-bar-border, #e5e7eb);
-      overflow: hidden;
     }
     :host([left-collapsed]) .left-section {
       display: none;
@@ -230,44 +237,110 @@ export class MnBottomBar extends SkinAware(LitElement) {
     /* ── CENTER section (inert data slot) ── */
     .center-section {
       display: flex;
+      flex: 1 1 14rem;
       align-items: center;
       justify-content: center;
       padding: 0 var(--mn-space-4, 12px);
-      height: 100%;
+      padding-top: 2px;
+      padding-bottom: 2px;
       gap: var(--mn-space-2, 6px);
-      overflow: hidden;
       min-width: 0;
     }
 
     /* ── RIGHT section ── */
     .right-section {
       display: flex;
+      flex: 1 1 var(--mn-right-panel-width, 320px);
+      flex-wrap: wrap;
       align-items: center;
       justify-content: flex-end;
       gap: var(--mn-space-2, 6px);
       padding: 0 var(--mn-space-3, 8px);
-      height: 100%;
+      padding-top: 2px;
+      padding-bottom: 2px;
       border-left: 1px solid var(--mn-bottom-bar-border, #e5e7eb);
     }
     .status-group {
       display: inline-flex;
+      flex-wrap: wrap;
       min-width: 0;
       align-items: center;
       gap: var(--mn-space-2, 6px);
+      max-width: 100%;
+    }
+    .status-group > .status-value, [data-item-count] {
       white-space: nowrap;
+    }
+    [data-document-stats] {
+      justify-content: center;
     }
     /* Mirror group (master §3 Slice 4): durable facts about your own work —
        ANNOUNCED (role="status", aria-live="polite", set as attrs in markup). */
     .mirror-group {
+      flex: 0 1 auto;
+      justify-content: flex-end;
       gap: var(--mn-space-1-5, 5px);
     }
+    .source-announcement {
+      position: absolute; width: 1px; height: 1px; padding: 0;
+      overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+    }
+    .source-indicator {
+      display: inline-flex; align-items: center; gap: 5px;
+      min-height: 24px; padding: 2px 7px; border: 1px solid transparent;
+      border-radius: var(--mn-radius-control, 5px); background: transparent;
+      color: var(--mn-bottom-bar-text, #374151); font: inherit; cursor: pointer;
+      white-space: nowrap;
+    }
+    .source-indicator:hover, .source-indicator[aria-expanded='true'] {
+      background: var(--mn-color-surface-hover, #f1f5f9);
+      border-color: var(--mn-color-border-default, #d1d5db);
+    }
+    .source-indicator:focus-visible, .source-close:focus-visible {
+      outline: 2px solid var(--mn-color-focus, #2563eb); outline-offset: 2px;
+    }
+    .source-indicator[data-state='needs-repair'], .source-indicator[data-state='contested'] {
+      color: var(--mn-stance-contested-ink, #880134);
+    }
+    .source-details {
+      display: none; position: fixed; inset: auto; margin: 0;
+      box-sizing: border-box; width: min(320px, calc(100vw - 16px));
+      max-height: calc(100vh - 16px); overflow: auto;
+      padding: 12px; border: 1px solid var(--mn-color-border-default, #d1d5db);
+      border-radius: var(--mn-radius-surface, 8px);
+      background: var(--mn-color-surface-raised, #fff);
+      color: var(--mn-color-text-primary, #111827);
+      box-shadow: var(--mn-shadow-lg, 0 10px 30px rgba(15, 23, 42, .18));
+      font: 12px/1.5 var(--mn-font-utility, system-ui, sans-serif);
+      text-align: left; user-select: text; overflow-wrap: anywhere; z-index: 1000;
+    }
+    .source-details[popover-open] { display: block; }
+    .source-details header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .source-details h2 { margin: 0; font: inherit; font-size: 13px; font-weight: 650; }
+    .source-details p { margin: 6px 0 0; }
+    .source-details ul { list-style: none; padding: 0; margin: 10px 0; }
+    .source-details li + li { margin-top: 12px; }
+    .source-details .source-note { color: var(--mn-color-text-muted, #64748b); font-size: 11px; }
+    .source-close { border: 0; background: transparent; color: inherit; font: inherit; cursor: pointer; min-width: 28px; min-height: 28px; }
     /* Live group: presence + hocuspocus sync + runtime pill — these FLAP, so
        they stay aria-live="off" (set in markup); never announced. */
     .live-group {
+      flex: 0 0 auto;
       gap: var(--mn-space-2, 6px);
     }
     .source-badge {
+      min-width: 0;
+      max-width: 100%;
       font-variant-numeric: tabular-nums;
+    }
+    .source-badge::part(badge) {
+      max-width: 100%;
+      height: auto;
+      min-height: 20px;
+      padding-top: 2px;
+      padding-bottom: 2px;
+      white-space: normal;
+      overflow-wrap: anywhere;
     }
     /* The contested badge alone reads the stance annunciator tokens
        directly (master §2.12) rather than one of mn-badge's Garden-core
@@ -279,7 +352,7 @@ export class MnBottomBar extends SkinAware(LitElement) {
     }
     /* right-collapsed: badges render GLYPH-ONLY (label cleared in the render
        branch below) so their measured width stays constant regardless of
-       the count's digit length — the right column is min-content (below),
+       the count's digit length — the collapsed section sizes to its content,
        so a 3-count badge growing to a 130-count badge would otherwise
        reflow the centre column; tabular numerals equalise per-digit width,
        not total width. */
@@ -364,6 +437,7 @@ export class MnBottomBar extends SkinAware(LitElement) {
       text-transform: none;
     }
     .sync-state {
+      flex-shrink: 0;
       display: inline-flex;
       align-items: center;
       gap: 4px;
@@ -380,6 +454,7 @@ export class MnBottomBar extends SkinAware(LitElement) {
     .sync-state[data-state='reconnecting'] .sync-dot { background: var(--mn-color-warning, #d97706); }
     .sync-state[data-state='error'] .sync-dot { background: var(--mn-color-danger, #dc2626); }
     .runtime-pill {
+      flex-shrink: 0;
       padding: 1px 5px;
       border: 1px solid var(--mn-color-border-default, #d1d5db);
       border-radius: 999px;
@@ -411,7 +486,7 @@ export class MnBottomBar extends SkinAware(LitElement) {
       position: absolute;
       right: var(--mn-space-3, 8px);
       bottom: calc(100% + 7px);
-      z-index: 999;
+      z-index: var(--mn-z-dropdown, 1000);
       display: grid;
       width: min(250px, calc(100vw - 16px));
       max-height: min(360px, calc(100vh - 48px));
@@ -453,6 +528,7 @@ export class MnBottomBar extends SkinAware(LitElement) {
       background: var(--presence-color, #64748b);
     }
     :host([right-collapsed]) .right-section {
+      flex: 0 1 auto;
       border-left: none;
       padding-right: var(--mn-space-4, 12px);
     }
@@ -460,6 +536,10 @@ export class MnBottomBar extends SkinAware(LitElement) {
     /* ── Panel toggles (real controlled chrome) ── */
     .panel-toggles {
       display: flex;
+      flex: 0 0 auto;
+      flex-wrap: wrap;
+      max-width: 100%;
+      box-sizing: border-box;
       align-items: center;
       gap: 0;
       background: var(--mn-color-surface-sunken, #f3f4f6);
@@ -470,6 +550,7 @@ export class MnBottomBar extends SkinAware(LitElement) {
     }
     .toggle-btn {
       display: flex;
+      flex-shrink: 0;
       align-items: center;
       justify-content: center;
       gap: 4px;
@@ -524,7 +605,7 @@ export class MnBottomBar extends SkinAware(LitElement) {
        floor to the row-height density, swaps the section dividers for the
        stronger Emporium rule, and surfaces the icon glyph in icon-only mode. */
     :host([data-skin='emporium']) {
-      height: var(--mn-row-height, 24px);
+      min-height: var(--mn-row-height, 24px);
       border-top: var(--mn-chrome-rule, 2px solid var(--mn-color-border-strong, #e5e7eb));
     }
     :host([data-skin='emporium']) .left-section {
@@ -537,40 +618,40 @@ export class MnBottomBar extends SkinAware(LitElement) {
       display: inline;
     }
 
-    :host([data-skin='98']) {
+    :host(${BEVELLED}) {
       border-top: 0;
       box-shadow:
         inset 0 2px 0 var(--mn-98-highlight, #fff),
         inset 0 3px 0 var(--mn-98-light, #dfdfdf);
     }
-    :host([data-skin='98']) .left-section {
+    :host(${BEVELLED}) .left-section {
       border-right: 2px groove var(--mn-98-face, #c0c0c0);
     }
-    :host([data-skin='98']) .right-section {
+    :host(${BEVELLED}) .right-section {
       border-left: 2px groove var(--mn-98-face, #c0c0c0);
     }
-    :host([data-skin='98']) .panel-toggles {
+    :host(${BEVELLED}) .panel-toggles {
       padding: 3px;
       border: 0;
       border-radius: 0;
       background: var(--mn-98-face, #c0c0c0);
       box-shadow: var(--mn-98-sunken);
     }
-    :host([data-skin='98']) .toggle-btn {
+    :host(${BEVELLED}) .toggle-btn {
       color: var(--mn-color-text-primary, #000);
     }
-    :host([data-skin='98']) .toggle-btn:hover,
-    :host([data-skin='98']) .toggle-btn.active {
+    :host(${BEVELLED}) .toggle-btn:hover,
+    :host(${BEVELLED}) .toggle-btn.active {
       background: var(--mn-98-face, #c0c0c0);
       color: var(--mn-color-text-primary, #000);
       box-shadow: var(--mn-98-raised);
     }
-    :host([data-skin='98']) .toggle-btn:active,
-    :host([data-skin='98']) .toggle-btn.active:active {
+    :host(${BEVELLED}) .toggle-btn:active,
+    :host(${BEVELLED}) .toggle-btn.active:active {
       box-shadow: var(--mn-98-sunken);
       transform: translate(1px, 1px);
     }
-    :host([data-skin='98']) .runtime-pill {
+    :host(${BEVELLED}) .runtime-pill {
       border: 0;
       border-radius: 0;
       box-shadow: var(--mn-98-sunken);
@@ -603,7 +684,7 @@ export class MnBottomBar extends SkinAware(LitElement) {
     }
   `
 
-  /** Reflect collapse state so the grid CSS selectors fire. Chrome-only props. */
+  /** Reflect collapse state so the layout CSS selectors fire. Chrome-only props. */
   @property({ type: Boolean, reflect: true, attribute: 'left-collapsed' }) leftCollapsed = false
   @property({ type: Boolean, reflect: true, attribute: 'right-collapsed' }) rightCollapsed = false
 
@@ -619,6 +700,9 @@ export class MnBottomBar extends SkinAware(LitElement) {
    */
   @property({ type: Array }) panels: ChromePanelId[] = ['chat']
 
+  /** False where the deployment has no chat (a self-host): the Sophia toggle is left out. */
+  @property({ type: Boolean, attribute: 'chat-available' }) chatAvailable = true
+
   /** Live data projections supplied by the shell; null keeps the legacy slot. */
   @property({ attribute: false }) itemCount: number | null = null
   @property({ attribute: false }) documentStats: ChromeDocumentStats | null = null
@@ -629,8 +713,8 @@ export class MnBottomBar extends SkinAware(LitElement) {
   @property({ type: String, attribute: 'runtime-mode' }) runtimeMode: ChromeRuntimeMode | null = null
   /** The honest mirror state's bottom-bar projection (master §3 Slice 4).
    *  `null` = never bound (the legacy inert slot survives); non-null with an
-   *  empty `badges` array = bound and genuinely all-clear (renders nothing,
-   *  which is different from never having been bound at all). */
+   *  empty `badges` array = no outstanding local work reported; the compact
+   *  indicator still offers details, without implying cloud durability. */
   @property({ attribute: false }) sourceStatus: ChromeSourceStatus | null = null
   /** Controlled interaction state; the shell owns all mutations and effects. */
   @property({ attribute: false }) openPresenceId: string | null = null
@@ -638,6 +722,68 @@ export class MnBottomBar extends SkinAware(LitElement) {
   @property({ type: Boolean }) selfPresenceEditable = false
   @property({ attribute: false }) presenceColors: readonly string[] = []
   @property({ type: Boolean }) presenceOverflowOpen = false
+
+  @state() private sourceDetailsOpen = false
+  private readonly sourcePopover = new PopoverController(this, {
+    anchor: () => this.renderRoot.querySelector('[data-source-indicator]'),
+    popover: () => this.renderRoot.querySelector<HTMLElement>('[data-source-details]'),
+    placement: 'top-end',
+  })
+  private readonly sourceOutside = (event: Event): void => {
+    if (!this.sourceDetailsOpen) return
+    const path = event.composedPath()
+    const trigger = this.renderRoot.querySelector('[data-source-indicator]')
+    const popup = this.renderRoot.querySelector('[data-source-details]')
+    if (!path.includes(trigger as EventTarget) && !path.includes(popup as EventTarget)) this.closeSourceDetails(false)
+  }
+  private readonly sourceEscape = (event: KeyboardEvent): void => {
+    if (this.sourceDetailsOpen && event.key === 'Escape') {
+      const focused = this.shadowRoot?.activeElement
+      const popup = this.renderRoot.querySelector('[data-source-details]')
+      const trigger = this.renderRoot.querySelector('[data-source-indicator]')
+      // A nonmodal explanation must not consume Escape belonging to a later
+      // overlay or a control reached by tabbing out of this popup.
+      if (!focused || (focused !== trigger && !popup?.contains(focused))) return
+      event.preventDefault(); event.stopPropagation(); this.closeSourceDetails()
+    }
+  }
+
+  override connectedCallback(): void {
+    super.connectedCallback()
+    this.ownerDocument.addEventListener('pointerdown', this.sourceOutside, true)
+    this.ownerDocument.addEventListener('keydown', this.sourceEscape, true)
+  }
+  override disconnectedCallback(): void {
+    this.closeSourceDetails(false)
+    this.ownerDocument.removeEventListener('pointerdown', this.sourceOutside, true)
+    this.ownerDocument.removeEventListener('keydown', this.sourceEscape, true)
+    super.disconnectedCallback()
+  }
+  override willUpdate(changes: PropertyValues): void {
+    super.willUpdate(changes)
+    const previous = changes.get('sourceStatus') as ChromeSourceStatus | null | undefined
+    if (this.sourceStatus === null || (changes.has('sourceStatus') && previous?.scopeKey !== this.sourceStatus.scopeKey)) this.closeSourceDetails(false)
+  }
+  override updated(changes: PropertyValues): void {
+    super.updated(changes)
+    if (this.sourceDetailsOpen) this.sourcePopover.reposition()
+  }
+  private closeSourceDetails(restoreFocus = true): void {
+    if (!this.sourceDetailsOpen) return
+    const popup = this.renderRoot.querySelector('[data-source-details]')
+    const ownedFocus = !!this.shadowRoot?.activeElement && popup?.contains(this.shadowRoot.activeElement)
+    this.sourceDetailsOpen = false
+    this.sourcePopover.hide()
+    if (restoreFocus && ownedFocus && this.isConnected) this.renderRoot.querySelector<HTMLButtonElement>('[data-source-indicator]')?.focus({ preventScroll: true })
+  }
+  private async toggleSourceDetails(): Promise<void> {
+    if (this.sourceDetailsOpen) { this.closeSourceDetails(); return }
+    this.sourceDetailsOpen = true
+    await this.updateComplete
+    if (!this.isConnected || !this.sourceDetailsOpen || this.sourceStatus === null) return
+    this.sourcePopover.show()
+    this.renderRoot.querySelector<HTMLButtonElement>('[data-source-close]')?.focus({ preventScroll: true })
+  }
 
   private _emit(name: string, detail?: unknown): void {
     this.dispatchEvent(new CustomEvent(name, { detail, bubbles: true, composed: true }))
@@ -671,18 +817,9 @@ export class MnBottomBar extends SkinAware(LitElement) {
     return `${person.name}${self}${actor}${sessions}`
   }
 
-  /** One `<mn-badge>` per mirror badge. `right-collapsed` clears the VISIBLE
-   *  label (glyph-only) so the badge's measured width is constant regardless
-   *  of the count's digit length (see the `:host([right-collapsed])` CSS
-   *  rule's own comment) — the count still reaches assistive tech via
-   *  `aria-label`, and a sighted user via `hint`'s native title on hover.
-   *
-   *  `contested`/`parked` alone are `interactive` (a real `<button>`,
-   *  keyboard-reachable) and emit `mn-source-badge-activate` (build bundle
-   *  review finding 4, 2026-07-31) — controlled: this element reports only
-   *  WHICH kind was activated, never navigates or mutates anything itself.
-   *  `pending`/`unknown`/`needs-repair` stay plain, non-interactive spans;
-   *  no destination surface exists for them. */
+  /** Full source facts live in the popup, independent of rail collapse.
+   * Only contested/parked expose their existing explicit destination events;
+   * opening this explanation never performs those actions. */
   private _renderSourceBadge(badge: ChromeSourceBadge) {
     const tone = badge.kind === 'contested' ? 'neutral' : SOURCE_BADGE_TONE[badge.kind]
     const activatable = badge.kind === 'contested' || badge.kind === 'parked'
@@ -692,12 +829,13 @@ export class MnBottomBar extends SkinAware(LitElement) {
       data-source-badge=${badge.kind}
       state=${tone}
       glyph=${badge.glyph}
-      label=${this.rightCollapsed ? '' : badge.label}
+      label=${badge.label}
       .hint=${badge.hint}
       aria-label=${badge.accessibleName}
       ?interactive=${activatable}
       @click=${() => {
         if (activatable) {
+          this.closeSourceDetails(false)
           this._emit('mn-source-badge-activate', { kind: badge.kind } satisfies ChromeSourceBadgeActivateDetail)
         }
       }}
@@ -706,15 +844,34 @@ export class MnBottomBar extends SkinAware(LitElement) {
 
   private _renderMirrorGroup() {
     const badges = this.sourceStatus?.badges ?? []
+    const priority = ['needs-repair', 'contested', 'pending', 'parked', 'unknown'] as const
+    const primary = priority.map(kind => badges.find(badge => badge.kind === kind)).find(Boolean)
+    const summary = badges.length ? badges.map(badge => badge.label).join('; ') : 'No outstanding work reported in this local copy.'
     return html`<span
       class="status-group mirror-group"
       part="mirror-group"
-      role="status"
-      aria-live="polite"
-      aria-atomic="true"
       aria-label="Local source state"
       data-mirror-status
-    >${badges.map(badge => this._renderSourceBadge(badge))}</span>`
+    >
+      <span class="source-announcement" data-mirror-announcement role="status" aria-live="polite" aria-atomic="true">${summary}</span>
+      <button type="button" class="source-indicator" data-source-indicator
+        data-state=${primary?.kind ?? 'clear'} title=${summary}
+        aria-label=${`Local copy status: ${summary} Show details.`}
+        aria-haspopup="dialog" aria-controls="source-details" aria-expanded=${String(this.sourceDetailsOpen)}
+        @click=${() => void this.toggleSourceDetails()}>
+        <span aria-hidden="true">${primary?.kind === 'unknown' ? '?' : primary?.glyph ?? '✓'}</span><span>Local copy</span>
+      </button>
+      <section class="source-details" data-source-details id="source-details" popover="manual"
+        role="dialog" aria-labelledby="source-details-title" aria-live="off">
+        <header><h2 id="source-details-title">This device’s local copy</h2>
+          <button type="button" class="source-close" data-source-close aria-label="Close local copy details" @click=${() => this.closeSourceDetails()}>×</button>
+        </header>
+        ${badges.length ? html`<ul>${badges.map(badge => html`<li>
+          ${this._renderSourceBadge(badge)}<p>${badge.accessibleName}</p><p class="source-note">${badge.hint}</p>
+        </li>`)}</ul>` : html`<p>${summary}</p>`}
+        <p class="source-note">Local-copy state is separate from connection and cloud-save status. Opening these details does not change your data.</p>
+      </section>
+    </span>`
   }
 
   private _renderPresenceOverflow(people: readonly ChromePresencePerson[]) {
@@ -738,6 +895,8 @@ export class MnBottomBar extends SkinAware(LitElement) {
     if (this.syncState === 'reconnecting') return 'Reconnecting'
     if (this.syncState === 'disconnected') return 'Disconnected'
     if (this.syncState === 'error') return 'Sync error'
+    // `idle` is not a lost connection: it means no document session is bound, so nothing is syncing.
+    if (this.syncState === 'idle') return 'No document open'
     return 'Offline'
   }
 
@@ -896,13 +1055,13 @@ export class MnBottomBar extends SkinAware(LitElement) {
             </span>`
           : nothing}
         <div class="panel-toggles" role="group" aria-label="Right panels">
-          <button
+          ${this.chatAvailable ? html`<button
             class="toggle-btn ${this._selectedPanel === 'chat' ? 'active' : ''}"
             aria-pressed=${this._selectedPanel === 'chat' ? 'true' : 'false'}
             @click=${() => this._togglePanel('chat')}
             aria-label="Toggle Sophia panel"
             title="Toggle Sophia panel"
-          ><span class="toggle-icon" aria-hidden="true">✦</span><span class="toggle-label">Sophia</span></button>
+          ><span class="toggle-icon" aria-hidden="true">✦</span><span class="toggle-label">Sophia</span></button>` : nothing}
           <button
             class="toggle-btn ${this._selectedPanel === 'comments' ? 'active' : ''}"
             aria-pressed=${this._selectedPanel === 'comments' ? 'true' : 'false'}

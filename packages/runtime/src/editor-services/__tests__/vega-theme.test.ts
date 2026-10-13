@@ -405,11 +405,20 @@ describe('resolveVegaThemeMode', () => {
   })
 
   it('light-baseline skins stay light without an explicit data-theme=dark', () => {
-    for (const skin of ['emporium', '98', 'glass', 'research', 'greenhouse']) {
+    for (const skin of ['emporium', '98', 'glass', 'hotdog-stand', 'research', 'greenhouse']) {
       document.documentElement.setAttribute('data-skin', skin)
       expect(resolveVegaThemeMode(document)).toBe('light')
     }
     expect(DARK_BASELINE_SKINS.has('observatory')).toBe(true)
+  })
+
+  it('a skin with its own dark register follows data-theme, in both directions (hotdog-stand: After Hours)', () => {
+    document.documentElement.setAttribute('data-skin', 'hotdog-stand')
+    document.documentElement.setAttribute('data-theme', 'dark')
+    expect(resolveVegaThemeMode(document)).toBe('dark')
+    document.documentElement.setAttribute('data-theme', 'light')
+    expect(resolveVegaThemeMode(document)).toBe('light')
+    expect(DARK_BASELINE_SKINS.has('hotdog-stand')).toBe(false)
   })
 })
 

@@ -29,6 +29,16 @@ describe('Tauri-local Shrubbery bootstrap', () => {
     expect(isTauriHost({ __TAURI_INTERNALS__: {} })).toBe(true)
   })
 
+  it('is local only on the desktop app\'s own pages, never on a hosted place opened in a native window', () => {
+    const at = (protocol: string, hostname: string) => ({ __TAURI_INTERNALS__: {}, location: { protocol, hostname } })
+    expect(isTauriHost(at('tauri:', 'localhost'))).toBe(true)
+    expect(isTauriHost(at('http:', 'tauri.localhost'))).toBe(true)
+    expect(isTauriHost(at('http:', 'localhost'))).toBe(true)
+    expect(isTauriHost(at('http:', '127.0.0.1'))).toBe(true)
+    expect(isTauriHost(at('https:', 'garden.sophia-labs.com'))).toBe(false)
+    expect(isTauriHost({ location: { protocol: 'tauri:', hostname: 'localhost' } })).toBe(false)
+  })
+
   it('maps the per-run manifest to the existing authenticated cell transport', () => {
     expect(transportFromTauriManifest({
       apiUrl: 'http://127.0.0.1:43123/',

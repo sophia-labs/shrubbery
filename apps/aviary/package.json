@@ -1,0 +1,34 @@
+{
+  "name": "@shrubbery/aviary",
+  "version": "0.0.0",
+  "description": "AVIARY — a player for the aigua field-recording sample library. The library is projected to `aig:` RDF and its own layout to `sux:` RDF, both served over a real TripleSource and rendered by the real interpreter (parseTriplesToConfig → planFor → renderWorkspace). The filesystem, the HTTP routes and the ONE audio element live shell-side; the browser holds no layout literal, no library fixture, and no mock.",
+  "type": "module",
+  "license": "UNLICENSED",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:run": "vitest run",
+    "test:watch": "vitest",
+    "test:browser": "vitest run tests/aviary-plays.browser.test.ts"
+  },
+  "dependencies": {
+    "@shrubbery/components": "workspace:*",
+    "@shrubbery/nucleus": "workspace:*",
+    "@shrubbery/runtime": "workspace:*",
+    "@shrubbery/tokens": "workspace:*",
+    "lit": "^3.1.4"
+  },
+  "devDependencies": {
+    "@shrubbery/source": "workspace:*",
+    "@types/node": "^22.7.4",
+    "happy-dom": "^15.0.0",
+    "playwright": "^1.48.0",
+    "typescript": "^5.4.5",
+    "vite": "^5.4.8",
+    "vitest": "^3.2.6"
+  }
+}

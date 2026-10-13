@@ -8,7 +8,9 @@
   "exports": {
     ".": "./src/index.ts",
     "./top-bar": "./src/mn-top-bar.ts",
-    "./bottom-bar": "./src/mn-bottom-bar.ts"
+    "./bottom-bar": "./src/mn-bottom-bar.ts",
+    "./sophia-suite": "./src/sophia-suite.ts",
+    "./app-toolbar": "./src/app-toolbar.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",
@@ -18,7 +20,10 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@pierre/trees": "1.0.0-beta.6",
     "@shrubbery/nucleus": "workspace:*",
+    "@xterm/addon-fit": "0.10.0",
+    "@xterm/xterm": "5.5.0",
     "fabric": "^7.4.0",
     "lit": "^3.1.4",
     "lucide": "^0.554.0",

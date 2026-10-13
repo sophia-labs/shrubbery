@@ -114,6 +114,32 @@ try {
     }).__organism
     return bridge?.state.activeDocumentId === 'research-notes'
   })
+  await page.evaluate(() => { (window as unknown as { __parkedEditor?: Element | null }).__parkedEditor = document.querySelector('#mn-editor-host') })
+  const desktopAppPicker = page.locator('mn-top-bar .app-picker')
+  await desktopAppPicker.click()
+  await page.locator('mn-top-bar [role="menuitemradio"][data-app-id="choreograph"]').click()
+  await page.waitForFunction(() => (window as unknown as {
+    __organism?: { state: { activeApp?: string } }
+  }).__organism?.state.activeApp === 'choreograph')
+  assert(await page.evaluate(() => {
+    const host = document.querySelector<HTMLElement>('#mn-editor-host')
+    const saved = (window as unknown as { __parkedEditor?: Element | null }).__parkedEditor
+    return host === saved && host?.hidden === true && getComputedStyle(host).display === 'none'
+  }), 'open Garden document overlapped Choreograph on desktop')
+  assert(await page.locator('footer[data-region="region-bottom-bar"]').count() === 0,
+    'Garden status bar remained under Choreograph on desktop')
+  if (checkpointDir) await page.screenshot({ path: resolve(checkpointDir, '00-choreograph-desktop.png') })
+  await desktopAppPicker.click()
+  await page.locator('mn-top-bar [role="menuitemradio"][data-app-id="garden"]').click()
+  await page.waitForFunction(() => (window as unknown as {
+    __organism?: { state: { activeApp?: string } }
+  }).__organism?.state.activeApp === 'garden')
+  assert(await page.evaluate(() => {
+    const host = document.querySelector<HTMLElement>('#mn-editor-host')
+    return host === (window as unknown as { __parkedEditor?: Element | null }).__parkedEditor && host?.hidden === false
+  }), 'Garden document did not return intact after Choreograph')
+  assert(await page.locator('footer[data-region="region-bottom-bar"]').count() === 1,
+    'Garden status bar did not return with Garden')
   await page.evaluate(() => {
     const scope = window as unknown as {
       __mobileParityIdentity?: { editor: Element | null; chat: Element | null }
@@ -569,6 +595,28 @@ try {
     await page.screenshot({ path: resolve(checkpointDir, '03-sophia-root.png') })
   }
   const chatPanel = page.locator('sh-chat-panel')
+  const emptyLayout = await chatPanel.evaluate(panel => {
+    const lastSuggestion = [...panel.querySelectorAll('.suggestion-btn')].at(-1)?.getBoundingClientRect()
+    const composer = panel.querySelector('.composer')?.getBoundingClientRect()
+    return { suggestionBottom: lastSuggestion?.bottom ?? 0, composerTop: composer?.top ?? 0 }
+  })
+  assert(emptyLayout.suggestionBottom <= emptyLayout.composerTop,
+    `mobile suggestions overlap the composer: ${JSON.stringify(emptyLayout)}`)
+  await chatPanel.getByRole('button', { name: 'Open chat history' }).click()
+  const historyDrawer = page.locator('sh-chat-host [data-chat-history-drawer]')
+  await historyDrawer.waitFor({ state: 'visible' })
+  await historyDrawer.getByRole('button', { name: 'Close chat history' }).click()
+  await historyDrawer.waitFor({ state: 'detached' })
+  await chatPanel.locator('hoja-editor .hoja-editor__format-toggle').click()
+  const composerTools = await chatPanel.evaluate(panel => {
+    const tray = panel.querySelector('.hoja-editor__format-tray')?.getBoundingClientRect()
+    const footer = panel.querySelector('.hoja-editor__footer')?.getBoundingClientRect()
+    const send = panel.querySelector('.send-button')?.getBoundingClientRect()
+    return { trayBottom: tray?.bottom ?? 0, footerTop: footer?.top ?? 0, sendTop: send?.top ?? 0 }
+  })
+  assert(composerTools.trayBottom <= composerTools.footerTop && composerTools.sendTop >= composerTools.footerTop,
+    `formatting controls overlap send: ${JSON.stringify(composerTools)}`)
+  await chatPanel.locator('hoja-editor .hoja-editor__format-toggle').click()
 
   // Model choice is a pre-conversation transaction. Exercise the compact modal
   // before projecting fixture history; any existing turn correctly locks it.
@@ -1083,6 +1131,42 @@ try {
     await page.screenshot({ path: resolve(checkpointDir, '05-sophia-restored.png') })
   }
 
+  await page.setViewportSize({ width: 390, height: 844 })
+  // Sophia gives the conversation the full viewport. Return to the Home root,
+  // where the shared app switcher is visible, before entering Choreograph.
+  await mobileShell.locator('mn-mobile-tabs button').first().click()
+  await page.waitForFunction(() => document.querySelector('.organism-mobile-shell')?.getAttribute('data-root') === 'home')
+  await page.locator('.organism-mobile-apps').waitFor({ state: 'visible' })
+  await page.locator('.organism-mobile-apps').selectOption('choreograph')
+  await page.waitForFunction(() => (window as unknown as {
+    __organism?: { state: { activeApp?: string } }
+  }).__organism?.state.activeApp === 'choreograph')
+  const choreograph = page.locator('choreo-modes-surface')
+  await choreograph.locator('.agent-card').first().waitFor({ state: 'visible' })
+  assert(await choreograph.locator('[data-run]').count() === 3,
+    'Choreograph did not show the graph-scoped demo run index')
+  await choreograph.locator('[aria-label="Loaded run metrics"]').waitFor({ state: 'visible' })
+  assert((await choreograph.locator('[aria-label="Loaded run metrics"]').textContent())?.includes('21,610'),
+    'Choreograph overview did not total recorded run tokens')
+  assert(await choreograph.evaluate(element => element.getBoundingClientRect().width >= 389),
+    'Choreograph did not occupy the mobile content width')
+  assert(await mobileShell.locator('mn-mobile-tabs').evaluate(element => getComputedStyle(element).display === 'none'),
+    'Garden tabs remained over the Choreograph app')
+  assert(await page.evaluate(() => {
+    const editor = document.querySelector<HTMLElement>('#mn-editor-host')
+    return !editor || editor.hidden || getComputedStyle(editor).visibility === 'hidden'
+  }), 'Garden editor remained visible over Choreograph')
+  if (checkpointDir) await page.screenshot({ path: resolve(checkpointDir, '06-choreograph-overview.png') })
+  await choreograph.locator('.studio-nav-item[data-screen="agents"]').click()
+  await choreograph.locator('.agent-profile').waitFor({ state: 'visible' })
+  if (checkpointDir) await page.screenshot({ path: resolve(checkpointDir, '06-choreograph-agents.png') })
+  await choreograph.locator('.studio-nav-item[data-screen="modes"]').click()
+  await choreograph.locator('[data-mode="research"]').click()
+  await choreograph.locator('.tool-workbench .tool-row').first().waitFor({ state: 'visible' })
+  assert(await choreograph.locator('.tool-inspector').count() === 1,
+    'Choreograph mode workspace lost its tool inspector on mobile')
+  if (checkpointDir) await page.screenshot({ path: resolve(checkpointDir, '06-choreograph-modes.png') })
+
   assert(pageErrors.length === 0, `page errors: ${pageErrors.join('\n')}`)
   assert(consoleErrors.length === 0, `console errors: ${consoleErrors.join('\n')}`)
   process.stdout.write(`${JSON.stringify({
@@ -1115,6 +1199,7 @@ try {
     darkIdentityProjection: true,
     desktopMobileIdentity: true,
     sameNodeFullscreenChat: true,
+    choreographMobileFoundation: true,
   }, null, 2)}\n`)
 } finally {
   await page.close().catch(() => undefined)

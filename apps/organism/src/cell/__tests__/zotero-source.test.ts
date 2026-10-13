@@ -14,18 +14,18 @@ import {
   zoteroKeyFromArtifactId,
 } from '../zotero-source.js'
 
-function contract(): GardendContract {
+function contract(mode: 'local' | 'hosted' = 'local'): GardendContract {
   return {
     auth: {
       userId: () => 'local-user',
-      token: () => undefined,
+      token: () => 'zotero-token',
       isAuthenticated: () => true,
       whenReady: () => Promise.resolve(),
       onChange: () => () => {},
     },
     runtime: {
-      mode: () => 'local',
-      isGateway: () => false,
+      mode: () => mode,
+      isGateway: () => mode === 'hosted',
       graphBaseUrl: () => '/cell',
     },
   } as unknown as GardendContract
@@ -153,7 +153,7 @@ describe('zotero source cell adapter', () => {
     expect(materializedSourceArtifactId({ artifactId: 'zot-A1' }, 'A1')).toBe('zot-A1')
   })
 
-  it('searches Zotero citation rows through the /cite route', async () => {
+  it.each(['local', 'hosted'] as const)('searches %s Zotero citation rows with mode-correct identity', async mode => {
     expect(normalizeCitationSearchItem({
       key: 'A1',
       title: 'Situated Cognition',
@@ -169,10 +169,15 @@ describe('zotero source cell adapter', () => {
       creatorSummary: 'Brown et al.',
       year: '1989',
     })
-    const fetchSpy = vi.fn(async () => jsonResponse([{ key: 'A1', title: 'Situated Cognition' }]))
+    const fetchSpy = vi.fn<typeof globalThis.fetch>(async (_input, init) => {
+      const headers = new Headers(init?.headers)
+      expect(headers.get('Authorization')).toBe('Bearer zotero-token')
+      expect(headers.get('X-User-ID')).toBe(mode === 'local' ? 'local-user' : null)
+      return jsonResponse([{ key: 'A1', title: 'Situated Cognition' }])
+    })
     vi.stubGlobal('fetch', fetchSpy)
 
-    const items = await searchZoteroItems(contract(), 'graph-a', 'situated', 7)
+    const items = await searchZoteroItems(contract(mode), 'graph-a', 'situated', 7)
 
     expect(fetchSpy).toHaveBeenCalledWith('/cell/zotero/graph-a/search?q=situated&limit=7', expect.objectContaining({
       cache: 'no-store',

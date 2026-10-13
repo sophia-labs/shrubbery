@@ -34,7 +34,7 @@ type Page = import('playwright').Page
  *     assert the two side-by-side bars already differ — the story's whole point.
  */
 
-const SKINS = ['garden', 'emporium', '98', 'glass', 'research', 'greenhouse'] as const
+const SKINS = ['garden', 'emporium', '98', 'glass', 'mithras', 'hotdog-stand', 'research', 'greenhouse'] as const
 const THEMES = ['light', 'dark'] as const
 
 /**

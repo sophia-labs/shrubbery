@@ -43,7 +43,7 @@
  *
  * WRAPS THE REAL `mn-doc-history-panel` (`@shrubbery/components`) — today
  * mounted ONLY as `render-workspace.ts`'s `position:fixed inset:0
- * z-index:9000` modal takeover (`renderDocHistoryOverlay`). This face is a
+ * z-index:var(--mn-z-modal)` modal takeover (`renderDocHistoryOverlay`). This face is a
  * CHANGE OF MOUNT, not a rewrite: `mount()` below drives the exact same
  * component through the exact same property/event contract
  * `renderDocHistoryOverlay` already uses (this file's own `DocHistory*`

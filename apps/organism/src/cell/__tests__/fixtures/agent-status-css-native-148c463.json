@@ -1,0 +1,87 @@
+{
+  "nativeSource": "148c4631ffff036db49978f5daf0ef510330f4ef",
+  "nativeLogSha256": "95505a26e846a5788f12bd3a5b93e7be5ba7931d04f7bdc3d03d630cc835d0ee",
+  "recent": {
+    "schemaVersion": 1,
+    "graphId": "lab",
+    "graphIncarnation": "inc-1",
+    "asOf": "2026-09-08T23:01:00.122Z",
+    "agents": [
+      {
+        "agentId": "agent-0123456789abcdef",
+        "agentIri": "urn:sophia:agent:agent-0123456789abcdef",
+        "label": null,
+        "reports": [
+          {
+            "graphIncarnation": "inc-1",
+            "agentId": "agent-0123456789abcdef",
+            "bodyId": "clock",
+            "activity": "Examining a fixture",
+            "ttlSeconds": 60,
+            "origin": "operator-reported",
+            "sessionId": null,
+            "runId": null,
+            "seatLabel": null,
+            "schemaVersion": 1,
+            "reportedAt": "2026-09-08T23:00:00.123Z",
+            "expiresAt": "2026-09-08T23:01:00.123Z",
+            "ingressPrincipal": null,
+            "freshness": "recent"
+          }
+        ]
+      }
+    ],
+    "authority": "graph-shared-reports",
+    "omittedOtherIncarnations": 0,
+    "identityCaveat": "Editable graph testimony; captured ingress principal does not authenticate supplied agent, seat or body identity. No process-liveness claim."
+  },
+  "expired": {
+    "schemaVersion": 1,
+    "graphId": "lab",
+    "graphIncarnation": "inc-1",
+    "asOf": "2026-09-08T23:01:00.123Z",
+    "agents": [
+      {
+        "agentId": "agent-0123456789abcdef",
+        "agentIri": "urn:sophia:agent:agent-0123456789abcdef",
+        "label": null,
+        "reports": [
+          {
+            "graphIncarnation": "inc-1",
+            "agentId": "agent-0123456789abcdef",
+            "bodyId": "clock",
+            "activity": "Examining a fixture",
+            "ttlSeconds": 60,
+            "origin": "operator-reported",
+            "sessionId": null,
+            "runId": null,
+            "seatLabel": null,
+            "schemaVersion": 1,
+            "reportedAt": "2026-09-08T23:00:00.123Z",
+            "expiresAt": "2026-09-08T23:01:00.123Z",
+            "ingressPrincipal": null,
+            "freshness": "expired"
+          }
+        ]
+      }
+    ],
+    "authority": "graph-shared-reports",
+    "omittedOtherIncarnations": 0,
+    "identityCaveat": "Editable graph testimony; captured ingress principal does not authenticate supplied agent, seat or body identity. No process-liveness claim."
+  },
+  "cssWitness": {
+    "profile": "/var/folders/9q/20ps3jxn2v72w01m86r5vfz80000gn/T/garden-css-native-8bb58b28-5e17-4e50-bb20-8c5b6eb1e086",
+    "current": {
+      "schemaVersion": 1,
+      "scope": "graph",
+      "graphId": "css-native",
+      "graphIncarnation": "61dc209b-e28d-4000-8ca5-421e5c86f51f",
+      "cssText": "",
+      "contentHashSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "revision": 3
+    },
+    "workspaceBytes": 472,
+    "coldYDocRead": true,
+    "physicalRestart": false
+  }
+}

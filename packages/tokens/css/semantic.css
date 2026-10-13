@@ -14,28 +14,28 @@
   --mn-color-surface-base:     var(--mn-ref-parchment-0);   /* Primary paper */
   --mn-color-surface-editor:   #fffdf8;                     /* Long-form reading paper */
   --mn-color-surface-panel:    #f7f5ef;                     /* Persistent side furniture */
-  --mn-color-surface-chrome:   #edf2ed;                     /* Bars and fixed controls */
+  --mn-color-surface-chrome:   #ecf2ed;                     /* Bars and fixed controls */
   --mn-color-surface-raised:   #fffefa;                     /* Controls and cards */
   --mn-color-surface-elevated: #fffefa;                     /* Menus and drawers */
   --mn-color-surface-overlay:  #fffefa;                     /* Modal material */
   --mn-color-surface-subtle:   #f7f5f0;                     /* Quiet grouped content */
   --mn-color-surface-warm:     #faf6ec;                     /* Editorial callouts */
   --mn-color-surface-sunken:   var(--mn-ref-parchment-100); /* Recessed wells */
-  --mn-color-surface-hover:    rgba(34, 68, 53, 0.055);     /* Botanical hover wash */
-  --mn-color-surface-active:   rgba(34, 68, 53, 0.10);      /* Chrome pressed wash */
+  --mn-color-surface-hover:    rgba(30, 69, 48, 0.055);     /* Botanical hover wash */
+  --mn-color-surface-active:   rgba(30, 69, 48, 0.10);      /* Chrome pressed wash */
   --mn-color-surface-accent:   var(--mn-ref-fern-50);       /* Tinted selected-item bg */
-  --mn-color-surface-accent-subtle: rgba(79, 134, 107, 0.09);
+  --mn-color-surface-accent-subtle: rgba(74, 136, 96, 0.09);
   --mn-color-surface-accent-strong: var(--mn-ref-fern-100);
   --mn-color-backdrop: rgba(24, 29, 24, 0.26);
   --mn-atmosphere:
-    radial-gradient(circle at 54% -18%, rgba(114, 160, 135, 0.13), transparent 42%),
+    radial-gradient(circle at 54% -18%, rgba(109, 162, 124, 0.13), transparent 42%),
     linear-gradient(135deg, rgba(255, 255, 255, 0.42), transparent 38%);
 
   /* ── Text ─────────────────────────────────────────────────────────────── */
   --mn-color-text-primary:       var(--mn-ref-parchment-900);
   --mn-color-text-secondary:     var(--mn-ref-parchment-600);
-  --mn-color-text-tertiary:      #6f6a62;
-  --mn-color-text-muted:         #716c64;
+  --mn-color-text-tertiary:      #635e57;  /* was #6f6a62: 4.47:1 on the bottom bar */
+  --mn-color-text-muted:         #67625b;
   --mn-color-text-inverse:       var(--mn-ref-parchment-0);
   --mn-color-text-link:          var(--mn-ref-indigo-700);
   --mn-color-text-link-hover:    var(--mn-ref-indigo-900);
@@ -46,7 +46,7 @@
   --mn-color-text-warning:       var(--mn-ref-ochre-600);
   --mn-color-text-success:       var(--mn-ref-moss-500);
   --mn-color-text-title:         var(--mn-ref-parchment-950);
-  --mn-color-text-quiet:         #716c64;
+  --mn-color-text-quiet:         #67625b;
 
   /* ── Borders ──────────────────────────────────────────────────────────── */
   --mn-color-border-subtle:  rgba(64, 61, 56, 0.11);
@@ -79,14 +79,38 @@
   --mn-color-accent-700:  var(--mn-color-warning-strong);
   --mn-color-danger-700:  var(--mn-color-danger-strong);
 
+  /* ── Undefined-name debt, closed as aliases (not new colours) ─────────────
+     Components shipped reading these names with no definition anywhere, so
+     they fell through to stray literals (Tailwind blue #2563eb focus rings and
+     accents inside a green product, pale-pink danger hovers in dark mode).
+     Each one now resolves through an existing role, so skins/themes flow. */
+  --mn-color-accent-strong:    var(--mn-color-accent-active);
+  --mn-color-accent-solid:     var(--mn-color-accent);
+  --mn-color-accent-subtle:    var(--mn-color-surface-accent-subtle);
+  --mn-color-action-primary:   var(--mn-color-accent);
+  --mn-color-primary-100:      var(--mn-color-surface-accent-strong);
+  --mn-color-on-accent:        var(--mn-color-text-on-accent);
+  --mn-color-focus:            var(--mn-color-border-focus);
+  --mn-color-surface-selected: var(--mn-color-interactive-selected);
+  --mn-color-danger-text:      var(--mn-color-text-danger);
+  --mn-color-danger-50:        var(--mn-color-danger-surface);
+  --mn-color-border-danger:    var(--mn-color-danger-border);
+  --mn-focus-ring-width:       2px;
+
   /* --mn-color-accent-ch: the RGB channel triple for the current accent hue.
      Skins override ONLY this one variable to re-tint all interactive washes —
-     no need to replicate rgba() calls. Garden default: fern-500 (79 134 107). */
-  --mn-color-accent-ch: 79 134 107;
+     no need to replicate rgb() calls. Garden default: fern-500 (74 136 96).
+     The triple is SPACE-separated, so every wash built from it must use the
+     modern slash form, rgb(var(--x-ch) / a). The comma form,
+     rgba(var(--x-ch), a), expands to `rgba(74 136 96, a)`: invalid, and it
+     computes to transparent where it is used (the Garden, research and
+     greenhouse selection and hover washes did not exist).
+     color-formulas.test.ts holds this. */
+  --mn-color-accent-ch: 74 136 96;
 
-  --mn-color-interactive-hover:    rgba(var(--mn-color-accent-ch), 0.08);
-  --mn-color-interactive-active:   rgba(var(--mn-color-accent-ch), 0.15);
-  --mn-color-interactive-selected: rgba(var(--mn-color-accent-ch), 0.12);
+  --mn-color-interactive-hover:    rgb(var(--mn-color-accent-ch) / 0.08);
+  --mn-color-interactive-active:   rgb(var(--mn-color-accent-ch) / 0.15);
+  --mn-color-interactive-selected: rgb(var(--mn-color-accent-ch) / 0.12);
 
   /* ── Focus composites ─────────────────────────────────────────────────── */
   --mn-focus-ring-color: var(--mn-color-border-focus);
@@ -233,7 +257,9 @@
   --mn-space-1:   0.25rem;   /* 4px */
   --mn-space-1-5: 0.375rem;  /* 6px */
   --mn-space-2:   0.5rem;    /* 8px */
+  --mn-space-2-5: 0.625rem;  /* 10px — every consumer's fallback was 10px */
   --mn-space-3:   0.75rem;   /* 12px */
+  --mn-space-3-5: 0.875rem;  /* 14px — every consumer's fallback was 14px */
   --mn-space-4:   1rem;      /* 16px */
   --mn-space-5:   1.25rem;   /* 20px */
   --mn-space-6:   1.5rem;    /* 24px */
@@ -289,7 +315,7 @@
   --mn-shadow-raised: var(--mn-shadow-md);
   --mn-shadow-popover: var(--mn-shadow-lg);
   --mn-shadow-modal: var(--mn-shadow-xl);
-  --mn-shadow-primary: 0 10px 28px rgba(var(--mn-color-accent-ch), 0.16);
+  --mn-shadow-primary: 0 10px 28px rgb(var(--mn-color-accent-ch) / 0.16);
   --mn-shadow-composer: var(--mn-shadow-sm);
   --mn-shadow-composer-focus: var(--mn-focus-ring), var(--mn-shadow-md);
 }

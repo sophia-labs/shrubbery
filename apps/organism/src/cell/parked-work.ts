@@ -22,6 +22,7 @@ import {
 } from '@shrubbery/source'
 import type { SidebarSection } from '@shrubbery/runtime'
 import type { DocumentRecoveryRecord } from './document-activation.js'
+import { sha256Digest } from '@shrubbery/nucleus/web-crypto'
 
 export type ParkedReason = 'deleted' | 'replaced' | 'orphaned'
 
@@ -401,7 +402,7 @@ function encodeBase64(value: Uint8Array): string {
 
 async function sha256Hex(bytes: Uint8Array): Promise<string> {
   const exact = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer
-  const digest = new Uint8Array(await globalThis.crypto.subtle.digest('SHA-256', exact))
+  const digest = new Uint8Array(await sha256Digest(exact))
   return Array.from(digest, byte => byte.toString(16).padStart(2, '0')).join('')
 }
 

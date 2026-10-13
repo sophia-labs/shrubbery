@@ -4,18 +4,17 @@ export interface ImageProviderKeySource {
   getProviderKey(provider: 'openrouter'): Promise<string | null | undefined>
 }
 
+import { nativeInvoke } from './native-host.js'
+
 type TauriInvoke = <T>(command: string, args?: Record<string, unknown>) => Promise<T>
 
-interface TauriInternalsGlobal {
-  readonly __TAURI_INTERNALS__?: { readonly invoke?: TauriInvoke }
-}
 
 /** Native provider-key adapter without importing Tauri into the web build. */
 export class TauriImageProviderKeySource implements ImageProviderKeySource {
   constructor(private readonly invoke?: TauriInvoke) {}
 
   async getProviderKey(provider: 'openrouter'): Promise<string | null> {
-    const invoke = this.invoke ?? (globalThis as TauriInternalsGlobal).__TAURI_INTERNALS__?.invoke
+    const invoke = this.invoke ?? nativeInvoke()
     if (!invoke) return null
     try {
       const keys = await invoke<Record<string, unknown>>('get_provider_keys')

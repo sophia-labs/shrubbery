@@ -136,6 +136,34 @@ describe('sh-center-panes controlled component', () => {
     expect(navigationDetail).toEqual({ paneId: 'center-primary', direction: 'back' })
   })
 
+  it('takes the editor host out of paint and hit-testing while a pane shows home', async () => {
+    const controller = new CenterPanesController({ activePaneId: 'center-primary' })
+    const element = mount(controller)
+    await element.updateComplete
+    const root = element.shadowRoot!
+
+    const stage = root.querySelector('[data-pane-stage="center-primary"]') as HTMLElement
+    expect(stage.dataset.paneEmpty).toBe('true')
+    expect(root.querySelector('.empty-pane')).not.toBeNull()
+
+    // The rule that makes the flag load-bearing: an opaque overlay racing the
+    // host's own teardown is not what keeps the two apart.
+    const css = (element.constructor as unknown as { styles: { cssText: string } }).styles.cssText
+    expect(css).toContain("data-pane-empty='true'")
+    expect(css).toContain('visibility: hidden')
+    expect(css).toContain('pointer-events: none')
+
+    controller.replaceState(openCenterPane(controller.state, {
+      paneId: 'center-primary',
+      placement: 'active',
+      location: documentLocation('alpha'),
+    }))
+    element.projection = controller.projection
+    await element.updateComplete
+    expect(stage.dataset.paneEmpty).toBe('false')
+    expect(root.querySelector('.empty-pane')).toBeNull()
+  })
+
   it('mounts two independent real editors and preserves Class-B pane hosts', async () => {
     const backend = new InProcessCrdtBackend()
     backends.push(backend)
@@ -259,6 +287,15 @@ describe('sh-center-panes controlled component', () => {
 
     tocBtn.click()
     await element.updateComplete
+    await element.updateComplete
+
+    // BUG: the dropdown was position: absolute inside .pane { overflow: hidden },
+    // so a long heading list was clipped at the pane edge. FIX: the native top
+    // layer sits outside that ancestor entirely.
+    const dropdown = primaryPane.querySelector('.toc-dropdown') as HTMLElement
+    expect(dropdown.getAttribute('popover')).toBe('manual')
+    expect(dropdown.hasAttribute('popover-open')).toBe(true)
+
     const items = Array.from(primaryPane.querySelectorAll('.toc-item')) as HTMLButtonElement[]
     expect(items.map((item) => item.textContent)).toEqual(['Intro', 'Details'])
 

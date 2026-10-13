@@ -371,10 +371,19 @@ describe('document transfer — real gardend', () => {
       const document = documents.find(item => item.id === documentId)
       expect(document).toBeDefined()
       expect(Number(document?.blockCount ?? document?.block_count)).toBeGreaterThan(0)
-      expect(document?.sourceFile).toMatchObject({
-        sf_storageKey: expect.stringContaining('local://artifacts/'),
-      })
-      expect(document?.sourceFile).not.toHaveProperty('sf_sizeBytes')
+      // `sourceFile` is deliberately NOT asserted here any more. gardend's
+      // `get_workspace` returns a bounded projection (compact_workspace_entry,
+      // garden 491df20 "bound graph result surfaces"), and source-file
+      // metadata is one of the fields that bounding drops. Nothing in the app
+      // reads it from this surface — the sidebar loads it over SPARQL — so
+      // this was pinning a contract no consumer has.
+      //
+      // The invariants it protected are still covered, on the surfaces that
+      // actually carry them: the sidebar projection below asserts the same
+      // source file reaches the tree, the OriginalFileController block after
+      // it proves the storage key resolves to real bytes (stronger than the
+      // `local://artifacts/` string match this made), and the per-upload
+      // assertion above still pins that sizeBytes never leaks.
     }
 
     const projectionRest: SidebarDocumentRest = {
@@ -462,9 +471,11 @@ describe('document transfer — real gardend', () => {
     const reloadedWorkspace = await reloadMcp.toolsCall('get_workspace', { graph_id: GRAPH_ID }) as {
       structuredContent?: { documents?: Array<Record<string, unknown>> }
     }
+    // The catalog must still know the document after the edit; `readOnly`
+    // itself is asserted on the projection below, because the bounded
+    // `get_workspace` entry no longer carries it (see the note above).
     expect(reloadedWorkspace.structuredContent?.documents?.find(item => item.id === uploadedIds[0])).toMatchObject({
       id: uploadedIds[0],
-      readOnly: false,
     })
     const reloadedProjection = await loadSidebarSections({
       async query(graphId, sparql) {

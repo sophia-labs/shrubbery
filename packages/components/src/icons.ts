@@ -158,6 +158,7 @@ import {
   Bot,
   CircleCheck,
   LoaderCircle,
+  FileX,
 
   // Greenhouse — the cultivation knobs (climate / judgment / reach / laws / spend)
   Thermometer,
@@ -172,6 +173,7 @@ import {
 
   // Observatory — the instrument-console skin
   Telescope,
+  Workflow,
 
   type IconNode,
 } from 'lucide'
@@ -333,6 +335,7 @@ const iconMap: Record<string, IconNode> = {
   'bot': Bot,
   'circle-check': CircleCheck,
   'loader-circle': LoaderCircle,
+  'file-x': FileX,
 
   // Greenhouse — the cultivation knobs. CLIMATE (thermometer/flame), the salience &
   // bench meters (gauge/activity → gauge), JUDGMENT (layers reused for supersession,
@@ -347,6 +350,7 @@ const iconMap: Record<string, IconNode> = {
   'sliders': SlidersHorizontal,
   'sliders-horizontal': SlidersHorizontal,
   'wallet': Wallet,
+  'workflow': Workflow,
   'flame': Flame,
   'target': Target,
   'coins': Coins,

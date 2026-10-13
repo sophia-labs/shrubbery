@@ -35,7 +35,7 @@ export const TopBar: StoryObj<TopBarArgs> = {
   argTypes: {
     activeApp: { control: 'inline-radio', options: ['garden', 'choreograph'] },
     isDark: { control: 'boolean' },
-    activeSkin: { control: 'select', options: ['garden', 'emporium', '98', 'glass', 'research', 'greenhouse'] },
+    activeSkin: { control: 'select', options: ['garden', 'emporium', '98', 'glass', 'hotdog-stand', 'research', 'greenhouse'] },
   },
   render: (args: TopBarArgs) => html`
     <mn-top-bar
@@ -46,6 +46,51 @@ export const TopBar: StoryObj<TopBarArgs> = {
       .activeSkin=${args.activeSkin}
     ></mn-top-bar>
   `,
+}
+
+/**
+ * Real-browser contract for the skin picker — the drop-down that replaced the cycling skin
+ * toggle. It lists every skin by label (Hotdog Stand last), opens from the keyboard, marks the
+ * skin that is on, and says what was chosen with one composed `mn-skin-select`.
+ */
+export const SkinPickerBrowserContract: Story = {
+  tags: ['skin-picker-browser'],
+  render: () => html`
+    <div style="display:flex;justify-content:flex-end;padding:16px;min-height:320px;">
+      <mn-skin-picker .value=${'garden'}></mn-skin-picker>
+    </div>
+  `,
+  play: async ({ canvasElement }: { canvasElement: HTMLElement }) => {
+    const picker = canvasElement.querySelector('mn-skin-picker') as (HTMLElement & { updateComplete: Promise<unknown> }) | null
+    if (!picker) throw new Error('SkinPickerBrowserContract.play: mn-skin-picker did not mount')
+    await picker.updateComplete
+    const dropdown = picker.shadowRoot?.querySelector('mn-dropdown-button') as (HTMLElement & { updateComplete: Promise<unknown> }) | null
+    if (!dropdown) throw new Error('SkinPickerBrowserContract.play: the dropdown did not render')
+    await dropdown.updateComplete
+    const trigger = dropdown.shadowRoot?.querySelector<HTMLButtonElement>('.trigger')
+    if (!trigger) throw new Error('SkinPickerBrowserContract.play: trigger unavailable')
+    if (!trigger.getAttribute('aria-label')?.includes('Garden')) throw new Error('SkinPickerBrowserContract.play: the trigger does not name the skin that is on')
+
+    // Open from the keyboard: ArrowDown lands on the first item.
+    const chosen: string[] = []
+    picker.addEventListener('mn-skin-select', (event) => chosen.push((event as CustomEvent<{ skin: string }>).detail.skin))
+    trigger.focus()
+    trigger.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }))
+    await dropdown.updateComplete
+    const items = () => Array.from(dropdown.shadowRoot?.querySelectorAll<HTMLButtonElement>('[data-menu-item-id]') ?? [])
+    const ids = items().map(item => item.dataset.menuItemId)
+    if (ids.join() !== 'garden,emporium,98,glass,mithras,hotdog-stand') throw new Error(`SkinPickerBrowserContract.play: unexpected list ${ids.join()}`)
+    const labels = items().map(item => item.querySelector('.item-label')?.textContent)
+    if (labels[labels.length - 1] !== 'Hotdog Stand') throw new Error(`SkinPickerBrowserContract.play: Hotdog Stand is not last (${labels.join(', ')})`)
+    if (!items()[0].classList.contains('focused')) throw new Error('SkinPickerBrowserContract.play: ArrowDown did not focus the first skin')
+
+    // ArrowUp wraps to the last; Enter chooses it.
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true, cancelable: true }))
+    await dropdown.updateComplete
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }))
+    await dropdown.updateComplete
+    if (chosen.join() !== 'hotdog-stand') throw new Error(`SkinPickerBrowserContract.play: keyboard choice was ${chosen.join() || 'nothing'}`)
+  },
 }
 
 /**
@@ -168,7 +213,7 @@ export const AppBar: StoryObj<AppBarArgs> = {
   },
   argTypes: {
     isDark: { control: 'boolean' },
-    activeSkin: { control: 'select', options: ['garden', 'emporium', '98', 'glass', 'research', 'greenhouse'] },
+    activeSkin: { control: 'select', options: ['garden', 'emporium', '98', 'glass', 'hotdog-stand', 'research', 'greenhouse'] },
   },
   render: (args: AppBarArgs) => {
     const crumbs: MnCrumb[] = [

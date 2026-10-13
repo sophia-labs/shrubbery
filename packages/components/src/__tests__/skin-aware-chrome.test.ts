@@ -189,10 +189,12 @@ describe('skin-aware chrome — shadow CSS consumes the skin role tokens (densit
   it('both carry 98 raised/sunken structural rules', async () => {
     const { el: top } = await mountUnder<MnTopBar>('mn-top-bar', '98', 'light')
     const { el: bottom } = await mountUnder<MnBottomBar>('mn-bottom-bar', '98', 'light')
-    expect(styleText(top)).toMatch(/:host\(\[data-skin=['"]98['"]\]\)/)
+    // The 98 blocks are keyed on the shared bevelled list (98 and Hotdog Stand): one selector, two skins.
+    const BEVELLED = /:host\(:is\(\[data-skin=['"]98['"]\], \[data-skin=['"]hotdog-stand['"]\]\)\)/
+    expect(styleText(top)).toMatch(BEVELLED)
     expect(styleText(top)).toMatch(/var\(--mn-98-raised/)
     expect(styleText(top)).toMatch(/var\(--mn-98-sunken/)
-    expect(styleText(bottom)).toMatch(/:host\(\[data-skin=['"]98['"]\]\)/)
+    expect(styleText(bottom)).toMatch(BEVELLED)
     expect(styleText(bottom)).toMatch(/var\(--mn-98-raised/)
     expect(styleText(bottom)).toMatch(/var\(--mn-98-sunken/)
   })

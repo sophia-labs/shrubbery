@@ -27,6 +27,9 @@ export interface WfRunListItem {
   readonly status?: WfRunStatus | null
   readonly startedAt?: number | string | Date | null
   readonly durationMs?: number | null
+  readonly endedAt?: number | string | Date | null
+  readonly agentCount?: number | null
+  readonly totalTokens?: number | null
 }
 
 export interface WfAgentRun {

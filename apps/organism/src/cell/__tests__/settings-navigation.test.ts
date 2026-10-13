@@ -19,6 +19,12 @@ describe('Settings navigation policy', () => {
     expect(settingsReturnPath(url)).toBe('/?source=cell&graph=organism-dev&r=comments#focus')
   })
 
+  it('does not return to Settings when opened again from Settings chrome', () => {
+    const current = new URL('https://garden.test/settings?returnTo=%2F%3Fgraph%3Dnotes')
+    expect(settingsReturnPath(settingsNavigationUrl(current))).toBe('/?graph=notes')
+    expect(settingsReturnPath(new URL('https://garden.test/settings?returnTo=/settings/'))).toBe('/')
+  })
+
   it('keeps ordinary routes contract-free and rejects external returns', () => {
     const url = settingsNavigationUrl(new URL('https://garden.test/'), null)
     expect(url.href).toBe('https://garden.test/settings')

@@ -4,6 +4,9 @@
  * graph-id-bearing call shape, so Phanes controls never learn a cell address,
  * browser token, or service credential.
  */
+import type { PhanesControlAuthorization } from './settings-capabilities.js'
+import { randomUUID, sha256Digest } from '@shrubbery/nucleus/web-crypto'
+
 export interface PhanesControlMcp {
   callTool(name: string, args: Readonly<Record<string, unknown>>): Promise<unknown>
 }
@@ -264,7 +267,16 @@ export interface PhanesOperations {
 }
 
 export class PhanesControlApi {
-  constructor(private readonly mcp: PhanesControlMcp) {}
+  constructor(
+    private readonly mcp: PhanesControlMcp,
+    private readonly authorization?: PhanesControlAuthorization,
+  ) {}
+
+  isAvailable(): boolean { return this.authorization?.allowed() === true }
+
+  async refreshAuthorization(): Promise<boolean> {
+    return await this.authorization?.refresh() === true && this.isAvailable()
+  }
 
   async load(): Promise<PhanesControlDocument> {
     const value = await this.callTool('read_document', {
@@ -455,7 +467,10 @@ export class PhanesControlApi {
     })
   }
 
-  private callTool(name: string, arguments_: Record<string, unknown>): Promise<unknown> {
+  private async callTool(name: string, arguments_: Record<string, unknown>): Promise<unknown> {
+    if (!this.authorization) throw new Error('Phanes control is not authorized for this session.')
+    await this.authorization.assertAllowed()
+    if (!this.authorization.allowed()) throw new Error('Phanes control is not authorized for this session.')
     return this.mcp.callTool(name, arguments_)
   }
 }
@@ -560,7 +575,7 @@ export function draftOperationsControl(
 }
 
 export function createIngestionRunRequest(
-  requestId = crypto.randomUUID(),
+  requestId = randomUUID(),
   requestedAt = new Date().toISOString(),
 ): PhanesIngestionRunRequest {
   return {
@@ -1198,7 +1213,7 @@ function canonicalValue(value: unknown): unknown {
 }
 
 async function sha256Text(value: string): Promise<string> {
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value))
+  const digest = await sha256Digest(new TextEncoder().encode(value))
   return [...new Uint8Array(digest)].map(byte => byte.toString(16).padStart(2, '0')).join('')
 }
 

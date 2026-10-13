@@ -15,20 +15,23 @@
  * `NamedQueryRegistry.register` throws once `seal()` has run.
  */
 import { NamedQueryRegistry } from '@shrubbery/runtime/layout'
+import { DESPACHO_NAMED_QUERIES } from './despacho-query-catalog.js'
 import { OBSERVATORY_SURFACE_NAMED_QUERIES } from './observatory-surface-query-catalog.js'
 import { SOURCE_SYNC_NAMED_QUERIES } from './source-sync-query-catalog.js'
 
 /**
  * A fresh, sealed registry holding the Observatory's nineteen queries UNION
- * source-sync's two — twenty-one names total, no overlap (`obs.*` vs
- * `sync.*` — disjoint prefixes by construction, and `NamedQueryRegistry`'s
- * own duplicate-name check would throw at boot if that ever stopped being
- * true).
+ * source-sync's two UNION el Despacho's sixteen — thirty-seven names total,
+ * no overlap (`obs.*` vs `sync.*` vs `cuenta.*`/`seat.*`/`letter.*`/
+ * `despacho.*`/`inbox.*`/`mywork.*`/`agent.*`/`gallery.*` — disjoint prefixes
+ * by construction, and `NamedQueryRegistry`'s own duplicate-name check would
+ * throw at boot if that ever stopped being true).
  */
 export function createShellNamedQueryRegistry(): NamedQueryRegistry {
   const registry = new NamedQueryRegistry()
   for (const definition of OBSERVATORY_SURFACE_NAMED_QUERIES) registry.register(definition)
   for (const definition of SOURCE_SYNC_NAMED_QUERIES) registry.register(definition)
+  for (const definition of DESPACHO_NAMED_QUERIES) registry.register(definition)
   registry.seal()
   return registry
 }

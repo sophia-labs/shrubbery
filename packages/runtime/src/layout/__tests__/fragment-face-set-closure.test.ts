@@ -11,7 +11,7 @@ import { createFragmentFaceRegistry, fragmentFaceIds } from '../fragment-face-se
 import { listSealedOpenFaceParamsUsages } from '../types.js'
 
 describe('fragmentFaceIds — the closed fragment face catalogue', () => {
-  it('contains exactly the ten expected ids, including compute.cell and agent.session-family', () => {
+  it('contains exactly the seventeen expected ids, including card.cuenta, card.seat, card.letter, card.focus, card.inbox, card.my-work and card.agent', () => {
     expect(new Set(fragmentFaceIds())).toEqual(
       new Set([
         'stat.scalar',
@@ -24,8 +24,20 @@ describe('fragmentFaceIds — the closed fragment face catalogue', () => {
         'obs.filmstrip',
         'compute.cell',
         'agent.session-family',
+        // el Despacho W1 (plans/2026-09-15-despacho-design.md §7).
+        'card.cuenta',
+        // el Despacho W2: seats and letters, and the focus as what it is.
+        'card.seat',
+        'card.letter',
+        'card.focus',
+        // el Despacho W4: the two rooms that are not subjects in the graph.
+        'card.inbox',
+        'card.my-work',
+        // el Despacho W11: the roster pokédex — a seat as a catalogue entry.
+        'card.agent',
       ]),
     )
+    expect(fragmentFaceIds()).toHaveLength(17)
   })
 })
 

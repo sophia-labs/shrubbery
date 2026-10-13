@@ -172,11 +172,14 @@ describe('production MPA build — both Vite entries load cleanly off a real bui
       // appRootRegions.choreograph — a real click on the real, config-derived
       // tab (Playwright's locators pierce mn-top-bar's shadow root) switches
       // the live app with #app-select gone from the wiring entirely.
-      const choreoTab = page.getByRole('tab', { name: 'Choreograph app' })
+      // The switcher is the Sophia picker's launcher: open it, then choose.
+      const picker = page.locator('mn-top-bar .app-picker')
+      const choreoTab = page.getByRole('menuitemradio', { name: 'Choreograph app' })
+      await picker.click()
       expect(await choreoTab.count(), 'Choreograph tab offered by GARDEN_DEFAULT').toBe(1)
       await choreoTab.click()
-      await page.locator('wf-studio-shell').waitFor({ state: 'attached', timeout: 10_000 })
-      expect(await choreoTab.getAttribute('aria-selected')).toBe('true')
+      await page.locator('choreo-modes-surface').waitFor({ state: 'attached', timeout: 10_000 })
+      expect(await choreoTab.getAttribute('aria-checked')).toBe('true')
 
       // Reparse into the REAL committed Observatory seed — which declares NO
       // choreograph branch — while currentApp is still 'choreograph' from the
@@ -194,13 +197,14 @@ describe('production MPA build — both Vite entries load cleanly off a real bui
       expect(await absent.getAttribute('data-missing-app')).toBe('choreograph')
       expect(await page.locator('mn-empty-state .title').textContent()).toContain('choreograph')
       expect(await page.locator('mn-empty-state .description').textContent()).toContain('choreograph')
-      expect(await page.locator('wf-studio-shell').count()).toBe(0)
+      expect(await page.locator('choreo-modes-surface').count()).toBe(0)
 
       // The switcher itself is honest too — it now offers exactly the one app
       // this config actually declares (config-derived, never a hardcoded
       // pair), and using it recovers a real render.
-      expect(await page.getByRole('tab', { name: 'Choreograph app' }).count()).toBe(0)
-      const gardenTab = page.getByRole('tab', { name: 'Garden app' })
+      expect(await page.getByRole('menuitemradio', { name: 'Choreograph app', includeHidden: true }).count()).toBe(0)
+      const gardenTab = page.getByRole('menuitemradio', { name: 'Garden app' })
+      await picker.click()
       expect(await gardenTab.count()).toBe(1)
       await gardenTab.click()
       await absent.waitFor({ state: 'detached', timeout: 10_000 })

@@ -75,8 +75,11 @@ HTTP / Tauri all live *shell-side*, behind the seam.
 ## Package dependency sketch
 
 Ten packages under `packages/`. Arrows point at what a package depends on
-(workspace deps only, per each `package.json`); `nucleus`, `tokens`,
-`chat-kernel`, and `editor-kernel` are leaves.
+(workspace deps only, per each `package.json`); `nucleus` and `tokens` are
+leaves. `chat-kernel` and `editor-kernel` take from nucleus only its
+dependency-free `web-crypto` subpath (dotted): `randomUUID` and SHA-256 that also
+work on a plain-HTTP page, where browsers withhold `crypto.randomUUID` and
+`crypto.subtle`.
 
 ```mermaid
 graph TD
@@ -90,6 +93,8 @@ graph TD
   runtime[runtime] --> nucleus
   runtime --> chat
   runtime --> editor
+  chat -. web-crypto .-> nucleus
+  editor -. web-crypto .-> nucleus
   components[components] --> nucleus
   atelier[atelier-vtuber] --> components
   atelier --> nucleus
@@ -107,8 +112,8 @@ graph TD
 | `tokens` | `@shrubbery/tokens` | the layered design-token CSS + `{skin,theme}` applier; leaf |
 | `source` | `@shrubbery/source` | `TripleSource` adapter factories (static-nt / gardend-local / hosted-gateway / sparql) |
 | `site` | `@shrubbery/site` | declarative product bundles (routes/faces/appearance) over a canonical layout |
-| `chat-kernel` | `@shrubbery/chat-kernel` | pure chat render kernel; couplings severed; leaf |
-| `editor-kernel` | `@shrubbery/editor-kernel` | pure TipTap/ProseMirror editor kernel; couplings severed; leaf |
+| `chat-kernel` | `@shrubbery/chat-kernel` | pure chat render kernel; couplings severed; from nucleus only `web-crypto` |
+| `editor-kernel` | `@shrubbery/editor-kernel` | pure TipTap/ProseMirror editor kernel; couplings severed; from nucleus only `web-crypto` |
 
 ## The shells — and which is authoritative
 

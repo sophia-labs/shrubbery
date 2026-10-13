@@ -118,9 +118,15 @@ export function buildMermaidThemeVariables(root: HTMLElement | null): Record<str
   }
 }
 
-function engineConfig(root: HTMLElement | null): Record<string, unknown> {
+/**
+ * Mermaid 11 reads the TOP-LEVEL `htmlLabels`; `flowchart.htmlLabels` alone still
+ * yields `<foreignObject>` labels, which strict SVG admission (below) removes —
+ * leaving empty boxes. Both are set so every diagram type labels with SVG text.
+ */
+export function mermaidEngineConfig(root: HTMLElement | null): Record<string, unknown> {
   return {
     startOnLoad: false,
+    htmlLabels: false,
     securityLevel: 'strict',
     secure: ['securityLevel', 'startOnLoad'],
     suppressErrorRendering: true,
@@ -243,7 +249,7 @@ export function makeMermaidRenderHost(options: MermaidRendererOptions = {}): Mer
   let observedSignature = themeSignature(resolveRoot(options.root))
 
   const initialize = (value: MermaidEngine) => {
-    value.initialize(engineConfig(resolveRoot(options.root)))
+    value.initialize(mermaidEngineConfig(resolveRoot(options.root)))
   }
 
   const getEngine = (): Promise<MermaidEngine> => {

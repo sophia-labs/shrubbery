@@ -41,8 +41,9 @@ describe('rootRegionsForScope — matches resolveRootRegions on the real config'
   it("branch {app:'choreograph'} === resolveRootRegions(GARDEN_DEFAULT,'choreograph')", () => {
     const scope = readyScope(GARDEN_DEFAULT, { app: 'choreograph' })
     expect(rootRegionsForScope(scope)).toEqual(resolveRootRegions(GARDEN_DEFAULT, 'choreograph'))
-    // The real choreograph set (verified present in garden-default).
-    expect(rootRegionsForScope(scope)).toEqual(['region-top-bar', 'region-choreo-center', 'region-bottom-bar'])
+    // The real choreograph set (verified present in garden-default). Since the
+    // 2026-09-23 overhaul Choreograph no longer carries Garden's bottom bar.
+    expect(rootRegionsForScope(scope)).toEqual(['region-top-bar', 'region-choreo-center'])
   })
 
   it("an unknown app falls back to the default spine (interpreter parity)", () => {

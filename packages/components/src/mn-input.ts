@@ -13,6 +13,7 @@ import { customElement, property, query, state } from 'lit/decorators.js'
 import { classMap } from 'lit/directives/class-map.js'
 import { ifDefined } from 'lit/directives/if-defined.js'
 import { SkinAware } from './skin-aware.js'
+import { BEVELLED } from './bevelled-skins.js'
 import { icon, iconStyles } from './icons.js'
 
 export type MnInputType = 'text' | 'email' | 'password' | 'number' | 'tel' | 'url' | 'search'
@@ -216,26 +217,26 @@ export class MnInput extends SkinAware(LitElement) {
       }
     }
 
-    :host([data-skin='98']) .input-wrap {
+    :host(${BEVELLED}) .input-wrap {
       border: 0;
       border-radius: 0;
       background: var(--mn-color-surface-sunken, #fff);
       box-shadow: var(--mn-98-sunken);
     }
-    :host([data-skin='98']) .input-wrap:hover:not(.disabled) {
+    :host(${BEVELLED}) .input-wrap:hover:not(.disabled) {
       border-color: transparent;
     }
-    :host([data-skin='98']) .input-wrap.focused:not(.error-state) {
+    :host(${BEVELLED}) .input-wrap.focused:not(.error-state) {
       border-color: transparent;
       box-shadow: var(--mn-98-sunken), var(--mn-focus-ring);
     }
-    :host([data-skin='98']) .ctrl-btn {
+    :host(${BEVELLED}) .ctrl-btn {
       border-radius: 0;
       background: var(--mn-98-face, #c0c0c0);
       color: var(--mn-color-text-primary, #000);
       box-shadow: var(--mn-98-raised);
     }
-    :host([data-skin='98']) .ctrl-btn:active {
+    :host(${BEVELLED}) .ctrl-btn:active {
       box-shadow: var(--mn-98-sunken);
       transform: translate(1px, 1px);
     }

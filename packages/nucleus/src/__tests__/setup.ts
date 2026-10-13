@@ -12,7 +12,10 @@ import { afterEach } from 'vitest'
 ;(globalThis as { litIssuedWarnings?: Set<string> }).litIssuedWarnings ??= new Set()
 ;(globalThis as { litIssuedWarnings?: Set<string> }).litIssuedWarnings!.add('dev-mode')
 
+// Pure suites run under `@vitest-environment node` (the Files canvas engine and reducer must work
+// without a DOM), where there is no document to clear.
 afterEach(() => {
+  if (typeof document === 'undefined') return
   document.body.innerHTML = ''
   document.head.innerHTML = ''
 })

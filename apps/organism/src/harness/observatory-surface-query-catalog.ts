@@ -49,44 +49,28 @@
  *     Contract text, both enforced here with `OPTIONAL` around
  *     `projectedThrough` and no `outcome` variable anywhere in the SELECT.
  *
- * OPEN GROUNDING GAPS (reported here rather than hidden — Rule 1: stop and
- * report a gap, never invent past it). Two reference documents were read in
- * full before writing this file: `plans/observatory-analysis-cell-spec-
- * 20260715.md` §A.2 (the materializer's JSON-MO -> RDF mapping contract, the
- * most authoritative source reachable from this worktree) and `plans/
- * observatory-ux-proposal-20260728.md` §3.2 (the pre-ruling proposal this
- * spec's Pulse/Fleet/Capture reader-questions were carried over from
- * verbatim). Neither document gives the exact predicate/type IRIs for THREE
- * of the nineteen queries below; the ANALOGOUS, best-grounded choice was made
- * in each case and is called out at its query site:
- *   1. `spawn-unmaterialized` — `SpawnAttemptProjection`'s RDF type is never
- *      spelled out (only that it exists, target=rollups, reconcile=logical-id
- *      supersede, mirroring `MachineRunProjection`). This file assumes
- *      `mach:SpawnAttempt` by analogy with `MachineRunProjection` ->
- *      `mach:MachineRun`. UNVERIFIED against the real materializer output.
- *   2. `line-count`/`unique-count`/`redelivery-permille` — the proposal names
- *      `obs:lineCount` and `obs:uniqueEventCount` on "`obs:SourceSnapshot`"
- *      (its own wording) but no ordering/"latest" field. This file assumes
- *      `obs:asOf`, by analogy with `FleetObservation`/`CapacityEstimate` —
- *      the OTHER two "subject-upsert (content-hash)" rollup types (§A.2's own
- *      reconcile-scope table), which both use `obs:asOf`. UNVERIFIED.
- *   3. `evaluation-failures` — `obs:MetricEvaluation`'s failure vocabulary is
- *      never spelled out beyond the type name and "typed error codes"
- *      (proposal prose). This file reuses `obs:computationStatus` (the ONE
- *      predicate confirmed on two OTHER rollup types — `MetricObservation`
- *      and `obs:ProjectionRun`) and filters `!= "ok"`, rather than inventing
- *      unconfirmed `obs:errorCode`/`obs:outcome` predicates. UNVERIFIED, and
- *      the biggest residual risk in this file: if `MetricEvaluation` reuses
- *      `MetricObservation`'s OWN "ok"|"no-data" vocabulary rather than a
- *      distinct evaluation-attempt vocabulary, this filter would also catch
- *      honest empty-window "no-data" rows and mislabel them as failures —
- *      exactly the confusion ruling 3 (CONFESS) exists to prevent. Flagged
- *      for operator verification against a real cell before this cell is
- *      trusted; Gap 5 (no local gardend binary) blocks that here.
- * All three fail SAFE, not silently: an unverified predicate name simply
- * never matches anything, so the cell renders P4's honest `No data` /
- * `sparql.bindings-table`'s empty-table state — never a fabricated value,
- * never a crash.
+ * MATERIALIZER JOIN (2026-09-09): the earlier analogy-based predicates were
+ * wrong, not harmlessly unverified. Garden f56af05b35f271a3a6cccfb47685516c0610c05a
+ * `src-tauri/src/observatory/mapping.rs` emits obs:SpawnAttempt, SourceSnapshot
+ * obs:capturedAt, and MetricEvaluation obs:outcome / obs:errorCode. Its mapper
+ * and retained golden RDF are byte-identical to e842. The focused cross-repo
+ * fixtures here preserve those golden bytes and source hashes; they are mapper
+ * fixtures, not testimony that a Sirin producer or projector has run.
+ *
+ * The old spawn COUNT was especially misleading: a wrong type OR an absent
+ * projection produced 0, not "No data". The corrected count requires the unique
+ * latest dated lifecycle ProjectionRun with computationStatus="ok", linked to a
+ * capture SourceSnapshot. A successful projection with zero attempts can say 0;
+ * missing/error/unknown/no-data status cannot. A newer unsuccessful or tied run
+ * never falls back to an older success. Lifecycle "no-data" means no machine
+ * rows (projector.rs), not evidence that there were zero failed spawns. Neither
+ * this count nor the presence of old RDF proves a producer is currently alive;
+ * the page-level freshness governor remains responsible for age/unknown state.
+ *
+ * MetricEvaluation outcome is distinct from MetricObservation computationStatus
+ * (which can honestly say "no-data"). Only outcome="error" rows are failures;
+ * the exact code and safe message, when present, remain inspectable in the table.
+ * This must not be confused with ProjectionRun's decorative constant outcome.
  *
  * No `obs.pulse.freshness` name exists here — ruling 3 withdrew the governor
  * as a leaf entirely (`ObsGovernor` is DROPPED, plans/observatory-ux-
@@ -292,13 +276,29 @@ SELECT ?value WHERE {
   {
     name: OBS_SURFACE_QUERY.spawnUnmaterialized,
     description:
-      'Count of spawn attempts never promoted to a machine run (requested-but-never-incarnated). ' +
-      'UNVERIFIED type: mach:SpawnAttempt is inferred by analogy with MachineRunProjection -> mach:MachineRun — see this file header.',
+      'Count of obs:SpawnAttempt subjects, only when the unique newest lifecycle projection has computationStatus="ok" and capture-snapshot evidence; ' +
+      'missing projection is no data, not zero or proof of a healthy producer.',
     text: `PREFIX obs: <${OBS}>
-PREFIX mach: <${MACH}>
-SELECT (COUNT(?item) AS ?value) WHERE {
-  GRAPH <${ROLLUPS}> {
-    ?item a mach:SpawnAttempt .
+PREFIX prov: <http://www.w3.org/ns/prov#>
+SELECT ?value WHERE {
+  {
+    SELECT (COUNT(?item) AS ?value) WHERE {
+      GRAPH <${ROLLUPS}> { ?item a obs:SpawnAttempt . }
+    }
+  }
+  FILTER EXISTS {
+    GRAPH <${ROLLUPS}> {
+      ?projection a obs:ProjectionRun ; obs:evaluatedAt ?evaluatedAt ;
+                  obs:computationStatus "ok" ; prov:wasDerivedFrom ?snapshot .
+      ?snapshot a obs:SourceSnapshot ; obs:capturedAt ?capturedAt ;
+                obs:lineCount ?lineCount ; obs:uniqueEventCount ?uniqueCount .
+    }
+    FILTER NOT EXISTS {
+      GRAPH <${ROLLUPS}> {
+        ?other a obs:ProjectionRun ; obs:evaluatedAt ?otherAt .
+        FILTER(?other != ?projection && ?otherAt >= ?evaluatedAt)
+      }
+    }
   }
 }`,
   },
@@ -340,24 +340,23 @@ SELECT ?run ?evaluatedAt ?projectedThrough ?computationStatus WHERE {
   {
     name: OBS_SURFACE_QUERY.lineCount,
     description:
-      'Latest capture ledger line count (obs:SourceSnapshot). UNVERIFIED ordering field: obs:asOf is ' +
-      'inferred by analogy with the other two content-hash-upsert rollup types — see this file header.',
+      'Latest capture ledger line count (obs:SourceSnapshot), ordered by its actual obs:capturedAt.',
     text: `PREFIX obs: <${OBS}>
 SELECT ?value WHERE {
   GRAPH <${ROLLUPS}> {
-    ?snap a obs:SourceSnapshot ; obs:asOf ?asOf ; obs:lineCount ?value .
+    ?snap a obs:SourceSnapshot ; obs:capturedAt ?capturedAt ; obs:lineCount ?value .
   }
-} ORDER BY DESC(?asOf) LIMIT 1`,
+} ORDER BY DESC(?capturedAt) LIMIT 1`,
   },
   {
     name: OBS_SURFACE_QUERY.uniqueCount,
-    description: 'Latest capture ledger unique-event count (obs:SourceSnapshot). Same grounding note as line-count.',
+    description: 'Latest capture ledger unique-event count (obs:SourceSnapshot), ordered by obs:capturedAt.',
     text: `PREFIX obs: <${OBS}>
 SELECT ?value WHERE {
   GRAPH <${ROLLUPS}> {
-    ?snap a obs:SourceSnapshot ; obs:asOf ?asOf ; obs:uniqueEventCount ?value .
+    ?snap a obs:SourceSnapshot ; obs:capturedAt ?capturedAt ; obs:uniqueEventCount ?value .
   }
-} ORDER BY DESC(?asOf) LIMIT 1`,
+} ORDER BY DESC(?capturedAt) LIMIT 1`,
   },
   {
     name: OBS_SURFACE_QUERY.redeliveryPermille,
@@ -366,26 +365,31 @@ SELECT ?value WHERE {
       'obs:SourceSnapshot (~50% observed on canary per the proposal doc — the dedup contract carrying real weight).',
     text: `PREFIX obs: <${OBS}>
 SELECT (ROUND(((?lineCount - ?uniqueCount) * 1000) / ?lineCount) AS ?value) WHERE {
-  GRAPH <${ROLLUPS}> {
-    ?snap a obs:SourceSnapshot ; obs:asOf ?asOf ; obs:lineCount ?lineCount ; obs:uniqueEventCount ?uniqueCount .
-    FILTER(?lineCount > 0)
+  {
+    SELECT ?lineCount ?uniqueCount WHERE {
+      GRAPH <${ROLLUPS}> {
+        ?snap a obs:SourceSnapshot ; obs:capturedAt ?capturedAt ; obs:lineCount ?lineCount ; obs:uniqueEventCount ?uniqueCount .
+      }
+    } ORDER BY DESC(?capturedAt) LIMIT 1
   }
-} ORDER BY DESC(?asOf) LIMIT 1`,
+  FILTER(?lineCount > 0)
+}`,
   },
   {
     name: OBS_SURFACE_QUERY.evaluationFailures,
     description:
-      'MetricEvaluation rows whose obs:computationStatus is not "ok". UNVERIFIED vocabulary — see this ' +
-      'file header for the risk that MetricEvaluation reuses MetricObservation’s ok|no-data axis, in ' +
-      'which case this would also catch honest empty windows; flagged for operator verification.',
+      'MetricEvaluation rows with obs:outcome="error", including their available error code and safe message; ' +
+      'a MetricObservation with computationStatus="no-data" is not an evaluation failure.',
     text: `PREFIX obs: <${OBS}>
-SELECT ?evaluation ?metricDefinition ?evaluatedAt ?computationStatus WHERE {
+SELECT ?evaluation ?metricDefinition ?evaluatedAt ?outcome ?errorCode ?errorSafeMessage WHERE {
   GRAPH <${ROLLUPS}> {
     ?evaluation a obs:MetricEvaluation ;
-                obs:computationStatus ?computationStatus ;
+                obs:outcome ?outcome ;
                 obs:evaluatedAt ?evaluatedAt .
     OPTIONAL { ?evaluation obs:metricDefinition ?metricDefinition }
-    FILTER(?computationStatus != "ok")
+    OPTIONAL { ?evaluation obs:errorCode ?errorCode }
+    OPTIONAL { ?evaluation obs:errorSafeMessage ?errorSafeMessage }
+    FILTER(?outcome = "error")
   }
 } ORDER BY DESC(?evaluatedAt) LIMIT 50`,
   },

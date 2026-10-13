@@ -9,7 +9,7 @@ import { createDefaultSettingsService } from '../settings-service.js'
 const GRAPH_ID = 'settings-oracle'
 const BASE = `https://cell.example/g/${GRAPH_ID}`
 
-function contract(): Pick<ShrubberyContract, 'auth' | 'runtime' | 'ui'> {
+function contract(mode: 'local' | 'hosted' = 'local'): Pick<ShrubberyContract, 'auth' | 'runtime' | 'ui'> {
   return {
     auth: {
       token: () => 'settings-token',
@@ -19,8 +19,8 @@ function contract(): Pick<ShrubberyContract, 'auth' | 'runtime' | 'ui'> {
       onChange: () => () => undefined,
     },
     runtime: {
-      mode: () => 'local',
-      isGateway: () => false,
+      mode: () => mode,
+      isGateway: () => mode === 'hosted',
       graphBaseUrl: () => BASE,
     },
     ui: {
@@ -131,6 +131,19 @@ function file(name: string, body = 'fixture'): File {
 }
 
 describe('GardendSettingsOperations', () => {
+  it.each(['local', 'hosted'] as const)('reads %s restore points with mode-correct identity', async mode => {
+    const fetch = vi.fn<typeof globalThis.fetch>(async (_input, init) => {
+      const headers = new Headers(init?.headers)
+      expect(headers.get('Authorization')).toBe('Bearer settings-token')
+      expect(headers.get('X-User-ID')).toBe(mode === 'local' ? 'settings-user' : null)
+      return json({ restorePoints: [], totalCount: 0, nextCursor: null })
+    })
+    const operations = new GardendSettingsOperations(contract(mode), GRAPH_ID, null, mode, { fetch })
+    await operations.ensureHistoryLoaded()
+    expect(fetch).toHaveBeenCalledWith(`${BASE}/v1/time-travel/${GRAPH_ID}/restore-points?limit=50`, expect.objectContaining({ cache: 'no-store' }))
+    expect(operations.snapshot().historyStatus).toBe('ready')
+  })
+
   it('projects only real routes and does not manufacture unavailable controls', async () => {
     const backend = successfulBackend()
     const operations = new GardendSettingsOperations(contract(), GRAPH_ID, null, 'local', {

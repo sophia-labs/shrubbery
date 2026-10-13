@@ -140,3 +140,26 @@ describe('offline workspace source overlay', () => {
     expect(offlineWorkspaceOverlay(witnessed, [outbox(operation, 1, 'applied')]).documents.size).toBe(0)
   })
 })
+
+describe('trashed documents in the mirrored workspace', () => {
+  it('are not part of the overlay, so they are never projected into the live tree', async () => {
+    const ydoc = new Y.Doc()
+    const documents = ydoc.getMap<Y.Map<unknown>>('documents')
+    for (const [id, trashed] of [['doc-live', false], ['doc-gone', true]] as const) {
+      const entry = new Y.Map<unknown>()
+      entry.set('title', id)
+      entry.set('section', 'documents')
+      entry.set('order', 1)
+      if (trashed) entry.set('trashed', true)
+      documents.set(id, entry)
+    }
+    const bundle = await createProvisionalSourceBundle({
+      graphId: 'graph-a',
+      graphIncarnation: '11111111-1111-4111-8111-111111111111',
+      workspaceUpdateBase64: base64(Y.encodeStateAsUpdate(ydoc)),
+      now: 1,
+    })
+    const overlay = offlineWorkspaceOverlay(bundle, [])
+    expect([...overlay.documents.keys()]).toEqual(['doc-live'])
+  })
+})

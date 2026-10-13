@@ -93,7 +93,7 @@ try {
   })
   const skinSelect = settings.getByLabel('Skin', { exact: true })
   assert(await skinSelect.locator('option').allTextContents().then(values => values.join('|'))
-    === 'Garden|Sophia|98|Glass', 'Settings does not expose the complete identity cycle')
+    === 'Garden|Sophia|98|Glass|Mithras|Hotdog Stand', 'Settings does not expose the complete skin set')
   await skinSelect.selectOption('98')
   await page.waitForFunction(() => document.documentElement.dataset.skin === '98')
   const ninetyEightMaterials = await settings.evaluate((element) => {

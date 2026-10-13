@@ -24,6 +24,8 @@ export interface OrganismGardenHomeService {
   openGraph(workspace: MnWorkspaceSummary): void | Promise<void>
   manageAccess?(workspace: MnWorkspaceSummary): void | Promise<void>
   create?(): void | Promise<void>
+  /** Explicit host-owned creation/seed action; never called by route load. */
+  startOnboarding?(): void | Promise<void>
   openAccount?(account: MnGardenHomeAccount): void | Promise<void>
 }
 
@@ -79,12 +81,15 @@ export function mountGardenHomeRoute(
   service: OrganismGardenHomeService,
 ): GardenHomeRouteMount {
   let destroyed = false
+  let loadGeneration = 0
   let snapshot = EMPTY_SNAPSHOT
   let status: MnGardenHome['status'] = 'loading'
   let error = ''
   let busyGraphId = ''
   let createStatus: MnGardenHome['createStatus'] = 'idle'
   let createError = ''
+  let onboardingStatus: MnGardenHome['onboardingStatus'] = 'idle'
+  let onboardingError = ''
 
   const render = (): void => {
     if (destroyed) return
@@ -98,6 +103,9 @@ export function mountGardenHomeRoute(
         .busyGraphId=${busyGraphId || null}
         .createStatus=${createStatus}
         .createError=${createError}
+        .onboardingAvailable=${Boolean(service.startOnboarding)}
+        .onboardingStatus=${onboardingStatus}
+        .onboardingError=${onboardingError}
         @mn-garden-home-refresh=${() => { void load() }}
         @mn-garden-home-open-graph=${(event: CustomEvent<MnGardenHomeWorkspaceDetail>) => {
           void runGraphIntent(event.detail.workspace, () => service.openGraph(event.detail.workspace))
@@ -110,6 +118,9 @@ export function mountGardenHomeRoute(
           if (!service.create) return
           void createGraph()
         }}
+        @mn-garden-home-start-onboarding=${() => {
+          if (service.startOnboarding) void startOnboarding()
+        }}
         @mn-garden-home-account=${(event: CustomEvent<{ account: MnGardenHomeAccount }>) => {
           void service.openAccount?.(event.detail.account)
         }}
@@ -118,16 +129,18 @@ export function mountGardenHomeRoute(
   }
 
   const load = async (): Promise<void> => {
+    if (destroyed) return
+    const generation = ++loadGeneration
     status = 'loading'
     error = ''
     render()
     try {
       const next = await service.load()
-      if (destroyed) return
+      if (destroyed || generation !== loadGeneration) return
       snapshot = next
       status = 'ready'
     } catch (loadError) {
-      if (destroyed) return
+      if (destroyed || generation !== loadGeneration) return
       status = 'error'
       error = errorMessage(loadError)
     }
@@ -156,6 +169,7 @@ export function mountGardenHomeRoute(
   }
 
   const createGraph = async (): Promise<void> => {
+    if (destroyed || status !== 'ready' || createStatus === 'creating' || onboardingStatus === 'creating') return
     createStatus = 'creating'
     createError = ''
     render()
@@ -168,7 +182,30 @@ export function mountGardenHomeRoute(
       createStatus = 'error'
       createError = errorMessage(createFailure)
     }
+    // A failed hosted acknowledgement may still have durably saved a local
+    // creation. Refresh its honest catalog representation without erasing the
+    // creation error or requiring a page reload to find retained work.
+    await load()
     render()
+  }
+
+  const startOnboarding = async (): Promise<void> => {
+    if (destroyed || status !== 'ready' || onboardingStatus === 'creating' || createStatus === 'creating') return
+    onboardingStatus = 'creating'
+    onboardingError = ''
+    render()
+    try {
+      await service.startOnboarding?.()
+      if (destroyed) return
+      onboardingStatus = 'idle'
+    } catch (failure) {
+      if (destroyed) return
+      onboardingStatus = 'error'
+      onboardingError = errorMessage(failure)
+    }
+    // A failed seed can have created a real graph. Refresh its catalog entry;
+    // never delete it or automatically repeat an uncertain content write.
+    await load()
   }
 
   const ready = load()

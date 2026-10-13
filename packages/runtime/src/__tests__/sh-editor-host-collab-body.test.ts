@@ -1005,7 +1005,13 @@ describe('rung-3 — the live collaborative editor body lifts over a real Y.Doc'
 
       const focusedBlock = h.shadowRoot?.querySelector('[data-block-id="block-b"]') as HTMLElement | null
       expect(scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'center' })
-      expect(focusedBlock?.getAttribute('data-wire-highlighted')).toBe('')
+      // 'true', not ''. This assertion used to read `.toBe('')` and so pinned
+      // the very bug that made every wire highlight invisible — the writer
+      // wrote an empty value the stylesheet's `='true'` could never match.
+      // See wire-highlight-contract.test.ts, which couples the two directly.
+      expect(focusedBlock?.getAttribute('data-wire-highlighted')).toBe('true')
+      // Navigation is an ARRIVAL, so it also earns the one-shot pulse.
+      expect(focusedBlock?.getAttribute('data-wire-highlight-mode')).toBe('arrival')
 
       render(mountEditorHost(binding, null, { focusRequest: { blockId: 'b', token: 2, durationMs: 200 } }), container)
       await settle(h)
@@ -1023,7 +1029,7 @@ describe('rung-3 — the live collaborative editor body lifts over a real Y.Doc'
     }
   })
 
-  it('routes direct gutter gestures: fold strip toggles, Shift+gutter zooms, plain gutter wires', async () => {
+  it('routes integrated block controls: folding, contextual zoom and connections', async () => {
     const be = backend()
     const provider = be.open({ kind: 'doc', graphId: 'g', docId: 'wire-source' })
     const binding = makeBinding({
@@ -1047,10 +1053,10 @@ describe('rung-3 — the live collaborative editor body lifts over a real Y.Doc'
 
     const focusedBlocks = Array.from(h.shadowRoot?.querySelectorAll('[data-block-focused]') ?? [])
     expect(focusedBlocks).toHaveLength(1)
-    expect(focusedBlocks[0]?.getAttribute('data-block-id')).toContain(h.liveEditor?.getActiveBlockId())
+    expect(focusedBlocks[0]?.closest('[data-block-id]')?.getAttribute('data-block-id')).toContain(h.liveEditor?.getActiveBlockId())
     expect(real._editor.commands.setTextSelection(1)).toBe(true)
     await settle(h)
-    expect(h.shadowRoot?.querySelector('[data-block-focused]')?.getAttribute('data-block-id')).toBe('block-a')
+    expect(h.shadowRoot?.querySelector('[data-block-focused]')?.closest('[data-block-id]')?.getAttribute('data-block-id')).toBe('block-a')
 
     const parent = h.shadowRoot?.querySelector('[data-block-id="block-a"]') as HTMLElement | null
     const leaf = h.shadowRoot?.querySelector('[data-block-id="block-c"]') as HTMLElement | null
@@ -1086,7 +1092,7 @@ describe('rung-3 — the live collaborative editor body lifts over a real Y.Doc'
     expect(events).toEqual([])
     expect(h.liveEditor?.getZoomSnapshot().blockId).toBeNull()
 
-    ;(h.shadowRoot?.querySelector('[data-block-id="block-a"]') as HTMLElement | null)!.dispatchEvent(
+    ;(parent!.querySelector('.outliner-fold-button') as HTMLElement)!.dispatchEvent(
       new MouseEvent('click', {
         bubbles: true,
         composed: true,
@@ -1104,7 +1110,7 @@ describe('rung-3 — the live collaborative editor body lifts over a real Y.Doc'
       value: () => ({ left: 100, top: 40, right: 500, bottom: 64, width: 400, height: 24 }),
     })
 
-    collapsedParent!.dispatchEvent(
+    collapsedParent!.querySelector('.outliner-fold-button')!.dispatchEvent(
       new MouseEvent('click', {
         bubbles: true,
         composed: true,
@@ -1121,15 +1127,9 @@ describe('rung-3 — the live collaborative editor body lifts over a real Y.Doc'
       value: () => ({ left: 100, top: 40, right: 500, bottom: 64, width: 400, height: 24 }),
     })
 
-    expandedParent!.dispatchEvent(
-      new MouseEvent('mousedown', {
-        bubbles: true,
-        composed: true,
-        clientX: 122,
-        clientY: 50,
-        shiftKey: true,
-      }),
-    )
+    expandedParent!.querySelector<HTMLButtonElement>('.outliner-node-button')!.click()
+    await settle(h)
+    h.shadowRoot!.querySelector<HTMLButtonElement>('[data-outliner-action="zoom"]')!.click()
     await settle(h)
     expect(events).toEqual([])
     expect(h.liveEditor?.getZoomSnapshot().blockId).toBe('block-a')
@@ -1150,14 +1150,9 @@ describe('rung-3 — the live collaborative editor body lifts over a real Y.Doc'
     await settle(h)
 
     events.length = 0
-    leaf!.dispatchEvent(
-      new MouseEvent('click', {
-        bubbles: true,
-        composed: true,
-        clientX: 106,
-        clientY: 80,
-      }),
-    )
+    leaf!.querySelector<HTMLButtonElement>('.outliner-node-button')!.click()
+    await settle(h)
+    h.shadowRoot!.querySelector<HTMLButtonElement>('[data-outliner-action="connections"]')!.click()
     expect(events).toEqual([
       expect.objectContaining({
         graphId: 'g',
@@ -1244,15 +1239,9 @@ describe('rung-3 — the live collaborative editor body lifts over a real Y.Doc'
     })
 
     events.length = 0
-    orderedParent!.dispatchEvent(
-      new MouseEvent('click', {
-        bubbles: true,
-        composed: true,
-        cancelable: true,
-        clientX: 120,
-        clientY: 50,
-      }),
-    )
+    orderedParent!.querySelector<HTMLButtonElement>('.outliner-node-button')!.click()
+    await settle(h)
+    h.shadowRoot!.querySelector<HTMLButtonElement>('[data-outliner-action="connections"]')!.click()
     expect(events).toEqual([
       expect.objectContaining({
         graphId: 'g',
@@ -1305,7 +1294,11 @@ describe('rung-3 — the live collaborative editor body lifts over a real Y.Doc'
 
     const wiredBlock = h.shadowRoot?.querySelector('[data-block-id="block-b"]') as HTMLElement | null
     const unwiredBlock = h.shadowRoot?.querySelector('[data-block-id="block-c"]') as HTMLElement | null
-    expect(wiredBlock?.getAttribute('data-block-wired')).toBe('')
+    // 'true', not ''. The indicator is a ProseMirror decoration now rather
+    // than a toggleAttribute on the block element — the old empty-string value
+    // was an artifact of toggleAttribute, and the attribute did not survive a
+    // redraw at all. See wire-highlight-survives-redraw.test.ts.
+    expect(wiredBlock?.getAttribute('data-block-wired')).toBe('true')
     expect(wiredBlock?.getAttribute('data-wire-count')).toBe('1')
     expect(unwiredBlock?.hasAttribute('data-block-wired')).toBe(false)
 
@@ -1314,7 +1307,9 @@ describe('rung-3 — the live collaborative editor body lifts over a real Y.Doc'
         detail: { blockId: 'block-b' },
       }),
     )
-    expect(wiredBlock?.getAttribute('data-wire-highlighted')).toBe('')
+    expect(wiredBlock?.getAttribute('data-wire-highlighted')).toBe('true')
+    // Hovering a wire card is NOT an arrival — it must not pulse.
+    expect(wiredBlock?.getAttribute('data-wire-highlight-mode')).toBe('hover')
     expect(unwiredBlock?.hasAttribute('data-wire-highlighted')).toBe(false)
 
     document.dispatchEvent(
@@ -1323,6 +1318,31 @@ describe('rung-3 — the live collaborative editor body lifts over a real Y.Doc'
       }),
     )
     expect(wiredBlock?.hasAttribute('data-wire-highlighted')).toBe(false)
+
+    // AN INACTIVE PANE STILL HONOURS A CLEAR. The highlight is gated on
+    // paneActive so that only the pane being worked in lights up; gating the
+    // CLEAR as well stranded it. Hover a card while this pane is active, click
+    // into another pane, then leave the card: the clear arrives here inactive,
+    // and if it is dropped this pane keeps a highlight nothing will remove.
+    document.dispatchEvent(
+      new CustomEvent(WIRE_HIGHLIGHT_BLOCK_EVENT, { detail: { blockId: 'block-b' } }),
+    )
+    expect(wiredBlock?.getAttribute('data-wire-highlighted')).toBe('true')
+
+    h.paneActive = false
+    await settle(h)
+    // A positive highlight is refused while inactive...
+    document.dispatchEvent(
+      new CustomEvent(WIRE_HIGHLIGHT_BLOCK_EVENT, { detail: { blockId: 'block-c' } }),
+    )
+    expect(unwiredBlock?.hasAttribute('data-wire-highlighted')).toBe(false)
+    // ...but the clear lands, because it can only ever remove.
+    document.dispatchEvent(
+      new CustomEvent(WIRE_HIGHLIGHT_BLOCK_EVENT, { detail: { blockId: null } }),
+    )
+    expect(wiredBlock?.hasAttribute('data-wire-highlighted')).toBe(false)
+    h.paneActive = true
+    await settle(h)
 
     Object.defineProperty(wiredBlock!, 'getBoundingClientRect', {
       configurable: true,
@@ -1342,14 +1362,9 @@ describe('rung-3 — the live collaborative editor body lifts over a real Y.Doc'
       createEvents.push(event.detail)
     }) as EventListener)
 
-    wiredBlock!.dispatchEvent(
-      new MouseEvent('click', {
-        bubbles: true,
-        composed: true,
-        clientX: 112,
-        clientY: 50,
-      }),
-    )
+    wiredBlock!.querySelector<HTMLButtonElement>('.outliner-node-button')!.click()
+    await settle(h)
+    h.shadowRoot!.querySelector<HTMLButtonElement>('[data-outliner-action="connections"]')!.click()
     expect(menuEvents).toEqual([
       expect.objectContaining({
         blockId: 'block-b',
@@ -1358,14 +1373,9 @@ describe('rung-3 — the live collaborative editor body lifts over a real Y.Doc'
     ])
     expect(createEvents).toEqual([])
 
-    unwiredBlock!.dispatchEvent(
-      new MouseEvent('click', {
-        bubbles: true,
-        composed: true,
-        clientX: 112,
-        clientY: 80,
-      }),
-    )
+    unwiredBlock!.querySelector<HTMLButtonElement>('.outliner-node-button')!.click()
+    await settle(h)
+    h.shadowRoot!.querySelector<HTMLButtonElement>('[data-outliner-action="connections"]')!.click()
     expect(createEvents).toEqual([expect.objectContaining({ blockId: 'block-c' })])
 
     const contextRequests: WireRadialContextRequestDetail[] = []
@@ -1387,7 +1397,7 @@ describe('rung-3 — the live collaborative editor body lifts over a real Y.Doc'
       clientX: 112,
       clientY: 50,
     })
-    wiredBlock!.dispatchEvent(hoverEvent)
+    wiredBlock!.querySelector('.outliner-node-button')!.dispatchEvent(hoverEvent)
     await until(() => h.shadowRoot!.querySelector('mn-wire-radial-overlay') !== null)
     const overlay = h.shadowRoot!.querySelector('mn-wire-radial-overlay') as HTMLElement & {
       updateComplete: Promise<unknown>

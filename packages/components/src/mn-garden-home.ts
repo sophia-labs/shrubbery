@@ -46,6 +46,7 @@ export interface MnGardenHomeIntentDetailMap {
   readonly 'mn-garden-home-open-graph': MnGardenHomeWorkspaceDetail
   readonly 'mn-garden-home-manage-access': MnGardenHomeWorkspaceDetail
   readonly 'mn-garden-home-create': MnGardenHomeCreateDetail
+  readonly 'mn-garden-home-start-onboarding': Readonly<Record<string, never>>
   readonly 'mn-garden-home-account': MnGardenHomeAccountDetail
 }
 
@@ -157,7 +158,8 @@ export class MnGardenHome extends SkinAware(LitElement) {
     .open-graph:focus-visible,
     .recent-card:focus-visible,
     .access:focus-visible,
-    .create-toggle:focus-visible {
+    .create-toggle:focus-visible,
+    .start-onboarding:focus-visible {
       outline: 2px solid var(--mn-focus-ring-color, var(--mn-color-border-focus, #376d57));
       outline-offset: 2px;
     }
@@ -456,6 +458,9 @@ export class MnGardenHome extends SkinAware(LitElement) {
   @property({ attribute: false }) busyGraphId: string | null = null
   @property({ type: String, attribute: 'create-status' }) createStatus: MnGardenHomeCreateStatus = 'idle'
   @property({ type: String, attribute: 'create-error' }) createError: string | null = null
+  @property({ type: Boolean, attribute: 'onboarding-available' }) onboardingAvailable = false
+  @property({ type: String, attribute: 'onboarding-status' }) onboardingStatus: MnGardenHomeCreateStatus = 'idle'
+  @property({ type: String, attribute: 'onboarding-error' }) onboardingError: string | null = null
 
   private emit<Name extends keyof MnGardenHomeIntentDetailMap>(
     name: Name,
@@ -473,7 +478,7 @@ export class MnGardenHome extends SkinAware(LitElement) {
   }
 
   private openGraph(workspace: MnWorkspaceSummary): void {
-    if (workspace.disabled || this.busyGraphId === workspace.graphId) return
+    if (workspace.disabled || workspace.localCreation || this.busyGraphId === workspace.graphId) return
     this.emit('mn-garden-home-open-graph', { workspace })
   }
 
@@ -525,7 +530,8 @@ export class MnGardenHome extends SkinAware(LitElement) {
                 <button
                   class="recent-card"
                   type="button"
-                  ?disabled=${busy}
+                  ?disabled=${busy || Boolean(workspace.localCreation)}
+                  title=${workspace.localCreation ? 'Retry cloud confirmation before opening this workspace.' : workspaceTitle(workspace)}
                   aria-busy=${busy ? 'true' : 'false'}
                   @click=${() => this.openGraph(workspace)}
                 >
@@ -550,7 +556,7 @@ export class MnGardenHome extends SkinAware(LitElement) {
     const count = memberLabel(workspace.memberCount)
     const time = relativeTime(workspace.lastOpenedAt)
     const busy = this.busyGraphId === workspace.graphId
-    const disabled = Boolean(workspace.disabled) || busy
+    const disabled = Boolean(workspace.disabled) || Boolean(workspace.localCreation) || busy
     return html`
       <li>
         <article class="graph-card" data-graph-id=${workspace.graphId}>
@@ -560,13 +566,13 @@ export class MnGardenHome extends SkinAware(LitElement) {
                 <button
                   class="open-graph"
                   type="button"
-                  title=${title}
+                  title=${workspace.localCreation ? 'Retry cloud confirmation before opening this workspace.' : title}
                   ?disabled=${disabled}
                   aria-busy=${busy ? 'true' : 'false'}
                   @click=${() => this.openGraph(workspace)}
                 >${busy ? `Opening ${title}…` : title}</button>
               </h3>
-              <mn-badge pill size="sm" .label=${roleLabel(workspace.role)}></mn-badge>
+              <mn-badge pill size="sm" .label=${workspace.localCreation ? 'Saved locally' : roleLabel(workspace.role)}></mn-badge>
             </div>
             ${path.length > 0 ? html`
               <div class="graph-reference" aria-label="Graph reference">
@@ -584,7 +590,7 @@ export class MnGardenHome extends SkinAware(LitElement) {
             <button
               class="access"
               type="button"
-              ?disabled=${busy}
+              ?disabled=${busy || Boolean(workspace.localCreation)}
               aria-label=${workspace.role === 'owner' ? `Manage access to ${title}` : `View people in ${title}`}
               @click=${() => this.emit('mn-garden-home-manage-access', { workspace })}
             >
@@ -592,6 +598,12 @@ export class MnGardenHome extends SkinAware(LitElement) {
               <span>${workspace.role === 'owner' ? 'Share' : 'People'}</span>
             </button>
           </div>
+          ${workspace.localCreation ? html`
+            <p class="disabled-reason" title=${workspace.localCreation.error ?? ''}>
+              ${workspace.localCreation.status === 'conflict' ? 'Cloud creation was refused. Local work is retained.' : 'Cloud creation is not yet confirmed. Local work is retained.'}
+              Retry cloud confirmation before opening this workspace.
+            </p>
+          ` : nothing}
           ${workspace.disabled ? html`
             <p class="disabled-reason">${workspace.disabledReason?.trim() || 'This graph is not available to open.'}</p>
           ` : nothing}
@@ -620,6 +632,7 @@ export class MnGardenHome extends SkinAware(LitElement) {
 
   private renderCreate() {
     const creating = this.createStatus === 'creating'
+    const busy = creating || this.onboardingStatus === 'creating'
     return html`
       <section aria-labelledby="garden-new-heading">
         <div class="section-heading">
@@ -630,10 +643,10 @@ export class MnGardenHome extends SkinAware(LitElement) {
           <button
             class="create-toggle"
             type="button"
-            ?disabled=${creating}
+            ?disabled=${busy}
             aria-busy=${creating ? 'true' : 'false'}
             @click=${() => {
-              if (!creating) this.emit('mn-garden-home-create', {})
+              if (!busy) this.emit('mn-garden-home-create', {})
             }}
           >
             ${icon('plus', { size: 15 })}
@@ -641,6 +654,36 @@ export class MnGardenHome extends SkinAware(LitElement) {
           </button>
           ${this.createStatus === 'error' ? html`
             <p class="disabled-reason error" role="alert">${this.createError?.trim() || 'The graph could not be created.'}</p>
+          ` : nothing}
+        </div>
+      </section>
+    `
+  }
+
+  private renderOnboarding() {
+    if (!this.onboardingAvailable) return nothing
+    const starting = this.onboardingStatus === 'creating'
+    const busy = starting || this.createStatus === 'creating'
+    return html`
+      <section aria-labelledby="garden-tour-heading">
+        <div class="section-heading"><h2 id="garden-tour-heading">Begin with a question</h2></div>
+        <div class="side-card">
+          <p>A short, editable project to try notes, search, sources and connections. Keep your own question at the center.</p>
+          <p>This creates a separate tour graph and uses one workspace slot. Your existing pages stay untouched. A later edition is an optional new copy, not an update over your work.</p>
+          <button
+            class="create-toggle start-onboarding"
+            type="button"
+            ?disabled=${busy}
+            aria-busy=${starting ? 'true' : 'false'}
+            @click=${() => {
+              if (!busy) this.emit('mn-garden-home-start-onboarding', {})
+            }}
+          >
+            ${icon('book-open', { size: 15 })}
+            <span>${starting ? 'Preparing your tour…' : 'Start the Garden tour'}</span>
+          </button>
+          ${this.onboardingStatus === 'error' ? html`
+            <p class="disabled-reason error" role="alert">${this.onboardingError?.trim() || 'The tour could not be completed. Any created graph is retained; inspect it before trying again.'}</p>
           ` : nothing}
         </div>
       </section>
@@ -695,6 +738,7 @@ export class MnGardenHome extends SkinAware(LitElement) {
                     ${this.renderCatalog()}
                   </div>
                   <aside class="column" aria-label="Garden account actions">
+                    ${this.renderOnboarding()}
                     ${this.renderCreate()}
                   </aside>
                 </div>

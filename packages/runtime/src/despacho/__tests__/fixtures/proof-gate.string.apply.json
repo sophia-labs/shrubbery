@@ -1,0 +1,13 @@
+{
+ "recordedAt": "2026-09-15",
+ "source": "Sirin sophia-cluster cell via ~/.sophia-mcp/sirin-call.sh emporium_write",
+ "receipt": "proof-gate.string.apply.json (kept outside this repository)",
+ "jsonrpc": {
+  "jsonrpc": "2.0",
+  "id": 2,
+  "error": {
+   "code": -32000,
+   "message": "unknown embedded vocabulary 'cuentas'"
+  }
+ }
+}

@@ -1,5 +1,6 @@
 import {
   createKernelEditor,
+  getOutlinerBlocks,
   type Editor,
   type OpenWikiLinkPickerDetail,
 } from '@shrubbery/editor-kernel'
@@ -19,6 +20,7 @@ import {
   parseComposerMarkdown,
   serializeComposerMarkdown,
 } from './composer-markdown.js'
+import { parsePageMarkdown, serializePageMarkdown } from './page-markdown.js'
 import { HOJA_EVENTS } from './types.js'
 import type {
   HojaChangeHandler,
@@ -64,10 +66,14 @@ function referencesEqual(
  */
 @customElement('hoja-editor')
 export class HojaEditor extends LitElement {
+  /** Literal source text; no Markdown, inline marks, or graph references. */
+  @property({ type: Boolean, reflect: true, attribute: 'source-mode' }) sourceMode = false
   @property({ type: String, reflect: true }) posture: HojaPosture = 'composer'
   /** Host session/draft identity. Changing it replaces only the inner editor. */
   @property({ type: String, attribute: 'value-key' }) valueKey = ''
   @property({ type: String }) value = ''
+  /** Authoritative structure for page posture when a seed backend provides it. */
+  @property({ attribute: false }) pageDocument: HojaJSONContent | null = null
   @property({ attribute: false }) referenceBindings: readonly HojaWikiLinkReference[] = []
   @property({ type: String }) placeholder = 'Write a message…'
   @property({ type: String }) label = 'Message'
@@ -80,6 +86,8 @@ export class HojaEditor extends LitElement {
 
   /** Optional host lookup seam. No lookup implementation lives in Hoja. */
   @property({ attribute: false }) resolveWikiLinks?: HojaWikiLinkResolver
+  /** Navigation remains owned by the containing app. */
+  @property({ attribute: false }) onWikiLinkOpen?: (targetDocId: string, targetGraphId: string | null) => void
   @property({ attribute: false }) onWikiLinkRequest?: (
     detail: HojaWikiLinkRequestDetail,
   ) => void
@@ -94,10 +102,12 @@ export class HojaEditor extends LitElement {
   @state() private wikiLinkTrayState: WikiLinkTrayState = 'closed'
   @state() private wikiLinkSuggestions: readonly HojaWikiLinkSuggestion[] = []
   @state() private activeWikiLinkSuggestion = 0
+  @state() private outlinerMenu: { blockId: string | null; blockPos: number; x: number; y: number } | null = null
 
   private editor: Editor | null = null
   private mountedValueKey: string | null = null
   private applyingControlledValue = false
+  private appliedDocumentJson = ''
   private composing = false
   private activeWikiLinkRequest: HojaWikiLinkRequestDetail | null = null
   private wikiLinkResolverAbort: AbortController | null = null
@@ -105,6 +115,15 @@ export class HojaEditor extends LitElement {
   private readonly wikiLinkListboxId = `${this.toolbarId}-wikilinks`
 
   static styles = css`
+    hoja-editor[source-mode] .hoja-editor__footer { display: none; }
+    hoja-editor[source-mode] .ProseMirror pre {
+      font-family: var(--mn-font-mono, monospace);
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      tab-size: 2;
+      margin: 0;
+      min-height: 100%;
+    }
     hoja-editor {
       --hoja-composer-min-block-size: 3.25rem;
       --hoja-composer-max-block-size: min(34dvh, 18rem);
@@ -157,8 +176,16 @@ export class HojaEditor extends LitElement {
       min-block-size: var(--hoja-composer-min-block-size);
       overflow-x: hidden;
       overflow-y: auto;
-      overscroll-behavior: contain;
       scrollbar-gutter: stable;
+    }
+
+    /* Only the composer's capped mount really scrolls, so only it may stop
+       scroll chaining. In page/embedded posture the mount grows to the whole
+       document (scrollHeight == clientHeight); with 'contain' there, Chromium
+       treats it as the scroll boundary and wheel input over the text never
+       reaches the page's real scroller (QA 2026-09-23 P0-3). */
+    hoja-editor[posture='composer'] .hoja-editor__mount {
+      overscroll-behavior: contain;
     }
 
     hoja-editor .hoja-editor__mount .ProseMirror {
@@ -358,7 +385,7 @@ export class HojaEditor extends LitElement {
       min-height: 2.75rem;
       flex: 0 0 auto;
       place-items: center;
-      border: 0;
+      border: 1px solid transparent;
       border-radius: var(--mn-radius-control, 0.6rem);
       background: transparent;
       color: var(--mn-color-text-secondary, #4d5952);
@@ -370,6 +397,7 @@ export class HojaEditor extends LitElement {
     }
 
     hoja-editor .hoja-editor__format-toggle:hover,
+    hoja-editor .hoja-editor__format-toggle[aria-expanded='true'],
     hoja-editor .hoja-editor__format-button:hover,
     hoja-editor .hoja-editor__format-button[aria-pressed='true'],
     hoja-editor .hoja-editor__wikilink-toggle:hover,
@@ -397,9 +425,35 @@ export class HojaEditor extends LitElement {
 
     hoja-editor .hoja-editor__format-tray {
       display: flex;
+      min-height: 3.25rem;
       align-items: center;
-      gap: var(--mn-space-0-5, 0.125rem);
+      gap: var(--mn-space-1-5, 0.375rem);
       flex: 0 0 auto;
+      padding: 0.375rem 0.625rem;
+      border-top: 1px solid var(--mn-color-border-subtle, #d8ded9);
+      background: var(--mn-color-surface-subtle, #f8faf8);
+    }
+
+    hoja-editor .hoja-editor__format-tray::before {
+      margin-inline-end: 0.25rem;
+      color: var(--mn-color-text-muted, #768079);
+      content: 'FORMAT';
+      font: 700 0.625rem/1 var(--mn-font-utility, system-ui, sans-serif);
+      letter-spacing: 0.11em;
+    }
+
+    hoja-editor .hoja-editor__format-tray .hoja-editor__format-button {
+      min-width: 2.25rem;
+      min-height: 2.25rem;
+      border-color: var(--mn-color-border-subtle, #d8ded9);
+      border-radius: 0.55rem;
+      background: var(--mn-color-surface-raised, #fff);
+      box-shadow: var(--mn-shadow-xs, 0 1px 2px rgb(26 45 35 / 0.08));
+    }
+
+    hoja-editor .hoja-editor__format-tray .hoja-editor__format-button[aria-pressed='true'] {
+      border-color: var(--mn-color-text-accent, #376d57);
+      background: var(--mn-color-surface-accent, #edf6ef);
     }
 
     hoja-editor .hoja-editor__format-button--italic {
@@ -436,16 +490,278 @@ export class HojaEditor extends LitElement {
     }
 
     hoja-editor[posture='page'] .hoja-editor__frame {
+      flex-direction: column;
       min-block-size: 100%;
       border: 0;
       border-radius: 0;
       box-shadow: none;
     }
+    hoja-editor[posture='page'] .hoja-editor__footer {
+      display: flex;
+      order: -2;
+      justify-content: flex-end;
+      min-height: 48px;
+      border-top: 0;
+      border-bottom: 1px solid var(--mn-color-border-subtle, #d8ded9);
+      background: var(--mn-color-surface-raised, #fff);
+    }
+    hoja-editor[posture='page']:is([readonly], [disabled]) .hoja-editor__footer { display: none; }
+    hoja-editor[posture='page'] .hoja-editor__wikilink-tray { order: -1; }
+    hoja-editor[posture='page'] .hoja-editor__content { min-block-size: 50vh; min-block-size: 50dvh; }
+    hoja-editor[posture='page'] .hoja-editor__mount { overflow: visible; }
 
     hoja-editor[posture='page'] .hoja-editor__mount .ProseMirror {
       width: min(100%, var(--mn-editor-sheet-width, 52rem));
       margin-inline: auto;
       padding: var(--mn-editor-sheet-padding, 3rem clamp(1rem, 5vw, 3rem) 5rem);
+    }
+    hoja-editor[posture='page'] .ProseMirror > :is(p, h1, h2, h3, h4, h5, h6, blockquote) {
+      position: relative;
+      min-height: 1.5em;
+      padding-inline-start: 50px;
+    }
+    /* Flat outliner lists: every item is a direct child <li> whose hierarchy
+       is data-indent and whose kind is data-list-type (editor-kernel
+       list-item.ts). Without these rules the UA painted every item as a disc
+       at one depth and ordered numbers stayed empty (QA P1-9). */
+    hoja-editor[posture='page'] .ProseMirror {
+      counter-reset: hoja-ol-0 hoja-ol-1 hoja-ol-2;
+    }
+    hoja-editor[posture='page'] .ProseMirror > li {
+      position: relative;
+      display: flex;
+      align-items: baseline;
+      gap: 0.5em;
+      min-height: 1.5em;
+      padding-inline-start: 50px;
+      list-style: none;
+    }
+    hoja-editor[posture='page'] .ProseMirror > li > .list-item-content {
+      position: static;
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+    hoja-editor[posture='page'] .ProseMirror > li > p,
+    hoja-editor[posture='page'] .ProseMirror > li > .list-item-content > p {
+      flex: 1 1 auto;
+      min-width: 0;
+      margin: 0;
+    }
+    hoja-editor[posture='page'] .ProseMirror > li[data-list-type='bullet']::before {
+      flex: 0 0 auto;
+      width: 1.1em;
+      color: var(--mn-color-text-secondary, #58665c);
+      content: '•';
+      text-align: center;
+    }
+    hoja-editor[posture='page'] .ProseMirror > li[data-indent='1'] { margin-inline-start: 1.5rem; }
+    hoja-editor[posture='page'] .ProseMirror > li[data-indent='2'] { margin-inline-start: 3rem; }
+    hoja-editor[posture='page'] .ProseMirror > li[data-indent='3'] { margin-inline-start: 4.5rem; }
+    hoja-editor[posture='page'] .ProseMirror > li[data-indent='4'] { margin-inline-start: 6rem; }
+    hoja-editor[posture='page'] .ProseMirror > li[data-indent='5'] { margin-inline-start: 7.5rem; }
+    hoja-editor[posture='page'] .ProseMirror > li[data-indent='6'] { margin-inline-start: 9rem; }
+    /* Numbering: a counter per depth. Anything that is not an ordered item
+       at a depth ends that depth's run; deeper items never end a shallower
+       run, so "1. / nested / 2." keeps counting. */
+    hoja-editor[posture='page'] .ProseMirror > :not([data-indent]) { counter-reset: hoja-ol-1 hoja-ol-2; }
+    hoja-editor[posture='page'] .ProseMirror > :not([data-indent]):not(li[data-list-type='ordered']) { counter-reset: hoja-ol-0 hoja-ol-1 hoja-ol-2; }
+    hoja-editor[posture='page'] .ProseMirror > li[data-list-type='ordered'][data-indent='1'] { counter-reset: hoja-ol-2; }
+    hoja-editor[posture='page'] .ProseMirror > [data-indent='1']:not(li[data-list-type='ordered']) { counter-reset: hoja-ol-1 hoja-ol-2; }
+    hoja-editor[posture='page'] .ProseMirror > [data-indent]:not([data-indent='1']):not(li[data-list-type='ordered']) { counter-reset: hoja-ol-2; }
+    hoja-editor[posture='page'] .ProseMirror > li[data-list-type='ordered']:not([data-indent]) { counter-increment: hoja-ol-0; }
+    hoja-editor[posture='page'] .ProseMirror > li[data-list-type='ordered'][data-indent='1'] { counter-increment: hoja-ol-1; }
+    hoja-editor[posture='page'] .ProseMirror > li[data-list-type='ordered'][data-indent]:not([data-indent='1']) { counter-increment: hoja-ol-2; }
+    hoja-editor[posture='page'] .ProseMirror .list-item-number {
+      flex: 0 0 auto;
+      min-width: 1.4em;
+      color: var(--mn-color-text-secondary, #58665c);
+      font-variant-numeric: tabular-nums;
+      text-align: end;
+      user-select: none;
+    }
+    hoja-editor[posture='page'] .ProseMirror > li:not([data-indent]) > .list-item-number::before { content: counter(hoja-ol-0) '.'; }
+    hoja-editor[posture='page'] .ProseMirror > li[data-indent='1'] > .list-item-number::before { content: counter(hoja-ol-1) '.'; }
+    hoja-editor[posture='page'] .ProseMirror > li[data-indent]:not([data-indent='1']) > .list-item-number::before { content: counter(hoja-ol-2) '.'; }
+    hoja-editor[posture='page'] .ProseMirror > li[data-list-type='task'] {
+      align-items: flex-start;
+    }
+    hoja-editor[posture='page'] .ProseMirror > li[data-list-type='task'] > label {
+      display: inline-flex;
+      flex: 0 0 auto;
+      align-items: center;
+      block-size: 1.5em;
+    }
+    hoja-editor[posture='page'] .ProseMirror > li[data-list-type='task'] input[type='checkbox'] {
+      inline-size: 1em;
+      block-size: 1em;
+      margin: 0;
+      accent-color: var(--mn-color-accent, #3d7f5f);
+    }
+    hoja-editor[posture='page'] .ProseMirror > li[data-list-type='task'][data-checked='true'] p {
+      color: var(--mn-color-text-muted, #66736a);
+      text-decoration: line-through;
+    }
+    /* Code: long lines scroll inside the block instead of being clipped by
+       the frame (QA P1-11); one shaded block, a quiet copy button. */
+    hoja-editor[posture='page'] .ProseMirror > .code-block-wrapper {
+      position: relative;
+      margin-inline-start: 50px;
+      min-width: 0;
+    }
+    hoja-editor .hoja-editor__mount .ProseMirror pre {
+      box-sizing: border-box;
+      max-inline-size: 100%;
+      margin: 0;
+      padding: 0.75rem 1rem;
+      overflow-x: auto;
+      border: 1px solid var(--mn-color-border-subtle, rgba(50, 70, 58, 0.14));
+      border-radius: var(--mn-radius-md, 8px);
+      background: var(--mn-color-surface-sunken, rgba(50, 70, 58, 0.06));
+      white-space: pre;
+      overflow-wrap: normal;
+    }
+    hoja-editor .hoja-editor__mount .ProseMirror pre code {
+      padding: 0;
+      border: 0;
+      background: none;
+      white-space: inherit;
+    }
+    hoja-editor[posture='page'] .ProseMirror .code-copy-btn {
+      position: absolute;
+      inset: 6px 6px auto auto;
+      padding: 3px 8px;
+      border: 1px solid var(--mn-color-border-subtle, #d8ded9);
+      border-radius: 6px;
+      background: var(--mn-color-surface-raised, #fff);
+      color: var(--mn-color-text-secondary, #58665c);
+      font: 600 11px/1.3 var(--mn-font-utility, system-ui, sans-serif);
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity 120ms ease;
+    }
+    hoja-editor[posture='page'] .ProseMirror .code-block-wrapper:hover > .code-copy-btn,
+    hoja-editor[posture='page'] .ProseMirror .code-copy-btn:focus-visible { opacity: 1; }
+    @media (hover: none) {
+      hoja-editor[posture='page'] .ProseMirror .code-copy-btn { opacity: 1; }
+    }
+    /* Prose should not read as a list: outliner handles appear on hover or
+       focus where a pointer can hover, and stay visible when folded (P2-3). */
+    @media (hover: hover) {
+      hoja-editor[posture='page'] .ProseMirror .outliner-control {
+        opacity: 0;
+        transition: opacity 120ms ease;
+      }
+      hoja-editor[posture='page'] .ProseMirror > :hover .outliner-control,
+      hoja-editor[posture='page'] .ProseMirror > :focus-within .outliner-control,
+      hoja-editor[posture='page'] .ProseMirror .outliner-control:focus-within,
+      hoja-editor[posture='page'] .ProseMirror .outliner-control:has(.outliner-fold-button[aria-expanded='false']) {
+        opacity: 1;
+      }
+    }
+    /* Right-to-left paragraphs take their direction from their own text. */
+    hoja-editor[posture='page'] .ProseMirror :is(p, h1, h2, h3, h4, h5, h6, blockquote) {
+      unicode-bidi: plaintext;
+      text-align: start;
+    }
+    hoja-editor[posture='page'] .ProseMirror > h1 {
+      font-size: 2rem;
+      line-height: 1.2;
+      letter-spacing: -0.04em;
+    }
+    hoja-editor[posture='page'] .ProseMirror .outliner-control {
+      position: absolute;
+      inset: 0 auto auto 0;
+      display: flex;
+      width: 48px;
+      height: 30px;
+      align-items: center;
+      color: var(--mn-color-text-muted, #66736a);
+      user-select: none;
+    }
+    hoja-editor[posture='page'] .ProseMirror .outliner-control:not(:has(.outliner-fold-button)) {
+      width: 24px;
+      left: 24px;
+    }
+    hoja-editor[posture='page'] .ProseMirror .outliner-control > button {
+      position: relative;
+      flex: 0 0 24px;
+      width: 24px;
+      height: 30px;
+      padding: 0;
+      border: 0;
+      border-radius: 6px;
+      background: transparent;
+      color: inherit;
+      cursor: pointer;
+    }
+    hoja-editor[posture='page'] .ProseMirror .outliner-control > button:hover,
+    hoja-editor[posture='page'] .ProseMirror .outliner-control > button:focus-visible {
+      outline: none;
+      background: var(--mn-color-surface-hover, #edf6ef);
+      color: var(--mn-color-text-accent, #376d57);
+    }
+    hoja-editor[posture='page'] .ProseMirror .outliner-node-button::before {
+      display: block;
+      width: 7px;
+      height: 7px;
+      margin: auto;
+      border: 1px solid currentColor;
+      border-radius: 50%;
+      background: var(--mn-color-surface-raised, #fff);
+      content: '';
+    }
+    hoja-editor[posture='page'] .ProseMirror .outliner-fold-button::before {
+      display: block;
+      width: 0;
+      height: 0;
+      margin: auto;
+      border-left: 6px solid currentColor;
+      border-block: 4px solid transparent;
+      transform: rotate(90deg);
+      content: '';
+    }
+    hoja-editor[posture='page'] .ProseMirror .outliner-fold-button[aria-expanded='false']::before {
+      transform: rotate(0);
+    }
+    hoja-editor[posture='page'] .ProseMirror .outliner-hidden,
+    hoja-editor[posture='page'] .ProseMirror .outliner-zoom-hidden { display: none !important; }
+    hoja-editor[posture='page'] .ProseMirror .outliner-collapsed-count {
+      margin-inline-start: 6px;
+      padding: 2px 6px;
+      border-radius: 999px;
+      background: var(--mn-color-surface-accent, #edf6ef);
+      color: var(--mn-color-text-accent, #376d57);
+      font: 650 11px/1 var(--mn-font-utility, system-ui, sans-serif);
+    }
+    hoja-editor[posture='page'] .hoja-editor__key-hint { display: none; }
+    hoja-editor .hoja-editor__outliner-menu {
+      position: fixed;
+      z-index: 1000;
+      width: 180px;
+      padding: 6px;
+      border: 1px solid var(--mn-material-popover-edge, var(--mn-color-border-subtle, #d8ded9));
+      border-radius: 14px;
+      background: var(--mn-material-popover-bg, var(--mn-color-surface-raised, #fff));
+      box-shadow: var(--mn-material-popover-shadow, 0 12px 30px rgb(0 0 0 / 0.14));
+      backdrop-filter: var(--mn-material-popover-filter, none);
+    }
+    hoja-editor .hoja-editor__outliner-menu button {
+      display: block;
+      width: 100%;
+      min-height: 38px;
+      padding: 0 11px;
+      border: 0;
+      border-radius: 8px;
+      background: transparent;
+      color: var(--mn-color-text-primary, #18211b);
+      font: 13px/1.2 var(--mn-font-utility, system-ui, sans-serif);
+      text-align: left;
+      cursor: pointer;
+    }
+    hoja-editor .hoja-editor__outliner-menu button:hover,
+    hoja-editor .hoja-editor__outliner-menu button:focus-visible {
+      outline: none;
+      background: var(--mn-color-surface-hover, #edf6ef);
     }
 
     @media (max-width: 640px) {
@@ -461,6 +777,11 @@ export class HojaEditor extends LitElement {
       hoja-editor .hoja-editor__format-toggle,
       hoja-editor .hoja-editor__format-button,
       hoja-editor .hoja-editor__wikilink-toggle {
+        min-width: 3rem;
+        min-height: 3rem;
+      }
+
+      hoja-editor .hoja-editor__format-tray .hoja-editor__format-button {
         min-width: 3rem;
         min-height: 3rem;
       }
@@ -513,6 +834,10 @@ export class HojaEditor extends LitElement {
 
   protected override updated(changed: PropertyValues<this>): void {
     if (!this.editor) return
+    if (changed.has('sourceMode')) {
+      this.recreateEditorForValueKey()
+      return
+    }
     if (changed.has('valueKey') && this.mountedValueKey !== this.valueKey) {
       this.recreateEditorForValueKey()
       return
@@ -530,9 +855,13 @@ export class HojaEditor extends LitElement {
       changed.has('posture')
     ) this.syncAria()
 
-    if (changed.has('value')) {
-      const current = serializeComposerMarkdown(this.editor.getJSON() as HojaJSONContent)
-      if (current !== this.value) this.applyValue(this.value, this.referenceBindings)
+    if (changed.has('value') || (this.posture === 'page' && changed.has('pageDocument'))) {
+      const current = this.sourceMode
+        ? this.editor.state.doc.textContent
+        : this.posture === 'page'
+          ? serializePageMarkdown(this.editor.getJSON() as HojaJSONContent)
+          : serializeComposerMarkdown(this.editor.getJSON() as HojaJSONContent)
+      if (changed.has('pageDocument') || current !== this.value) this.applyValue(this.value, this.referenceBindings)
     } else if (changed.has('referenceBindings')) {
       const current = collectWikiLinkReferences(this.editor.getJSON() as HojaJSONContent)
       if (!referencesEqual(current, this.referenceBindings)) {
@@ -551,7 +880,15 @@ export class HojaEditor extends LitElement {
 
   /** Current editor JSON, returned as a fresh TipTap snapshot. */
   getJSON(): HojaJSONContent {
-    return (this.editor?.getJSON() as HojaJSONContent | undefined) ?? parseComposerMarkdown(this.value, this.referenceBindings)
+    return (this.editor?.getJSON() as HojaJSONContent | undefined) ?? this.valueDocument(this.value, this.referenceBindings)
+  }
+
+  private valueDocument(value: string, references: readonly HojaWikiLinkReference[]): HojaJSONContent {
+    return this.sourceMode
+      ? { type: 'doc', content: [{ type: 'codeBlock', content: value ? [{ type: 'text', text: value }] : [] }] }
+      : this.posture === 'page'
+        ? this.pageDocument ?? parsePageMarkdown(value, references)
+        : parseComposerMarkdown(value, references)
   }
 
   /**
@@ -656,10 +993,13 @@ export class HojaEditor extends LitElement {
     this.editor = createKernelEditor(mount, {
       // Composer gets the kernel's safe paragraph/inline roster. This keeps
       // document-only slash/tag/citation/wire intents out of chat entirely.
-      profile: this.posture === 'composer' ? 'composer' : 'document',
+      profile: this.sourceMode ? 'source' : this.posture === 'composer' ? 'composer' : 'document',
       onWikiLinkPickerOpen: this.handleKernelWikiLinkPickerOpen,
       onWikiLinkAutocompleteOpen: this.handleKernelWikiLinkAutocompleteOpen,
       onWikiLinkAutocompleteClose: this.handleKernelWikiLinkAutocompleteClose,
+      onWikiLinkClick: attrs => {
+        if (attrs.targetDocId) this.onWikiLinkOpen?.(attrs.targetDocId, attrs.targetGraphId ?? null)
+      },
     })
     this.mountedValueKey = this.valueKey
     this.editor.on('update', this.handleEditorUpdate)
@@ -674,6 +1014,7 @@ export class HojaEditor extends LitElement {
 
   private destroyEditor(): void {
     if (!this.editor) return
+    this.closeOutlinerMenu()
     const mount = this.querySelector<HTMLElement>('.hoja-editor__mount')
     mount?.removeEventListener('keydown', this.handleKeyDown, true)
     mount?.removeEventListener('compositionstart', this.handleCompositionStart, true)
@@ -705,9 +1046,17 @@ export class HojaEditor extends LitElement {
     if (!this.editor) return
     this.applyingControlledValue = true
     try {
-      this.editor.commands.setContent(parseComposerMarkdown(value, referenceBindings), {
+      // A host may re-project a focused editor (e.g. a newer server revision
+      // arriving while the reader's caret is placed): keep the caret close.
+      const refocus = this.editor.isFocused ? this.editor.state.selection : null
+      this.editor.commands.setContent(this.valueDocument(value, referenceBindings), {
         emitUpdate: false,
       })
+      if (refocus) {
+        const size = this.editor.state.doc.content.size
+        this.editor.commands.setTextSelection({ from: Math.min(refocus.from, size), to: Math.min(refocus.to, size) })
+      }
+      this.appliedDocumentJson = JSON.stringify(this.editor.getJSON())
     } finally {
       this.applyingControlledValue = false
     }
@@ -715,7 +1064,12 @@ export class HojaEditor extends LitElement {
   }
 
   private syncInteractivity(): void {
-    this.editor?.setEditable(!this.disabled && !this.readOnly)
+    // Whether the editor may be edited is not itself an edit. TipTap's setEditable
+    // emits `update` unless told not to, and `updated()` applies interactivity
+    // BEFORE the controlled value: a host that clears the value and disables the
+    // composer in one update (a chat panel on Send) would have the still-full editor
+    // reported back to it as something the person typed, and take the text back.
+    this.editor?.setEditable(!this.disabled && !this.readOnly, false)
   }
 
   private syncAria(): void {
@@ -726,7 +1080,7 @@ export class HojaEditor extends LitElement {
     dom.setAttribute('aria-label', this.label)
     dom.setAttribute('aria-readonly', String(this.readOnly))
     dom.setAttribute('aria-disabled', String(this.disabled))
-    if (this.posture === 'composer') dom.setAttribute('aria-keyshortcuts', 'Enter')
+    if (this.posture === 'composer' && !this.sourceMode) dom.setAttribute('aria-keyshortcuts', 'Enter')
     else dom.removeAttribute('aria-keyshortcuts')
     if (this.activeWikiLinkRequest) {
       dom.setAttribute('aria-controls', this.wikiLinkListboxId)
@@ -751,9 +1105,9 @@ export class HojaEditor extends LitElement {
   private makeDetail(): HojaComposerDetail {
     const json = this.getJSON()
     const references = collectWikiLinkReferences(json)
-    const plainText = this.editor?.getText() ?? ''
+    const plainText = this.sourceMode ? (this.editor?.state.doc.textContent ?? this.value) : (this.editor?.getText() ?? '')
     return {
-      value: serializeComposerMarkdown(json),
+      value: this.sourceMode ? plainText : this.posture === 'page' ? serializePageMarkdown(json) : serializeComposerMarkdown(json),
       plainText,
       json,
       references,
@@ -773,12 +1127,11 @@ export class HojaEditor extends LitElement {
     // TipTap may emit a late create/update transaction after a light-DOM host
     // has already projected the same controlled value. That is an echo, not a
     // user edit: suppress it just as applyValue suppresses setContent updates.
-    if (
-      detail.value === this.value
-      && referencesEqual(detail.references, this.referenceBindings)
-    ) {
-      return
-    }
+    if (this.posture === 'page') {
+      const documentJson = JSON.stringify(detail.json)
+      if (documentJson === this.appliedDocumentJson) return
+      this.appliedDocumentJson = documentJson
+    } else if (detail.value === this.value && referencesEqual(detail.references, this.referenceBindings)) return
     this.onChange?.(detail)
     this.dispatchEvent(new CustomEvent<HojaComposerDetail>(HOJA_EVENTS.change, {
       detail,
@@ -791,6 +1144,76 @@ export class HojaEditor extends LitElement {
     if (!this.applyingControlledValue) this.requestUpdate()
   }
 
+  private readonly handleOutlinerMenuRequest = (event: CustomEvent<{ blockId: string | null; blockPos: number }>): void => {
+    if (this.posture !== 'page' || !this.editor || this.disabled || this.readOnly) return
+    event.stopPropagation()
+    const button = event.composedPath().find(node => node instanceof HTMLElement && node.classList.contains('outliner-node-button')) as HTMLElement | undefined
+    const rect = button?.getBoundingClientRect()
+    if (!rect) return
+    const { blockId, blockPos } = event.detail
+    if (this.outlinerMenu?.blockPos === blockPos && this.outlinerMenu.blockId === blockId) {
+      this.closeOutlinerMenu()
+      return
+    }
+    // Clamp to the VISUAL viewport: on phones the on-screen keyboard covers
+    // the bottom of the layout viewport, and innerHeight does not shrink.
+    const viewport = window.visualViewport
+    const viewportTop = viewport?.offsetTop ?? 0
+    const viewportBottom = viewport ? viewport.offsetTop + viewport.height : window.innerHeight
+    this.outlinerMenu = {
+      blockId, blockPos,
+      x: Math.max(8, Math.min(rect.left, window.innerWidth - 196)),
+      y: Math.max(viewportTop + 8, Math.min(rect.bottom + 5, viewportBottom - 174)),
+    }
+    this.ownerDocument.addEventListener('pointerdown', this.handleOutlinerOutside, true)
+    void this.updateComplete.then(() => this.querySelector<HTMLElement>('.hoja-editor__outliner-menu button')?.focus())
+  }
+
+  private readonly handleOutlinerOutside = (event: PointerEvent): void => {
+    if (event.composedPath().some(node => node instanceof HTMLElement && (
+      node.classList.contains('hoja-editor__outliner-menu') || node.classList.contains('outliner-node-button')
+    ))) return
+    this.closeOutlinerMenu()
+  }
+
+  private closeOutlinerMenu(): void {
+    this.outlinerMenu = null
+    this.ownerDocument.removeEventListener('pointerdown', this.handleOutlinerOutside, true)
+  }
+
+  private runOutlinerAction(action: 'up' | 'down' | 'indent' | 'outdent'): void {
+    const menu = this.outlinerMenu
+    const editor = this.editor
+    this.closeOutlinerMenu()
+    if (!menu || !editor) return
+    const block = getOutlinerBlocks(editor.state.doc).find(candidate => menu.blockId
+      ? candidate.node.attrs['data-block-id'] === menu.blockId
+      : candidate.pos === menu.blockPos)
+    if (!block) return
+    editor.chain().focus().setTextSelection(block.pos + 1).run()
+    if (action === 'up') editor.commands.moveBlockUp()
+    else if (action === 'down') editor.commands.moveBlockDown()
+    else if (action === 'indent') editor.commands.increaseIndent()
+    else editor.commands.decreaseIndent()
+  }
+
+  private renderOutlinerMenu(): TemplateResult | typeof nothing {
+    const menu = this.outlinerMenu
+    if (!menu) return nothing
+    const actions = [
+      ['up', 'Move up'], ['down', 'Move down'], ['indent', 'Indent'], ['outdent', 'Outdent'],
+    ] as const
+    return html`<div
+      class="hoja-editor__outliner-menu"
+      role="menu"
+      aria-label="Block actions"
+      style=${`left:${menu.x}px;top:${menu.y}px`}
+      @keydown=${(event: KeyboardEvent) => {
+        if (event.key === 'Escape') { event.preventDefault(); this.closeOutlinerMenu(); this.focus() }
+      }}
+    >${actions.map(([action, label]) => html`<button type="button" role="menuitem" @click=${() => this.runOutlinerAction(action)}>${label}</button>`)}</div>`
+  }
+
   private readonly handleCompositionStart = (): void => {
     this.composing = true
   }
@@ -800,6 +1223,7 @@ export class HojaEditor extends LitElement {
   }
 
   private readonly handleKeyDown = (event: KeyboardEvent): void => {
+    if (this.sourceMode) return
     if (this.activeWikiLinkRequest) {
       if (event.key === 'Escape') {
         event.preventDefault()
@@ -1073,12 +1497,24 @@ export class HojaEditor extends LitElement {
 
   protected override render(): TemplateResult {
     return html`
-      <div class="hoja-editor__frame">
+      <div class="hoja-editor__frame" @mn-outliner-menu-request=${this.handleOutlinerMenuRequest}>
         <div class="hoja-editor__content">
           <div class="hoja-editor__mount"></div>
           <div class="hoja-editor__placeholder" aria-hidden="true">${this.placeholder}</div>
         </div>
         ${this.renderWikiLinkTray()}
+        ${this.formattingExpanded ? html`
+          <div
+            class="hoja-editor__format-tray"
+            id=${this.toolbarId}
+            role="toolbar"
+            aria-label=${this.posture === 'page' ? 'Text formatting' : 'Message formatting'}
+          >
+            ${this.renderFormatButton('bold', 'Bold', 'B')}
+            ${this.renderFormatButton('italic', 'Italic', 'I')}
+            ${this.renderFormatButton('code', 'Inline code', '</>')}
+          </div>
+        ` : nothing}
         <div class="hoja-editor__footer">
           <button
             class="hoja-editor__format-toggle"
@@ -1099,21 +1535,10 @@ export class HojaEditor extends LitElement {
             @mousedown=${this.keepSelection}
             @click=${this.requestWikiLinkFromToolbar}
           >[[ ]]</button>
-          ${this.formattingExpanded ? html`
-            <div
-              class="hoja-editor__format-tray"
-              id=${this.toolbarId}
-              role="toolbar"
-              aria-label="Message formatting"
-            >
-              ${this.renderFormatButton('bold', 'Bold', 'B')}
-              ${this.renderFormatButton('italic', 'Italic', 'I')}
-              ${this.renderFormatButton('code', 'Inline code', '</>')}
-            </div>
-          ` : nothing}
           <span class="hoja-editor__key-hint">Enter to send · Shift+Enter for a new line</span>
         </div>
       </div>
+      ${this.renderOutlinerMenu()}
     `
   }
 }

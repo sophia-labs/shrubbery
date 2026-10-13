@@ -7,11 +7,16 @@
  * editor host.
  */
 
-import type { ShrubberyContract } from '@shrubbery/nucleus'
+import { inspectPdfSourceAnchor, sha256PdfSourceBytes, type PdfSourceAnchorV1, type ShrubberyContract } from '@shrubbery/nucleus'
+import { cellAuthHeaders } from './cell-auth-headers.js'
 import type {
   EditorOriginalFileChapter,
   EditorOriginalFileView,
+  EditorOriginalPdfPage,
+  EditorPdfSourceLocation,
+  EditorPdfSourceMapping,
 } from '@shrubbery/runtime'
+import { createPdfOriginalPreview, type PdfOriginalPreview, type PdfOriginalPreviewFactory } from './pdf-original-preview.js'
 
 type OriginalFileContract = Pick<ShrubberyContract, 'auth' | 'runtime'>
 
@@ -26,6 +31,7 @@ export interface OriginalFileControllerOptions {
   readonly url?: OriginalFileUrlApi
   readonly download?: (url: string, filename: string) => void
   readonly openExternal?: (url: string) => void
+  readonly pdfPreview?: PdfOriginalPreviewFactory
 }
 
 interface OriginalScope {
@@ -368,6 +374,16 @@ function artifactOriginalUrl(scope: OriginalScope): string | null {
   return `${base}/artifacts/${encodeURIComponent(scope.graphId)}/${encodeURIComponent(artifactId)}/download?inline=true`
 }
 
+function anchoredOriginalUrl(scope: OriginalScope, anchor: PdfSourceAnchorV1 | null): string | null {
+  if (!anchor?.source.artifactId) return null
+  const base = trimSlash(scope.contract.runtime.graphBaseUrl(scope.graphId))
+  if (!base) return null
+  const artifact = `${base}/artifacts/${encodeURIComponent(scope.graphId)}/${encodeURIComponent(anchor.source.artifactId)}`
+  return anchor.source.revisionId
+    ? `${artifact}/revisions/${encodeURIComponent(anchor.source.revisionId)}/download?inline=true`
+    : `${artifact}/download?inline=true`
+}
+
 function responseError(status: number): string {
   if (status === 404) return 'No original file is attached to this document.'
   if (status === 401 || status === 403) return 'You do not have access to this original file.'
@@ -396,6 +412,14 @@ export class OrganismOriginalFileController {
   private abort: AbortController | null = null
   private sequence = 0
   private destroyed = false
+  private pdf: PdfOriginalPreview | null = null
+  private pdfLocation: EditorPdfSourceLocation | null = null
+  private pdfAnchor: PdfSourceAnchorV1 | null = null
+  private pdfPages: readonly EditorOriginalPdfPage[] = []
+  private pdfPageCount = 0
+  private pdfPageNumber = 1
+  private pdfSourceMapping: EditorPdfSourceMapping | null = null
+  private pdfPageUrl = ''
 
   constructor(private readonly options: OriginalFileControllerOptions) {
     const fetchImpl = options.fetch ?? globalThis.fetch
@@ -423,6 +447,15 @@ export class OrganismOriginalFileController {
   }
 
   private clearLoaded(): void {
+    const pdf = this.pdf
+    this.pdf = null
+    if (pdf) void pdf.destroy().catch(() => undefined)
+    this.revokePdfPage()
+    this.pdfPages = []
+    this.pdfPageCount = 0
+    this.pdfPageNumber = 1
+    this.pdfAnchor = null
+    this.pdfSourceMapping = null
     this.revokeObjectUrl()
     this.status = 'idle'
     this.error = ''
@@ -435,6 +468,11 @@ export class OrganismOriginalFileController {
     this.text = ''
     this.chapters = []
     this.selectedChapterId = ''
+  }
+
+  private revokePdfPage(): void {
+    if (this.pdfPageUrl) this.urlApi.revokeObjectURL(this.pdfPageUrl)
+    this.pdfPageUrl = ''
   }
 
   setScope(
@@ -464,6 +502,7 @@ export class OrganismOriginalFileController {
     this.cancelLoad()
     this.clearLoaded()
     this.active = false
+    this.pdfLocation = null
     this.scope = nextScope
     this.render()
   }
@@ -493,23 +532,29 @@ export class OrganismOriginalFileController {
       text: this.text,
       error: this.error,
       selectedChapterId: this.selectedChapterId,
-      downloadable: this.status === 'ready' && Boolean(this.objectUrl),
-      externalOpenable: this.status === 'ready' && Boolean(this.objectUrl),
+      downloadable: Boolean(this.objectUrl),
+      externalOpenable: Boolean(this.objectUrl),
       chapters: this.chapters,
+      pdfPages: this.pdfPages,
+      pdfPageCount: this.pdfPageCount,
+      pdfPageNumber: this.pdfPageNumber,
+      pdfSourceMapping: this.pdfSourceMapping,
       annotations: Object.freeze([]),
       annotationSupport: 'unavailable',
     })
   }
 
-  async toggle(): Promise<void> {
+  async toggle(location: EditorPdfSourceLocation | null = null): Promise<void> {
     if (!this.scope || this.destroyed) return
     if (this.active) {
       this.cancelLoad()
       this.active = false
       this.clearLoaded()
+      this.pdfLocation = null
       this.render()
       return
     }
+    this.pdfLocation = location
     this.active = true
     this.render()
     await this.load()
@@ -528,12 +573,12 @@ export class OrganismOriginalFileController {
   }
 
   download(): void {
-    if (!this.objectUrl || this.status !== 'ready') return
+    if (!this.objectUrl) return
     this.downloadEffect(this.objectUrl, this.filename || 'download')
   }
 
   openExternal(): void {
-    if (!this.objectUrl || this.status !== 'ready') return
+    if (!this.objectUrl) return
     this.openExternalEffect(this.objectUrl)
   }
 
@@ -551,29 +596,30 @@ export class OrganismOriginalFileController {
     try {
       await scope.contract.auth.whenReady()
       if (sequence !== this.sequence || abort.signal.aborted) return
-      const headers = new Headers({ Accept: '*/*' })
-      const token = scope.contract.auth.token()
-      if (token) headers.set('Authorization', `Bearer ${token}`)
-      const userId = scope.contract.auth.userId()
-      if (userId) headers.set('X-User-ID', userId)
+      const headers = new Headers(cellAuthHeaders(scope.contract, { Accept: '*/*' }))
       const request: RequestInit = {
         method: 'GET',
         headers,
         signal: abort.signal,
         credentials: 'same-origin',
       }
-      let response = await this.fetchImpl(originalUrl(scope), request)
+      const inspection = inspectPdfSourceAnchor(this.pdfLocation?.rawAnchor)
+      const sourceAnchor = inspection.status === 'mapped' ? inspection.anchor : null
+      const anchoredUrl = anchoredOriginalUrl(scope, sourceAnchor)
+      let response = await this.fetchImpl(anchoredUrl ?? originalUrl(scope), request)
       // Browser-parsed PDF/EPUB/DOCX imports persist their source bytes as an
       // artifact and link that artifact through sourceFile.storageKey. Current
       // gardend does not duplicate those bytes into documents/:id/original, so
       // the document-original route honestly returns 404. Follow the persisted
       // artifact link rather than probing an unrelated id or hiding the source.
-      const artifactUrl = response.status === 404 ? artifactOriginalUrl(scope) : null
+      const artifactUrl = !anchoredUrl && response.status === 404 ? artifactOriginalUrl(scope) : null
       if (artifactUrl) response = await this.fetchImpl(artifactUrl, request)
       if (sequence !== this.sequence || abort.signal.aborted) return
       if (!response.ok) {
         this.status = response.status === 404 ? 'unavailable' : 'error'
-        this.error = responseError(response.status)
+        this.error = anchoredUrl && response.status === 404
+          ? 'The original PDF revision referenced by this text is unavailable.'
+          : responseError(response.status)
         this.render()
         return
       }
@@ -622,6 +668,46 @@ export class OrganismOriginalFileController {
       this.src = loaded.text || loaded.srcdoc || loaded.chapters.length > 0 ? '' : objectUrl
       this.status = 'ready'
       this.error = ''
+      if (fileType === 'pdf' || mimeType === 'application/pdf') {
+        this.status = 'loading'
+        this.render()
+        this.pdfSourceMapping = inspection.status === 'mapped'
+          ? { status: 'unmapped', message: 'Checking the original PDF and source position…', pages: [] }
+          : inspection.status === 'absent'
+            ? { status: 'unmapped', message: 'This text has no stored PDF regions. The original is still available.', pages: [] }
+            : { status: inspection.status, message: inspection.reason, pages: [] }
+        if (sourceAnchor) {
+          const digest = await sha256PdfSourceBytes(bytes)
+          if (sequence !== this.sequence || abort.signal.aborted) return
+          if (bytes.byteLength !== sourceAnchor.source.byteLength || digest !== sourceAnchor.source.sha256) {
+            this.pdfSourceMapping = { status: 'source-mismatch', message: 'This PDF does not match the source recorded by the text. No region is highlighted.', pages: [] }
+          } else {
+            this.pdfAnchor = sourceAnchor
+            const textHash = await sha256PdfSourceBytes(new TextEncoder().encode(this.pdfLocation?.text ?? ''))
+            if (sequence !== this.sequence || abort.signal.aborted) return
+            const edited = textHash !== sourceAnchor.textSha256
+            this.pdfSourceMapping = {
+              status: edited ? 'edited' : 'mapped',
+              message: edited
+                ? 'Source region for earlier text. This block has been edited; the highlight is not an exact text match.'
+                : 'Original source region for this block. The highlight shows a block-level region, not exact characters.',
+              pages: [...new Set(sourceAnchor.targets.map(target => target.pageIndex + 1))],
+            }
+          }
+        }
+        const preview = await (this.options.pdfPreview ?? createPdfOriginalPreview)(bytes, abort.signal)
+        if (sequence !== this.sequence || abort.signal.aborted) { await preview.destroy(); return }
+        this.pdf = preview
+        this.pdfPageCount = preview.pageCount
+        if (this.pdfAnchor?.targets.some(target => target.pageIndex >= preview.pageCount)) {
+          this.pdfAnchor = null
+          this.pdfSourceMapping = { status: 'invalid', message: 'The stored source anchor names a page that does not exist. No region is highlighted.', pages: [] }
+        }
+        const requested = this.pdfAnchor?.targets[0]?.pageIndex
+        const legacyPage = this.pdfSourceMapping?.status === 'unmapped' ? this.pdfLocation?.pageNumber : null
+        const pageNumber = requested === undefined ? (legacyPage ?? 1) : requested + 1
+        await this.renderPdfPage(pageNumber >= 1 && pageNumber <= preview.pageCount ? pageNumber : 1, sequence, abort.signal)
+      }
       this.render()
     } catch (error) {
       if (sequence !== this.sequence || abort.signal.aborted) return
@@ -633,11 +719,56 @@ export class OrganismOriginalFileController {
     }
   }
 
+  private async renderPdfPage(pageNumber: number, sequence: number, signal: AbortSignal): Promise<void> {
+    const preview = this.pdf
+    if (!preview) return
+    this.pdfPageNumber = pageNumber
+    const rendered = await preview.renderPage(pageNumber, this.pdfAnchor, signal)
+    if (sequence !== this.sequence || signal.aborted || this.pdf !== preview) return
+    if (!rendered.geometryMatches) {
+      this.pdfAnchor = null
+      this.pdfSourceMapping = { status: 'invalid', message: 'Stored page geometry does not match the original PDF. No region is highlighted.', pages: [] }
+    }
+    this.revokePdfPage()
+    this.pdfPageUrl = this.urlApi.createObjectURL(rendered.blob)
+    this.pdfPages = [{
+      pageNumber, width: rendered.width, height: rendered.height, imageUrl: this.pdfPageUrl,
+      rectangles: rendered.geometryMatches && this.pdfAnchor ? rendered.rectangles : [],
+    }]
+    this.status = 'ready'
+    this.error = ''
+  }
+
+  async selectPage(pageNumber: number): Promise<void> {
+    if (!this.active || !this.pdf || this.destroyed || !Number.isSafeInteger(pageNumber)
+      || pageNumber < 1 || pageNumber > this.pdfPageCount) return
+    this.cancelLoad()
+    const sequence = ++this.sequence
+    const abort = new AbortController()
+    this.abort = abort
+    this.revokePdfPage()
+    this.pdfPages = []
+    this.pdfPageNumber = pageNumber
+    this.status = 'loading'
+    this.render()
+    try {
+      await this.renderPdfPage(pageNumber, sequence, abort.signal)
+    } catch (error) {
+      if (sequence !== this.sequence || abort.signal.aborted) return
+      this.status = 'error'
+      this.error = error instanceof Error ? error.message : String(error)
+    } finally {
+      if (this.abort === abort) this.abort = null
+      if (sequence === this.sequence && !abort.signal.aborted) this.render()
+    }
+  }
+
   destroy(): void {
     if (this.destroyed) return
     this.cancelLoad()
     this.clearLoaded()
     this.scope = null
+    this.pdfLocation = null
     this.active = false
     this.destroyed = true
   }

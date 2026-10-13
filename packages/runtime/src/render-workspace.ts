@@ -38,6 +38,7 @@
 
 import { html, render, nothing, type TemplateResult } from 'lit'
 import { ref } from 'lit/directives/ref.js'
+import { renderFilesPane, type WorkspaceFilesOptions } from './files-pane.js'
 import {
   DEFAULT_FILE_PANE_GROUPING,
   DEFAULT_FILE_PANE_SORT,
@@ -106,9 +107,12 @@ import type { ChatService } from './chat-services/chat-service.js'
 import { mountChatHost } from './chat-host/mount-chat-host.js'
 import type {
   ChatHeaderActionDetail,
+  ChatHostCredits,
+  ChatHostWorkspace,
   ChatPresentation,
   HojaWikiLinkResolver,
 } from './chat-host/chat-host.js'
+import type { ConversationHomePorts } from './chat-host/conversation-home-ports.js'
 import {
   type CenterPaneCloseIntentDetail,
   type CenterPaneFocusIntentDetail,
@@ -120,6 +124,7 @@ import {
   type CenterPanesProjection,
 } from './center-panes-contract.js'
 import { homeLocation } from './center-panes-model.js'
+import type { LiveHeadingOutlineEntry } from './collab/live-editor.js'
 import type { CenterPaneEditorHostOptions } from './center-panes-host.js'
 import './center-panes-host.js'
 import {
@@ -156,6 +161,8 @@ import { objectLocator, contestedCardParams, type SourceObjectService } from './
 import { CARD_OBJECT_FACE_ID } from './layout/faces/card-object-face.js'
 import { SPARQL_BINDINGS_TABLE_FACE_ID } from './layout/faces/sparql-bindings-table-face.js'
 import type { FilmstripEvidenceService } from './layout/faces/filmstrip-face.js'
+import type { CuentaVerbSeam } from './layout/faces/card-cuenta-face.js'
+import type { CuentaVerbPort } from './despacho/cuenta-verbs.js'
 import type { SubjectRowActivateDetail } from './layout/faces/sparql-table-view-element.js'
 import { setVegaThemeScopeOverrides } from './editor-services/query-block-vega.js'
 import type {
@@ -389,6 +396,9 @@ export interface ArtifactViewOptions {
   readonly artifactStatus?: string | null
   readonly ingestedDocumentId?: string | null
   readonly previewUrl?: string | null
+  readonly previewHtml?: string | null
+  readonly previewIdentity?: string | null
+  readonly allowHtmlScripts?: boolean
   readonly status: ArtifactViewStatus
   readonly error?: string | null
   readonly history?: ArtifactHistoryOptions | null
@@ -727,6 +737,29 @@ export interface WorkspaceInspectorRelationOpenDetail {
   readonly item: WorkspaceInspectorRelationItem
 }
 
+/** The Show info panel's model, structurally `MnFileInfoModel` (this package cannot import components). */
+export interface WorkspaceFileInfoRow {
+  readonly label: string
+  readonly text: string
+  readonly mark?: string
+  readonly markTitle?: string
+  readonly mono?: boolean
+  readonly copy?: boolean
+  readonly copyText?: string
+  readonly action?: string
+  readonly title?: string
+}
+export interface WorkspaceFileInfoModel {
+  readonly title: string
+  readonly typeLabel: string
+  readonly icon?: string
+  readonly renamable?: boolean
+  readonly sections: readonly { readonly id: string; readonly title: string; readonly count?: number; readonly note?: string
+    readonly rows: readonly WorkspaceFileInfoRow[] }[]
+}
+export interface WorkspaceFileInfoRenameDetail { readonly name: string }
+export interface WorkspaceFileInfoActionDetail { readonly action: string }
+
 export interface WorkspaceInspectorOptions {
   readonly model?: WorkspaceInspectorModel | null
   readonly actions?: readonly WorkspaceInspectorAction[]
@@ -734,6 +767,16 @@ export interface WorkspaceInspectorOptions {
   readonly onClose?: () => void
   readonly onAction?: (detail: WorkspaceInspectorActionDetail) => void
   readonly onRelationOpen?: (detail: WorkspaceInspectorRelationOpenDetail) => void
+  /**
+   * Files "Show info": while set, this panel REPLACES the right pane's content (whatever panel is selected) until the host closes it.
+   * The host owns the model and every effect; Esc and × say `onClose`.
+   */
+  readonly info?: {
+    readonly model: WorkspaceFileInfoModel | null
+    readonly onClose: () => void
+    readonly onRename?: (detail: WorkspaceFileInfoRenameDetail) => void
+    readonly onAction?: (detail: WorkspaceFileInfoActionDetail) => void
+  } | null
 }
 
 export interface WorkspaceChromeBreadcrumb {
@@ -826,7 +869,43 @@ export interface WorkspaceAccessRemoveDetail {
   readonly userId: string
 }
 
-/** Hosted member-grant projection. Public share links remain a separate absent capability. */
+export type WorkspaceSharingBusyAction = 'everyone' | 'link-create' | 'link-revoke'
+
+export interface WorkspaceShareLink {
+  readonly linkId: string
+  readonly role: Exclude<WorkspaceAccessRole, 'owner'>
+  readonly createdAt: string
+  readonly expiresAt: string | null
+  readonly label: string | null
+  readonly live: boolean
+}
+
+/** Owner-only sharing projection: everyone-signed-in and share links. */
+export interface WorkspaceAccessSharing {
+  readonly status: WorkspaceAccessStatus
+  readonly everyone: boolean
+  readonly links: readonly WorkspaceShareLink[]
+  /** The just-created link's URL; shown once, never re-fetchable. */
+  readonly createdLinkUrl?: string | null
+  readonly busyAction?: WorkspaceSharingBusyAction | null
+  readonly error?: string | null
+}
+
+export interface WorkspaceEveryoneChangeDetail {
+  readonly enabled: boolean
+}
+
+export interface WorkspaceShareLinkCreateDetail {
+  readonly role: Exclude<WorkspaceAccessRole, 'owner'>
+  /** null = until revoked. */
+  readonly expiresInSeconds: number | null
+}
+
+export interface WorkspaceShareLinkRevokeDetail {
+  readonly linkId: string
+}
+
+/** Hosted member-grant projection, plus owner sharing controls when the host supports them. */
 export interface WorkspaceAccessOptions {
   readonly graphId: string
   readonly graphTitle: string
@@ -842,6 +921,12 @@ export interface WorkspaceAccessOptions {
   readonly onAdd?: (detail: WorkspaceAccessAddDetail) => void
   readonly onRoleChange?: (detail: WorkspaceAccessRoleChangeDetail) => void
   readonly onRemove?: (detail: WorkspaceAccessRemoveDetail) => void
+  /** Absent when the host has no sharing capability; the dialog then shows people only. */
+  readonly sharing?: WorkspaceAccessSharing | null
+  readonly onEveryoneChange?: (detail: WorkspaceEveryoneChangeDetail) => void
+  readonly onLinkCreate?: (detail: WorkspaceShareLinkCreateDetail) => void
+  readonly onLinkRevoke?: (detail: WorkspaceShareLinkRevokeDetail) => void
+  readonly onLinkDismiss?: () => void
 }
 
 export type WorkspaceTtsStatus = 'idle' | 'loading' | 'playing' | 'paused'
@@ -907,6 +992,7 @@ export interface WorkspaceSummary {
   readonly title: string
   readonly role: WorkspaceRole
   readonly cellState: WorkspaceCellState
+  readonly localCreation?: { readonly status: 'pending' | 'conflict'; readonly error?: string }
   readonly disabled?: boolean
   readonly disabledReason?: string
   /** Present only when the shell's mirror holds work for a life this graph
@@ -975,6 +1061,16 @@ export interface WorkspacePanelLayoutOptions {
 export interface WorkspaceCenterPanesOptions {
   readonly projection: CenterPanesProjection
   readonly editorHosts: ReadonlyMap<CenterPaneId, CenterPaneEditorHostOptions>
+  /**
+   * Per-pane heading outline for the pane-header mini table of contents.
+   * Supplied by the host (it owns the live editor handles); the face only
+   * renders. Absent or empty = that pane shows no TOC trigger.
+   */
+  readonly paneHeadings?: ReadonlyMap<CenterPaneId, readonly LiveHeadingOutlineEntry[]>
+  /** Which pane's TOC popup is open, if any. Controlled by the host. */
+  readonly tocOpenPaneId?: CenterPaneId | null
+  readonly onTocToggle?: (detail: { readonly paneId: CenterPaneId }) => void
+  readonly onTocNavigate?: (detail: { readonly paneId: CenterPaneId; readonly blockId: string }) => void
   readonly onOpen?: (detail: CenterPaneOpenIntentDetail) => void
   readonly onFocus?: (detail: CenterPaneFocusIntentDetail) => void
   readonly onClose?: (detail: CenterPaneCloseIntentDetail) => void
@@ -1081,6 +1177,15 @@ export interface RenderWorkspaceOptions {
     readonly composerReferenceResolver?: HojaWikiLinkResolver
     readonly onSurfaceAction?: (action: ChatSurfaceActionIntent) => void
     readonly onHeaderAction?: (detail: ChatHeaderActionDetail) => void
+    /** What only the shell can do for the chat history drawer: save a copy, continue an import, download. */
+    readonly conversationHome?: ConversationHomePorts
+    /**
+     * What the shell lets the chat do about credits: show the balance line, offer "Add credits" (the shell
+     * then answers `sh-chat-add-credits`). Absent: the voices release's chat, with neither.
+     */
+    readonly credits?: ChatHostCredits
+    /** What the shell lets the workspace chat do with what a turn changed: links, names, the live HTML preview. */
+    readonly workspace?: ChatHostWorkspace
   }
   /**
    * Controlled chrome state owned by the shell. This is Garden's per-tab/session
@@ -1098,13 +1203,22 @@ export interface RenderWorkspaceOptions {
      * to remember to keep this in sync by hand.
      */
     readonly apps?: readonly AppId[]
+    /** External suite route. It does not become a graph-local workspace tab. */
+    readonly hojaHref?: string
+    /**
+     * Suite apps the picker opens by navigation (standalone Hoja, the
+     * Choreograph route when this config has no Choreograph tab), already
+     * gated and pointed at this workspace by the shell. They join the
+     * config-derived tabs in ONE launcher, in the suite's canonical order.
+     */
+    readonly appLinks?: readonly { readonly id: string; readonly label: string; readonly icon?: string; readonly href: string }[]
     readonly leftPanelMode?: 'files' | 'graph' | 'outline'
     /** Scalar Garden right-rail selection. `'none'` means closed. */
     readonly rightPanel?: RightPanelMode
     /** @deprecated Compatibility input; only the last entry is selected. */
     readonly rightPanels?: readonly PanelId[]
     readonly isDark?: boolean
-    readonly activeSkin?: 'garden' | 'emporium' | '98' | 'glass' | 'research' | 'greenhouse' | 'observatory'
+    readonly activeSkin?: 'garden' | 'emporium' | '98' | 'glass' | 'mithras' | 'hotdog-stand' | 'research' | 'greenhouse' | 'observatory'
     readonly breadcrumbs?: readonly WorkspaceChromeBreadcrumb[]
     readonly itemCount?: number | null
     readonly documentStats?: WorkspaceChromeDocumentStats | null
@@ -1118,6 +1232,8 @@ export interface RenderWorkspaceOptions {
       | 'disconnected'
       | 'error'
     readonly runtimeMode?: 'local' | 'hosted' | null
+    /** False when this deployment has no chat (a self-host): the bottom bar drops its Sophia toggle. */
+    readonly chatAvailable?: boolean
     /** The honest mirror state's bottom-bar projection (master §3 Slice 4).
      *  `undefined`/`null` = never bound, the legacy inert slot survives. */
     readonly sourceStatus?: WorkspaceChromeSourceStatus | null
@@ -1131,6 +1247,8 @@ export interface RenderWorkspaceOptions {
     readonly onWorkspaceRefresh?: () => void
     readonly onWorkspaceSelect?: (workspace: WorkspaceSummary) => void
     readonly onWorkspaceCreate?: () => void
+    /** False leaves "New Workspace" out of the selector (the person may not create graphs here). */
+    readonly workspaceCreateAvailable?: boolean
     readonly onWorkspaceDelete?: (workspace: WorkspaceSummary) => void
     readonly onBreadcrumbOpen?: (detail: { readonly breadcrumb: WorkspaceChromeBreadcrumb }) => void
     readonly onBreadcrumbMenuOpen?: (detail: { readonly breadcrumb: WorkspaceChromeBreadcrumb, readonly x: number, readonly y: number }) => void
@@ -1170,6 +1288,12 @@ export interface RenderWorkspaceOptions {
       readonly collapsed: boolean
       readonly section: SidebarSection
     }) => void
+    /** A section's one header action (the Files section's "Open Files"). */
+    readonly onSectionAction?: (detail: {
+      readonly sectionId: string
+      readonly actionId: string
+      readonly section?: SidebarSection
+    }) => void
     readonly onNodeSelect?: (detail: SidebarNodeDetail) => void
     readonly onNodeIntent?: (detail: SidebarNodeDetail) => void
     readonly onNodeIntentEnd?: (detail: SidebarNodeDetail) => void
@@ -1203,6 +1327,12 @@ export interface RenderWorkspaceOptions {
   }
   /** Rich controlled Garden home center. */
   readonly home?: WorkspaceHomeOptions | null
+  /**
+   * The Files center route (design §12.1): the pane draws header, center and status line; the shell's own left panel
+   * is the file tree and its right panel the inspector. An explicit navigation, so it wins over Home. Controlled: the
+   * shell owns every effect.
+   */
+  readonly files?: WorkspaceFilesOptions | null
   /**
    * Rich controlled Garden home projection kept available to the responsive
    * shell while a document remains the active desktop center surface. This is
@@ -1450,6 +1580,14 @@ export interface WorkspaceFragmentsOptions {
   readonly objectService?: SourceObjectService | null
   /** Private fat-evidence resolver used by `obs.filmstrip`. */
   readonly evidenceService?: FilmstripEvidenceService | null
+  /**
+   * The session's tool port for `card.cuenta`'s verbs (el Despacho W1) — the
+   * organism's gateway MCP client, so a word travels the SAME on-behalf-of
+   * path every other write does. Null when the session cannot write.
+   */
+  readonly verbPort?: CuentaVerbPort | null
+  /** The viewer's identity as the session knows it — the witness of any word given on this surface. */
+  readonly witness?: string | null
   /** Shell-loaded fragments keyed by REGION id (a region carrying the config marker). */
   readonly regions?: Readonly<Record<string, WorkspaceFragmentRegion>>
   /** Settle-point/persistence seam — see `WorkspaceFragmentChangeDetail`. */
@@ -1467,12 +1605,18 @@ export interface SurfaceEngineServices {
   readonly query: QueryBlockService | null
   readonly objects: SourceObjectService | null
   readonly evidence: FilmstripEvidenceService | null
+  /** `card.cuenta`'s verb port (el Despacho W1); null = this session cannot carry a word. */
+  readonly verbs: CuentaVerbPort | null
+  /** The viewer's identity — the witness of a word. */
+  readonly witness: string | null
 }
 
 let engineServicesMemo: {
   readonly q: unknown
   readonly o: unknown
   readonly e: unknown
+  readonly v: unknown
+  readonly w: unknown
   readonly value: SurfaceEngineServices
 } | null = null
 
@@ -1480,17 +1624,21 @@ function engineServicesFor(
   query: QueryBlockService | null,
   objects: SourceObjectService | null,
   evidence: FilmstripEvidenceService | null,
+  verbs: CuentaVerbPort | null = null,
+  witness: string | null = null,
 ): SurfaceEngineServices {
   if (
     engineServicesMemo
     && engineServicesMemo.q === query
     && engineServicesMemo.o === objects
     && engineServicesMemo.e === evidence
+    && engineServicesMemo.v === verbs
+    && engineServicesMemo.w === witness
   ) {
     return engineServicesMemo.value
   }
-  const value: SurfaceEngineServices = Object.freeze({ query, objects, evidence })
-  engineServicesMemo = { q: query, o: objects, e: evidence, value }
+  const value: SurfaceEngineServices = Object.freeze({ query, objects, evidence, verbs, witness })
+  engineServicesMemo = { q: query, o: objects, e: evidence, v: verbs, w: witness, value }
   return value
 }
 
@@ -1532,12 +1680,35 @@ function minWidthFor(role: RegionRole): number {
   return role === 'sidebar' ? 180 : role === 'center' ? 400 : role === 'right' ? 240 : 180
 }
 
-/** Garden's F6 cycle targets these three ARIA landmark roles in spine order. */
-function landmarkRoleFor(role: RegionRole, liftedCenter: boolean): string | null {
+/**
+ * Garden's F6 cycle targets these three ARIA landmark roles in spine order.
+ *
+ * THE CENTER REGION CLAIMS `main` UNCONDITIONALLY, and the anchor inside it no
+ * longer does (see `renderCenterSlotAnchor`). It used to be the other way
+ * round: the region yielded whenever the editor was lifted, on the grounds that
+ * the lift renders the canonical `role="main"` anchor and two nested landmarks
+ * of one role are worse than one in the wrong place.
+ *
+ * The yield was to nobody. `bodyFor` has eight center branches — parked work,
+ * home, tag lens, Zotero, artifact, daily-note row, center panes, and finally
+ * the slot anchor — and only the last emits that anchor. Every other branch
+ * produced a workspace with NO `main` landmark at all: F6 cycled the sidebar
+ * straight to the right rail and skipped the document, and a screen reader was
+ * told the editor was not the main content. Measured, not inferred: a page
+ * rendering through `sh-center-panes` exposed `navigation, complementary` and
+ * nothing else.
+ *
+ * Predicting which branch ran would mean restating that chain here, where it
+ * would rot the first time a branch is added. Owning the role at the region is
+ * correct for all eight without asking, and the region is the better landmark
+ * anyway — it contains the pane header and chrome, which the inner anchor does
+ * not. The anchor keeps `id="mn-main-editor"` and `[data-center-slot]`, so
+ * every selector that depends on it is untouched.
+ */
+function landmarkRoleFor(role: RegionRole): string | null {
   if (role === 'sidebar') return 'navigation'
   if (role === 'right') return 'complementary'
-  // A lifted editor already owns Garden's canonical inner role="main" anchor.
-  if (role === 'center' && !liftedCenter) return 'main'
+  if (role === 'center') return 'main'
   return null
 }
 
@@ -1585,6 +1756,12 @@ function renderSidebarPanel(sidebar: RenderWorkspaceOptions['sidebar']): Templat
         readonly id: string
         readonly collapsed: boolean
         readonly section: SidebarSection
+      }>(event))}
+    @mn-sidebar-section-action=${(event: Event) =>
+      sidebar?.onSectionAction?.(customDetail<{
+        readonly sectionId: string
+        readonly actionId: string
+        readonly section?: SidebarSection
       }>(event))}
     @mn-sidebar-node-select=${(event: Event) =>
       sidebar?.onNodeSelect?.(customDetail<SidebarNodeDetail>(event))}
@@ -1763,6 +1940,9 @@ function renderArtifactView(artifact: ArtifactViewOptions): TemplateResult {
     .artifactStatus=${artifact.artifactStatus ?? ''}
     .ingestedDocumentId=${artifact.ingestedDocumentId ?? ''}
     .previewUrl=${artifact.previewUrl ?? ''}
+    .previewHtml=${artifact.previewHtml ?? null}
+    .previewIdentity=${artifact.previewIdentity ?? null}
+    .allowHtmlScripts=${artifact.allowHtmlScripts === true}
     .status=${artifact.status}
     .error=${artifact.error ?? ''}
     @mn-artifact-refresh=${(event: Event) =>
@@ -2020,7 +2200,7 @@ function renderDocHistoryOverlay(docHistory: DocHistoryOptions | null | undefine
     <div
       class="doc-history-overlay-host"
       data-doc-history-overlay
-      style="position:fixed;inset:0;z-index:9000;display:flex;background:rgba(20,18,16,0.55);"
+      style="position:fixed;inset:0;z-index:var(--mn-z-modal, 1400);display:flex;background:rgba(20,18,16,0.55);"
     >
       <mn-doc-history-panel
         .title=${docHistory.title ?? 'Version History'}
@@ -2074,6 +2254,15 @@ function renderCommentsPanel(comments: WorkspaceCommentsOptions | null | undefin
   ></mn-comments-panel>`
 }
 
+function renderFileInfoPanel(info: NonNullable<WorkspaceInspectorOptions['info']>): TemplateResult {
+  return html`<mn-file-info
+    .model=${info.model}
+    @mn-file-info-close=${() => info.onClose()}
+    @mn-file-info-rename=${(event: Event) => info.onRename?.(customDetail<WorkspaceFileInfoRenameDetail>(event))}
+    @mn-file-info-action=${(event: Event) => info.onAction?.(customDetail<WorkspaceFileInfoActionDetail>(event))}
+  ></mn-file-info>`
+}
+
 function renderInspectorPanel(inspector: WorkspaceInspectorOptions | null | undefined): TemplateResult {
   return html`<mn-inspector
     .model=${inspector?.model ?? null}
@@ -2102,6 +2291,25 @@ function renderCenterPanes(centerPanes: WorkspaceCenterPanesOptions): TemplateRe
     @mn-center-pane-resize=${(event: Event) =>
       centerPanes.onResize?.(customDetail<CenterPaneResizeIntentDetail>(event))}
   ></sh-center-panes>`
+}
+
+/**
+ * The ONE place the live chat host is mounted from the shell's `chatHost` options, so
+ * every path that lifts the chat region passes the same things through: the service
+ * and session, the presentation, the reference resolver, the shell's observers, the
+ * ports the history drawer needs (save a copy, continue an import, download), and what
+ * the shell lets the chat do about credits.
+ */
+function mountLiveChatHost(chatHost: NonNullable<RenderWorkspaceOptions['chatHost']>): unknown {
+  return mountChatHost(chatHost.service, chatHost.sessionId, {
+    presentation: chatHost.presentation,
+    composerReferenceResolver: chatHost.composerReferenceResolver,
+    onSurfaceAction: chatHost.onSurfaceAction,
+    onHeaderAction: chatHost.onHeaderAction,
+    conversationHome: chatHost.conversationHome,
+    credits: chatHost.credits,
+    workspace: chatHost.workspace,
+  })
 }
 
 /**
@@ -2137,6 +2345,7 @@ function bodyFor(
   comments: WorkspaceCommentsOptions | null | undefined,
   inspector: WorkspaceInspectorOptions | null | undefined,
   parkedWork: ParkedWorkOptions | null,
+  files: WorkspaceFilesOptions | null = null,
 ): unknown {
   const configuredSurface = configuredSurfaceOwnsRegion(config, regionId)
   // master §3 Slice 8, WS3 §5.2 — the legacy (non-Surface) render path's own
@@ -2145,6 +2354,10 @@ function bodyFor(
   // Home instead).
   if (!configuredSurface && role === 'center' && parkedWork) {
     return renderParkedWork(parkedWork)
+  }
+  // The Files route is an explicit navigation too: it precedes Home.
+  if (!configuredSurface && role === 'center' && files) {
+    return renderFilesPane(files)
   }
   if (!configuredSurface && role === 'center' && home) {
     return renderHome(home, dailyNotes)
@@ -2178,7 +2391,7 @@ function bodyFor(
       ? anchor
       : html`<div class="daily-note-editor-frame" data-daily-note-editor-frame>${header}${anchor}</div>`
   }
-  if (role === 'right' && rightPanel !== null) {
+  if (!configuredSurface && role === 'right' && rightPanel !== null) {
     return renderRightPanel(
       config,
       rightPanel,
@@ -2194,12 +2407,7 @@ function bodyFor(
   }
   const tag = resolveSurfaceTag(config, regionId)
   if (tag === 'mn-chat-panel' && chatHost?.service) {
-    return mountChatHost(chatHost.service, chatHost.sessionId, {
-      presentation: chatHost.presentation,
-      composerReferenceResolver: chatHost.composerReferenceResolver,
-      onSurfaceAction: chatHost.onSurfaceAction,
-      onHeaderAction: chatHost.onHeaderAction,
-    })
+    return mountLiveChatHost(chatHost)
   }
   if (tag === 'mn-sidebar-panel') {
     if (leftPanelMode === 'graph') return renderGraphPanelAnchor('left')
@@ -2227,13 +2435,9 @@ function renderPanelBody(
   comments: WorkspaceCommentsOptions | null | undefined,
   inspector: WorkspaceInspectorOptions | null | undefined,
 ): unknown {
+  if (inspector?.info) return renderFileInfoPanel(inspector.info)
   if (tag === 'mn-chat-panel' && chatHost?.service) {
-    return mountChatHost(chatHost.service, chatHost.sessionId, {
-      presentation: chatHost.presentation,
-      composerReferenceResolver: chatHost.composerReferenceResolver,
-      onSurfaceAction: chatHost.onSurfaceAction,
-      onHeaderAction: chatHost.onHeaderAction,
-    })
+    return mountLiveChatHost(chatHost)
   }
   if (tag === 'mn-wires-panel') {
     return mountWiresPanel(wireBundle, wirePanel)
@@ -2278,12 +2482,7 @@ function renderRightPanel(
     ? nothing
     : renderPanelBody(tag, panel, chatHost, wireBundle, wirePanel, graphPanel, vtuberControls, comments, inspector)
   const chatSlot = hasLiveChat
-    ? mountChatHost(chatHost.service, chatHost.sessionId, {
-        presentation: chatHost.presentation,
-        composerReferenceResolver: chatHost.composerReferenceResolver,
-        onSurfaceAction: chatHost.onSurfaceAction,
-        onHeaderAction: chatHost.onHeaderAction,
-      })
+    ? mountLiveChatHost(chatHost)
     : nothing
 
   return html`<section class="right-panel" data-panel=${panel}>
@@ -2294,19 +2493,17 @@ function renderRightPanel(
 
 /**
  * Cosmetic id → app-switcher tab shape (Slice 10). `deriveAppTabs` (nucleus)
- * only knows ids — labels/icons are a presentation concern this render host
- * owns, not `mn-top-bar` (which renders whatever tab list it's given, no
- * hardcoded names) and not nucleus (which has no icon vocabulary). Title-
- * cased id IS the label for both known apps today ('garden' → 'Garden',
- * 'choreograph' → 'Choreograph') — no per-app special-casing needed; an
- * unrecognized id still gets an honest label and a generic icon rather than
- * being dropped.
+ * only knows ids. Title-cased id IS the label for every suite app ('garden' →
+ * 'Garden', 'choreograph' → 'Choreograph'); the tile glyph is left to the
+ * bar, which draws every suite app from ONE catalogue (components'
+ * sophia-suite.ts — the same one Hoja and the Choreograph route use), so an
+ * app looks the same in every Sophia top bar. An unrecognized id still gets
+ * an honest label and a letter tile rather than being dropped.
  */
-function chromeAppTab(id: AppId): { readonly id: AppId; readonly label: string; readonly icon: string } {
+function chromeAppTab(id: AppId): { readonly id: AppId; readonly label: string } {
   return {
     id,
     label: id.length > 0 ? id.charAt(0).toUpperCase() + id.slice(1) : id,
-    icon: id === 'garden' ? 'sprout' : 'layers',
   }
 }
 
@@ -2333,6 +2530,8 @@ function renderChromeSurface(
     return html`<mn-top-bar
       .activeApp=${opts.chrome.activeApp ?? opts.activeApp}
       .apps=${(opts.chrome.apps ?? opts.apps).map(chromeAppTab)}
+      .hojaHref=${opts.chrome.hojaHref ?? ''}
+      .appLinks=${opts.chrome.appLinks ?? []}
       .isDark=${opts.chrome.isDark ?? false}
       .activeSkin=${opts.chrome.activeSkin ?? 'garden'}
       .breadcrumbs=${opts.chrome.breadcrumbs ?? []}
@@ -2345,6 +2544,7 @@ function renderChromeSurface(
       .workspaceError=${opts.chrome.workspaceError ?? ''}
       .activeWorkspaceId=${opts.chrome.activeWorkspaceId ?? ''}
       .workspaceBusyId=${opts.chrome.workspaceBusyId ?? ''}
+      .workspaceCreateAvailable=${opts.chrome.workspaceCreateAvailable ?? true}
       @mn-breadcrumb-open=${(event: CustomEvent<{ breadcrumb: WorkspaceChromeBreadcrumb }>) =>
         opts.chrome.onBreadcrumbOpen?.(event.detail)}
       @mn-breadcrumb-menu-open=${(event: CustomEvent<{ breadcrumb: WorkspaceChromeBreadcrumb, x: number, y: number }>) =>
@@ -2362,6 +2562,13 @@ function renderChromeSurface(
         opts.chrome.access?.onRoleChange?.(customDetail<WorkspaceAccessRoleChangeDetail>(event))}
       @mn-access-remove=${(event: Event) =>
         opts.chrome.access?.onRemove?.(customDetail<WorkspaceAccessRemoveDetail>(event))}
+      @mn-access-everyone-change=${(event: Event) =>
+        opts.chrome.access?.onEveryoneChange?.(customDetail<WorkspaceEveryoneChangeDetail>(event))}
+      @mn-access-link-create=${(event: Event) =>
+        opts.chrome.access?.onLinkCreate?.(customDetail<WorkspaceShareLinkCreateDetail>(event))}
+      @mn-access-link-revoke=${(event: Event) =>
+        opts.chrome.access?.onLinkRevoke?.(customDetail<WorkspaceShareLinkRevokeDetail>(event))}
+      @mn-access-link-dismiss=${() => opts.chrome.access?.onLinkDismiss?.()}
       @mn-workspace-refresh=${() => opts.chrome.onWorkspaceRefresh?.()}
       @mn-workspace-select=${(event: Event) =>
         opts.chrome.onWorkspaceSelect?.(customDetail<{ workspace: WorkspaceSummary }>(event).workspace)}
@@ -2383,6 +2590,7 @@ function renderChromeSurface(
       .syncState=${opts.chrome.syncState ?? 'idle'}
       .runtimeMode=${opts.chrome.runtimeMode ?? null}
       .sourceStatus=${opts.chrome.sourceStatus ?? null}
+      .chatAvailable=${opts.chrome.chatAvailable ?? true}
     ></mn-bottom-bar>`
   }
   return stampPanelBody(tag)
@@ -2535,6 +2743,7 @@ function renderSpine(
   inspector: WorkspaceInspectorOptions | null | undefined,
   panelLayout: WorkspacePanelLayoutOptions | null,
   parkedWork: ParkedWorkOptions | null,
+  files: WorkspaceFilesOptions | null = null,
 ): TemplateResult | typeof nothing {
   // ── Plan-derived positions (same 20/75 for GARDEN_DEFAULT, divergent for variants) ──
   const outerSplit = plan.spine.kind === 'split' ? (plan.spine as SplitNode) : null
@@ -2596,11 +2805,12 @@ function renderSpine(
         comments,
         inspector,
         parkedWork,
+        files,
       )
       const controls = renderPanelEdgeControls(head.role, panelLayout)
-      const landmarkRole = landmarkRoleFor(head.role, liftCenter)
+      const landmarkRole = landmarkRoleFor(head.role)
       const landmarkLabel = landmarkLabelFor(head.role)
-      if (!nested) return html`<div class="split-pane" data-region=${head.regionId} data-role=${head.role} role=${landmarkRole ?? nothing} aria-label=${landmarkLabel ?? nothing} style="min-width: ${minWidthFor(head.role)}px;">${body}${controls}</div>`
+      if (!nested) return html`<div class="split-pane" data-region=${head.regionId} data-role=${head.role} role=${landmarkRole ?? nothing} aria-label=${landmarkLabel ?? nothing} style="min-width: ${minWidthFor(head.role)}px; flex: 1 1 auto; width: 100%;">${body}${controls}</div>`
       return html`<div slot="end" class="split-pane" data-region=${head.regionId} data-role=${head.role} role=${landmarkRole ?? nothing} aria-label=${landmarkLabel ?? nothing} style="min-width: ${minWidthFor(head.role)}px;">${body}${controls}</div>`
     }
     // Split: chrome keyed off the START region's role.
@@ -2642,9 +2852,10 @@ function renderSpine(
       comments,
       inspector,
       parkedWork,
+      files,
     )
     const startControls = renderPanelEdgeControls(head.role, panelLayout)
-    const landmarkRole = landmarkRoleFor(head.role, liftCenter)
+    const landmarkRole = landmarkRoleFor(head.role)
     const landmarkLabel = landmarkLabelFor(head.role)
     return html`
       <sl-split-panel
@@ -2674,6 +2885,8 @@ const WORKSPACE_SURFACE_TAG = 'sh-workspace-surface'
 const SURFACE_EPOCH = new Date(0).toISOString()
 
 const SURFACE_FACE = Object.freeze({
+  /** The Files center route (design §12.3: "Files is a center route, `garden.files`"). */
+  files: 'garden.files',
   home: 'garden.home',
   tagLens: 'garden.tag-lens',
   zoteroSource: 'garden.zotero-source',
@@ -2702,6 +2915,7 @@ type WorkspaceSurfaceFaceState =
       readonly wirePanel: WiresPanelMountOptions
     }
   | { readonly kind: 'home'; readonly home: WorkspaceHomeOptions; readonly dailyNotes: RenderWorkspaceOptions['dailyNotes'] }
+  | { readonly kind: 'files'; readonly value: WorkspaceFilesOptions }
   | { readonly kind: 'tag-lens'; readonly value: TagLensOptions }
   | { readonly kind: 'zotero-source'; readonly value: ZoteroSourceOptions }
   | { readonly kind: 'artifact'; readonly value: ArtifactViewOptions }
@@ -2868,14 +3082,16 @@ function renderSurfaceComponent(
       opts.inspector,
     )
   } else if (state.tag === 'mn-sidebar-panel') {
-    body = leftMode === 'graph' ? renderGraphPanelAnchor('left') : renderSidebarPanel(opts.sidebar)
+    // Mirror the spine's own sidebar branch (renderRegionContent) exactly. It
+    // grew an 'outline' mode in July; this path kept only graph-vs-files, so
+    // the outline toggle went active and the files tree stayed on screen.
+    body = leftMode === 'graph'
+      ? renderGraphPanelAnchor('left')
+      : leftMode === 'outline'
+        ? renderOutlinePanel(opts.outlinePanel)
+        : renderSidebarPanel(opts.sidebar)
   } else if (state.tag === 'mn-chat-panel' && opts.chatHost?.service) {
-    body = mountChatHost(opts.chatHost.service, opts.chatHost.sessionId, {
-      presentation: opts.chatHost.presentation,
-      composerReferenceResolver: opts.chatHost.composerReferenceResolver,
-      onSurfaceAction: opts.chatHost.onSurfaceAction,
-      onHeaderAction: opts.chatHost.onHeaderAction,
-    })
+    body = mountLiveChatHost(opts.chatHost)
   } else if (state.tag === 'mn-wires-panel') {
     body = mountWiresPanel(opts.editorWireBundle, state.wirePanel)
   } else if (state.tag === 'mn-graph-panel') {
@@ -2893,12 +3109,7 @@ function renderSurfaceComponent(
   const liveChat = state.role === 'right' && opts.chatHost?.service != null
   if (liveChat && state.panelId === 'chat') body = nothing
   const chatBody = liveChat
-    ? mountChatHost(opts.chatHost!.service, opts.chatHost!.sessionId, {
-        presentation: opts.chatHost!.presentation,
-        composerReferenceResolver: opts.chatHost!.composerReferenceResolver,
-        onSurfaceAction: opts.chatHost!.onSurfaceAction,
-        onHeaderAction: opts.chatHost!.onHeaderAction,
-      })
+    ? mountLiveChatHost(opts.chatHost!)
     : nothing
   const rightBody = state.role === 'right' && liveChat
     ? html`
@@ -2961,6 +3172,59 @@ function requestSurfacePaneFocusFromEvent(
   if (!command) requestSurfacePaneFocus(pane, group, reason)
 }
 
+/**
+ * The pane-header mini table of contents. Ported from `sh-center-panes`'
+ * `renderToc`, which has never appeared on screen: production stopped mounting
+ * that component (see center-panes-layout-adapter.ts's header) and renders this
+ * header instead. The dropdown is a native top-layer popover because the pane
+ * stage sets `overflow: hidden` — an absolutely positioned panel is clipped at
+ * the pane edge.
+ */
+function renderSurfaceToc(
+  pane: CenterPaneProjection,
+  group: WorkspaceCenterPanesOptions,
+): unknown {
+  const headings = group.paneHeadings?.get(pane.id) ?? []
+  if (headings.length === 0) return nothing
+  const open = group.tocOpenPaneId === pane.id
+  const label = headings.find(entry => entry.level === 1)?.text ?? headings[0]!.text
+  return html`<div class="toc-wrap" data-toc-wrap=${pane.id}>
+    <button
+      class="toc-btn"
+      type="button"
+      aria-label="Table of contents"
+      aria-expanded=${open ? 'true' : 'false'}
+      title="Table of contents"
+      @click=${() => group.onTocToggle?.({ paneId: pane.id })}
+    >${surfaceTocIcon()}<span class="toc-btn-label">${label || 'Untitled'}</span><span aria-hidden="true">▾</span></button>
+    ${open ? html`<div class="toc-dropdown" popover="manual" role="menu">
+      ${headings.map(entry => html`<button
+        type="button"
+        class="toc-item"
+        role="menuitem"
+        style=${`padding-inline-start: calc(${entry.level - 1} * 12px + 10px)`}
+        title=${entry.text}
+        @click=${() => group.onTocNavigate?.({ paneId: pane.id, blockId: entry.id })}
+      >${entry.text || 'Untitled'}</button>`)}
+    </div>` : nothing}
+  </div>`
+}
+
+/** One flat template — the nested-sub-template form silently drops under happy-dom. */
+function surfaceTocIcon(): unknown {
+  return html`<svg
+    class="toc-icon"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="2"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    aria-hidden="true"
+    focusable="false"
+  ><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>`
+}
+
 function renderSurfacePaneHeader(
   target: HTMLElement,
   state: Extract<WorkspaceSurfaceFaceState, { readonly kind: 'pane-header' }>,
@@ -3014,6 +3278,7 @@ function renderSurfacePaneHeader(
       ?disabled=${!pane.canGoForward}
       @click=${() => group.onNavigate?.({ paneId: pane.id, direction: 'forward' })}
     >→</button>
+    ${renderSurfaceToc(pane, group)}
     <button
       class="pane-title"
       type="button"
@@ -3063,6 +3328,7 @@ function renderSurfacePaneEditor(
   return html`<div
     class="surface-pane-stage"
     data-pane-stage=${pane.id}
+    data-pane-empty=${pane.current.kind === 'home' ? 'true' : 'false'}
     @pointerdown=${(event: PointerEvent) =>
       requestSurfacePaneFocusFromEvent(event, pane, group, 'pointer')}
     @focusin=${(event: FocusEvent) =>
@@ -3104,6 +3370,9 @@ function renderWorkspaceSurfaceFace(target: HTMLElement, raw: unknown): unknown 
   if (!state) return nothing
   switch (state.kind) {
     case 'component': return renderSurfaceComponent(target, state)
+    case 'files':
+      decorateSurfaceTarget(target, { role: 'center', surfacePart: 'center-route' })
+      return renderFilesPane(state.value)
     case 'home':
       decorateSurfaceTarget(target, { role: 'center', surfacePart: 'center-route' })
       return renderHome(state.home, state.dailyNotes)
@@ -3290,6 +3559,10 @@ function ensureWorkspaceSurfaceDefined(): void {
     readonly accepts: (locator: ResourceLocator) => boolean
   }> = [
     {
+      faceId: SURFACE_FACE.files, persistence: 'stamp', minWidth: 300, minHeight: 180,
+      accepts: locator => acceptsSurfaceIri(locator, 'files:'),
+    },
+    {
       faceId: SURFACE_FACE.home, persistence: 'stamp', minWidth: 280, minHeight: 180,
       accepts: locator => acceptsSurfaceIri(locator, 'home:'),
     },
@@ -3394,11 +3667,19 @@ function ensureWorkspaceSurfaceDefined(): void {
           return evidence.read(graphId, runId, ref)
         },
       }
+      // el Despacho W1: the verb seam resolves LATE, per call, like the three
+      // above — a port that arrives with a later session is honoured, and a
+      // session that cannot write yields null (the chapter still reads).
+      const delegatingVerbs: CuentaVerbSeam = {
+        port: () => (resolveService() as SurfaceEngineServices | null)?.verbs ?? null,
+        witness: () => (resolveService() as SurfaceEngineServices | null)?.witness ?? null,
+      }
       return createFragmentResourceAdapters(
         delegating,
         fragmentQueryResolver,
         delegatingObjects,
         delegatingEvidence,
+        delegatingVerbs,
       )
     },
     gridCollectionResourceAdapterId: FRAGMENT_GRID_COLLECTION_ADAPTER_ID,
@@ -3424,6 +3705,7 @@ function basisPoints(fraction: number, fallback = 5000): number {
 }
 
 function graphIdForSurface(opts: RenderWorkspaceOptions): string | null {
+  if (opts.files) return opts.files.graphId
   const paneGraph = opts.centerPanes?.projection.panes
     .map(pane => pane.current.graphId)
     .find((graphId): graphId is string => typeof graphId === 'string' && graphId.length > 0)
@@ -3691,6 +3973,12 @@ function assembleWorkspaceSurface(
         6000, { kind: 'fixed-chrome' },
       )
     }
+    // The Files route is an explicit navigation, so it precedes Home (design §12.1).
+    if (opts.files) {
+      return addLeaf('workspace-center-files', SURFACE_FACE.files, surfaceResource(`files:${opts.files.graphId}`), {
+        kind: 'files', value: opts.files,
+      })
+    }
     if (opts.home) {
       return addLeaf('workspace-center-home', SURFACE_FACE.home, surfaceResource(`home:${opts.home.graphId}`), {
         kind: 'home',
@@ -3762,7 +4050,10 @@ function assembleWorkspaceSurface(
   }
 
   const rightNode = (regionId: string): string => {
-    const requested = opts.chrome ? rightPanelModeForChrome(opts.chrome) : null
+    // As in the center, an explicitly configured region owns its content.
+    // Garden's remembered chat/wires choice only routes ordinary right rails.
+    const requested = !configuredSurfaceOwnsRegion(config, regionId) && opts.chrome
+      ? rightPanelModeForChrome(opts.chrome) : null
     if (!requested) {
       const tag = resolveSurfaceTag(config, regionId)
       return tag
@@ -3819,7 +4110,10 @@ function assembleWorkspaceSurface(
       fraction = 0.7
       metadata = { kind: 'left-panel' }
     } else if (head.role === 'sidebar' && Number.isFinite(panelLayout?.leftWidth) && availableWidth > 0) {
-      fraction = Number(panelLayout?.leftWidth) / availableWidth
+      const rightWidth = !opts.rightCollapsed && remaining.some(entry => entry.role === 'right')
+        ? Math.min(500, Math.max(240, Number(panelLayout?.rightWidth) || 420)) : 0
+      const maxLeft = Math.max(180, Math.min(500, availableWidth - rightWidth - 402))
+      fraction = Math.min(maxLeft, Math.max(180, Number(panelLayout?.leftWidth))) / availableWidth
       metadata = { kind: 'left-panel' }
     } else if (
       head.role === 'center' &&
@@ -3828,7 +4122,7 @@ function assembleWorkspaceSurface(
       Number.isFinite(panelLayout?.rightWidth) &&
       availableWidth > 0
     ) {
-      fraction = 1 - Number(panelLayout?.rightWidth) / availableWidth
+      fraction = 1 - Math.min(Number(panelLayout?.rightWidth), Math.max(240, availableWidth - 401)) / availableWidth
       metadata = { kind: 'right-panel' }
     }
     const clampedFraction = Math.min(0.99, Math.max(0.01, fraction))
@@ -3897,7 +4191,9 @@ function surfaceDividerPolicy(
   if (kind.kind === 'left-panel') {
     const size = Math.max(1, box.width)
     const min = 180
-    const max = Math.max(min, Math.min(500, size - 400))
+    const rightWidth = !metadata.opts.rightCollapsed && Array.from(metadata.splits.values()).some(value => value.kind === 'right-panel')
+      ? Math.min(500, Math.max(240, Number(metadata.opts.panelLayout?.rightWidth) || 420)) : 0
+    const max = Math.max(min, Math.min(500, size - rightWidth - 402))
     return {
       enabled: true,
       label: 'Resize sidebar',
@@ -4068,42 +4364,11 @@ function workspaceSurfaceModel(
   // live face (notably a focused contenteditable editor).
   let bindingOptions: RenderWorkspaceOptions | null = null
   let stableBindings: ReadonlyMap<string, WorkspaceSurfaceFaceState> | null = null
-  const persistNestedRightWidth = (
-    change: SurfaceRatioChange,
-    metadata: WorkspaceSurfaceMetadata,
-  ): void => {
-    if (change.phase !== 'commit' || !livePanelLayout) return
-    // The right panel split is nested under the left split. Moving the left
-    // divider changes that descendant's physical width even though its own
-    // ratio is untouched. Shoelace used to emit a second reposition event in
-    // this case; Surface must do the equivalent or an expand/collapse rebuild
-    // restores the stale pre-drag right width.
-    const rightSplitId = Array.from(metadata.splits.entries())
-      .find(([, split]) => split.kind === 'right-panel')?.[0]
-    if (!rightSplitId) return
+  const refreshPanelGeometry = (change: SurfaceRatioChange): void => {
+    const surface = change.host as WorkspaceSurfaceElement
+    const model = surface.model
     queueMicrotask(() => {
-      void (async () => {
-        const surface = change.host as WorkspaceSurfaceElement
-        await surface.whenReady?.()
-        const rightLeaf = surface.querySelector<HTMLElement>(
-          '[data-layout-node-kind="leaf"][data-role="right"]',
-        )
-        const rightSplit = surface.querySelector<HTMLElement>(
-          `[data-layout-node-kind="split"][data-layout-node-id="${CSS.escape(rightSplitId)}"]`,
-        )
-        if (!rightLeaf || !rightSplit || !livePanelLayout) return
-        const width = rightLeaf.getBoundingClientRect().width || Number.parseFloat(rightLeaf.style.width)
-        const size = rightSplit.getBoundingClientRect().width || Number.parseFloat(rightSplit.style.width)
-        if (!(width > 0) || !(size > 0)) return
-        const detail: WorkspacePanelRepositionDetail = {
-          role: 'right',
-          width: Math.round(width),
-          position: (width / size) * 100,
-          size,
-        }
-        livePanelLayout = { ...livePanelLayout, rightWidth: detail.width }
-        livePanelLayout.onReposition?.(detail)
-      })()
+      if (surface.isConnected && surface.model === model) surface.model = model
     })
   }
   return {
@@ -4119,6 +4384,8 @@ function workspaceSurfaceModel(
         currentOptions.contested?.queryService ?? currentOptions.fragments?.queryService ?? null,
         currentOptions.contested?.objectService ?? currentOptions.fragments?.objectService ?? null,
         currentOptions.fragments?.evidenceService ?? null,
+        currentOptions.fragments?.verbPort ?? null,
+        currentOptions.fragments?.witness ?? null,
       )
       const built = { ...raw, engineService }
       if (bindingOptions === currentOptions && stableBindings) {
@@ -4143,7 +4410,7 @@ function workspaceSurfaceModel(
         if (!livePanelLayout.leftExpanded) {
           livePanelLayout = { ...livePanelLayout, leftWidth: detail.width }
         }
-        persistNestedRightWidth(change, metadata)
+        refreshPanelGeometry(change)
       } else {
         livePanelLayout = { ...livePanelLayout, rightWidth: detail.width }
       }
@@ -4168,6 +4435,19 @@ function fragmentVegaThemesOf(
   return themes.size > 0 ? themes : null
 }
 
+/** A parked editor keeps its live state, but must not paint over another app. */
+function spineHasPersistentCenter(
+  config: WorkspaceConfig,
+  spine: WorkspaceSpinePlan['spine'],
+): boolean {
+  let node: WorkspaceSpinePlan['spine'] | null = spine
+  while (node) {
+    if (isPersistentCenter(config, node.regionId) && !configuredSurfaceOwnsRegion(config, node.regionId)) return true
+    node = node.kind === 'split' ? node.child : null
+  }
+  return false
+}
+
 function renderWorkspaceSurfaceFrame(
   config: WorkspaceConfig,
   opts: RenderWorkspaceOptions,
@@ -4178,6 +4458,7 @@ function renderWorkspaceSurfaceFrame(
   const rightCollapsed = opts.rightCollapsed ?? false
   const chrome = opts.chrome ?? {}
   const plan = planFor(config, app)
+  const editorParked = !spineHasPersistentCenter(config, plan.spine)
   const appTabs = deriveAppTabs(config)
   const topBarTag = resolveSurfaceTag(config, 'region-top-bar')
   const bottomBarTag = resolveSurfaceTag(config, 'region-bottom-bar')
@@ -4191,7 +4472,7 @@ function renderWorkspaceSurfaceFrame(
   // one surface's themes can never reach another surface's charts.
   const fragmentVegaThemes = fragmentVegaThemesOf(opts.fragments)
   const hostSlot = opts.centerPanes == null && opts.home == null && opts.tagLens == null &&
-    opts.zoteroSource == null && opts.artifact == null && opts.parkedWork == null
+    opts.zoteroSource == null && opts.artifact == null && opts.parkedWork == null && opts.files == null
     ? mountEditorHost(opts.editorHost, opts.editorKernelOptions, {
         initialZoomBlockId: opts.editorInitialZoomBlockId ?? null,
         focusRequest: opts.editorBlockFocusRequest ?? null,
@@ -4202,6 +4483,7 @@ function renderWorkspaceSurfaceFrame(
         documentAccess: opts.editorDocumentAccess ?? null,
         ttsStatus: opts.tts?.status ?? 'idle',
         ttsAvailable: opts.tts?.available ?? false,
+        parked: editorParked,
       })
     : nothing
   const graphHostSlot = mountGraphHost(opts.graphPanel)
@@ -4402,6 +4684,7 @@ export function renderWorkspaceTemplate(
     zoteroSource = null,
     artifact = null,
     parkedWork = null,
+    files = null,
     graphPanel = null,
     outlinePanel = null,
     vtuberControls = null,
@@ -4424,9 +4707,10 @@ export function renderWorkspaceTemplate(
 
   const plan = planFor(config, app)
   const appTabs = deriveAppTabs(config)
+  const editorParked = !spineHasPersistentCenter(config, plan.spine)
   // Lift the center to a live Class-B host ONLY when a binding is provided.
   const liftCenter = (centerPanes != null || editorHost != null) &&
-    home == null && tagLens == null && zoteroSource == null && artifact == null && parkedWork == null
+    home == null && tagLens == null && zoteroSource == null && artifact == null && parkedWork == null && files == null
 
   // Chrome surface tags resolved from config (existence / position / tag → config).
   const topBarTag = resolveSurfaceTag(config, 'region-top-bar')
@@ -4493,6 +4777,7 @@ export function renderWorkspaceTemplate(
     inspector,
     panelLayout,
     parkedWork,
+    files,
   )
 
   // `.main` body: with NO rails it is the bare spine (GardenDefault path —
@@ -4521,7 +4806,7 @@ export function renderWorkspaceTemplate(
   // ANY mainBody-length change. `mountEditorHost` returns `nothing` when no
   // editorHost is provided, so the absent-binding path is byte-identical to today.
   const hostSlot = centerPanes == null &&
-    home == null && tagLens == null && zoteroSource == null && artifact == null && parkedWork == null
+    home == null && tagLens == null && zoteroSource == null && artifact == null && parkedWork == null && files == null
     ? mountEditorHost(editorHost, editorKernelOptions, {
         initialZoomBlockId: editorInitialZoomBlockId ?? null,
         focusRequest: editorBlockFocusRequest ?? null,
@@ -4532,6 +4817,7 @@ export function renderWorkspaceTemplate(
         documentAccess: editorDocumentAccess ?? null,
         ttsStatus: tts?.status ?? 'idle',
         ttsAvailable: tts?.available ?? false,
+        parked: editorParked,
       })
     : nothing
   // Class C: the graph's WebGL node lives at one stable final slot and follows

@@ -4,7 +4,7 @@
  * the gardend binary. It does EXACTLY the same end-to-end path against a REAL
  * gardend — NO MOCKS — and exits non-zero on any mismatch.
  *
- * Spawn → seed real 275-triple :ux:config → read back THROUGH the contract
+ * Spawn → seed real 282-triple :ux:config → read back THROUGH the contract
  * (loadConfigFromCell + SPARQL COUNT) → parse → renderWorkspace into a real DOM
  * (happy-dom registered here) → assert 6 regions / 7 panels / chrome / spine →
  * kill cell + remove temp profile.
@@ -38,7 +38,7 @@ async function main(): Promise<void> {
   const bin = resolveGardendBin()
   if (!existsSync(bin)) throw new Error(`gardend binary not found at ${bin} (set GARDEN_BIN)`)
   const SEED_NT = readFileSync(SEED_NT_PATH, 'utf8')
-  assert(parseNT(SEED_NT).length === 275, 'seed is the real 275-triple body')
+  assert(parseNT(SEED_NT).length === 282, 'seed is the real 282-triple body')
 
   let cell: GardendCell | undefined
   try {
@@ -46,17 +46,17 @@ async function main(): Promise<void> {
     cell = await spawnGardend()
     console.log(`[live] up pid=${cell.pid} api=${cell.apiUrl}`)
     await createGraphAndSeedUxConfig(cell, GRAPH_ID, SEED_NT)
-    console.log('[live] seeded :ux:config (275 triples)')
+    console.log('[live] seeded :ux:config (282 triples)')
 
     const contract = createGardendContract({
       transport: { mcpUrl: cell.mcpUrl, healthUrl: `${cell.apiUrl}/health`, token: cell.token, origin: 'http://127.0.0.1' },
     })
 
     const read = await loadConfigFromCell(contract, GRAPH_ID)
-    assert(read.tripleCount === 275, `rdf_dump body = 275 (got ${read.tripleCount})`)
+    assert(read.tripleCount === 282, `rdf_dump body = 282 (got ${read.tripleCount})`)
     const sparqlCount = await countUxConfigTriples(contract, GRAPH_ID)
-    assert(sparqlCount === 275, `SPARQL COUNT = 275 (got ${sparqlCount})`)
-    console.log(`[live] read back 275 triples via BOTH paths (rdf_dump=${read.tripleCount}, sparql=${sparqlCount})`)
+    assert(sparqlCount === 282, `SPARQL COUNT = 282 (got ${sparqlCount})`)
+    console.log(`[live] read back 282 triples via BOTH paths (rdf_dump=${read.tripleCount}, sparql=${sparqlCount})`)
 
     const config = read.config
     assert(config.id === 'GardenDefault', 'config.id = GardenDefault')

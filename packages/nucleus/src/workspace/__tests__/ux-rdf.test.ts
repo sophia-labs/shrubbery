@@ -65,6 +65,27 @@ const WITH_EDGES: WorkspaceConfig = {
 }
 
 describe('WP0.1 — ux-rdf round-trip', () => {
+  it('preserves intentional empty edges separately from pre-edge absent data', () => {
+    const explicit = { ...GARDEN_DEFAULT, edges: [] }
+    const triples = serializeConfigToTriples(explicit)
+    expect(parseTriplesToConfig(triples)).toEqual(explicit)
+    expect(triplesToNT(triples)).toContain('emptyConfigEdges> "true"^^<http://www.w3.org/2001/XMLSchema#boolean>')
+    const { edges: _edges, ...absent } = GARDEN_DEFAULT
+    expect(parseTriplesToConfig(serializeConfigToTriples(absent))).toEqual(absent)
+  })
+
+  it('rejects malformed or conflicting explicit-empty markers', () => {
+    const marker = serializeConfigToTriples({ ...GARDEN_DEFAULT, edges: [] }).find(t => t.p.endsWith('#emptyConfigEdges'))!
+    const existing = serializeConfigToTriples(GARDEN_DEFAULT)
+    expect(() => parseTriplesToConfig([...existing, marker])).toThrow(/emptyConfigEdges/)
+    const { edges: _edges, ...absent } = GARDEN_DEFAULT
+    const legacy = serializeConfigToTriples(absent)
+    expect(() => parseTriplesToConfig([...legacy, marker, marker])).toThrow(/emptyConfigEdges/)
+    for (const o of [{ type: 'iri', value: 'urn:true' }, { type: 'literal', value: 'true' }, { type: 'literal', value: 'false', datatype: 'http://www.w3.org/2001/XMLSchema#boolean' }] as const) {
+      expect(() => parseTriplesToConfig([...legacy, { ...marker, o }])).toThrow(/emptyConfigEdges/)
+    }
+  })
+
   it('GARDEN_DEFAULT → serialize → parse → deepEqual (modulo freeze)', () => {
     const triples = serializeConfigToTriples(GARDEN_DEFAULT)
     const back = parseTriplesToConfig(triples)
@@ -75,7 +96,6 @@ describe('WP0.1 — ux-rdf round-trip', () => {
     expect(back.appRootRegions?.choreograph).toEqual([
       'region-top-bar',
       'region-choreo-center',
-      'region-bottom-bar',
     ])
   })
 

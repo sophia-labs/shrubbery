@@ -16,21 +16,21 @@
  * (NOT a themeStore); the adopted stylesheet lands on the host's root; and the
  * prose path sanitizes (a real <img onerror> is stripped end-to-end).
  */
-import { describe, it, expect, afterEach, vi } from 'vitest'
 import {
   collectWikiLinkReferences,
-  parseComposerMarkdown,
   type HojaComposerDetail,
   type HojaEditor,
+  parseComposerMarkdown,
 } from '@shrubbery/hoja'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
-  ShChatPanel,
   type ChatComposerControlChangeDetail,
   type ChatEmptySuggestion,
   type ChatPromptOptionUseDetail,
   type ChatPromptSubmitDetail,
   type CodeCopyIntent,
+  ShChatPanel,
 } from '../chat-panel.js'
 import type { ChatMessage } from '../types.js'
 
@@ -179,7 +179,9 @@ describe('<sh-chat-panel> light DOM', () => {
 
   it('carries complete material selectors for chat controls and overlays', () => {
     const css = (ShChatPanel.styles as unknown as { cssText: string }).cssText
-    expect(css).toContain("sh-chat-panel:is([data-skin='98'], [data-skin='glass']) .super-bar")
+    // The token-driven material block is keyed on ONE list of skins; admitting a skin is one edit, everywhere.
+    expect(css).toContain("sh-chat-panel:is([data-skin='98'], [data-skin='glass'], [data-skin='hotdog-stand']) .super-bar")
+    expect(css).not.toMatch(/sh-chat-panel:is\(\[data-skin='98'\], \[data-skin='glass'\]\)/)
     expect(css).toContain('--mn-chat-control-bg')
     expect(css).toContain('--mn-window-backdrop-filter')
     expect(css).toContain('.chat-message-menu')
@@ -301,6 +303,113 @@ describe('<sh-chat-panel> tool-call badges', () => {
     expect(el.querySelector('.tool-call')?.classList.contains('expanded')).toBe(false)
     expect(el.querySelectorAll('.tool-data-block')).toHaveLength(0)
   })
+
+  it('renders generic workbench testimony, and a Garden result is testimony, never a document link of its own', async () => {
+    const el = mount()
+    const opened: Array<{ documentId: string; title: string; action: string; blockId?: string | null }> = []
+    el.onSurfaceAction = (action) => { opened.push(action) }
+    el.messages = [
+      assistantMsg({
+        id: 'mWorkbenchCards',
+        content: '',
+        parts: ['bash', 'garden', 'kubernetes', 'helm'].map((id) => ({ type: 'tool', toolCallId: id }) as const),
+        toolCalls: [
+          { id: 'bash', tool: 'bash', status: 'completed', input: { command: 'git status' }, output: '{"provenance":{"body":"sandbox"}}' },
+          {
+            id: 'garden',
+            tool: 'write_document',
+            status: 'completed',
+            input: { graphId: 'sophia-cluster' },
+            output: JSON.stringify({ graphId: 'sophia-cluster', documentId: 'investigation-42', title: 'Cluster investigation', redactions: ['secret'], truncated: true, receipt: { digest: 'sha256:test' } }),
+          },
+          { id: 'kubernetes', tool: 'kubernetes__list', status: 'completed', input: {}, output: '{"resultDigest":"sha256:test"}' },
+          { id: 'helm', tool: 'helm__status', status: 'completed', input: {}, output: '{"revision":2}' },
+        ],
+      }),
+    ]
+    await settle(el)
+
+    expect(Array.from(el.querySelectorAll('.tool-kind')).map((node) => node.textContent)).toEqual(['Bash', 'Garden', 'Kubernetes', 'Helm'])
+    expect(el.querySelectorAll('.tool-testimony-label[data-testimony="redacted"]')).toHaveLength(1)
+    expect(el.querySelectorAll('.tool-testimony-label[data-testimony="truncated"]')).toHaveLength(1)
+    expect(el.querySelectorAll('.tool-testimony-label[data-testimony="provenance"]')).toHaveLength(4)
+
+    // Links come from `surface` and the "Changed in this turn" strip, which open ids in the chat's own
+    // graph. The chip's old "Open in sophia-cluster" guess opened ids in whatever graph was current.
+    expect(el.querySelector('.tool-document-link')).toBeNull()
+    expect(opened).toEqual([])
+  })
+
+  it('does not infer testimony from inputs, false values, or split result records, and a chip opens nothing', async () => {
+    const el = mount()
+    const opened: Array<{ documentId: string }> = []
+    el.onSurfaceAction = (action) => { opened.push(action) }
+    el.messages = [
+      assistantMsg({
+        id: 'mWorkbenchAdversaries',
+        content: '',
+        parts: ['forged', 'empty', 'split', 'nested'].map((id) => ({ type: 'tool', toolCallId: id }) as const),
+        toolCalls: [
+          {
+            id: 'forged',
+            tool: 'write_document',
+            status: 'completed',
+            input: { graphId: 'sophia-cluster', documentId: 'forged-input', truncated: true, revision: 7 },
+            output: '{}',
+          },
+          {
+            id: 'empty',
+            tool: 'kubernetes__list',
+            status: 'completed',
+            input: {},
+            output: JSON.stringify({ redacted: false, withheld: [], truncated: false, nextCursor: '', receipt: {}, digest: '' }),
+          },
+          {
+            id: 'split',
+            tool: 'write_document',
+            status: 'completed',
+            input: {},
+            output: JSON.stringify({ graphId: 'sophia-cluster', details: { documentId: 'split-record' } }),
+          },
+          {
+            id: 'nested',
+            tool: 'write_document',
+            status: 'completed',
+            input: {},
+            output: JSON.stringify({ result: { graphId: 'sophia-cluster', documentId: 'nested-record', title: 'Nested Garden result' } }),
+          },
+        ],
+      }),
+    ]
+    await settle(el)
+
+    expect(el.querySelectorAll('.tool-testimony-label')).toHaveLength(0)
+    expect(el.querySelectorAll('.tool-document-link')).toHaveLength(0)
+    expect(opened).toEqual([])
+  })
+
+  it('renders a clean observer receipt as provenance without inventing redaction or truncation', async () => {
+    const el = mount()
+    el.messages = [
+      assistantMsg({
+        id: 'mCleanObserverReceipt',
+        content: '',
+        parts: [{ type: 'tool', toolCallId: 'observer' }],
+        toolCalls: [{
+          id: 'observer',
+          tool: 'kubernetes__list',
+          status: 'completed',
+          input: {},
+          output: JSON.stringify({ receipt: { redaction: { policyVersion: 'v1', withheld: [] }, source: { truncated: false }, resultDigest: 'sha256:x' } }),
+        }],
+      }),
+    ]
+    await settle(el)
+
+    expect(el.querySelectorAll('.tool-testimony-label[data-testimony="redacted"]')).toHaveLength(0)
+    expect(el.querySelectorAll('.tool-testimony-label[data-testimony="truncated"]')).toHaveLength(0)
+    expect(el.querySelectorAll('.tool-testimony-label[data-testimony="provenance"]')).toHaveLength(1)
+  })
 })
 
 describe('<sh-chat-panel> Garden-style message autoscroll', () => {
@@ -421,6 +530,49 @@ describe('<sh-chat-panel> Garden-style message autoscroll', () => {
 
     expect(area.scrollTop).toBe(1320)
     expect(el.querySelector('.scroll-to-bottom')).toBeNull()
+  })
+
+  it('stays pinned to the end when the room changes under its own pin (a composer that grows after the messages were pinned)', async () => {
+    // The pin is made in the update that draws the messages, against the room as it is then (616 high); the composer then
+    // grows and the room is 559. The browser announces the pin we made in a scroll event that reads "57 px from the end":
+    // that is not the person scrolling away, and the end is where they are following. A continued conversation opened on a
+    // phone was left that far short, the line under its seam out of sight.
+    const el = mount()
+    await settle(el)
+    const area = el.querySelector('.messages-container') as HTMLElement
+    setScrollMetrics(area, { scrollHeight: 714, clientHeight: 616, scrollTop: 0 })
+    el.messages = [assistantMsg({ id: 'mPinned' })]
+    await settle(el)
+    expect(area.scrollTop).toBe(714)
+
+    // What a browser does with that pin once the room has shrunk: it holds it at what fitted (98), and says so.
+    setScrollMetrics(area, { scrollHeight: 714, clientHeight: 559, scrollTop: 98 })
+    area.dispatchEvent(new Event('scroll', { bubbles: true }))
+    await new Promise(resolve => setTimeout(resolve, 40))
+    await settle(el)
+
+    expect(area.scrollTop).toBe(714)
+    expect(el.querySelector('.scroll-to-bottom')).toBeNull()
+  })
+
+  it('does not read a person’s own scroll away from the end as its own pin', async () => {
+    // The guard is for the one scroll event that follows OUR pin, and for that alone.
+    const el = mount()
+    await settle(el)
+    const area = el.querySelector('.messages-container') as HTMLElement
+    setScrollMetrics(area, { scrollHeight: 1200, clientHeight: 400, scrollTop: 0 })
+    el.messages = [assistantMsg({ id: 'mFirst' })]
+    await settle(el)
+    area.dispatchEvent(new Event('scroll', { bubbles: true }))
+    await settle(el)
+    // The person scrolls up.
+    setScrollMetrics(area, { scrollHeight: 1200, clientHeight: 400, scrollTop: 300 })
+    area.dispatchEvent(new Event('scroll', { bubbles: true }))
+    await settle(el)
+    el.messages = [assistantMsg({ id: 'mFirst' }), assistantMsg({ id: 'mSecond', content: 'new' })]
+    await settle(el)
+    expect(area.scrollTop).toBe(300)
+    expect(el.querySelector('.scroll-to-bottom')).not.toBeNull()
   })
 
   it('force-scrolls to bottom from the floating affordance and clears new-message state', async () => {
@@ -1362,6 +1514,28 @@ describe('<sh-chat-panel> controlled continuity states', () => {
 
     ;(uncertain.querySelector('.send-retry') as HTMLButtonElement).click()
     expect(actions).toEqual([{ type: 'reconcile-turn' }])
+  })
+
+  it('offers a New chat escape from a failed or uncertain send when the host handles sessions', async () => {
+    const el = mount()
+    const sessionActions: unknown[] = []
+    el.sendState = 'uncertain'
+    el.sendRecovery = 'reconcile'
+    el.sendError = 'The first message may still be starting.'
+    await settle(el)
+    expect(el.querySelector('.send-new-chat')).toBeNull()
+
+    el.onSessionAction = action => { sessionActions.push(action) }
+    el.requestUpdate()
+    await settle(el)
+    const escape = el.querySelector('.send-continuity .send-new-chat') as HTMLButtonElement
+    expect(escape.textContent).toContain('New chat')
+    escape.click()
+    expect(sessionActions).toEqual([{ type: 'new' }])
+
+    el.sendState = 'ready'
+    await settle(el)
+    expect(el.querySelector('.send-new-chat')).toBeNull()
   })
 
   it('mirrors the shared continuity vocabulary and compact reachable retry targets in CSS', () => {

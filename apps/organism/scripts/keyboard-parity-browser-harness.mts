@@ -203,6 +203,80 @@ try {
   const documentId = await page.locator('#cell-doc-id').inputValue()
   assert(documentId.length > 0, 'created document id was not selected')
 
+  // A PRINTABLE CHARACTER MUST REACH THE EDITOR.
+  //
+  // `?` used to open the keyboard-shortcuts dialog from anywhere, guarded by a
+  // check that the event target was not a text field. The guard could not work:
+  // the listener is on `document`, the editor is inside `sh-editor-host`'s
+  // shadow root, and a retargeted event arrives at `document` carrying the HOST
+  // as its target -- not contenteditable, not an input. So the guard passed, the
+  // handler called preventDefault, and a question mark could not be typed into
+  // a document at all.
+  //
+  // This is asserted HERE, in a real browser, and not in a unit test, for the
+  // reason the bug existed: shadow-DOM retargeting is the entire mechanism, and
+  // a test environment that does not reproduce retargeting would assert the
+  // guard's logic, pass, and prove nothing about the app. Type the key where the
+  // shadow boundary is real and read back what the editor actually holds.
+  await page.locator('sh-editor-host').waitFor({ state: 'attached' })
+  // The host attaches with an EMPTY `.editor-mount`; ProseMirror lands in it a
+  // beat later. Waiting on the host alone probed an empty mount and reported
+  // "no editable surface" -- the instrument's absence, not the app's.
+  await page.waitForFunction(() => {
+    const host = document.querySelector('sh-editor-host') as HTMLElement | null
+    return !!host?.shadowRoot?.querySelector('.editor-mount [contenteditable="true"]')
+  }, undefined, { timeout: 30_000 })
+  const typedInEditor = await (async () => {
+    const focused = await page.evaluate(() => {
+      const host = document.querySelector('sh-editor-host') as HTMLElement | null
+      const root = host?.shadowRoot ?? null
+      const editable = (root?.querySelector('[contenteditable="true"]')
+        ?? root?.querySelector('.ProseMirror')
+        ?? document.querySelector('[contenteditable="true"]')) as HTMLElement | null
+      if (!editable) {
+        return {
+          ok: false,
+          hostFound: !!host,
+          rootFound: !!root,
+          // What IS in there, so a miss names the shape instead of the absence.
+          shape: Array.from(root?.querySelectorAll('*') ?? [])
+            .slice(0, 25)
+            .map(node => `${node.tagName.toLowerCase()}${node.className ? `.${String(node.className).split(' ')[0]}` : ''}`),
+        }
+      }
+      editable.focus()
+      return { ok: true }
+    })
+    if (!focused.ok) return { error: `no editable surface: ${JSON.stringify(focused)}` }
+    await page.keyboard.press('End')
+    await page.keyboard.type('is it? yes')
+    await page.waitForTimeout(400)
+    return page.evaluate(() => {
+      const host = document.querySelector('sh-editor-host') as HTMLElement | null
+      const editable = host?.shadowRoot?.querySelector('[contenteditable="true"]') as HTMLElement | null
+      return {
+        text: editable?.textContent ?? '',
+        shortcutsDialogOpen: !!document.querySelector('mn-shortcuts-dialog[open]'),
+      }
+    })
+  })()
+  assert(!('error' in typedInEditor), `the editor exposes a contenteditable: ${JSON.stringify(typedInEditor)}`)
+  const typed = typedInEditor as Extract<typeof typedInEditor, { text: string }>
+  assert(
+    typed.text.includes('is it? yes'),
+    `a question mark typed into a document lands in the document: ${JSON.stringify(typed.text.slice(0, 120))}`,
+  )
+  assert(
+    !typed.shortcutsDialogOpen,
+    'typing a question mark did not open the keyboard-shortcuts dialog',
+  )
+
+  // ...and the accelerator cloud-1 actually binds still works, so removing the
+  // bare key did not cost the dialog its way in.
+  await page.keyboard.press(`${primaryModifier}+Slash`)
+  await page.locator('mn-shortcuts-dialog[open]').waitFor({ state: 'attached', timeout: 10_000 })
+
+
   // Production layout must expose the three landmarks the Garden F6 algorithm uses.
   const roles = await page.locator('#host').evaluate((host) => {
     const candidates = Array.from(host.querySelectorAll<HTMLElement>(

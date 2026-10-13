@@ -175,72 +175,56 @@ const settingsService = createDefaultSettingsService({
   storage: window.localStorage,
 })
 
-// ── real (synthetic-backend) gateway control-plane transport for
-// `workspace.picker`/`access.manager` (Wave 1) — GET /graphs and
-// GET/PUT/DELETE /graphs/{id}/access are GATEWAY control-plane routes
-// (`gateway-transport.ts`'s own header: "control plane: GET {gatewayRoot}
-// /graphs"), never a per-graph CELL route — this harness's spawned gardend
-// cell (behind the `/cell` proxy every other client above uses) does not
-// serve them at all. `gatewayFetch` below is a REAL, in-page HTTP handler —
-// genuine `fetch()`/`Response`/status-code semantics, never a stubbed
-// return value — mirroring `apps/organism/src/harness/access-main.ts`'s own
-// `backendFetch` pattern (that harness's real-transport proof for the SAME
-// `/graphs/{id}/access` routes, at the app level). `createWorkspaceCatalog
-// Service`/`createAccessGrantService` (this file's own new imports) are the
-// REAL, production-route-faithful transport `workspace-gateway-service.ts`
-// hoists from `GatewayTransport` (untouched) — this harness supplies a real
-// backing store, not the gateway itself, exactly like the cell-proxy above
-// supplies a real gardend cell rather than a full platform-next deployment.
-const workspaceGatewayGraphs = new Map<string, { graphId: string; title: string; cellState: 'running' | 'stopped'; role: 'viewer' | 'editor' | 'owner' }>([
-  [GRAPH_ID, { graphId: GRAPH_ID, title: 'Layout Workbench Proof', cellState: 'running', role: 'owner' }],
-  ['second-workspace', { graphId: 'second-workspace', title: 'Second Workspace', cellState: 'stopped', role: 'viewer' }],
+// Synthetic gateway producer for workspace/access leaves. It is an in-page
+// fetch fixture, not live hosted auth or a real network/Cognito witness. The
+// access wire follows canonical control MCP; retired REST access is refused.
+const CURRENT_HARNESS_USER_ID = 'user:owner-1'
+const workspaceGatewayGraphs = new Map<string, { owner: string; graphId: string; title: string; cellState: 'running' | 'stopped'; role: 'viewer' | 'editor' | 'owner' }>([
+  [GRAPH_ID, { owner: CURRENT_HARNESS_USER_ID, graphId: GRAPH_ID, title: 'Layout Workbench Proof', cellState: 'running', role: 'owner' }],
+  ['second-workspace', { owner: 'user:other-owner', graphId: 'second-workspace', title: 'Second Workspace', cellState: 'stopped', role: 'viewer' }],
 ])
-const workspaceGatewayAccess = new Map<string, Map<string, { userId: string; role: 'viewer' | 'editor' | 'owner'; grantedAt: string; grantedBy: string; displayName?: string }>>([
-  [GRAPH_ID, new Map([
-    ['owner-1', { userId: 'owner-1', role: 'owner' as const, grantedAt: '2026-07-17T00:00:00Z', grantedBy: 'owner-1', displayName: 'Vera Owner' }],
-  ])],
-])
-const CURRENT_HARNESS_USER_ID = 'owner-1'
+const workspaceGatewayAccess = new Map<string, Map<string, { graph: { owner: string; graphId: string }; generation: number; principal: string; role: 'viewer' | 'editor'; grantedAtMs: number; grantedBy: string }>>()
 const gatewayFetch: typeof fetch = (async (input, init = {}) => {
   const url = new URL(String(input), window.location.href)
   const method = init.method ?? 'GET'
   const json = (value: unknown, status = 200): Response =>
     new Response(JSON.stringify(value), { status, headers: { 'Content-Type': 'application/json' } })
-  if (url.pathname === '/workspace-gateway-harness/graphs' && method === 'GET') {
-    return json([...workspaceGatewayGraphs.values()])
-  }
-  // wave1 review r1 WRONG fix: workspace.picker now wires REAL create/delete
-  // (`workspace-gateway-service.ts`'s own new `WorkspaceCatalogService.
-  // create`/`.remove`) — this synthetic harness backend grows the matching
-  // routes, same in-page-Map-backed realism as the access sub-routes below.
+  if (url.pathname === '/workspace-gateway-harness/graphs' && method === 'GET') return json([...workspaceGatewayGraphs.values()])
   if (url.pathname === '/workspace-gateway-harness/graphs' && method === 'POST') {
     const body = JSON.parse(String(init.body ?? '{}')) as { title?: string; graphId?: string }
     const graphId = body.graphId?.trim() || `harness-graph-${workspaceGatewayGraphs.size + 1}`
     const title = body.title?.trim() || graphId
-    workspaceGatewayGraphs.set(graphId, { graphId, title, cellState: 'running', role: 'owner' })
-    return json({ graphId, title })
+    workspaceGatewayGraphs.set(graphId, { owner: CURRENT_HARNESS_USER_ID, graphId, title, cellState: 'running', role: 'owner' })
+    return json({ owner: CURRENT_HARNESS_USER_ID, graphId, title })
   }
   const graphMatch = url.pathname.match(/^\/workspace-gateway-harness\/graphs\/([^/]+)$/u)
   if (graphMatch && method === 'DELETE') {
     workspaceGatewayGraphs.delete(decodeURIComponent(graphMatch[1]!))
     return new Response(null, { status: 204 })
   }
-  const accessMatch = url.pathname.match(/^\/workspace-gateway-harness\/graphs\/([^/]+)\/access(?:\/([^/]+))?$/u)
-  if (accessMatch) {
-    const graphId = decodeURIComponent(accessMatch[1]!)
-    const userId = accessMatch[2] ? decodeURIComponent(accessMatch[2]) : null
-    const grants = workspaceGatewayAccess.get(graphId) ?? new Map()
-    workspaceGatewayAccess.set(graphId, grants)
-    if (method === 'GET' && !userId) return json([...grants.values()])
-    if (method === 'PUT' && userId) {
-      const body = JSON.parse(String(init.body ?? '{}')) as { role: 'viewer' | 'editor'; email?: string; displayName?: string }
-      grants.set(userId, { userId, role: body.role, grantedAt: new Date().toISOString(), grantedBy: CURRENT_HARNESS_USER_ID, ...(body.displayName ? { displayName: body.displayName } : {}) })
-      return new Response(null, { status: 204 })
+  if (url.pathname === '/workspace-gateway-harness/control/mcp' && method === 'POST') {
+    const body = JSON.parse(String(init.body))
+    const args = body.params?.arguments ?? {}
+    const fail = (code: number, message: string) => json({ jsonrpc: '2.0', id: body.id, error: { code, message } })
+    const graph = workspaceGatewayGraphs.get(args.graphId)
+    if (body.method !== 'tools/call' || body.params?.name !== 'manage_access') return fail(-32601, 'unknown tool')
+    if (!graph || graph.owner !== args.owner || graph.owner !== CURRENT_HARNESS_USER_ID) return fail(-32004, 'graph not found')
+    const grants = workspaceGatewayAccess.get(args.graphId) ?? new Map()
+    workspaceGatewayAccess.set(args.graphId, grants)
+    let value: unknown
+    if (args.action === 'list') value = [...grants.values()]
+    else {
+      if (typeof args.principal !== 'string' || !/^user:[^\s]+$/u.test(args.principal)) return fail(-32602, 'invalid principal')
+      if (args.principal === graph.owner) return fail(-32009, 'owner is not a delegated grant')
+      if (args.action === 'grant') {
+        if (args.role !== 'viewer' && args.role !== 'editor') return fail(-32602, 'invalid role')
+        const grant = { graph: { owner: graph.owner, graphId: graph.graphId }, generation: 1, principal: args.principal, role: args.role, grantedAtMs: Date.now(), grantedBy: CURRENT_HARNESS_USER_ID }
+        grants.set(args.principal, grant)
+        value = grant
+      } else if (args.action === 'revoke') { grants.delete(args.principal); value = { revoked: true } }
+      else return fail(-32602, 'invalid action')
     }
-    if (method === 'DELETE' && userId) {
-      grants.delete(userId)
-      return new Response(null, { status: 204 })
-    }
+    return json({ jsonrpc: '2.0', id: body.id, result: { content: [{ type: 'text', text: JSON.stringify(value) }], structuredContent: value, isError: false } })
   }
   return json({ error: `unhandled workspace-gateway-harness route: ${method} ${url.pathname}` }, 404)
 }) as typeof fetch

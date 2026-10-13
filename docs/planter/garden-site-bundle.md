@@ -14,7 +14,7 @@ The bundle declares, as data:
 - the exact `@shrubbery/planter` interpreter version;
 - Home and Workspace surfaces, with `/`, `/home`, and `/workspace` routes;
 - the Markdown, Turtle, JSON-LD, and HTML face set;
-- Garden/Sophia/98/Glass skins, light/dark themes, and the
+- Garden/Sophia/98/Glass/Mithras/Hotdog Stand skins, light/dark themes, and the
   continuous/paper/classic-word editor-material axis;
 - left/right panel min/default/max widths, Shoelace snap strings, and threshold;
 - every component tag named by the layout, its npm package, persistence class,
@@ -71,7 +71,7 @@ absolute endpoint IRI.
 - poll-driven rerender with capture-age testimony;
 - Garden structural workspace and honest empty/error states;
 - the richer shared chrome components and Garden Home presentation;
-- the four-way visual-identity cycle, dark mode, and editor-material tokens;
+- the six-skin visual-identity set (Garden, Sophia, 98, Glass, Mithras, Hotdog Stand, chosen from the skin picker), dark mode, and editor-material tokens;
 - controlled panel widths, collapse/expand, and discrete snap attributes;
 - all declared routes through the SPA and all four faces through the server.
 

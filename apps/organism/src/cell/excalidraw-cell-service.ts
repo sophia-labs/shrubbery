@@ -14,6 +14,7 @@ import {
   type ExcalidrawScope,
 } from '@shrubbery/runtime'
 import { createSidebarDocument, type SidebarMutationMcp } from './sidebar-mutations.js'
+import { cellAuthHeaders } from './cell-auth-headers.js'
 import {
   buildSceneLink,
   buildSceneLinkRecord,
@@ -388,10 +389,7 @@ function artifactDownloadUrl(contract: ExcalidrawCellContract, scope: Excalidraw
 }
 function artifactRevisionUrl(contract: ExcalidrawCellContract, scope: ExcalidrawScope): string { return `${artifactDownloadUrl(contract, scope).replace(/\/download$/, '')}/revisions` }
 function cellRequestHeaders(contract: ExcalidrawCellContract): Record<string, string> {
-  const headers: Record<string, string> = { 'X-User-ID': contract.auth.userId() }
-  const token = contract.auth.token()
-  if (token) headers.Authorization = `Bearer ${token}`
-  return headers
+  return cellAuthHeaders(contract)
 }
 function trimSlash(value: string): string { return value.replace(/\/+$/, '') }
 async function responseError(response: Response, fallback: string): Promise<string> { const detail = await response.text().catch(() => ''); return detail || `${fallback}: ${response.status}` }

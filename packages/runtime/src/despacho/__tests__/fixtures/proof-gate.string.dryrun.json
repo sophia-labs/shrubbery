@@ -1,0 +1,32 @@
+{
+ "recordedAt": "2026-09-15",
+ "source": "Sirin sophia-cluster cell via ~/.sophia-mcp/sirin-call.sh emporium_write",
+ "receipt": "proof-gate.string.dryrun.json (kept outside this repository)",
+ "jsonrpc": {
+  "jsonrpc": "2.0",
+  "id": 2,
+  "result": {
+   "content": [
+    {
+     "type": "text",
+     "text": "{\n  \"graphId\": \"sophia-cluster\",\n  \"vocab\": \"cuentas\",\n  \"dryRun\": true,\n  \"ok\": true,\n  \"results\": [\n    {\n      \"subject\": \"urn:mnemosyne:local:graph:sophia-cluster:projection:cuentas:cuenta:despacho-w1-proof-gate\",\n      \"outcome\": \"applied\"\n    }\n  ],\n  \"journalRef\": null,\n  \"warnings\": [],\n  \"violations\": null\n}"
+    }
+   ],
+   "structuredContent": {
+    "graphId": "sophia-cluster",
+    "vocab": "cuentas",
+    "dryRun": true,
+    "ok": true,
+    "results": [
+     {
+      "subject": "urn:mnemosyne:local:graph:sophia-cluster:projection:cuentas:cuenta:despacho-w1-proof-gate",
+      "outcome": "applied"
+     }
+    ],
+    "journalRef": null,
+    "warnings": [],
+    "violations": null
+   }
+  }
+ }
+}

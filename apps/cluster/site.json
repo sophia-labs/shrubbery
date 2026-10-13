@@ -1,0 +1,74 @@
+{
+  "comment": "The page map of cluster.sophia-labs.com. Words come from Sophia graph documents; scripts/pull.mts writes them into content/ and build.mts renders them. Only what is listed here is published.",
+  "graph": "public",
+  "pages": [
+    {
+      "path": "index",
+      "document": "cluster-home",
+      "title": "Sophia Cluster 1.0",
+      "description": "Sophia Cluster 1.0: equipment for the agents you hire, installed in your own cloud and yours to keep.",
+      "feature": "orb-v1"
+    },
+    {
+      "path": "404",
+      "document": "cluster-404",
+      "title": "Not found — Sophia Cluster"
+    }
+  ],
+  "catalog": {
+    "path": "catalog",
+    "document": "catalog-index",
+    "title": "Catalogue — Sophia Cluster 1.0",
+    "description": "Sophia Cluster 1.0, product by product: Sophia Desk, Sophia Compute, Sophia Chat and the platform they run on.",
+    "graph": "cluster",
+    "fields": [
+      "name",
+      "family",
+      "plain",
+      "availability",
+      "leadTime",
+      "targetRelease",
+      "intent",
+      "partNumber"
+    ],
+    "exclude": [
+      "workspace-isolation",
+      "assistant-permissions"
+    ],
+    "excludeReason": "Security fixes stay off the public catalogue until they ship: describing them would disclose the weakness.",
+    "products": [
+      {
+        "slug": "desk",
+        "document": "product-desk",
+        "families": [
+          "Workspace",
+          "Data & export"
+        ]
+      },
+      {
+        "slug": "compute",
+        "document": "product-compute",
+        "families": [
+          "Agents"
+        ]
+      },
+      {
+        "slug": "chat",
+        "document": "product-chat",
+        "families": [],
+        "status": "In progress"
+      },
+      {
+        "slug": "platform",
+        "document": "product-platform",
+        "families": [
+          "Installation",
+          "Operations",
+          "Security & access",
+          "Connections",
+          "Developer surface"
+        ]
+      }
+    ]
+  }
+}

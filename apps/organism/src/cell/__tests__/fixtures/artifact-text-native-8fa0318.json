@@ -1,0 +1,9 @@
+{
+  "nativeSource": "8fa0318e64e4ddd5a86c42ef985ee8810ab3ca1c",
+  "nativeLogSha256": "93cd1e298ed1bada0f969a5865aa78b1d117d11d9d39dff6d7b922d57b6609a9",
+  "provenance": "Garden artifact_text test attempt 02, 2026-09-08; actual synthetic-profile service outputs, not production or network HTTP",
+  "snapshots": [
+    {"graphId":"html-native","graphIncarnation":"6dd4c932-df1e-4918-abe0-711d6c602cfe","artifactId":"restart-artifact","filename":"live.html","mimeType":"text/html","sizeBytes":13,"contentHashSha256":"df887963a3f324566a7e8a1a4b7601314c4bc38ed02f875dfab26b5e26a3798d","text":"after restart"},
+    {"graphId":"html-native","graphIncarnation":"38b612d1-b3ed-4ba2-9062-ff61ea5d8bff","artifactId":"live-artifact","filename":"live.html","mimeType":"text/html","sizeBytes":0,"contentHashSha256":"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855","text":""}
+  ]
+}

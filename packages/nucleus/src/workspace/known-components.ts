@@ -41,7 +41,7 @@
  *     mn-month-popover,
  *     mn-editor-toolbar, mn-spinner, mn-loading, mn-empty-state, mn-sidebar-panel, mn-tag-view,
  *     mn-artifact-view, mn-artifact-editor, mn-excalidraw-canvas, mn-artifact-history, mn-doc-history-panel, mn-original-viewer,
- *     wf-choreograph-view, wf-mission-control, wf-studio-shell, mn-snapshot-diff, mn-timeline-rail,
+ *     wf-choreograph-view, wf-mission-control, wf-studio-shell, choreo-modes-surface, mn-snapshot-diff, mn-timeline-rail,
  *     mn-restore-overlay, mn-comments-panel, mn-comment-popover, mn-inspector, mn-document-switcher,
  *     mn-settings-page, mn-ops-health-page, mn-consent-banner, mn-upgrade-banner,
  *     mn-storage-banner, mn-lifetime-banner, mn-cloud-mode-pill, mn-cloud-mode-panel,
@@ -52,8 +52,10 @@
  *     mn-sign-in-form, mn-sign-up-form, mn-verify-email-form, mn-public-shell, mn-wire-picker,
  *     mn-wikilink-picker, mn-node-link-picker, mn-citation-picker, mn-zotero-library-panel, mn-zotero-source-workbench, mn-wire-radial-overlay, garden-hero-canvas,
  *     sophia-hero-canvas, garden-landing, sophia-labs-landing.
- *   @shrubbery/organism trusted app extension (1):
+ *   @shrubbery/organism trusted app extensions:
  *     mn-phanes-control-editor — the graph-authored Phanes control workspace.
+ *     mn-grapevine-pane — the host-scoped Zulip conversation pane.
+ *     sh-flow-app-frame — the host-scoped Mithras Flow board frame (apps/flow at /flow/).
  *   @shrubbery/atelier-vtuber (1): mn-vtuber — the WebGL/VRM avatar puppet,
  *     carved out of @shrubbery/components into its own package for its heavier
  *     @pixiv/three-vrm dependency (depends ON @shrubbery/components for
@@ -130,8 +132,11 @@ const KNOWN_COMPONENT_TAGS: readonly string[] = Object.freeze([
   'mn-doc-history-panel',
   'mn-original-viewer',
   'wf-choreograph-view',
+  'mn-grapevine-pane',
+  'sh-flow-app-frame',
   'wf-mission-control',
   'wf-studio-shell',
+  'choreo-modes-surface',
   'mn-snapshot-diff',
   'mn-timeline-rail',
   'mn-restore-overlay',

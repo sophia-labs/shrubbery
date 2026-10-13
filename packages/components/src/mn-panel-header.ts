@@ -9,6 +9,7 @@
 import { LitElement, css, html, nothing, unsafeCSS } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 import { SkinAware } from './skin-aware.js'
+import { BEVELLED } from './bevelled-skins.js'
 import { icon, iconStyles } from './icons.js'
 import './mn-tooltip.js'
 
@@ -118,11 +119,11 @@ export class MnPanelHeader extends SkinAware(LitElement) {
     .collapse-btn[aria-expanded='false'] .mn-icon {
       transform: rotate(-90deg);
     }
-    :host([data-skin='98']) {
+    :host(${BEVELLED}) {
       border-bottom: 2px groove var(--mn-98-face);
       background: var(--mn-98-face);
     }
-    :host([data-skin='98']) :is(.badge, .collapse-btn) {
+    :host(${BEVELLED}) :is(.badge, .collapse-btn) {
       border-radius: 0;
       background: var(--mn-98-face);
       box-shadow: var(--mn-98-raised);

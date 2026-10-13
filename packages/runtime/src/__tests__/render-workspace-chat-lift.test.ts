@@ -197,4 +197,23 @@ describe('renderWorkspace chat lift', () => {
     expect(container.querySelector('.right-panel[data-panel="chat"] mn-chat-panel')).toBeNull()
     expect(container.querySelector('.right-panel[data-panel="wires"]')).toBeNull()
   })
+
+  it('threads chatHost.conversationHome through to the real sh-chat-host, on every path that mounts it', async () => {
+    const service = makeLocalChatService()
+    const session = await service.createSession({ title: 'workspace-chat-conversation-home' })
+    const conversationHome = { now: () => 1 }
+
+    const region = renderWorkspace(GARDEN_DEFAULT, { chatHost: { service, sessionId: session.id, conversationHome } })
+    document.body.appendChild(region)
+    await settle(region)
+    expect(chatHost(region)!.conversationHome).toBe(conversationHome)
+
+    const panel = renderWorkspace(GARDEN_DEFAULT, {
+      chatHost: { service, sessionId: session.id, conversationHome },
+      chrome: { rightPanel: 'chat' },
+    })
+    document.body.appendChild(panel)
+    await settle(panel)
+    expect(chatHost(panel)!.conversationHome).toBe(conversationHome)
+  })
 })

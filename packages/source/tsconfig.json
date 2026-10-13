@@ -3,7 +3,10 @@
     "target": "ES2022",
     "useDefineForClassFields": false,
     "module": "ESNext",
-    "lib": ["ES2022"],
+    // `bundler` resolution pulls @shrubbery/nucleus in as raw .ts, and
+    // nucleus/popover.ts uses real DOM types. Neither package renders,
+    // but both must be able to READ the library that does.
+    "lib": ["ES2022", "DOM"],
     "skipLibCheck": true,
 
     "moduleResolution": "bundler",

@@ -106,6 +106,34 @@ describe('S4 BlockId — Tier-B real editor behavior', () => {
     expect(html).toMatch(/data-block-id="block-[0-9a-f]{8}"/)
   })
 
+  it('on a plain-HTTP page (no crypto.randomUUID) the plugin still stamps ids instead of throwing', () => {
+    // A non-secure origin (http://<lan-host>:8100) gets crypto.getRandomValues
+    // but no crypto.randomUUID; before the fix every transaction threw
+    // "crypto.randomUUID is not a function" from appendTransaction.
+    const saved = Object.getOwnPropertyDescriptor(globalThis, 'crypto')
+    const real = globalThis.crypto
+    Object.defineProperty(globalThis, 'crypto', {
+      configurable: true,
+      value: { getRandomValues: real.getRandomValues.bind(real) },
+    })
+    try {
+      expect((globalThis.crypto as { randomUUID?: unknown }).randomUUID).toBeUndefined()
+      const editor = mount()
+      editor.commands.setContent('<p>Borges</p><p>Bioy</p>')
+      editor.commands.focus('end')
+      editor.commands.insertContent(' Casares')
+      const ids: unknown[] = []
+      editor.state.doc.descendants((node) => {
+        if (node.type.name === 'paragraph') ids.push(node.attrs['data-block-id'])
+      })
+      expect(ids.length).toBe(2)
+      for (const id of ids) expect(id as string).toMatch(/^block-[0-9a-f]{8}$/)
+      expect(new Set(ids).size).toBe(ids.length)
+    } finally {
+      if (saved) Object.defineProperty(globalThis, 'crypto', saved)
+    }
+  })
+
   it("opt-in editor with enabledNodeTypes still stamps the base block types", () => {
     const editor = mount({ enabledNodeTypes: ['queryBlock'] })
     editor.commands.setContent('<p>x</p>')

@@ -9,6 +9,7 @@
 import { LitElement, css, html, nothing } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 import { SkinAware } from './skin-aware.js'
+import { BEVELLED } from './bevelled-skins.js'
 import './mn-spinner.js'
 
 export type MnLoadingVariant = 'spinner' | 'dots' | 'pulse' | 'skeleton'
@@ -98,12 +99,12 @@ export class MnLoading extends SkinAware(LitElement) {
     :host([data-skin='emporium']) .pulse {
       border-radius: var(--mn-radius-control, 4px);
     }
-    :host([data-skin='98']) .dot,
-    :host([data-skin='98']) .pulse,
-    :host([data-skin='98']) .skeleton {
+    :host(${BEVELLED}) .dot,
+    :host(${BEVELLED}) .pulse,
+    :host(${BEVELLED}) .skeleton {
       border-radius: 0;
     }
-    :host([data-skin='98'][fullscreen]) {
+    :host(${BEVELLED}[fullscreen]) {
       background: var(--mn-98-face);
     }
     :host([data-skin='glass'][fullscreen]) {

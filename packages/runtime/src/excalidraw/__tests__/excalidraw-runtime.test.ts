@@ -114,7 +114,7 @@ function makeHarness(overrides: {
     elements = data.elements ?? []
     appState = data.appState ?? {}
     files = data.files ?? {}
-    ;(latestProps.excalidrawAPI as (value: ExcalidrawApi) => void)(api)
+    ;(latestProps.onInitialize as (value: ExcalidrawApi) => void)(api)
   })
   const rootUnmount = vi.fn()
   const runtime: ExcalidrawRuntimeModule = {
@@ -279,7 +279,7 @@ describe('mountExcalidrawRuntime — named-slot React lifecycle', () => {
       createRoot: () => ({
         render(node) {
           latestProps = (node as FakeVNode).props
-          ;(latestProps.excalidrawAPI as (value: ExcalidrawApi) => void)(api)
+          ;(latestProps.onInitialize as (value: ExcalidrawApi) => void)(api)
         },
         unmount() {},
       }),

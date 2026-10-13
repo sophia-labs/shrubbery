@@ -1,5 +1,5 @@
 /**
- * Hosted Cloud-2 member-grant controller.
+ * Hosted canonical control-MCP member-grant controller.
  *
  * The reusable access component receives only this controller's immutable
  * projection. Authentication and owner-only mutations stay on the Organism
@@ -7,6 +7,13 @@
  */
 
 import type { ConfirmOpts } from '@shrubbery/nucleus'
+import {
+  accessUserPrincipal,
+  shareLinkUrl,
+  type ControlMintedShareLink,
+  type ControlShareLinkCreate,
+  type ControlSharingState,
+} from '@shrubbery/source/access-control'
 import type {
   WorkspaceAccessAddDetail,
   WorkspaceAccessBusyAction,
@@ -15,6 +22,11 @@ import type {
   WorkspaceAccessRemoveDetail,
   WorkspaceAccessRole,
   WorkspaceAccessRoleChangeDetail,
+  WorkspaceAccessSharing,
+  WorkspaceEveryoneChangeDetail,
+  WorkspaceShareLinkCreateDetail,
+  WorkspaceShareLinkRevokeDetail,
+  WorkspaceSharingBusyAction,
 } from '@shrubbery/runtime'
 import type { GatewayAccessGrant, GatewayPutAccessRequest } from './gateway-transport.js'
 
@@ -22,6 +34,22 @@ export interface AccessGrantGateway {
   access(graphId: string): Promise<readonly GatewayAccessGrant[]>
   putAccess(graphId: string, userId: string, request: GatewayPutAccessRequest): Promise<void>
   deleteAccess(graphId: string, userId: string): Promise<void>
+  /** Optional sharing capability; absent gateways keep the member-only dialog. */
+  sharing?(graphId: string): Promise<ControlSharingState>
+  setEveryoneAccess?(graphId: string, enabled: boolean): Promise<void>
+  createShareLink?(graphId: string, request: ControlShareLinkCreate): Promise<ControlMintedShareLink>
+  revokeShareLink?(graphId: string, linkId: string): Promise<void>
+}
+
+type SharingGateway = Required<Pick<AccessGrantGateway, 'sharing' | 'setEveryoneAccess' | 'createShareLink' | 'revokeShareLink'>>
+
+function sharingGateway(gateway: AccessGrantGateway): SharingGateway | null {
+  return typeof gateway.sharing === 'function'
+    && typeof gateway.setEveryoneAccess === 'function'
+    && typeof gateway.createShareLink === 'function'
+    && typeof gateway.revokeShareLink === 'function'
+    ? gateway as SharingGateway
+    : null
 }
 
 export interface AccessGrantUi {
@@ -39,6 +67,8 @@ export interface AccessGrantScope {
 
 export interface OrganismAccessGrantControllerOptions {
   readonly requestRender: () => void
+  /** Origin for share-link URLs; defaults to the page origin. */
+  readonly linkOrigin?: () => string
 }
 
 function memberName(grant: WorkspaceAccessGrant): string {
@@ -71,6 +101,9 @@ function errorMessage(error: unknown): string {
   if (status === 403) return 'Only the workspace owner can manage member access.'
   if (status === 404) return 'This workspace is unavailable or you no longer have access.'
   if (status === 401) return 'Your hosted session expired. Sign in again, then retry.'
+  const code = error && typeof error === 'object' ? (error as { code?: unknown }).code : undefined
+  if (code === -32004) return 'This workspace is unavailable or this session cannot list its access grants. (graph not found)'
+  if (code === -32003) return `Access management was refused. ${error instanceof Error ? error.message : String(error)}`
   return error instanceof Error ? error.message : String(error)
 }
 
@@ -86,8 +119,21 @@ export class OrganismAccessGrantController {
   private busyAction: WorkspaceAccessBusyAction | null = null
   private renderQueued = false
   private destroyed = false
+  private sharingStatus: WorkspaceAccessSharing['status'] = 'idle'
+  private sharingState: ControlSharingState | null = null
+  private sharingBusy: WorkspaceSharingBusyAction | null = null
+  private sharingError: string | null = null
+  private createdLinkUrl: string | null = null
 
   constructor(private readonly options: OrganismAccessGrantControllerOptions) {}
+
+  private resetSharing(): void {
+    this.sharingStatus = 'idle'
+    this.sharingState = null
+    this.sharingBusy = null
+    this.sharingError = null
+    this.createdLinkUrl = null
+  }
 
   private requestRender(): void {
     if (this.destroyed || this.renderQueued) return
@@ -123,6 +169,7 @@ export class OrganismAccessGrantController {
     this.notice = null
     this.busyUserId = null
     this.busyAction = null
+    this.resetSharing()
   }
 
   private applyGrants(rows: readonly GatewayAccessGrant[]): void {
@@ -141,7 +188,7 @@ export class OrganismAccessGrantController {
 
   async refresh(): Promise<void> {
     const scope = this.scope
-    if (!scope || this.destroyed) return
+    if (!scope || this.destroyed || (this.busyAction && this.busyAction !== 'refresh')) return
     const generation = ++this.generation
     this.status = 'loading'
     this.error = null
@@ -154,6 +201,7 @@ export class OrganismAccessGrantController {
       if (generation !== this.generation) return
       this.applyGrants(rows)
       this.status = 'ready'
+      void this.loadSharing(scope, generation)
     } catch (error) {
       if (generation !== this.generation) return
       this.status = 'error'
@@ -176,6 +224,12 @@ export class OrganismAccessGrantController {
       this.requestRender()
       return null
     }
+    if (this.status !== 'ready') {
+      this.error = this.error || 'Refresh the member list before making an access change.'
+      this.notice = null
+      this.requestRender()
+      return null
+    }
     return scope
   }
 
@@ -184,6 +238,7 @@ export class OrganismAccessGrantController {
     userId: string,
     operation: (scope: AccessGrantScope) => Promise<void>,
     notice: string,
+    confirmedBy: (rows: readonly GatewayAccessGrant[]) => boolean,
   ): Promise<void> {
     const scope = this.ownerScope()
     if (!scope || this.destroyed || this.busyAction) return
@@ -197,17 +252,19 @@ export class OrganismAccessGrantController {
     try {
       await operation(scope)
       mutationAccepted = true
+      if (generation !== this.generation) return
       const rows = await scope.gateway.access(scope.graphId)
       if (generation !== this.generation) return
       this.applyGrants(rows)
+      if (!confirmedBy(rows)) throw new Error('The refreshed list does not yet confirm the requested grant state.')
       this.status = 'ready'
       this.notice = notice
     } catch (error) {
       if (generation !== this.generation) return
-      this.status = this.grants.length > 0 ? 'ready' : 'error'
+      this.status = 'error'
       const detail = errorMessage(error)
       this.error = mutationAccepted
-        ? `The access change was accepted, but the member list could not be refreshed. Retry before making another change. ${detail}`
+        ? `The access change was accepted, but current membership could not be confirmed. Refresh before making another change. ${detail}`
         : detail
     } finally {
       if (generation === this.generation) {
@@ -220,8 +277,10 @@ export class OrganismAccessGrantController {
 
   async add(detail: WorkspaceAccessAddDetail): Promise<void> {
     const userId = detail.userId.trim()
-    if (!userId) {
-      this.error = 'A stable member user ID is required.'
+    try {
+      accessUserPrincipal(userId)
+    } catch (error) {
+      this.error = errorMessage(error)
       this.requestRender()
       return
     }
@@ -237,15 +296,19 @@ export class OrganismAccessGrantController {
     }
     const email = detail.email?.trim()
     const displayName = detail.displayName?.trim()
+    if (email || displayName) {
+      this.error = 'Access grants do not support email or display-name metadata; use a typed user ID.'
+      this.requestRender()
+      return
+    }
     await this.mutate(
       'add',
       userId,
       scope => scope.gateway.putAccess(scope.graphId, userId, {
         role: detail.role,
-        ...(email ? { email } : {}),
-        ...(displayName ? { displayName } : {}),
       }),
-      `Added ${displayName || email || userId} as ${detail.role}.`,
+      `Added ${userId} as ${detail.role}.`,
+      rows => rows.some(row => row.userId === userId && row.role === detail.role),
     )
   }
 
@@ -273,10 +336,9 @@ export class OrganismAccessGrantController {
       userId,
       scope => scope.gateway.putAccess(scope.graphId, userId, {
         role: detail.role,
-        ...(grant.email ? { email: grant.email } : {}),
-        ...(grant.displayName ? { displayName: grant.displayName } : {}),
       }),
       `Updated ${memberName(grant)} to ${detail.role}.`,
+      rows => rows.some(row => row.userId === userId && row.role === detail.role),
     )
   }
 
@@ -295,6 +357,7 @@ export class OrganismAccessGrantController {
       this.requestRender()
       return
     }
+    const generation = this.generation
     let confirmed = false
     try {
       confirmed = await scope.ui.confirm({
@@ -304,17 +367,169 @@ export class OrganismAccessGrantController {
         cancelLabel: 'Cancel',
       })
     } catch (error) {
+      if (this.destroyed || generation !== this.generation) return
       this.error = errorMessage(error)
       this.requestRender()
       return
     }
-    if (!confirmed || this.currentRole !== 'owner') return
+    if (!confirmed || this.destroyed || generation !== this.generation || this.currentRole !== 'owner') return
     await this.mutate(
       'remove',
       userId,
       active => active.gateway.deleteAccess(active.graphId, userId),
       `Removed ${memberName(grant)}.`,
+      rows => !rows.some(row => row.userId === userId),
     )
+  }
+
+  /** Owner-only: read the everyone grant and share links. Failure never hides people. */
+  private async loadSharing(scope: AccessGrantScope, generation: number): Promise<void> {
+    const gateway = sharingGateway(scope.gateway)
+    if (!gateway || this.currentRole !== 'owner') {
+      this.resetSharing()
+      return
+    }
+    this.sharingStatus = 'loading'
+    this.sharingError = null
+    this.requestRender()
+    try {
+      const state = await gateway.sharing(scope.graphId)
+      if (generation !== this.generation || this.destroyed) return
+      this.sharingState = state
+      this.sharingStatus = 'ready'
+    } catch (error) {
+      if (generation !== this.generation || this.destroyed) return
+      this.sharingStatus = 'error'
+      this.sharingError = `Sharing settings are unavailable. ${errorMessage(error)}`
+    } finally {
+      if (generation === this.generation) this.requestRender()
+    }
+  }
+
+  private async mutateSharing(
+    action: WorkspaceSharingBusyAction,
+    operation: (gateway: SharingGateway, scope: AccessGrantScope) => Promise<void>,
+    notice: string,
+  ): Promise<void> {
+    const scope = this.scope
+    const gateway = scope ? sharingGateway(scope.gateway) : null
+    if (!scope || !gateway || this.destroyed || this.sharingBusy || this.currentRole !== 'owner' || this.sharingStatus !== 'ready') return
+    const generation = this.generation
+    this.sharingBusy = action
+    this.sharingError = null
+    this.notice = null
+    this.requestRender()
+    try {
+      await operation(gateway, scope)
+      if (generation !== this.generation || this.destroyed) return
+      const state = await gateway.sharing(scope.graphId)
+      if (generation !== this.generation || this.destroyed) return
+      this.sharingState = state
+      this.notice = notice
+    } catch (error) {
+      if (generation !== this.generation || this.destroyed) return
+      this.sharingError = errorMessage(error)
+    } finally {
+      if (generation === this.generation) {
+        this.sharingBusy = null
+        this.requestRender()
+      }
+    }
+  }
+
+  async setEveryone(detail: WorkspaceEveryoneChangeDetail): Promise<void> {
+    const scope = this.scope
+    if (!scope || this.sharingState?.everyone === detail.enabled) return
+    if (detail.enabled) {
+      let confirmed = false
+      try {
+        confirmed = await scope.ui.confirm({
+          title: 'Let anyone signed in view this workspace?',
+          message: `Every Garden account will be able to find and read ${scope.graphTitle || scope.graphId}. They will not be able to edit it. You can turn this off at any time.`,
+          confirmLabel: 'Allow viewing',
+          cancelLabel: 'Cancel',
+        })
+      } catch (error) {
+        this.sharingError = errorMessage(error)
+        this.requestRender()
+        return
+      }
+      if (!confirmed) {
+        this.requestRender()
+        return
+      }
+    }
+    await this.mutateSharing(
+      'everyone',
+      (gateway, active) => gateway.setEveryoneAccess(active.graphId, detail.enabled),
+      detail.enabled ? 'Anyone signed in can now view this workspace.' : 'Only people with access can open this workspace now.',
+    )
+  }
+
+  async createLink(detail: WorkspaceShareLinkCreateDetail): Promise<void> {
+    if (detail.role !== 'viewer' && detail.role !== 'editor') return
+    await this.mutateSharing(
+      'link-create',
+      async (gateway, active) => {
+        const minted = await gateway.createShareLink(active.graphId, {
+          role: detail.role,
+          expiresInSeconds: detail.expiresInSeconds,
+        })
+        const origin = this.options.linkOrigin?.() ?? globalThis.location?.origin ?? ''
+        this.createdLinkUrl = shareLinkUrl(origin, minted.token)
+      },
+      `Created a ${detail.role} link. Copy it now; it is shown only once.`,
+    )
+  }
+
+  async revokeLink(detail: WorkspaceShareLinkRevokeDetail): Promise<void> {
+    const scope = this.scope
+    const link = this.sharingState?.links.find(candidate => candidate.linkId === detail.linkId)
+    if (!scope || !link) return
+    let confirmed = false
+    try {
+      confirmed = await scope.ui.confirm({
+        title: 'Revoke this share link?',
+        message: `Nobody new will be able to join ${scope.graphTitle || scope.graphId} with this ${link.role} link. People who already joined keep their access until you remove them.`,
+        confirmLabel: 'Revoke link',
+        cancelLabel: 'Cancel',
+      })
+    } catch (error) {
+      this.sharingError = errorMessage(error)
+      this.requestRender()
+      return
+    }
+    if (!confirmed) return
+    await this.mutateSharing(
+      'link-revoke',
+      (gateway, active) => gateway.revokeShareLink(active.graphId, detail.linkId),
+      'Share link revoked.',
+    )
+  }
+
+  dismissLink(): void {
+    this.createdLinkUrl = null
+    this.requestRender()
+  }
+
+  private sharingSnapshot(): WorkspaceAccessSharing | null {
+    const scope = this.scope
+    if (!scope || !sharingGateway(scope.gateway) || this.currentRole !== 'owner' || this.sharingStatus === 'idle') return null
+    return Object.freeze({
+      status: this.sharingStatus,
+      everyone: this.sharingState?.everyone ?? false,
+      links: Object.freeze((this.sharingState?.links ?? []).map(link => Object.freeze({
+        linkId: link.linkId,
+        role: link.role,
+        createdAt: link.createdAt,
+        expiresAt: link.expiresAt,
+        label: link.label,
+        live: link.live,
+      }))),
+      createdLinkUrl: this.createdLinkUrl,
+      busyAction: this.sharingBusy,
+      error: this.sharingError,
+    })
   }
 
   snapshot(): WorkspaceAccessOptions | null {
@@ -335,6 +550,11 @@ export class OrganismAccessGrantController {
       onAdd: (detail: WorkspaceAccessAddDetail) => { void this.add(detail) },
       onRoleChange: (detail: WorkspaceAccessRoleChangeDetail) => { void this.changeRole(detail) },
       onRemove: (detail: WorkspaceAccessRemoveDetail) => { void this.remove(detail) },
+      sharing: this.sharingSnapshot(),
+      onEveryoneChange: (detail: WorkspaceEveryoneChangeDetail) => { void this.setEveryone(detail) },
+      onLinkCreate: (detail: WorkspaceShareLinkCreateDetail) => { void this.createLink(detail) },
+      onLinkRevoke: (detail: WorkspaceShareLinkRevokeDetail) => { void this.revokeLink(detail) },
+      onLinkDismiss: () => { this.dismissLink() },
     })
   }
 

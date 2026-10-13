@@ -1,3 +1,8 @@
+import type { HostedBilling } from './hosted-billing.js'
+import { TAKE_HOME_ACTION, type HostedTakeHome } from './hosted-take-home.js'
+import type { BillingCreditsPort } from './add-credits.js'
+import type { AuthProfile } from '@shrubbery/nucleus/contract'
+import type { UsageReader } from './usage-explorer.js'
 import type {
   MnSettingsActionDetail,
   MnSettingsJobActionDetail,
@@ -15,6 +20,7 @@ import {
 } from '@shrubbery/tokens'
 import { GARDEN_SITE_BUNDLE } from '@shrubbery/site/garden'
 import type { GardendSettingsOperations } from './settings-operations.js'
+import { defaultSkinForBuild } from './mithras-deployment.js'
 import type { GardendLocalAiSettings } from './local-ai-settings.js'
 import type { PhanesControlApi } from './phanes-control-api.js'
 import {
@@ -26,12 +32,20 @@ import {
 } from './provider-secret-store.js'
 
 export interface OrganismSettingsSnapshot {
+  readonly runtimeMode?: 'local' | 'hosted'
+  readonly account?: AuthProfile | null
   readonly userName: string
   readonly userEmail: string
   readonly sections: readonly MnSettingsSection[]
 }
 
 export interface OrganismSettingsService {
+  readonly apiKeyGatewayUrl?: string
+  readonly apiKeyGraphs?: () => Promise<readonly { owner: string; graphId: string; title?: string }[]>
+  readonly apiKeyStore?: import('./api-key-store.js').ApiKeyStore
+  readonly usageExplorer?: UsageReader
+  /** What the Billing panel (Add credits) and a Stripe return need; hosted runtimes only. */
+  readonly billingCredits?: BillingCreditsPort
   /** Optional shell authority for the Phanes Meaningful Object workbench. */
   readonly phanesControl?: PhanesControlApi
   load(): Promise<OrganismSettingsSnapshot>
@@ -45,7 +59,11 @@ export interface OrganismSettingsService {
 }
 
 export interface DefaultSettingsServiceOptions {
+  readonly apiKeyGraphs?: () => Promise<readonly { owner: string; graphId: string; title?: string }[]>
+  readonly apiKeyStore?: import('./api-key-store.js').ApiKeyStore
+  readonly usageExplorer?: UsageReader
   readonly runtimeMode: 'local' | 'hosted'
+  readonly account?: () => AuthProfile | null
   readonly userName?: string
   readonly userEmail?: string
   readonly apiBaseUrl?: string
@@ -63,6 +81,10 @@ export interface DefaultSettingsServiceOptions {
   ) => void | Promise<void>
   /** Authenticated gardend effects; omitted for static/component-only stories. */
   readonly operations?: GardendSettingsOperations
+  /** Signed-in hosted account billing; never used by local runtimes. */
+  readonly billing?: HostedBilling
+  /** Settings → Account → Download my gardens (hosted only): every owned garden, for gardend. */
+  readonly takeHome?: HostedTakeHome
   /** Authenticated gardend semantic-model/index/ingestion settings. */
   readonly localAi?: GardendLocalAiSettings
   /** Cross-graph Phanes control authority; omitted when this shell cannot
@@ -85,11 +107,14 @@ export interface OrganismAppearancePreferences {
 
 const DEFAULTS: PreferenceState = {
   theme: 'system',
-  skin: GARDEN_SITE_BUNDLE.appearance.defaultSkin,
+  // The Mithras deployment (VITE_SHRUBBERY_FLOW_APP=1) defaults to Flow's skin.
+  skin: defaultSkinForBuild(import.meta.env as Readonly<Record<string, unknown>> | undefined, GARDEN_SITE_BUNDLE.appearance.defaultSkin),
   density: 'comfortable',
   reducedMotion: false,
+  reducedTransparency: false,
   editorMaterial: GARDEN_SITE_BUNDLE.appearance.defaultEditorMaterial,
   panelLabels: true,
+  rightPanelOnLaunch: true,
   restoreLastDocument: true,
   autoSync: true,
   imageModel: 'google/gemini-2.5-flash-image',
@@ -103,7 +128,7 @@ const DEFAULTS: PreferenceState = {
 function visualIdentitySkinFrom(preferences: PreferenceState): VisualIdentitySkin {
   const value = preferences.skin
   if (value === 'sophia') return 'emporium'
-  return isVisualIdentitySkin(value) ? value : 'garden'
+  return isVisualIdentitySkin(value) ? value : DEFAULTS.skin as VisualIdentitySkin
 }
 
 function themePreferenceFrom(preferences: PreferenceState): OrganismThemePreference {
@@ -155,6 +180,17 @@ export function readAppearancePreferences(
   }
 }
 
+/** Accessibility controls must take effect before the Settings route mounts. */
+export function readAccessibilityPreferences(
+  storage: DefaultSettingsServiceOptions['storage'],
+): { reducedMotion: boolean; reducedTransparency: boolean } {
+  const preferences = readPreferences(storage)
+  return {
+    reducedMotion: preferences.reducedMotion === true,
+    reducedTransparency: preferences.reducedTransparency === true,
+  }
+}
+
 /** Merge appearance state into the Settings record without clobbering other rows. */
 export function persistAppearancePreferences(
   storage: DefaultSettingsServiceOptions['storage'],
@@ -192,6 +228,25 @@ export function readEditorMaterialPreference(
   return editorMaterialFrom(readPreferences(storage))
 }
 
+/**
+ * Whether the right rail opens when the workspace boots.
+ *
+ * DELIBERATELY A LAUNCH PREFERENCE, not a live mirror of the rail's state. The
+ * rail is already opened and closed constantly during a session -- by the
+ * toolbar, by Mod+Shift+I, by opening an inspector on a document -- and its
+ * session state already persists on its own key
+ * (`shrubbery.organism.panel-layout.v1`). A settings toggle that tried to
+ * reflect that would be a second source of truth for one fact, and the two
+ * would disagree the first time the rail was closed by any of the other three
+ * routes. So the toggle answers one question the session state cannot: what
+ * should be true when the window opens.
+ */
+export function readRightPanelOnLaunchPreference(
+  storage: DefaultSettingsServiceOptions['storage'],
+): boolean {
+  return readPreferences(storage).rightPanelOnLaunch !== false
+}
+
 function section(
   id: string,
   title: string,
@@ -202,7 +257,14 @@ function section(
 }
 
 export class DefaultOrganismSettingsService implements OrganismSettingsService {
-  readonly phanesControl: PhanesControlApi | undefined
+  get apiKeyGatewayUrl() { return this.options.apiBaseUrl ?? '' }
+  get apiKeyGraphs() { return this.options.apiKeyGraphs }
+  get apiKeyStore(): import('./api-key-store.js').ApiKeyStore | undefined { return this.options.apiKeyStore }
+  get phanesControl(): PhanesControlApi | undefined {
+    return this.options.phanesControl?.isAvailable() ? this.options.phanesControl : undefined
+  }
+  get usageExplorer(): UsageReader | undefined { return this.options.runtimeMode === 'hosted' ? this.options.usageExplorer : undefined }
+  get billingCredits(): BillingCreditsPort | undefined { return this.options.runtimeMode === 'hosted' ? this.options.billing : undefined }
   private preferences: PreferenceState
   private readonly providerSecrets: ProviderSecretStore | null
   private providerSecretsAvailable = false
@@ -213,7 +275,6 @@ export class DefaultOrganismSettingsService implements OrganismSettingsService {
   }
 
   constructor(private readonly options: DefaultSettingsServiceOptions) {
-    this.phanesControl = options.phanesControl
     this.preferences = readPreferences(options.storage)
     this.providerSecrets = options.providerSecrets
       ?? (options.invoke ? new TauriProviderSecretStore(options.invoke) : null)
@@ -249,28 +310,31 @@ export class DefaultOrganismSettingsService implements OrganismSettingsService {
   }
 
   async load(): Promise<OrganismSettingsSnapshot> {
+    if (this.options.runtimeMode === 'hosted') this.options.billing?.ensureLoaded()
     await Promise.all([
       this.refreshProviderStatus(),
       this.options.operations?.ensureHistoryLoaded(),
       this.options.localAi?.ensureLoaded(),
+      this.options.phanesControl?.refreshAuthorization(),
     ])
     const hasProviderSecrets = Boolean(this.providerSecrets && this.providerSecretsAvailable)
     const local = this.options.runtimeMode === 'local'
     const apiBaseUrl = this.options.apiBaseUrl?.trim() || (local ? 'Local loopback' : 'Hosted gateway')
     const mcpUrl = this.options.mcpUrl?.trim() || (local ? '/mcp' : '/g/{graph_id}/mcp')
     const p = this.preferences
+    const account = local ? null : this.options.account?.() ?? null
 
     const sections: MnSettingsSection[] = [
       section('account', 'Account', 'Profile, authentication, and account state.', {
         metrics: [
-          { id: 'identity', label: 'Identity', value: this.options.userEmail || this.options.userName || 'Local user' },
+          { id: 'identity', label: 'Identity', value: account?.email || account?.username || this.options.userEmail || this.options.userName || (local ? 'Local user' : 'Signed-in account') },
           { id: 'runtime', label: 'Runtime', value: this.options.runtimeMode, tone: local ? 'neutral' : 'accent' },
         ],
         actions: local || this.actionUnavailable('sign-out')
           ? []
           : [{ id: 'sign-out', label: 'Sign out', description: 'End the current hosted session.', variant: 'danger' }],
       }),
-      section('appearance', 'Appearance', 'Skin, theme, and motion preferences.', {
+      section('appearance', 'Appearance', 'Skin, theme, and accessibility preferences.', {
         selects: [
           { id: 'theme', label: 'Theme', value: themePreferenceFrom(p), options: [{ value: 'system', label: 'System' }, { value: 'light', label: 'Light' }, { value: 'dark', label: 'Dark' }] },
           {
@@ -296,10 +360,19 @@ export class DefaultOrganismSettingsService implements OrganismSettingsService {
         ],
         toggles: [
           { id: 'reducedMotion', label: 'Reduce motion', checked: p.reducedMotion === true },
+          { id: 'reducedTransparency', label: 'Reduce transparency', description: 'Use solid menus and floating controls.', checked: p.reducedTransparency === true },
         ],
       }),
       section('interface', 'Interface', 'Workspace chrome behavior.', {
-        toggles: [{ id: 'panelLabels', label: 'Show panel labels', checked: p.panelLabels === true }],
+        toggles: [
+          { id: 'panelLabels', label: 'Show panel labels', checked: p.panelLabels === true },
+          {
+            id: 'rightPanelOnLaunch',
+            label: 'Open the right panel on launch',
+            description: 'The right rail can still be opened and closed at any time; this is only what it does when the window opens.',
+            checked: p.rightPanelOnLaunch !== false,
+          },
+        ],
       }),
       section('billing', 'Billing', 'Plan and subscription controls.', {
         metrics: [{ id: 'plan', label: 'Plan', value: local ? 'Local' : 'Hosted' }],
@@ -362,15 +435,17 @@ export class DefaultOrganismSettingsService implements OrganismSettingsService {
         'Edit Phanes’s AgentPresentationCatalog, standalone /phanes and /roles InteractionFlows, and fail-closed DiscordIngestionPolicy. Every Meaningful Object is revision-checked, sealed, and durably reread.',
         { wide: true, contentSlot: 'phanes-control' },
       )] : []),
-      section('local-ai', 'Local AI', 'Image generation, semantic indexing, and document parsing.', {
-        secrets: hasProviderSecrets && this.providerSecrets?.providers.includes('openrouter') ? [{
+      section('local-ai', local ? 'Local AI' : 'Embeddings', local
+        ? 'Image generation, semantic indexing, and document parsing.'
+        : 'Hosted embedding runtime and this workspace’s semantic index.', {
+        secrets: local && hasProviderSecrets && this.providerSecrets?.providers.includes('openrouter') ? [{
           id: 'openrouter',
           label: 'OpenRouter',
           provider: 'openrouter',
           configured: this.providerStatus.openrouter,
           description: 'Used for local chat and image generation; the value stays outside graph and browser state.',
         }] : [],
-        notes: hasProviderSecrets && this.providerSecrets
+        notes: !local ? [] : hasProviderSecrets && this.providerSecrets
           ? [`The OpenRouter key is stored in the ${this.providerSecrets.storageLabel}.`]
           : ['Provider credentials require a write-only native or Choreograph secret backend.'],
       }),
@@ -392,20 +467,27 @@ export class DefaultOrganismSettingsService implements OrganismSettingsService {
       : sections
     const hasEndpoints = Boolean(this.options.apiBaseUrl?.trim() && this.options.mcpUrl?.trim())
     const visibleSections = projectedSections.filter(section => {
-      if (section.id === 'billing' || section.id === 'usage') return false
+      if (section.id === 'billing' || section.id === 'usage') return !local && Boolean(this.options.billing)
       if (section.id === 'experimental' || section.id === 'privacy') return false
       if (section.id === 'api-keys') return !local && hasProviderSecrets
-      if (section.id === 'local-ai') return local && Boolean(this.options.localAi || hasProviderSecrets)
-      if (section.id === 'api-mcp') return hasEndpoints
+      if (section.id === 'local-ai') return Boolean(this.options.localAi || (local && hasProviderSecrets))
+      if (section.id === 'api-mcp') return hasEndpoints || Boolean(this.apiKeyStore)
       if (section.id === 'history' || section.id === 'graph-ops' || section.id === 'imports') {
         return Boolean(this.options.operations)
       }
       return true
     })
+    const takeHome = local ? undefined : this.options.takeHome
+    const accountSections = takeHome ? visibleSections.map(section => takeHome.decorate(section)) : visibleSections
     return {
-      userName: this.options.userName ?? '',
-      userEmail: this.options.userEmail ?? '',
-      sections: this.options.operations?.decorateSections(visibleSections) ?? visibleSections,
+      runtimeMode: this.options.runtimeMode,
+      account,
+      userName: account ? account.name || account.username || account.email || 'Signed-in account' : this.options.userName ?? '',
+      userEmail: account?.email ?? this.options.userEmail ?? '',
+      sections: (this.options.operations?.decorateSections(accountSections) ?? accountSections)
+        .map(section => section.id === 'usage' && this.usageExplorer
+          ? { id: 'usage', title: 'Usage', description: 'Explore recorded inference events and historical coverage.', wide: true, contentSlot: 'usage-explorer' }
+          : !local && this.options.billing ? this.options.billing.decorate(section) : section),
     }
   }
 
@@ -452,6 +534,14 @@ export class DefaultOrganismSettingsService implements OrganismSettingsService {
   }
 
   async action(detail: MnSettingsActionDetail): Promise<void> {
+    if (detail.actionId === TAKE_HOME_ACTION && this.options.runtimeMode === 'hosted' && this.options.takeHome) {
+      await this.options.takeHome.start()
+      return
+    }
+    if (this.options.runtimeMode === 'hosted' && this.options.billing && ['manage-billing', 'refresh-usage'].includes(detail.actionId)) {
+      await this.options.billing.action(detail.actionId)
+      return
+    }
     if (this.options.operations?.supports(detail.actionId)) {
       await this.options.operations.action(detail)
       return
@@ -471,7 +561,11 @@ export class DefaultOrganismSettingsService implements OrganismSettingsService {
   subscribe(callback: () => void): () => void {
     const unsubscribeOperations = this.options.operations?.subscribe(callback) ?? (() => undefined)
     const unsubscribeLocalAi = this.options.localAi?.subscribe(callback) ?? (() => undefined)
+    const unsubscribeBilling = this.options.runtimeMode === 'hosted' ? this.options.billing?.subscribe(callback) : undefined
+    const unsubscribeTakeHome = this.options.runtimeMode === 'hosted' ? this.options.takeHome?.subscribe(callback) : undefined
     return () => {
+      unsubscribeTakeHome?.()
+      unsubscribeBilling?.()
       unsubscribeOperations()
       unsubscribeLocalAi()
     }

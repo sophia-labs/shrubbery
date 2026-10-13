@@ -73,6 +73,7 @@ import {
   applyEditorMaterial,
   applyKind,
   applySkinTheme,
+  isVisualIdentitySkin,
   type EditorMaterial,
   type Theme,
   type VisualIdentitySkin,
@@ -614,9 +615,13 @@ export async function mountPlanter(container: HTMLElement, config: PlanterBootCo
   const onBundleEvent = (event: Event): void => {
     if (!bundleState) return
     switch (event.type) {
-      case 'mn-skin-toggle':
-        updateBundle({ skin: nextValue(bundleState.bundle.appearance.skins, bundleState.skin) })
+      case 'mn-skin-select': {
+        // The picker lists the shared skins; the bundle names the ones it offers. The choice must be one of those.
+        const chosen = (event as CustomEvent<{ skin?: unknown }>).detail?.skin
+        if (!isVisualIdentitySkin(chosen) || !bundleState.bundle.appearance.skins.includes(chosen)) break
+        updateBundle({ skin: chosen })
         break
+      }
       case 'mn-theme-toggle':
         updateBundle({ theme: nextValue(bundleState.bundle.appearance.themes, bundleState.theme) })
         break
@@ -640,7 +645,7 @@ export async function mountPlanter(container: HTMLElement, config: PlanterBootCo
     }
   }
 
-  const bundleEvents = ['mn-skin-toggle', 'mn-theme-toggle', 'mn-navigate-home', 'mn-settings-toggle', 'mn-panel-toggle']
+  const bundleEvents = ['mn-skin-select', 'mn-theme-toggle', 'mn-navigate-home', 'mn-settings-toggle', 'mn-panel-toggle']
   if (bundleState) {
     for (const type of bundleEvents) container.addEventListener(type, onBundleEvent)
   }

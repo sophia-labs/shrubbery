@@ -207,6 +207,16 @@ export const GARDEN_VARIANT: WorkspaceConfig = deepFreeze({
           id: 'val-skin-glass',
           literalValue: 'glass',
         },
+        {
+          appliesAttribute: '[data-skin=mithras]',
+          id: 'val-skin-mithras',
+          literalValue: 'mithras',
+        },
+        {
+          appliesAttribute: '[data-skin=hotdog-stand]',
+          id: 'val-skin-hotdog-stand',
+          literalValue: 'hotdog-stand',
+        },
       ],
     },
     'dim-theme': {

@@ -66,7 +66,7 @@ export function resolveSidebarDrop(
   const source = sourceLocation.node
   const target = targetLocation.node
   if (source.id === target.id) return null
-  if (source.kind !== 'document' && source.kind !== 'folder') return null
+  if (source.kind !== 'document' && source.kind !== 'folder' && source.kind !== 'artifact') return null
   if (target.kind === 'tag' || sourceLocation.sectionId !== targetLocation.sectionId) return null
   if (source.kind === 'folder' && containsNode(source, target.id)) return null
 

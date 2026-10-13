@@ -168,31 +168,38 @@ describe('mn-app-bar — real custom element', () => {
   })
 
   // ── Actions ──────────────────────────────────────────────────────────────────
-  it('theme/skin action buttons reflect controlled props + emit composed events', async () => {
+  it('theme action and skin picker reflect controlled props + emit composed events', async () => {
     const { host, el } = await mount((e) => {
       e.isDark = true
       e.activeSkin = '98'
     })
     const buttons = Array.from(sr(el).querySelectorAll('.action-btn')) as HTMLButtonElement[]
     const themeBtn = buttons.find((b) => b.getAttribute('aria-label') === 'Toggle theme')!
-    const skinBtn = buttons.find((b) => b.dataset.action === 'skin')!
+    const picker = sr(el).querySelector('mn-skin-picker[data-action="skin"]') as HTMLElement & { value: string; updateComplete: Promise<unknown> }
     expect(themeBtn.getAttribute('aria-pressed')).toBe('true')
     expect(themeBtn.classList.contains('active')).toBe(true)
-    expect(skinBtn.getAttribute('aria-pressed')).toBeNull()
-    expect(skinBtn.dataset.activeSkin).toBe('98')
-    expect(skinBtn.getAttribute('aria-label')).toContain('98')
-    expect(skinBtn.querySelector('svg')).not.toBeNull()
+    // the skin control is a picker (a drop-down listing every skin), not a toggle button
+    expect(sr(el).querySelector('button[data-action="skin"]')).toBeNull()
+    expect(picker.value).toBe('98')
+    await picker.updateComplete
+    const dropdown = picker.shadowRoot!.querySelector('mn-dropdown-button') as HTMLElement & { updateComplete: Promise<unknown> }
+    await dropdown.updateComplete
+    const trigger = dropdown.shadowRoot!.querySelector('.trigger') as HTMLButtonElement
+    expect(trigger.getAttribute('aria-label')).toContain('98')
+    expect(trigger.querySelector('svg')).not.toBeNull()
 
     let theme = false,
-      skin = false,
       settings = false
+    const skins: string[] = []
     host.addEventListener('mn-theme-toggle', () => (theme = true))
-    host.addEventListener('mn-skin-toggle', () => (skin = true))
+    host.addEventListener('mn-skin-select', (e) => skins.push((e as CustomEvent<{ skin: string }>).detail.skin))
     host.addEventListener('mn-settings-toggle', () => (settings = true))
     themeBtn.click()
-    skinBtn.click()
     buttons.find((b) => b.getAttribute('aria-label') === 'Settings')!.click()
-    expect([theme, skin, settings]).toEqual([true, true, true])
+    trigger.click()
+    await dropdown.updateComplete
+    dropdown.shadowRoot!.querySelector<HTMLButtonElement>('[data-menu-item-id="hotdog-stand"]')!.click()
+    expect([theme, settings, skins]).toEqual([true, true, ['hotdog-stand']])
   })
 
   it('show-actions=false omits the built-in action buttons (slot stays)', async () => {

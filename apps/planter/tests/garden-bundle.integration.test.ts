@@ -81,11 +81,20 @@ describe('REAL INTEGRATION — Garden bundle consumed by the generic Planter hos
       expect(rightSplit?.getAttribute('snap')).toBe(GARDEN_SITE_BUNDLE.panels.right.snap)
       expect(leftSplit?.getAttribute('snap-threshold')).toBe(String(GARDEN_SITE_BUNDLE.panels.snapThreshold))
 
-      container.querySelector('mn-top-bar')!.dispatchEvent(composed('mn-skin-toggle'))
+      // The skin picker names the skin it chose; the bundle takes any skin it offers, in any order,
+      // and ignores what it does not offer. (There is no cycling toggle any more.)
+      const choose = (skin: string): void => { container.querySelector('mn-top-bar')!.dispatchEvent(composed('mn-skin-select', { skin })) }
+      choose('emporium')
       expect(document.documentElement.dataset.skin).toBe('emporium')
-      container.querySelector('mn-top-bar')!.dispatchEvent(composed('mn-skin-toggle'))
+      choose('98')
       expect(document.documentElement.dataset.skin).toBe('98')
+      choose('hotdog-stand')
+      expect(document.documentElement.dataset.skin).toBe('hotdog-stand')
+      choose('no-such-skin')
+      expect(document.documentElement.dataset.skin).toBe('hotdog-stand')
       container.querySelector('mn-top-bar')!.dispatchEvent(composed('mn-skin-toggle'))
+      expect(document.documentElement.dataset.skin, 'the cycling toggle is gone: its event does nothing').toBe('hotdog-stand')
+      choose('glass')
       expect(document.documentElement.dataset.skin).toBe('glass')
       container.querySelector('mn-top-bar')!.dispatchEvent(composed('mn-theme-toggle'))
       expect(document.documentElement.dataset.theme).toBe('dark')

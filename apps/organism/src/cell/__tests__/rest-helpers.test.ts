@@ -90,17 +90,17 @@ afterEach(() => {
 })
 
 // The contract's honest minimal surface: the helpers read only runtime.graphBaseUrl
-// and auth.{userId,token}. A string base drives the pure-URL/header assertions;
+// and runtime.mode/auth.{userId,token}. A string base drives the pure-URL/header assertions;
 // pointing base at the live server drives the real round-trips.
-function contractStub(opts: { base?: string; userId?: string; token?: string } = {}): CellContract {
+function contractStub(opts: { base?: string; userId?: string; token?: string; mode?: 'local' | 'hosted' } = {}): CellContract {
   const base = opts.base ?? 'https://cell.test'
   return {
-    runtime: { graphBaseUrl: (graphId: string) => `${base}/g/${graphId}` },
+    runtime: { mode: () => opts.mode ?? 'local', graphBaseUrl: (graphId: string) => `${base}/g/${graphId}` },
     auth: { userId: () => opts.userId ?? 'user-1', token: () => opts.token },
   } as unknown as CellContract
 }
 
-function liveContract(opts: { userId?: string; token?: string } = {}): CellContract {
+function liveContract(opts: { userId?: string; token?: string; mode?: 'local' | 'hosted' } = {}): CellContract {
   return contractStub({ base: baseUrl, ...opts })
 }
 
@@ -115,12 +115,17 @@ describe('graphCellUrl', () => {
 })
 
 describe('cellRequestHeaders', () => {
-  it('always sends X-User-ID and adds a bearer token only when present', () => {
+  it('retains local identity and adds a bearer token only when present', () => {
     expect(cellRequestHeaders(contractStub({ userId: 'u9' }))).toEqual({ 'X-User-ID': 'u9' })
     expect(cellRequestHeaders(contractStub({ userId: 'u9', token: 'tok' }))).toEqual({
       'X-User-ID': 'u9',
       Authorization: 'Bearer tok',
     })
+  })
+
+  it('uses only fresh bearer identity for the hosted gateway', () => {
+    expect(cellRequestHeaders(contractStub({ mode: 'hosted', userId: 'u9', token: 'tok' }))).toEqual({ Authorization: 'Bearer tok' })
+    expect(cellRequestHeaders(contractStub({ mode: 'hosted', userId: 'u9' }))).toEqual({})
   })
 })
 
@@ -154,21 +159,23 @@ describe('normalizeDocumentSnapshot', () => {
 })
 
 describe('fetch round-trips against a real cell', () => {
-  it('surfaces the verbatim error body from fetchArtifactBlob, never a fallback', async () => {
+  it.each(['local', 'hosted'] as const)('sends %s blob headers and surfaces the verbatim error body, never a fallback', async mode => {
     enqueue({ status: 500, body: 'gardend exploded' })
-    await expect(fetchArtifactBlob(liveContract(), 'g1', 'a1')).rejects.toThrow('gardend exploded')
+    await expect(fetchArtifactBlob(liveContract({ mode, token: 'tok' }), 'g1', 'a1')).rejects.toThrow('gardend exploded')
     expect(captured[0]?.url).toBe('/g/g1/artifacts/g1/a1/download')
+    expect(captured[0]?.headers.authorization).toBe('Bearer tok')
+    expect(captured[0]?.headers['x-user-id']).toBe(mode === 'local' ? 'user-1' : undefined)
   })
 
-  it('uploadImageForEditor POSTs multipart with auth and resolves a relative src to an absolute url', async () => {
+  it.each(['local', 'hosted'] as const)('uploadImageForEditor POSTs %s multipart with auth and resolves a relative src to an absolute url', async mode => {
     enqueue({ body: JSON.stringify({ src: '/artifacts/g1/img.png' }) })
     const file = new File([new Uint8Array([1, 2, 3])], 'Sketch.png', { type: 'image/png' })
-    const result = await uploadImageForEditor(liveContract({ token: 'tok' }), 'g1', file)
+    const result = await uploadImageForEditor(liveContract({ token: 'tok', mode }), 'g1', file)
 
     expect(captured[0]?.url).toBe('/g/g1/artifacts/g1/images/upload')
     expect(captured[0]?.method).toBe('POST')
     expect(captured[0]?.headers.authorization).toBe('Bearer tok')
-    expect(captured[0]?.headers['x-user-id']).toBe('user-1')
+    expect(captured[0]?.headers['x-user-id']).toBe(mode === 'local' ? 'user-1' : undefined)
     expect(result).toEqual({ src: `${baseUrl}/g/g1/artifacts/g1/img.png`, alt: 'Sketch', size: 'large' })
   })
 

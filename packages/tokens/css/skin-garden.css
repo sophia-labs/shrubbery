@@ -29,13 +29,13 @@
   --mn-color-border-focus:       var(--mn-ref-fern-600);
   --mn-color-surface-accent:     var(--mn-ref-fern-50);
   --mn-focus-ring-color:         var(--mn-ref-fern-600);
-  --mn-color-accent-ch:          79 134 107;  /* fern-500 */
+  --mn-color-accent-ch:          74 136 96;  /* fern-500 */
 
   /* Top bar — fern masthead. */
-  --mn-top-bar-bg:         linear-gradient(102deg, #dcebe2 0%, #e7f0e9 58%, #e2ede6 100%);
-  --mn-top-bar-border:     rgba(43, 88, 70, 0.22);
+  --mn-top-bar-bg:         linear-gradient(102deg, #dbecde 0%, #e6f1e8 58%, #e1ede4 100%);
+  --mn-top-bar-border:     rgba(38, 90, 61, 0.22);
   --mn-top-bar-text:       var(--mn-ref-fern-800);
-  --mn-top-bar-text-muted: var(--mn-ref-fern-500);
+  --mn-top-bar-text-muted: var(--mn-ref-fern-700);  /* fern-500 read 3.4:1 on the fern-100 masthead */
 
   /* Geometry — rounded, comfortable. */
   --mn-radius-control: var(--mn-radius-md);

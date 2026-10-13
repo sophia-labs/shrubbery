@@ -8,6 +8,22 @@
 import { LitElement, css, html, nothing, type PropertyValues, type TemplateResult } from 'lit'
 import { customElement, property, state } from 'lit/decorators.js'
 
+/**
+ * The card's RENDERED height, which is not `NODE_H`.
+ *
+ * `NODE_H` is the CSS `min-height`; a card also carries 8px top padding and
+ * 28px bottom padding for its footer, so it occupies ~96px. The layout used to
+ * space and clamp against `NODE_H`, which under-counted every card by 16px and
+ * let neighbours graze each other at the edges of the frame.
+ */
+const CARD_H = 96
+
+/**
+ * The least vertical distance between neighbouring cards before they stop
+ * reading as separate cards. Overlap is fine; coincidence is not.
+ */
+const MIN_VERTICAL_GAP = 28
+
 const NODE_W = 248
 const NODE_H = 80
 
@@ -125,6 +141,22 @@ function contextValue(
   if (!map) return undefined
   if (map instanceof Map) return map.get(key)
   return (map as Readonly<Record<string, MnWireRadialContextState>>)[key]
+}
+
+/**
+ * The closest any two cards sit to each other, corner to corner. Overlap is
+ * fine and expected; coincidence is the failure.
+ */
+function closestSeparation(nodes: readonly OverlayNode[]): number {
+  let closest = Number.POSITIVE_INFINITY
+  for (let i = 0; i < nodes.length; i += 1) {
+    for (let j = i + 1; j < nodes.length; j += 1) {
+      const dx = nodes[i]!.left - nodes[j]!.left
+      const dy = nodes[i]!.top - nodes[j]!.top
+      closest = Math.min(closest, Math.hypot(dx, dy))
+    }
+  }
+  return nodes.length < 2 ? Number.POSITIVE_INFINITY : closest
 }
 
 @customElement('mn-wire-radial-overlay')
@@ -347,6 +379,39 @@ export class MnWireRadialOverlay extends LitElement {
 
   @state() private expandedId: string | null = null
 
+  /**
+   * The box the cards are actually positioned inside, in viewport coordinates.
+   *
+   * WHY THIS IS MEASURED RATHER THAN ASSUMED. `.root` is `position: fixed;
+   * inset: 0`, which is the viewport -- until any ancestor carries a
+   * `transform`, `filter`, `perspective`, `contain` or `will-change`. Any one of
+   * those makes that ancestor the containing block, and `.root` then covers the
+   * ANCESTOR, not the window. The layout below used `globalThis.innerWidth/
+   * innerHeight` regardless, so in that situation it placed cards for a frame
+   * far larger than the one they live in: everything past the real edge clamped
+   * to the same 8px corner and stacked into a single unreadable pile, while the
+   * connector lines -- drawn from a viewport-coordinate anchor into the same
+   * shifted space -- still fanned out to where the cards were supposed to be.
+   * Measuring the frame makes the component correct inside ANY containing
+   * block, which is the only version of this that stays fixed.
+   */
+  @state() private frame: { x: number; y: number; width: number; height: number } | null = null
+
+  private measuredFrame(): { x: number; y: number; width: number; height: number } {
+    const root = this.renderRoot?.querySelector?.('.root') as HTMLElement | null
+    const rect = root?.getBoundingClientRect()
+    if (rect && rect.width > 1 && rect.height > 1) {
+      return { x: rect.left, y: rect.top, width: rect.width, height: rect.height }
+    }
+    // First render, before `.root` exists. The viewport is the right guess
+    // because it is correct whenever nothing has captured the fixed layer.
+    return { x: 0, y: 0, width: globalThis.innerWidth || 1024, height: globalThis.innerHeight || 768 }
+  }
+
+  private activeFrame(): { x: number; y: number; width: number; height: number } {
+    return this.frame ?? this.measuredFrame()
+  }
+
   protected override willUpdate(changed: PropertyValues<this>): void {
     if (changed.has('wires') || changed.has('suggestions')) {
       const nodes = this.computeNodes()
@@ -390,29 +455,117 @@ export class MnWireRadialOverlay extends LitElement {
     const n = items.length
     if (n === 0) return []
 
+    // Everything below works in FRAME-relative coordinates. The anchor arrives
+    // in viewport coordinates (both callers read a `getBoundingClientRect`), so
+    // it is translated once, here, and never mixed with frame coordinates again.
+    const frame = this.activeFrame()
+    const vw = frame.width
+    const vh = frame.height
+    const ax = this.anchorX - frame.x
+    const ay = this.anchorY - frame.y
+
+    const minX = 8
+    const maxX = Math.max(8, vw - NODE_W - 8)
+    const minY = 8
+    const maxY = Math.max(8, vh - CARD_H - 8)
+
     const useEllipse = n > 4
     const rx = useEllipse ? 240 : n <= 2 ? 170 : 240
     const ry = useEllipse ? 220 + n * 28 : n <= 2 ? 170 : 240
     const spreadDeg = useEllipse ? Math.min(220, n * 22) : Math.min(140, n * 35)
-    const vh = globalThis.innerHeight || 768
-    const vw = globalThis.innerWidth || 1024
-    const spaceAbove = this.anchorY - 8
-    const spaceBelow = vh - this.anchorY - 8
+    const spaceAbove = ay - 8
+    const spaceBelow = vh - ay - 8
     const totalV = spaceAbove + spaceBelow
     const verticalBias = totalV > 0 ? (spaceBelow - spaceAbove) / totalV : 0
     const arcCenter = 180 - verticalBias * Math.min(60, spreadDeg / 2)
     const startDeg = arcCenter - spreadDeg / 2
     const stepDeg = n > 1 ? spreadDeg / (n - 1) : 0
 
-    return items.map((item, index): OverlayNode => {
-      const angle = startDeg + index * stepDeg
-      const rad = (angle * Math.PI) / 180
-      const cx = this.anchorX + rx * Math.cos(rad)
-      const cy = this.anchorY + ry * Math.sin(rad)
-      const left = Math.max(8, Math.min(vw - NODE_W - 8, cx - NODE_W / 2))
-      const top = Math.max(8, Math.min(vh - NODE_H - 8, cy - NODE_H / 2))
-      return { ...item, cx, cy, left, top, angle }
-    })
+    /**
+     * FIT THE WHOLE ARC, THEN PLACE IT. The arc's shape is cloud-1's, verbatim,
+     * and stays that way.
+     *
+     * What changed is what happens when the arc does not fit. Each card used to
+     * be clamped into the frame INDIVIDUALLY, and an individual clamp is a
+     * projection: every card whose ideal position lay past the same edge landed
+     * on that edge, at the same point. At twelve document-level wires -- an
+     * ordinary count in `default_x1` -- `ry` is 556px against an anchor ~70px
+     * below the top of the frame, so the upper half of the arc fell outside it
+     * and four cards collapsed into the corner, two at EXACTLY (8,8). One card
+     * visible, a dozen lines fanning out past it.
+     *
+     * Scaling the arc and then shifting it as a single body is the difference.
+     * The fan gets longer and tighter as wires accumulate, cards overlap more
+     * as they crowd -- which is intended and is what makes a dense fan feel
+     * dense -- but no two of them ever land on the same point, because a
+     * uniform scale preserves the angular separation the layout gave them.
+     *
+     * Only the vertical is fitted. Horizontal clamping is cloud-1's behaviour
+     * and is harmless: the fan opens sideways from the anchor, so cards pressed
+     * against the left edge still separate along y, and holding the fan on one
+     * side is what lets the pointer dismiss it by moving to the other.
+     */
+    const place = (radiusY: number, shiftY: number): OverlayNode[] =>
+      items.map((item, index): OverlayNode => {
+        const angle = startDeg + index * stepDeg
+        const rad = (angle * Math.PI) / 180
+        const cx = ax + rx * Math.cos(rad)
+        const cy = ay + radiusY * Math.sin(rad) + shiftY
+        const left = Math.max(minX, Math.min(maxX, cx - NODE_W / 2))
+        const top = cy - CARD_H / 2
+        return { ...item, cx, cy, left, top, angle }
+      })
+
+    const ideal = place(ry, 0)
+    const room = Math.max(0, maxY - minY)
+    const tops = ideal.map(node => node.top)
+    const span = Math.max(...tops) - Math.min(...tops)
+
+    // Scale about the anchor so the run of cards fits the room there is.
+    const scale = span > room && span > 0 ? room / span : 1
+    const scaled = place(ry * scale, 0)
+
+    // Then move the whole body inside the frame -- one shift for every card, so
+    // their spacing survives it.
+    const scaledTops = scaled.map(node => node.top)
+    const lo = Math.min(...scaledTops)
+    const hi = Math.max(...scaledTops)
+    const shift = lo < minY ? minY - lo : hi > maxY ? maxY - hi : 0
+    const nodes = shift === 0 ? scaled : place(ry * scale, shift)
+
+    /**
+     * A FLOOR UNDER THE SPACING, for when the fit above squeezes hard.
+     *
+     * Equal steps in ANGLE are not equal steps in height: near the vertical
+     * extremes of the sweep the sine barely changes, so cards bunch there. In a
+     * roomy frame that is invisible (twelve wires still leave ~83px between the
+     * closest pair, which reads as a crowded fan and is meant to). In a small
+     * one it collapses -- measured inside an 811x835 pane, twelve cards closed
+     * to 12px apart, which is a pile again by a different route.
+     *
+     * So when the tightest neighbours fall under a legible gap, heights are
+     * redistributed evenly across the room, in the order the arc already put
+     * them. The curve is kept -- x still comes from the arc -- and only the
+     * bunching is removed. Fans that fit are untouched: this runs only where
+     * the alternative is cards on top of each other.
+     */
+    const byHeight = [...nodes].sort((a, b) => a.top - b.top)
+    let tightest = Number.POSITIVE_INFINITY
+    for (let index = 1; index < byHeight.length; index += 1) {
+      tightest = Math.min(tightest, byHeight[index]!.top - byHeight[index - 1]!.top)
+    }
+    if (n > 1 && tightest < MIN_VERTICAL_GAP) {
+      const step = room / (n - 1)
+      const heightFor = new Map(byHeight.map((node, index) => [node.id, minY + index * step]))
+      return nodes.map(node => ({ ...node, top: heightFor.get(node.id) ?? node.top }))
+    }
+
+    // A final guard against rounding at extreme aspect ratios: `top` is only
+    // clamped here, after the fit, where it can no longer collapse the fan.
+    return nodes.map(node => ({
+      ...node,
+      top: Math.max(minY, Math.min(maxY, node.top)),
+    }))
   }
 
   private emit<T>(type: string, detail?: T): void {
@@ -524,18 +677,104 @@ export class MnWireRadialOverlay extends LitElement {
     return el
   }
 
+  /**
+   * Draw one connector per node, from the anchor to the card the node ACTUALLY
+   * OCCUPIES.
+   *
+   * It used to draw to `node.cx, cy` — the ideal point on the arc, before
+   * viewport clamping. Whenever a card was clamped (which is most of them once
+   * the anchor sits near an edge, and the document-level bubble sits near two
+   * of them), the line ended somewhere the card is not: measured in the running
+   * app, a card rendered at 8,8 with its line terminating at 56,39, and another
+   * at 8,200 with its line ending at 125,240. Every line pointed into empty
+   * space, which is exactly the "the little line doesn't render right" report.
+   *
+   * `left`/`top` are the clamped, rendered position, so the card's centre is
+   * where the line belongs. The cards paint above the SVG, so a line ending at
+   * a centre reads as a line touching the card — the tail under it is hidden.
+   */
+  /**
+   * Gated instrument, off unless someone turns it on:
+   *
+   *     window.__wireFanDebug = true
+   *
+   * It exists because this fan has been reported broken in the PACKAGED app —
+   * "it shows just the first wire and then none of the others render" — and
+   * measured correct in the dev page at one, three and six wires, in Chromium
+   * and in WebKit, at four viewport sizes. When the app and the harness
+   * disagree, the harness is not the app; the console is the only witness in
+   * the room where it actually happens. The same gated-logging pattern found
+   * the two intermittent drag bugs that reading could not.
+   *
+   * Logs where every card ACTUALLY landed, which is the question: nodes can all
+   * exist and share a position (clamped into a pile, reading as one card), or
+   * be laid out fine and be clipped away by a containing ancestor.
+   */
+  private debugDump(nodes: readonly OverlayNode[]): void {
+    if (!(globalThis as { __wireFanDebug?: unknown }).__wireFanDebug) return
+    const frame = this.activeFrame()
+    console.log('[wire-fan]', {
+      anchor: [this.anchorX, this.anchorY],
+      viewport: [globalThis.innerWidth, globalThis.innerHeight],
+      // If these differ, something upstream captured the fixed layer and the
+      // frame -- not the window -- is what the cards are laid out inside.
+      frame: [Math.round(frame.x), Math.round(frame.y), Math.round(frame.width), Math.round(frame.height)],
+      frameIsViewport: Math.round(frame.width) === globalThis.innerWidth
+        && Math.round(frame.height) === globalThis.innerHeight,
+      closestSeparation: Number(closestSeparation(nodes).toFixed(1)),
+      wires: this.wires.length,
+      nodes: nodes.map(node => ({
+        title: node.title,
+        angle: Math.round(node.angle),
+        ideal: [Math.round(node.cx), Math.round(node.cy)],
+        placed: [Math.round(node.left), Math.round(node.top)],
+        clamped: Math.round(node.left) !== Math.round(node.cx - NODE_W / 2)
+          || Math.round(node.top) !== Math.round(node.cy - NODE_H / 2),
+      })),
+      distinctPositions: new Set(nodes.map(node => `${Math.round(node.left)},${Math.round(node.top)}`)).size,
+      renderedInDom: this.renderRoot.querySelectorAll('[data-wire-radial-node]').length,
+    })
+  }
+
   protected override updated(): void {
     const lineMount = this.renderRoot.querySelector('[data-wire-radial-svg]') as SVGSVGElement | null
     if (!lineMount) return
+
+    // `.root` only exists once something has rendered, so the FIRST layout runs
+    // on the viewport guess. Re-measure now and re-render if the real frame is
+    // not the viewport; the second pass is the one that lands. Guarded by an
+    // equality check so this settles in one extra render and cannot loop.
+    const measured = this.measuredFrame()
+    const current = this.frame
+    if (
+      !current
+      || Math.abs(current.x - measured.x) > 0.5
+      || Math.abs(current.y - measured.y) > 0.5
+      || Math.abs(current.width - measured.width) > 0.5
+      || Math.abs(current.height - measured.height) > 0.5
+    ) {
+      this.frame = measured
+      return
+    }
+
+    const nodes = this.computeNodes()
+    this.debugDump(nodes)
     lineMount.replaceChildren()
-    this.computeNodes().forEach((node, index) => {
+    // The anchor is a VIEWPORT point and the SVG's coordinate space is the
+    // frame, so the line's origin is translated exactly like the cards were.
+    // Before, one end of every line was in viewport coordinates and the other
+    // in frame coordinates -- which agreed only while the frame WAS the
+    // viewport, and drew lines into empty space the moment it wasn't.
+    const originX = this.anchorX - measured.x
+    const originY = this.anchorY - measured.y
+    nodes.forEach((node, index) => {
       const line = this.svgEl('line', {
         class: node.isSuggestion ? 'suggestion' : '',
         style: `--line-delay:${index * 45}ms;`,
-        x1: this.anchorX,
-        y1: this.anchorY,
-        x2: node.cx,
-        y2: node.cy,
+        x1: originX,
+        y1: originY,
+        x2: node.left + NODE_W / 2,
+        y2: node.top + CARD_H / 2,
       })
       lineMount.appendChild(line)
     })

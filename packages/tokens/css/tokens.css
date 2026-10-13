@@ -5,6 +5,7 @@
  *
  *   fonts         repository-owned WOFF2 core families (offline deterministic)
  *   reference     Tier 0 — raw ramps (fern, cobalt, PURPLE, neutrals, status)
+ *   flow-tokens   Tier 0 — Mithras Flow's values (GENERATED from its styles.css)
  *   semantic      Tier 1 — role tokens, light-mode Garden defaults
  *   component     Tier 2 — chrome families (top-bar / bottom-bar)
  *   z-layers      Tier 1 — the stacking-order contract (theme-invariant)
@@ -13,6 +14,8 @@
  *   stance        [data-stance=...]      — orthogonal posture/register axis
  *   kind          [data-kind=...]        — DisplayKind register hooks
  *   skin-garden   [data-skin=garden]     — the fern / Literata / rounded identity
+ *   material-garden Garden-scoped liquid-glass material for the floating
+ *                 control layer (menus, popovers, toasts) + solid fallbacks
  *   skin-emporium [data-skin=emporium]   — sophia STRUCTURE, accent recolored PURPLE
  *                 + [data-design=emporium] alias
  *                 + [data-theme=dark][data-skin=emporium] dark override
@@ -27,6 +30,13 @@
  *   skin-observatory [data-skin=observatory] — night-room dashboard skin,
  *                 dark-by-default (no separate light register)
  *                 + [data-theme=dark][data-skin=observatory] true-night override
+ *   skin-mithras [data-skin=mithras] — Mithras Flow's whiteboard identity,
+ *                 LIGHT-ONLY (Flow has no dark mode); values come from
+ *                 flow-tokens.css, generated from Flow's own stylesheet
+ *   skin-hotdog-stand [data-skin=hotdog-stand] — the Windows 3.1 colour scheme
+ *                 of that name (yellow desktop, red windows, black captions);
+ *                 palette decoded from its CONTROL.INI entry
+ *                 + [data-theme=dark][data-skin=hotdog-stand] "After Hours"
  *
  * Adapted (NOT copied verbatim) from garden/frontend/src/index.css's layered
  * architecture (S2 reference → S3 semantic → S4 component → S5 theme →
@@ -35,7 +45,7 @@
  *
  * Skins/themes apply via root attributes on the document element:
  *   data-theme = light | dark      (orthogonal)
- *   data-skin  = garden | emporium | 98 | glass | research | greenhouse | observatory (and/or data-design = emporium)
+ *   data-skin  = garden | emporium | 98 | glass | mithras | hotdog-stand | research | greenhouse | observatory (and/or data-design = emporium)
  *   data-editor-material = paper | classic-word   (absent = continuous; orthogonal)
  *   data-stance = room | bench | constitution | dispatch (orthogonal)
  *   data-kind = identity | state | metric | prose | reference | testimony | affordance
@@ -45,6 +55,7 @@
 
 @import './fonts.css';
 @import './reference.css';
+@import './flow-tokens.css';
 @import './semantic.css';
 @import './component.css';
 @import './z-layers.css';
@@ -54,9 +65,12 @@
 @import './kind.css';
 @import './layout-tabs.css';
 @import './skin-garden.css';
+@import './material-garden.css';
 @import './skin-emporium.css';
 @import './skin-98.css';
 @import './skin-glass.css';
 @import './skin-research.css';
 @import './skin-greenhouse.css';
 @import './skin-observatory.css';
+@import './skin-mithras.css';
+@import './skin-hotdog-stand.css';

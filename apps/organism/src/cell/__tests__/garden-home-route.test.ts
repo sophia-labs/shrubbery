@@ -131,4 +131,63 @@ describe('Garden Home route controller', () => {
 
     mount.destroy()
   })
+
+  it('delegates the tour only after an explicit action and does not repeat an in-flight request', async () => {
+    const gate = deferred()
+    const startOnboarding = vi.fn(async () => { await gate.promise })
+    const service = {
+      async load() { return snapshot },
+      openGraph() {},
+      startOnboarding,
+    }
+    const host = document.createElement('div')
+    document.body.appendChild(host)
+    const mount = mountGardenHomeRoute(host, service)
+    await mount.ready
+    const page = host.querySelector('mn-garden-home') as MnGardenHome
+    expect(startOnboarding).not.toHaveBeenCalled()
+    page.dispatchEvent(new CustomEvent('mn-garden-home-start-onboarding'))
+    page.dispatchEvent(new CustomEvent('mn-garden-home-start-onboarding'))
+    expect(startOnboarding).toHaveBeenCalledTimes(1)
+    gate.resolve()
+    await vi.waitFor(() => expect(page.onboardingStatus).toBe('idle'))
+    mount.destroy()
+  })
+
+  it('keeps a failed tour and its graph identity visible without retrying the effect', async () => {
+    const startOnboarding = vi.fn(async () => { throw new Error('Retained graph tour-partial; no automatic retry or deletion.') })
+    const load = vi.fn(async () => snapshot)
+    const host = document.createElement('div')
+    document.body.appendChild(host)
+    const mount = mountGardenHomeRoute(host, { load, openGraph() {}, startOnboarding })
+    await mount.ready
+    const page = host.querySelector('mn-garden-home') as MnGardenHome
+    page.dispatchEvent(new CustomEvent('mn-garden-home-start-onboarding'))
+    await vi.waitFor(() => expect(page.onboardingStatus).toBe('error'))
+    await vi.waitFor(() => expect(page.status).toBe('ready'))
+    expect(page.onboardingError).toContain('tour-partial')
+    expect(startOnboarding).toHaveBeenCalledTimes(1)
+    expect(load).toHaveBeenCalledTimes(2)
+    mount.destroy()
+  })
+
+  it('does not allow graph creation alongside a held tour and does not revive a destroyed route', async () => {
+    const gate = deferred()
+    const create = vi.fn()
+    const load = vi.fn(async () => snapshot)
+    const host = document.createElement('div')
+    document.body.appendChild(host)
+    const mount = mountGardenHomeRoute(host, { load, openGraph() {}, create, async startOnboarding() { await gate.promise } })
+    await mount.ready
+    const page = host.querySelector('mn-garden-home') as MnGardenHome
+    page.dispatchEvent(new CustomEvent('mn-garden-home-start-onboarding'))
+    page.dispatchEvent(new CustomEvent('mn-garden-home-create'))
+    expect(create).not.toHaveBeenCalled()
+    mount.destroy()
+    gate.resolve()
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(host.childElementCount).toBe(0)
+    expect(load).toHaveBeenCalledTimes(1)
+  })
 })

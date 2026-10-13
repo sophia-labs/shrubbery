@@ -49,7 +49,7 @@ export class MnToast extends SkinAware(LitElement) {
     }
 
     :host([position='top-right']) {
-      top: var(--mn-space-4, 16px);
+      top: calc(var(--mn-top-bar-height, 46px) + var(--mn-space-4, 16px) + env(safe-area-inset-top, 0px));
       right: var(--mn-space-4, 16px);
     }
 
@@ -78,13 +78,14 @@ export class MnToast extends SkinAware(LitElement) {
       width: 100%;
       padding: var(--mn-space-3, 12px) var(--mn-space-4, 16px);
       overflow: hidden;
-      border: 1px solid var(--mn-color-border-default, #d1d5db);
+      border: 1px solid var(--mn-material-popover-edge, var(--mn-color-border-default, #d1d5db));
       border-left-width: 3px;
       border-radius: var(--mn-radius-surface, var(--mn-radius-lg, 8px));
-      background: var(--mn-color-surface-raised, #fff);
+      background: var(--mn-material-popover-bg, var(--mn-color-surface-raised, #fff));
       color: var(--mn-color-text-primary, #111827);
-      box-shadow: var(--mn-shadow-modal, 0 18px 40px rgba(15, 23, 42, 0.16));
-      backdrop-filter: var(--mn-window-backdrop-filter, none);
+      box-shadow: var(--mn-material-popover-shadow, var(--mn-shadow-modal, 0 18px 40px rgba(15, 23, 42, 0.16)));
+      backdrop-filter: var(--mn-material-popover-filter, var(--mn-window-backdrop-filter, none));
+      -webkit-backdrop-filter: var(--mn-material-popover-filter, var(--mn-window-backdrop-filter, none));
       opacity: 0;
       transform: translateY(-12px);
       transition:
@@ -158,7 +159,7 @@ export class MnToast extends SkinAware(LitElement) {
 
     .description {
       margin-top: var(--mn-space-1, 4px);
-      color: var(--mn-color-text-secondary, #4b5563);
+      color: var(--mn-material-popover-text-muted, var(--mn-color-text-secondary, #4b5563));
       font-size: var(--mn-text-xs, 12px);
       line-height: 1.4;
     }
@@ -227,7 +228,7 @@ export class MnToast extends SkinAware(LitElement) {
   `
 
   @property({ type: String, reflect: true }) type: MnToastType = 'info'
-  @property({ type: String, reflect: true }) position: MnToastPosition = 'bottom-right'
+  @property({ type: String, reflect: true }) position: MnToastPosition = 'top-right'
   @property({ type: String }) message = ''
   @property({ type: String }) description = ''
   @property({ type: String, attribute: 'action-text' }) actionText = ''

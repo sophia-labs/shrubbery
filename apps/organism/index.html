@@ -6,7 +6,7 @@
       name="viewport"
       content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content"
     />
-    <title>Shrubbery Organism — live RDF → UI playground</title>
+    <title>Garden</title>
     <link rel="icon" type="image/png" href="/sophialabslogo.png" />
     <style>
       /* ── The REAL design tokens now come from @shrubbery/tokens (imported in
@@ -405,6 +405,10 @@
            pane empty. R-FIXED-CB: the host never self-establishes a containing
            block; the shell owns .main's layout, so the shell must position it. */
         position: relative;
+        /* Content-local divider/editor layers must stay below top chrome's
+           menus. Shell-wide history/pinned overlays are .main siblings and
+           confirmations are body portals, so they keep their global layer. */
+        isolation: isolate;
         flex: 1;
         display: flex;
         min-height: 0;
@@ -615,6 +619,7 @@
         mn-artifact-view,
         mn-artifact-editor,
         wf-studio-shell,
+        choreo-modes-surface,
         sh-chat-host,
         sh-wires-panel
       ) {
@@ -630,12 +635,18 @@
            row past the fold was clipped and unreachable.
 
            The shell's job at this seam is SIZE, not layout mode. Each of the
-           nine tags declares its own `:host` display; leaving it alone is what
+           ten tags declares its own `:host` display; leaving it alone is what
            lets a component be a flex column when it says it is one. */
         width: 100%;
         height: 100%;
         min-width: 0;
         min-height: 0;
+      }
+      /* The file pane owns a column flex layout: header/controls stay put
+         while its remaining-height body scrolls. The generic block wrapper
+         above must not turn that body into an unbounded, clipped list. */
+      #host sh-workspace-surface .surface-leaf > mn-sidebar-panel {
+        display: flex;
       }
       #host sh-workspace-surface .right-panel {
         box-sizing: border-box;
@@ -731,12 +742,95 @@
         border: 1px solid var(--mn-color-border-subtle, #d9d4c9);
         font-size: 11px;
       }
+      #host .toc-wrap {
+        position: relative;
+        display: flex;
+        min-width: 0;
+        align-items: center;
+      }
+      #host .toc-btn {
+        display: inline-flex;
+        min-width: 0;
+        max-width: 220px;
+        align-items: center;
+        gap: 5px;
+        padding: 2px 7px;
+        border: 1px solid transparent;
+        border-radius: 5px;
+        background: none;
+        color: var(--mn-color-text-secondary, #536159);
+        cursor: pointer;
+        font: 500 12px/1 var(--mn-font-ui, system-ui, sans-serif);
+      }
+      #host .toc-btn:hover {
+        border-color: var(--mn-color-border-subtle, #ddd8ce);
+        background: var(--mn-color-surface-hover, rgba(65, 91, 75, 0.06));
+        color: var(--mn-color-text-primary, #28332d);
+      }
+      #host .toc-btn-label {
+        overflow: hidden;
+        max-width: 160px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      #host .toc-icon {
+        width: 12px;
+        height: 12px;
+        flex-shrink: 0;
+      }
+      /* Native top layer: the pane stage sets overflow:hidden, so an in-flow
+         panel is clipped at the pane edge. Positioned by the host. */
+      #host .toc-dropdown {
+        position: fixed;
+        inset: unset;
+        margin: 0;
+        z-index: var(--mn-z-dropdown, 1000);
+        min-width: 180px;
+        max-width: 300px;
+        max-height: 300px;
+        overflow-y: auto;
+        padding: 4px;
+        border: 1px solid var(--mn-color-border-subtle, #ddd8ce);
+        border-radius: 8px;
+        background: var(--mn-color-surface-base, #fffdf8);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      }
+      #host .toc-dropdown:not([popover-open]):not(:popover-open) {
+        display: none;
+      }
+      #host .toc-item {
+        display: block;
+        overflow: hidden;
+        box-sizing: border-box;
+        width: 100%;
+        padding: 5px 10px;
+        border: 0;
+        border-radius: 5px;
+        background: none;
+        color: var(--mn-color-text-secondary, #536159);
+        cursor: pointer;
+        font-size: 12px;
+        text-align: left;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      #host .toc-item:hover {
+        background: var(--mn-color-surface-hover, rgba(65, 91, 75, 0.08));
+        color: var(--mn-color-text-primary, #28332d);
+      }
       #host .surface-pane-stage {
         position: absolute;
         inset: 0;
         min-width: 0;
         min-height: 0;
         overflow: hidden;
+      }
+      /* Home is not a layer over a live editor: while the empty pane shows,
+         the editor host is neither painted nor hit-tested. Paint order alone
+         raced the host's own teardown. */
+      #host .surface-pane-stage[data-pane-empty='true'] sh-editor-host {
+        visibility: hidden;
+        pointer-events: none;
       }
       #host .surface-pane-empty {
         position: absolute;
@@ -924,6 +1018,8 @@
             <option value="emporium">emporium (purple)</option>
             <option value="98">98 (classic desktop)</option>
             <option value="glass">glass (luminous desktop)</option>
+            <option value="mithras">mithras (Flow whiteboard)</option>
+            <option value="hotdog-stand">hotdog stand (Windows 3.1)</option>
           </select>
         </label>
         <label>theme:

@@ -7,6 +7,7 @@
  * layer richer editing back on top without importing Lit/components here.
  */
 import { Node, mergeAttributes } from '@tiptap/core'
+import { randomUUID } from '@shrubbery/nucleus/web-crypto'
 
 export interface CalendarEventAttrs {
   /** Client-stable identifier. Wires attach here; also rendered as data-block-id. */
@@ -56,11 +57,7 @@ function readBooleanAttr(el: HTMLElement, camelName: string, kebabName: string, 
 }
 
 function generateCalendarEventId(): string {
-  const uuid =
-    typeof globalThis.crypto?.randomUUID === 'function'
-      ? globalThis.crypto.randomUUID()
-      : Math.random().toString(36).slice(2) + Date.now().toString(36)
-  return `calendar-${uuid.slice(0, 8)}`
+  return `calendar-${randomUUID().slice(0, 8)}`
 }
 
 function normalizeAttrs(attrs: Partial<CalendarEventAttrs> = {}): CalendarEventAttrs {

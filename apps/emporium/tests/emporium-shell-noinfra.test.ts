@@ -170,4 +170,45 @@ describe('NO-INFRA — Emporium shell from the captured-real registry', () => {
     expect(banner.textContent).toContain('workflow')
     expect(banner.textContent).toContain(`1 of ${catalogue.length}`)
   })
+
+  it('lets the user choose ANY skin from the picker, in any order — Hotdog Stand last in the list, Garden as no attribute', async () => {
+    // The live-cell sibling (emporium-shell.integration.test.ts) pins the same; this one runs without a cell.
+    // The bar is rebuilt each render, so it is re-found every time.
+    const stamped = (): string | null => document.documentElement.getAttribute('data-skin')
+    type Updating = HTMLElement & { updateComplete: Promise<unknown> }
+    const dropdownOf = async (): Promise<Updating> => {
+      const picker = bar(mounts).shadowRoot?.querySelector('mn-skin-picker') as Updating | null
+      expect(picker, 'the bar carries the skin picker').toBeTruthy()
+      await picker!.updateComplete
+      const dropdown = picker!.shadowRoot!.querySelector('mn-dropdown-button') as Updating
+      await dropdown.updateComplete
+      return dropdown
+    }
+    const choose = async (id: string): Promise<void> => {
+      const dropdown = await dropdownOf()
+      dropdown.shadowRoot!.querySelector<HTMLButtonElement>('.trigger')!.click()
+      await dropdown.updateComplete
+      dropdown.shadowRoot!.querySelector<HTMLButtonElement>(`[data-menu-item-id="${id}"]`)!.click()
+      await tick()
+    }
+    expect(stamped()).toBe('emporium')
+    // The list is the shared set, Hotdog Stand last.
+    const opener = await dropdownOf()
+    opener.shadowRoot!.querySelector<HTMLButtonElement>('.trigger')!.click()
+    await opener.updateComplete
+    expect(Array.from(opener.shadowRoot!.querySelectorAll<HTMLElement>('[data-menu-item-id]')).map(i => i.dataset.menuItemId))
+      .toEqual(['garden', 'emporium', '98', 'glass', 'mithras', 'hotdog-stand'])
+    opener.shadowRoot!.querySelector<HTMLButtonElement>('.trigger')!.click()
+    await opener.updateComplete
+
+    // Any order — not a cycle: straight to Hotdog Stand, back to 98, to Garden (no attribute), around the rest.
+    const seen: Array<string | null> = []
+    for (const id of ['hotdog-stand', '98', 'garden', 'mithras', 'glass', 'emporium']) {
+      await choose(id)
+      seen.push(stamped())
+      // the bar wears the identity it controls
+      expect(bar(mounts).activeSkin).toBe(id)
+    }
+    expect(seen).toEqual(['hotdog-stand', '98', null, 'mithras', 'glass', 'emporium'])
+  })
 })

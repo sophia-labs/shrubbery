@@ -1,6 +1,7 @@
 import { LitElement, css, html, nothing, type TemplateResult } from 'lit'
 import { customElement, property, state } from 'lit/decorators.js'
 import { repeat } from 'lit/directives/repeat.js'
+import { PopoverController } from '@shrubbery/nucleus'
 import type { ViewportAllocation } from '@shrubbery/nucleus/layout'
 import { solveCenterPaneSplit, type CenterPaneSplitResult } from './layout/split-tree-renderer.js'
 import {
@@ -243,10 +244,9 @@ export class ShCenterPanes extends LitElement {
     }
 
     .toc-dropdown {
-      position: absolute;
-      top: calc(100% + 4px);
-      left: 50%;
-      transform: translateX(-50%);
+      position: fixed;
+      inset: unset;
+      margin: 0;
       min-width: 180px;
       max-width: 300px;
       max-height: 300px;
@@ -255,8 +255,12 @@ export class ShCenterPanes extends LitElement {
       border: 1px solid var(--mn-color-border-subtle, #ddd8ce);
       border-radius: 8px;
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-      z-index: 20;
+      z-index: var(--mn-z-dropdown, 1000);
       padding: 4px;
+    }
+
+    [popover]:not([popover-open]):not(:popover-open) {
+      display: none;
     }
 
     .toc-item {
@@ -344,6 +348,14 @@ export class ShCenterPanes extends LitElement {
 
     .pane-stage sh-editor-host {
       z-index: 1;
+    }
+
+    /* Home is not a layer over a live editor: while the empty pane shows,
+       the editor host is neither painted nor hit-tested. Paint order alone
+       raced the host's own teardown. */
+    .pane-stage[data-pane-empty='true'] sh-editor-host {
+      visibility: hidden;
+      pointer-events: none;
     }
 
     .empty-pane {
@@ -470,12 +482,32 @@ export class ShCenterPanes extends LitElement {
   // documents. Tracks at most one open popup (paneId), not a per-pane boolean
   // set, matching how _tocOpenPaneId reads as "which pane, if any."
   @state() private _tocOpenPaneId: CenterPaneId | null = null
+  /**
+   * Promotes the open pane's heading list into the native top layer. The pane
+   * sets `overflow: hidden`, which clipped the old absolutely positioned
+   * dropdown; the top layer is outside that ancestor entirely.
+   */
+  private readonly _tocPopover = new PopoverController(this, {
+    anchor: () => this._tocElement('.toc-btn'),
+    popover: () => this._tocElement('.toc-dropdown'),
+    placement: 'bottom',
+    gap: 4,
+  })
+
+  private _tocElement(selector: string): HTMLElement | null {
+    if (this._tocOpenPaneId === null) return null
+    const wrap = this.renderRoot.querySelector(
+      `[data-toc-wrap="${domToken(this._tocOpenPaneId)}"]`,
+    )
+    return wrap?.querySelector<HTMLElement>(selector) ?? null
+  }
   private readonly _onDocumentPointerDown = (event: PointerEvent): void => {
     if (this._tocOpenPaneId === null) return
     const insideToc = event.composedPath().some(
       (node) => node instanceof Element && node.hasAttribute('data-toc-wrap'),
     )
     if (insideToc) return
+    this._tocPopover.hide()
     this._tocOpenPaneId = null
   }
   private readonly _onStructureChange = (): void => {
@@ -669,10 +701,17 @@ export class ShCenterPanes extends LitElement {
 
   private _toggleToc(paneId: CenterPaneId): void {
     this._tocOpenPaneId = this._tocOpenPaneId === paneId ? null : paneId
+    // The panel is rendered conditionally, so it only exists to promote after
+    // Lit has flushed this state change.
+    void this.updateComplete.then(() => {
+      if (this._tocOpenPaneId === null) this._tocPopover.hide()
+      else this._tocPopover.show()
+    })
   }
 
   private _navigateToc(pane: CenterPaneProjection, blockId: string): void {
     this._paneEditorHandle(pane)?.focusBlock(blockId)
+    this._tocPopover.hide()
     this._tocOpenPaneId = null
   }
 
@@ -681,7 +720,7 @@ export class ShCenterPanes extends LitElement {
     if (headings.length === 0) return nothing
     const open = this._tocOpenPaneId === pane.id
     const label = headings.find((h) => h.level === 1)?.text ?? headings[0]!.text
-    return html`<div class="toc-wrap" data-toc-wrap>
+    return html`<div class="toc-wrap" data-toc-wrap=${domToken(pane.id)}>
       <button
         class="toc-btn"
         aria-label="Table of contents"
@@ -689,7 +728,7 @@ export class ShCenterPanes extends LitElement {
         title="Table of contents"
         @click=${() => this._toggleToc(pane.id)}
       >${tocIcon()}<span class="toc-btn-label">${label || 'Untitled'}</span><span aria-hidden="true">▾</span></button>
-      ${open ? html`<div class="toc-dropdown" role="menu">
+      ${open ? html`<div class="toc-dropdown" popover="manual" role="menu">
         ${headings.map((h) => html`
           <button
             type="button"
@@ -776,7 +815,12 @@ export class ShCenterPanes extends LitElement {
           @click=${() => this.requestClose(pane.id, 'pane-command')}
         >×</button>` : nothing}
       </div>
-      <div class="pane-stage" id=${stageId} data-pane-stage=${pane.id}>
+      <div
+        class="pane-stage"
+        id=${stageId}
+        data-pane-stage=${pane.id}
+        data-pane-empty=${pane.current.kind === 'home' ? 'true' : 'false'}
+      >
         <sh-editor-host
           id=${pane.position === 'primary' ? 'mn-editor-host' : `center-editor-host-${token}`}
           data-center-pane-host=${token}

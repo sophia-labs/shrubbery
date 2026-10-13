@@ -1,3 +1,4 @@
+import { sha256Digest } from '@shrubbery/nucleus/web-crypto'
 export const AGENT_STUDIO_PROFILE_SCHEMA = 'sophia.agent-studio-profile.v1' as const
 export const DOMAIN_AGENT_DEFINITION_V2_SCHEMA = 'sophia.domain-agent-definition.v2' as const
 export const AGENT_RUNTIME_BINDING_V2_SCHEMA = 'choreograph.agent-runtime-binding.v2' as const
@@ -12,7 +13,7 @@ export const AGENT_STUDIO_IDENTITY_ALGORITHM = 'agent-identity-v1-registered-nam
 export const SOPHIA_CLUSTER_LEAD_HARNESS = Object.freeze({
   schema: 'sophia.agent-harness.v1',
   harnessId: 'sophia-cluster-lead-harness-v1',
-  agentId: 'agent-bc89d2e0cffd0e86',
+  agentId: 'agent-8dc95d85e3b09eb7',
   mappings: {
     inference: 'choreograph.model-gateway',
     sessionEvents: 'choreograph.agent-session',
@@ -30,7 +31,14 @@ export const SOPHIA_CLUSTER_LEAD_HARNESS = Object.freeze({
 })
 
 export const SOPHIA_CLUSTER_LEAD_HARNESS_DIGEST =
-  '13d6961bb2911d7aadfe0b46218a64952a4cc78784de72b91fc88c6045f8a4f8'
+  '54906fece5f376827c8c07d3e9f15c549c31559edb504d17e786edd5a4b7b596'
+
+/** Sophia-1 is the existing stable Agent and resident identity. */
+export const SOPHIA_1_RESIDENT_IDENTITY = Object.freeze({
+  registeredName: 'sophia-1',
+  agentId: SOPHIA_CLUSTER_LEAD_HARNESS.agentId,
+  homeGraphId: 'sophia-cluster',
+})
 
 const SHA256 = /^(?:sha256:)?[0-9a-f]{64}$/
 const DOCUMENT_ID = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/
@@ -64,6 +72,8 @@ export interface AgentStudioRuntimeConstraints {
   readonly allowAutonomousContinuation: boolean
   readonly allowSchedules: boolean
   readonly allowWorkflowProposals: boolean
+  /** Enables Prime's real in-body Bash only with an exact admitted workspace mount. */
+  readonly allowWorkspaceShell?: boolean
 }
 
 export interface AgentStudioRuntimeProfile {
@@ -97,6 +107,95 @@ export interface AgentStudioTool {
   readonly risk: 'low' | 'medium' | 'high'
   readonly required: boolean
 }
+
+/**
+ * The Workbench's home folders are a convenience only.  They deliberately do
+ * not identify Sophia, select a graph, or partition Geist: those are host
+ * authority facts bound by the Session and the grant fence.
+ */
+export const SOPHIA_1_HOME_BOOTSTRAP = Object.freeze({
+  graphId: 'sophia-cluster',
+  preserve: ['_sophia'] as const,
+  createWhenAbsent: ['Journal', 'Investigations', 'Projects', 'Handoffs'] as const,
+})
+
+/**
+ * Closed, authored policy for the Garden-native notebook surface.  Garden's
+ * live catalogue supplies names and schemas but does not publish semantic
+ * approval metadata, so this is the reviewable authority source.  Do not
+ * infer approval from `access`: routine CRDT authoring is autonomous while
+ * deletion is explicitly approved.
+ */
+export const SOPHIA_1_GARDEN_TOOL_POLICY = [
+  ['context_bundle', 'Context bundle', 'Orient from the authorized Garden home.', 'read', false, 'low', true, 'ordinary'],
+  ['music', 'Music', 'Read the current Geist Song.', 'read', false, 'low', false, 'ordinary'],
+  ['sing', 'Sing', 'Leave a compact continuation in the Geist Song.', 'write', false, 'medium', false, 'ordinary'],
+  ['remember', 'Remember', 'Queue concise durable working memory.', 'write', false, 'medium', true, 'ordinary'],
+  ['recall', 'Recall', 'Read durable working memory.', 'read', false, 'low', true, 'ordinary'],
+  ['care', 'Care', 'Record genuine salience in Geist.', 'write', false, 'medium', false, 'ordinary'],
+  ['get_important_blocks', 'Important blocks', 'Read salient authored blocks.', 'read', false, 'low', false, 'ordinary'],
+  ['value', 'Value', 'Record a block valuation.', 'write', false, 'medium', false, 'ordinary'],
+  ['get_block_values', 'Block values', 'Read block valuations.', 'read', false, 'low', false, 'ordinary'],
+  ['get_values', 'Values', 'Read valuation configuration.', 'read', false, 'low', false, 'ordinary'],
+  ['revaluate', 'Revaluate', 'Update valuation configuration within the home graph.', 'write', false, 'medium', false, 'ordinary'],
+  ['get_workspace', 'Workspace', 'Read the authorized Garden workspace.', 'read', false, 'low', true, 'ordinary'],
+  ['list_documents', 'List documents', 'List documents in the authorized workspace.', 'read', false, 'low', false, 'ordinary'],
+  ['read_document', 'Read document', 'Read an authored document.', 'read', false, 'low', true, 'ordinary'],
+  ['read_document_at_snapshot', 'Read document at snapshot', 'Read a historical document snapshot.', 'read', false, 'low', false, 'ordinary'],
+  ['get_document_history', 'Document history', 'Read document history.', 'read', false, 'low', false, 'ordinary'],
+  ['document_digest', 'Document digest', 'Read a compact document summary.', 'read', false, 'low', false, 'ordinary'],
+  ['create_document', 'Create document', 'Create an authored document.', 'write', false, 'medium', false, 'ordinary'],
+  ['write_document', 'Write document', 'Write an authored document after reading it.', 'write', false, 'medium', false, 'ordinary'],
+  ['delete_document', 'Delete document', 'Delete an authored document.', 'write', true, 'high', false, 'human-always'],
+  ['create_folder', 'Create folder', 'Create a workspace folder when absent.', 'write', false, 'medium', false, 'ordinary'],
+  ['move_documents', 'Move documents', 'Organize authored documents.', 'write', false, 'medium', false, 'ordinary'],
+  ['move_folder', 'Move folder', 'Organize an authored folder.', 'write', false, 'medium', false, 'ordinary'],
+  ['read_blocks', 'Read blocks', 'Read document blocks.', 'read', false, 'low', false, 'ordinary'],
+  ['get_block', 'Get block', 'Read an authored block.', 'read', false, 'low', false, 'ordinary'],
+  ['query_blocks', 'Query blocks', 'Find blocks by structure.', 'read', false, 'low', false, 'ordinary'],
+  ['insert_blocks', 'Insert blocks', 'Append or insert authored blocks.', 'write', false, 'medium', false, 'ordinary'],
+  ['update_blocks', 'Update blocks', 'Update authored blocks.', 'write', false, 'medium', false, 'ordinary'],
+  ['edit_block_text', 'Edit block text', 'Edit authored block text.', 'write', false, 'medium', false, 'ordinary'],
+  ['delete_blocks', 'Delete blocks', 'Delete authored blocks.', 'write', true, 'high', false, 'human-always'],
+  ['search_documents', 'Search documents', 'Search the authorized workspace.', 'read', false, 'low', true, 'ordinary'],
+  ['search_blocks', 'Search blocks', 'Search authored blocks.', 'read', false, 'low', false, 'ordinary'],
+  ['semantic_search', 'Semantic search', 'Search authored content semantically.', 'read', false, 'low', false, 'ordinary'],
+  ['memory_semantic_recall', 'Memory semantic recall', 'Search durable Geist memory semantically.', 'read', false, 'low', false, 'ordinary'],
+  ['list_wire_predicates', 'Wire predicates', 'List available note relation predicates.', 'read', false, 'low', false, 'ordinary'],
+  ['get_wires', 'Get wires', 'Read authored note relations.', 'read', false, 'low', false, 'ordinary'],
+  ['create_wires', 'Create wires', 'Connect authored notes.', 'write', false, 'medium', false, 'ordinary'],
+  ['traverse_wires', 'Traverse wires', 'Read connected authored notes.', 'read', false, 'low', false, 'ordinary'],
+] as const satisfies readonly (readonly [
+  name: string,
+  title: string,
+  description: string,
+  access: AgentStudioTool['access'],
+  destructive: boolean,
+  risk: AgentStudioTool['risk'],
+  required: boolean,
+  approvalPolicy: AgentStudioApprovalPolicy,
+])[]
+
+export const SOPHIA_1_KUBERNETES_READ_OPERATIONS = [
+  'kubernetes_discover',
+  'kubernetes_list',
+  'kubernetes_get',
+  'kubernetes_watch',
+  'kubernetes_logs',
+  'kubernetes_events',
+  'kubernetes_metrics',
+] as const
+
+export const SOPHIA_1_HELM_READ_OPERATIONS = [
+  'helm_list',
+  'helm_status',
+  'helm_history',
+  'helm_values',
+  'helm_manifest',
+  'helm_hooks',
+  'helm_notes',
+  'helm_diff_live',
+] as const
 
 export interface AgentStudioGrantCapability {
   readonly capability: string
@@ -243,6 +342,7 @@ export const PRIME_RUNTIME_BASELINE: AgentStudioRuntimeConstraints = Object.free
   allowAutonomousContinuation: false,
   allowSchedules: true,
   allowWorkflowProposals: false,
+  allowWorkspaceShell: true,
 })
 
 export const SIMPLE_RUNTIME_BASELINE: AgentStudioRuntimeConstraints = Object.freeze({
@@ -262,6 +362,7 @@ export const SIMPLE_RUNTIME_BASELINE: AgentStudioRuntimeConstraints = Object.fre
   allowAutonomousContinuation: false,
   allowSchedules: false,
   allowWorkflowProposals: false,
+  allowWorkspaceShell: false,
 })
 
 export function createSophiaClusterLeadProfile(input: {
@@ -273,18 +374,23 @@ export function createSophiaClusterLeadProfile(input: {
   const graphId = 'sophia-cluster'
   return {
     schema: AGENT_STUDIO_PROFILE_SCHEMA,
-    registeredName: 'sophia-cluster-lead',
-    displayName: 'Sophia Cluster Lead',
+    registeredName: SOPHIA_1_RESIDENT_IDENTITY.registeredName,
+    displayName: 'Sophia-1 · Sophia Cluster Lead',
     home: { ownerPrincipal, graphId },
     grantAuthority: { ownerPrincipal, graphId: 'observatory' },
     charter: [
-      'You are the lead resident of the Sophia cluster.',
+      'You are Sophia-1, the resident lead of the Sophia cluster. Your registered name and stable Agent identity are sophia-1; do not mint a second observer or use a prompt-derived isolation scheme.',
       'Work as Vera’s thoughtful technical partner: preserve evidence, surface uncertainty, and make changes only inside explicit authority.',
       'Prefer durable graph testimony and reviewed source over ambient state. Delegate bounded work, integrate it critically, and keep the human in command of consequential effects.',
     ].join('\n\n'),
     prompt: [
-      'Begin by understanding the current workspace, its living documents, and the active request.',
-      'Maintain continuity across Sessions through the home graph and your durable runtime state.',
+      'Your durable authored home is the owner-bound sophia-cluster Garden graph. The host, not your tool arguments, supplies your observer, owner, and graph coordinates; never attempt to choose, override, or emulate those coordinates.',
+      'At the start of substantial work, call context_bundle and let Song and recall land before structural search. Use ordinary documents for investigations, designs, user-facing notes, and handoffs; use remember only for concise unfinished facts or future obligations.',
+      'Use care and valuation only for genuinely salient material. Use music after interruption to recover self-narrative, and sing at meaningful stopping points to leave a compact continuation. Read an existing CRDT document before editing it.',
+      'On first use, inspect the workspace. Only when absent, create Journal, Investigations, Projects, and Handoffs. Never overwrite or repurpose _sophia: it is native Geist material, not an application bootstrap target.',
+      'Garden authoring is autonomous inside sophia-cluster. Deletion requires explicit approval. Graph lifecycle, ACL changes, raw SPARQL updates, workflows, source pushes, and all external service effects are unavailable. When authority is absent, prepare a reviewable proposal instead.',
+      'Your /workspace is an exact owner-bound mount inside your Prime body. It contains real local Git working trees and survives body compost/regrowth, but v1 does not claim durability across Choreograph host replacement. Bash is local to that body: it has no host paths, credentials, ambient network, remote push, or credentialed fetch.',
+      'Kubernetes and Helm tools are read-only host-side observations. Their responses are bounded testimony with typed redactions; never infer that an absent protected value is absent from the cluster. Kubernetes describes observed live state. Helm describes declared release intent and its separately labeled live drift. Do not conflate either with Git source, and do not attempt deployment or any cluster or Helm mutation.',
       'When a task is complex, propose a small falsifiable plan, use bounded collaborators where useful, and report outcomes in plain language.',
     ].join('\n\n'),
     geist: 'A steady, curious lead engineer and research partner: rigorous about authority, warm in conversation, and delighted by elegant systems.',
@@ -318,50 +424,53 @@ export function createSophiaClusterLeadProfile(input: {
       },
     },
     tools: [
-      {
-        name: 'recall',
-        title: 'Recall',
-        description: 'Read durable context from an authorized graph.',
+      ...SOPHIA_1_GARDEN_TOOL_POLICY.map(([name, title, description, access, destructive, risk, required]) => ({
+        name,
+        title,
+        description,
         capability: 'mnemosyne',
-        access: 'read',
-        destructive: false,
-        risk: 'low',
-        required: true,
-      },
-      {
-        name: 'search_documents',
-        title: 'Search documents',
-        description: 'Find documents in the authorized workspace.',
-        capability: 'mnemosyne',
-        access: 'read',
-        destructive: false,
-        risk: 'low',
-        required: true,
-      },
-      {
-        name: 'remember',
-        title: 'Remember',
-        description: 'Queue durable memory for the authorized workspace.',
-        capability: 'mnemosyne',
-        access: 'write',
-        destructive: true,
-        risk: 'medium',
-        required: false,
-      },
+        access,
+        destructive,
+        risk,
+        required,
+      })),
+      ...readOnlyObservationTools('kubernetes.read', SOPHIA_1_KUBERNETES_READ_OPERATIONS, 'Kubernetes'),
+      ...readOnlyObservationTools('helm.read', SOPHIA_1_HELM_READ_OPERATIONS, 'Helm'),
     ],
     grant: {
       status: 'active',
       capabilities: [
         {
           capability: 'mnemosyne',
-          operations: ['recall', 'search_documents', 'remember'],
+          operations: SOPHIA_1_GARDEN_TOOL_POLICY.map(([name]) => name),
           access: 'write',
           approvalPolicy: 'ordinary',
+          operationPolicies: Object.fromEntries(
+            SOPHIA_1_GARDEN_TOOL_POLICY
+              .filter(([, , , , , , , policy]) => policy !== 'ordinary')
+              .map(([name, , , , , , , policy]) => [name, policy]),
+          ),
           fence: { graphIds: [graphId], maxPayloadBytes: 65_536 },
           quota: { maxPerWave: 32, maxPerDay: 512, maxConcurrent: 4 },
         },
+        {
+          capability: 'kubernetes.read',
+          operations: SOPHIA_1_KUBERNETES_READ_OPERATIONS,
+          access: 'read',
+          approvalPolicy: 'ordinary',
+          fence: { resourcePrefixes: ['cluster:mnemosyne-dev'], maxPayloadBytes: 65_536 },
+          quota: { maxPerWave: 64, maxPerDay: 1_024, maxConcurrent: 4 },
+        },
+        {
+          capability: 'helm.read',
+          operations: SOPHIA_1_HELM_READ_OPERATIONS,
+          access: 'read',
+          approvalPolicy: 'ordinary',
+          fence: { resourcePrefixes: ['cluster:mnemosyne-dev'], maxPayloadBytes: 65_536 },
+          quota: { maxPerWave: 64, maxPerDay: 1_024, maxConcurrent: 4 },
+        },
       ],
-      sourceRefs: ['urn:sophia:review:sophia-cluster-lead'],
+      sourceRefs: ['urn:sophia:review:sophia-1-workbench-v1'],
     },
     budgets: {
       pilotMaxTurns: 24,
@@ -659,7 +768,7 @@ function versionedDocumentIds(registeredName: string, version: string): AgentStu
     prompt: `${registeredName}-prompt-${version}`,
     promptBinding: `${registeredName}-prompt-binding-${version}`,
     toolManifest: `${registeredName}-tool-manifest-${version}`,
-    grant: `grant-${registeredName}-${version}`,
+    grant: `${registeredName}-grant-${version}`,
     agent: `${registeredName}-agent-${version}`,
     geist: `${registeredName}-geist-${version}`,
     pilotProfile: `${registeredName}-pilot-runtime-${version}`,
@@ -703,7 +812,9 @@ async function buildToolManifest(
       defaultRisk: 'low',
       includeTools: profile.tools.map(tool => tool.name),
       excludeTools: [],
-      requireApprovalFor: ['write', 'dangerous', 'external-side-effect'],
+      // Approval is declared per semantic operation below. A blanket `write`
+      // category would turn ordinary CRDT authoring into a driver gate.
+      requireApprovalFor: ['dangerous', 'external-side-effect'],
       allowUndeclaredDiscoveredTools: false,
     },
     capabilities,
@@ -720,11 +831,37 @@ async function buildToolManifest(
       risk: tool.risk,
       state: 'declared',
       required: tool.required,
-      approvalPolicy: { mode: tool.access === 'read' ? 'never' : 'always', driverRequired: tool.access === 'write' },
+      approvalPolicy: manifestApprovalPolicy(approvalForTool(profile, tool)),
       sourceRefs,
     })),
     notes: 'Compiled by @shrubbery/domain-kit Agent Studio; effective authority is the manifest/grant intersection.',
   }
+}
+
+function approvalForTool(profile: AgentStudioProfileV1, tool: AgentStudioTool): AgentStudioApprovalPolicy {
+  const capability = profile.grant.capabilities.find(candidate =>
+    candidate.capability === tool.capability
+    && (candidate.operations.includes(tool.name) || candidate.operations.includes('*')),
+  )
+  if (!capability) throw new Error(`tool '${tool.name}' has no granted approval policy`)
+  return capability.operationPolicies?.[tool.name] ?? capability.approvalPolicy
+}
+
+function readOnlyObservationTools(
+  capability: 'kubernetes.read' | 'helm.read',
+  operations: readonly string[],
+  surface: 'Kubernetes' | 'Helm',
+): readonly AgentStudioTool[] {
+  return operations.map(name => ({
+    name,
+    title: name.replaceAll('_', ' '),
+    description: `${surface} read-only observation with bounded provenance testimony and protected-value redaction.`,
+    capability,
+    access: 'read',
+    destructive: false,
+    risk: 'low',
+    required: true,
+  }))
 }
 
 async function objectRef(
@@ -765,9 +902,12 @@ function constraints(value: unknown, label: string, kind: AgentStudioRuntimeKind
     'maxArtifactBytes', 'idlePassivateMs',
   ] as const
   const boolean = ['allowPersistentKernel', 'allowAutonomousContinuation', 'allowSchedules', 'allowWorkflowProposals'] as const
-  exactKeys(candidate, [...numeric, ...boolean], label)
+  exactKeys(candidate, [...numeric, ...boolean, 'allowWorkspaceShell'], label, ['allowWorkspaceShell'])
   for (const key of numeric) nonNegativeInteger(candidate[key], `${label}.${key}`)
   for (const key of boolean) if (typeof candidate[key] !== 'boolean') throw new Error(`${label}.${key} must be boolean`)
+  if (candidate.allowWorkspaceShell !== undefined && typeof candidate.allowWorkspaceShell !== 'boolean') {
+    throw new Error(`${label}.allowWorkspaceShell must be boolean`)
+  }
   if (candidate.maxTurns === 0 || candidate.maxWallTimeMs === 0 || candidate.maxTokens === 0 || candidate.maxArtifactBytes === 0) {
     throw new Error(`${label} primary ceilings must be positive`)
   }
@@ -807,6 +947,17 @@ function grant(value: unknown, toolNames: ReadonlySet<string>): void {
     }
     if (capability.access !== 'read' && capability.access !== 'write') throw new Error(`grant capability '${name}' access is invalid`)
     if (!['ordinary', 'notify', 'human-always'].includes(String(capability.approvalPolicy))) throw new Error(`grant capability '${name}' approval is invalid`)
+    if (capability.operationPolicies !== undefined) {
+      const operationPolicies = record(capability.operationPolicies, `grant capability '${name}' operationPolicies`)
+      for (const [operation, policy] of Object.entries(operationPolicies)) {
+        if (!capability.operations.includes(operation) && !capability.operations.includes('*')) {
+          throw new Error(`grant capability '${name}' policy names ungranted operation '${operation}'`)
+        }
+        if (!['ordinary', 'notify', 'human-always'].includes(String(policy))) {
+          throw new Error(`grant capability '${name}' operation '${operation}' approval is invalid`)
+        }
+      }
+    }
     record(capability.fence, `grant capability '${name}' fence`)
     record(capability.quota, `grant capability '${name}' quota`)
   }
@@ -856,10 +1007,12 @@ function record(value: unknown, label: string): Record<string, unknown> {
   return value as Record<string, unknown>
 }
 
-function exactKeys(value: Record<string, unknown>, keys: readonly string[], label: string, optional = false): void {
+function exactKeys(value: Record<string, unknown>, keys: readonly string[], label: string, optional: boolean | readonly string[] = false): void {
   const allowed = new Set(keys)
   for (const key of Object.keys(value)) if (!allowed.has(key)) throw new Error(`${label} contains unknown field '${key}'`)
-  if (!optional) for (const key of keys) if (!(key in value)) throw new Error(`${label}.${key} is required`)
+  if (optional === true) return
+  const optionalKeys = new Set(optional === false ? [] : optional)
+  for (const key of keys) if (!optionalKeys.has(key) && !(key in value)) throw new Error(`${label}.${key} is required`)
 }
 
 function text(value: unknown, label: string, max: number): string {
@@ -935,7 +1088,7 @@ async function sha256Canonical(value: unknown): Promise<string> {
 
 async function sha256Text(value: string): Promise<string> {
   const bytes = new TextEncoder().encode(value)
-  const result = await crypto.subtle.digest('SHA-256', bytes)
+  const result = await sha256Digest(bytes)
   return [...new Uint8Array(result)].map(byte => byte.toString(16).padStart(2, '0')).join('')
 }
 

@@ -7,12 +7,13 @@ import type {
   MnFolderPickerOption,
   MnInputDialog,
   MnInputDialogConfirmDetail,
+  ChoreoModesSurface,
 } from '@shrubbery/components'
 
 import {
   applyEditorMaterial,
   applySkinTheme,
-  nextVisualIdentitySkin,
+  isVisualIdentitySkin,
   type Skin,
   type Theme,
 } from '@shrubbery/tokens'
@@ -62,6 +63,7 @@ import { readEditorMaterialPreference } from '../cell/settings-service.js'
 import { createShellContext } from '../cell/shell-context.js'
 import { OrganismMobileShellController } from '../cell/mobile-shell-controller.js'
 import { BROWSER_HARNESS_SECOND_SEED, BROWSER_HARNESS_SEED } from './fixture.js'
+import { createChoreographFixturePort, createChoreographRunFixturePort } from './choreograph-fixture.js'
 import {
   InMemoryCellContract,
   type InMemoryCellSeed,
@@ -202,6 +204,8 @@ const workspaces = new Map<string, HarnessWorkspace>([
   [BROWSER_HARNESS_SEED.graphId, makeWorkspace(BROWSER_HARNESS_SEED)],
   [BROWSER_HARNESS_SECOND_SEED.graphId, makeWorkspace(BROWSER_HARNESS_SECOND_SEED)],
 ])
+const choreographPorts = new Map<string, ReturnType<typeof createChoreographFixturePort>>()
+const choreographRunPort = createChoreographRunFixturePort()
 let graphId = BROWSER_HARNESS_SEED.graphId
 let workspace = workspaces.get(graphId)!
 let contract = workspace.contract
@@ -243,7 +247,8 @@ const resolveChatWikiLinks: HojaWikiLinkResolver = async (request, { signal }) =
 }
 
 let activeDocumentId: string | null = null
-let activeApp: AppId = 'garden'
+let activeApp: AppId = new URLSearchParams(window.location.search).get('app') === 'choreograph'
+  ? 'choreograph' : 'garden'
 let theme: Theme = 'light'
 let skin: Skin = 'garden'
 let rightPanel: RightPanelMode = DEFAULT_RIGHT_PANEL
@@ -551,6 +556,7 @@ function renderApp(): void {
     },
     chrome: {
       activeApp,
+      hojaHref: 'http://127.0.0.1:5190/',
       leftPanelMode,
       rightPanel,
       isDark: theme === 'dark',
@@ -621,6 +627,19 @@ function renderApp(): void {
     tts: tts.snapshot(),
   }
   renderWorkspace(GARDEN_DEFAULT, { container: root, ...workspaceOptions })
+  if (activeApp === 'choreograph') {
+    const surface = root.querySelector<ChoreoModesSurface>('choreo-modes-surface')
+    if (surface) {
+      let port = choreographPorts.get(graphId)
+      if (!port) {
+        port = createChoreographFixturePort(graphId)
+        choreographPorts.set(graphId, port)
+      }
+      if (surface.port !== port) surface.port = port
+      if (surface.runOverviewPort !== choreographRunPort) surface.runOverviewPort = choreographRunPort
+      surface.graphIds = [...workspaces.keys()]
+    }
+  }
   const liveHost = editorHost()
   if (liveHost) liveHost.originalFileView = originalFile.snapshot()
   tts.setEditorHost(editorHost())
@@ -830,8 +849,10 @@ function installShellEvents(): void {
     applySkinTheme({ skin, theme })
     renderApp()
   })
-  root.addEventListener('mn-skin-toggle', () => {
-    skin = nextVisualIdentitySkin(skin)
+  root.addEventListener('mn-skin-select', event => {
+    const chosen = (event as CustomEvent<{ skin?: unknown }>).detail?.skin
+    if (!isVisualIdentitySkin(chosen)) return
+    skin = chosen
     applySkinTheme({ skin, theme })
     renderApp()
   })
@@ -854,7 +875,10 @@ function installShellEvents(): void {
     renderApp()
   })
   root.addEventListener('mn-navigate-home', () => { void goHome() })
-  root.addEventListener('mn-editor-original-view-toggle', () => { void originalFile.toggle() })
+  root.addEventListener('mn-editor-original-view-toggle', () => {
+    const host = root.querySelector<ShEditorHost>('#mn-editor-host')
+    void originalFile.toggle(host?.getPdfSourceLocation() ?? null)
+  })
   root.addEventListener('mn-editor-make-editable', () => {
     const documentId = activeDocumentId
     if (!documentId || makeEditableStatus === 'saving') return
@@ -882,6 +906,11 @@ function installShellEvents(): void {
   root.addEventListener('mn-original-viewer-chapter-select', event => {
     const chapterId = (event as CustomEvent<{ chapterId?: string }>).detail?.chapterId?.trim()
     if (chapterId) originalFile.selectChapter(chapterId)
+  })
+  root.addEventListener('mn-original-viewer-page-select', event => {
+    const detail = (event as CustomEvent<{ graphId?: string; documentId?: string; pageNumber?: number }>).detail
+    if (detail?.graphId === graphId && detail?.documentId === activeDocumentId
+      && typeof detail?.pageNumber === 'number') void originalFile.selectPage(detail.pageNumber)
   })
   document.addEventListener(OPEN_DOCUMENT_EVENT, event => {
     const detail = (event as CustomEvent<{ graphId?: string; documentId?: string }>).detail

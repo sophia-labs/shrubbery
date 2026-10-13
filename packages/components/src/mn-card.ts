@@ -26,6 +26,7 @@
 import { LitElement, css, html, nothing } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 import { SkinAware } from './skin-aware.js'
+import { BEVELLED } from './bevelled-skins.js'
 
 @customElement('mn-card')
 export class MnCard extends SkinAware(LitElement) {
@@ -93,14 +94,14 @@ export class MnCard extends SkinAware(LitElement) {
     :host([data-skin='emporium']) .footer {
       border-top: var(--mn-rule-line, 1px solid var(--mn-color-border-default));
     }
-    :host([data-skin='98']) .card {
+    :host(${BEVELLED}) .card {
       border: 0;
       border-radius: 0;
       background: var(--mn-98-face);
       box-shadow: var(--mn-98-raised);
     }
-    :host([data-skin='98']) .header,
-    :host([data-skin='98']) .footer {
+    :host(${BEVELLED}) .header,
+    :host(${BEVELLED}) .footer {
       border-color: var(--mn-98-shadow);
     }
     :host([data-skin='glass']) .card {

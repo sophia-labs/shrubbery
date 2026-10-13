@@ -159,4 +159,27 @@ describe('mn-original-viewer - real custom element', () => {
     open.click()
     expect(opens).toEqual([{ graphId: 'graph-a', documentId: 'doc-file' }])
   })
+
+  it('renders source regions and scoped page intents without fetching or accepting invalid rectangles', async () => {
+    const el = await mount(node => {
+      node.kind = 'pdf'; node.status = 'ready'; node.graphId = 'g'; node.documentId = 'd'
+      node.pageCount = 4; node.selectedPageNumber = 2
+      node.sourceMapping = { status: 'edited', message: 'Source of earlier text.', pages: [2, 4] }
+      node.pages = [{ pageNumber: 2, width: 600, height: 800, imageUrl: 'blob:page', rectangles: [
+        { left: 5, top: 10, width: 30, height: 3 }, { left: NaN, top: 0, width: 4, height: 3 },
+      ] }]
+    })
+    expect(sr(el).querySelectorAll('.pdf-region')).toHaveLength(1)
+    expect(sr(el).querySelector('.pdf-region')?.getAttribute('style')).toContain('left:5%')
+    expect(sr(el).querySelector('[data-mapping-status="edited"]')?.textContent).toContain('Source of earlier text.')
+    const pages: unknown[] = []
+    el.addEventListener('mn-original-viewer-page-select', event => pages.push((event as CustomEvent).detail))
+    ;(sr(el).querySelector('[aria-label="Next PDF page"]') as HTMLButtonElement).click()
+    expect(pages).toEqual([{ graphId: 'g', documentId: 'd', pageNumber: 3 }])
+    expect(el.selectedPageNumber).toBe(2)
+    const input = sr(el).querySelector<HTMLInputElement>('[aria-label="PDF page number"]')!
+    input.value = '999'; input.dispatchEvent(new Event('change'))
+    expect(pages).toHaveLength(1)
+    el.remove()
+  })
 })

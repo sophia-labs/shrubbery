@@ -94,7 +94,7 @@ deliberately **different questions**, and the catalog shows both.
 
 ## Skin × theme = RDF dimensions, not a Storybook gimmick
 
-The Storybook toolbar globals (`skin`: garden/emporium, `theme`: light/dark) are
+The Storybook toolbar globals (`skin`: garden/emporium/98/glass/mithras/hotdog-stand/research/greenhouse, `theme`: light/dark) are
 **the sux `ConfigDimensions`**. Selecting one calls `applySkinTheme` (from
 `@shrubbery/tokens`), which stamps `data-skin` / `data-theme` on the preview root
 via the exact `ConfigValue.appliesAttribute` rule the engine uses — and the whole
@@ -122,11 +122,10 @@ can't trust to be complete; now it is.
 
 - `pnpm build-storybook` — builds the static catalog.
 - `pnpm test-storybook:ci` — serves it and runs the test-runner: every story must
-  render without error, and the **chrome stories are exercised across both
-  skins** (`.storybook/test-runner.ts` flips the skin on the preview root and
-  asserts the skin-aware chrome re-skins — the live `--mn-color-accent` differs
-  between Garden and Emporium, a computed-style check only a real browser can
-  make).
+  render without error, and the **chrome stories are exercised across every
+  toolbar skin** (`.storybook/test-runner.ts` flips the skin on the preview root and
+  asserts the skin-aware chrome re-skins — the live `--mn-color-accent` is distinct
+  for every skin, a computed-style check only a real browser can make).
 - `Regression/Fetch binding (9a3c9aa)` — a real-browser regression guard for the
   fetch-binding bug fixed in commit `9a3c9aa`. Its `play` step constructs the
   real `LoopbackMcpClient` in **browser `fetch` mode** and invokes the fetch path

@@ -80,7 +80,7 @@ try {
     `initial manual order changed: ${initialRows.join(',')}`,
   )
 
-  await page.locator('mn-sidebar-panel .sort-select').selectOption('alphabetical')
+  await page.locator('mn-sidebar-panel .sort-select:not(.kind-select)').selectOption('alphabetical')
   await page.waitForFunction(() =>
     (window as unknown as { __filePaneHarness?: { state: HarnessState } })
       .__filePaneHarness?.state.sort?.criterion === 'alphabetical')
@@ -135,7 +135,7 @@ try {
       .__filePaneHarness?.state.leftExpanded === false)
   const compactRect = await pane.boundingBox()
   assert(compactRect && compactRect.width >= 180 && compactRect.height > 500, `compact pane geometry was ${JSON.stringify(compactRect)}`)
-  await page.locator('mn-sidebar-panel .sort-select').selectOption('connectivity')
+  await page.locator('mn-sidebar-panel .sort-select:not(.kind-select)').selectOption('connectivity')
   assert((await state(page)).sort?.criterion === 'connectivity', 'compact control was not pointer-operable')
 
   const unexpectedWarnings = consoleWarnings.filter(value => !value.includes('Lit is in dev mode'))

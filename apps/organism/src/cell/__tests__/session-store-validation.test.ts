@@ -26,6 +26,7 @@ import {
   loadConfigFromCell,
   type CellContract,
   type CellConfigReadStorage,
+  GARDEN_ONLY_DEFAULT,
 } from '../session-store.js'
 
 /** Minimal cell contract whose only exercised surface is dumpUxConfig → { data: nt }. */
@@ -124,7 +125,7 @@ describe('loadConfigFromCell — validation parity with the write gate', () => {
 })
 
 describe('loadConfigFromCell — the ABSENT-config carve-out (defaulted read)', () => {
-  it('a graph with NO sux:Workspace node (empty :ux:config) resolves to GARDEN_DEFAULT in memory', async () => {
+  it('a graph with NO sux:Workspace node (empty :ux:config) resolves to the Garden-only default in memory', async () => {
     // The real production read path over an EMPTY triple set — the exact shape
     // a fresh / imported / legacy-migrated graph presents.
     const store = createSessionStore({ contract: fakeContract(''), graphId: 'fresh' })
@@ -136,7 +137,7 @@ describe('loadConfigFromCell — the ABSENT-config carve-out (defaulted read)', 
     // The fallback is the canonical object ITSELF (same reference), so every
     // downstream consumer — planFor, the dashboard-marker walk, fragment
     // machinery — behaves exactly as with a seeded GardenDefault.
-    expect(state.read?.config).toBe(GARDEN_DEFAULT)
+    expect(state.read?.config).toBe(GARDEN_ONLY_DEFAULT)
     expect(state.read?.defaulted).toBe(true)
     // Honest provenance: the read reflects the cell as it really is.
     expect(state.read?.tripleCount).toBe(0)
@@ -147,7 +148,7 @@ describe('loadConfigFromCell — the ABSENT-config carve-out (defaulted read)', 
     // presence of a sux:Workspace node makes a config real.
     const nt = '<urn:x> <http://sophia.ai/ux#localId> "stray" .'
     const read = await loadConfigFromCell(fakeContract(nt), 'stray')
-    expect(read.config).toBe(GARDEN_DEFAULT)
+    expect(read.config).toBe(GARDEN_ONLY_DEFAULT)
     expect(read.defaulted).toBe(true)
     expect(read.tripleCount).toBe(1)
   })
@@ -177,7 +178,7 @@ describe('loadConfigFromCell — the ABSENT-config carve-out (defaulted read)', 
 
     await store.refresh()
     expect(store.getState().read?.defaulted).toBe(true)
-    expect(store.getState().read?.config).toBe(GARDEN_DEFAULT)
+    expect(store.getState().read?.config).toBe(GARDEN_ONLY_DEFAULT)
 
     cellNt = ntFor(GARDEN_DEFAULT) // the graph now HAS real config triples
     await store.refresh()
@@ -185,7 +186,7 @@ describe('loadConfigFromCell — the ABSENT-config carve-out (defaulted read)', 
     expect(state.status).toBe('ready')
     expect(state.read?.defaulted).toBe(false)
     // Parsed from the cell this time — an equal config, not the fallback object.
-    expect(state.read?.config).not.toBe(GARDEN_DEFAULT)
+    expect(state.read?.config).not.toBe(GARDEN_ONLY_DEFAULT)
     expect(state.read?.config.id).toBe(GARDEN_DEFAULT.id)
   })
 })

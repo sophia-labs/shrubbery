@@ -31,8 +31,18 @@ describe('Garden spine landmarks', () => {
     })
     const centerPane = frame.querySelector<HTMLElement>('[data-role="center"]')
     const mains = frame.querySelectorAll<HTMLElement>('[role="main"]')
-    expect(centerPane?.hasAttribute('role')).toBe(false)
+    // The CENTER REGION owns `main` now, not the anchor inside it. This test
+    // previously asserted the opposite, and asserted it on the one `bodyFor`
+    // branch of eight that renders the anchor — so it passed while every other
+    // branch shipped a workspace with no `main` landmark at all. Still exactly
+    // one, still not nested; it moved outward by one element, to the region
+    // that also contains the pane header.
     expect(mains).toHaveLength(1)
-    expect(mains[0]?.id).toBe('mn-main-editor')
+    expect(mains[0]).toBe(centerPane)
+    // The anchor keeps its identity — selectors and the garden-reference id are
+    // unchanged — it simply no longer claims the landmark.
+    const anchor = frame.querySelector<HTMLElement>('#mn-main-editor')
+    expect(anchor).not.toBeNull()
+    expect(anchor?.hasAttribute('role')).toBe(false)
   })
 })

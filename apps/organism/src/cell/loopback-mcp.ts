@@ -78,6 +78,8 @@ export interface McpToolDescriptor {
   readonly name: string
   readonly description?: string
   readonly inputSchema?: Record<string, unknown>
+  /** Server metadata, e.g. `sophia.local.requiredScopes`. */
+  readonly _meta?: Record<string, unknown>
 }
 
 interface HttpResponse {

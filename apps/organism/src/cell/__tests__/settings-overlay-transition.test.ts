@@ -29,6 +29,7 @@ describe('in-place Settings transition', () => {
 
     const pushes: string[] = []
     const back = vi.fn()
+    const replaceState = vi.fn()
     const destroy = vi.fn()
     let closeFromRoute = (): void => undefined
     const transition = createSettingsOverlayTransition({
@@ -40,6 +41,7 @@ describe('in-place Settings transition', () => {
           pushes.push(String(url))
         },
         back,
+        replaceState,
       },
       mount(overlay, _location, onClose) {
         closeFromRoute = onClose
@@ -61,10 +63,11 @@ describe('in-place Settings transition', () => {
     expect(document.body.hasAttribute('data-organism-settings-open')).toBe(true)
 
     closeFromRoute()
-    expect(back).toHaveBeenCalledOnce()
-    expect(destroy).not.toHaveBeenCalled()
+    expect(back).not.toHaveBeenCalled()
+    expect(replaceState).toHaveBeenCalledWith({ workspace: 'garden' }, '', '/')
+    expect(destroy).toHaveBeenCalledOnce()
 
-    expect(transition.handlePopState(new URL('https://garden.test/g/vera'))).toBe(true)
+    expect(transition.isOpen).toBe(false)
     expect(destroy).toHaveBeenCalledOnce()
     expect(host.contains(workspace)).toBe(true)
     expect(host.inert).toBe(false)
@@ -82,7 +85,7 @@ describe('in-place Settings transition', () => {
     const pushState = vi.fn()
     const transition = createSettingsOverlayTransition({
       host,
-      history: { state: null, pushState, back: vi.fn() },
+      history: { state: null, pushState, replaceState: vi.fn(), back: vi.fn() },
       mount: () => routeMount(),
     })
 
@@ -98,7 +101,7 @@ describe('in-place Settings transition', () => {
     mounted.push(host)
     const transition = createSettingsOverlayTransition({
       host,
-      history: { state: null, pushState: vi.fn(), back: vi.fn() },
+      history: { state: null, pushState: vi.fn(), replaceState: vi.fn(), back: vi.fn() },
       mount: () => routeMount(),
     })
 

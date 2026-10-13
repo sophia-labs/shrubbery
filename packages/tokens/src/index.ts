@@ -20,14 +20,15 @@
 /**
  * dim-skin values.
  *
- * Garden, Emporium (the user-facing Sophia identity), 98, and Glass form the
- * global visual-identity cycle. Research and Greenhouse remain first-class,
- * app-owned skins on the same token axis, but are not part of that global
- * shared chrome control.
+ * Garden, Emporium (the user-facing Sophia identity), 98, Glass, Mithras, and
+ * Hotdog Stand form the global visual-identity set, in that order: it is the
+ * list the shared skin picker offers. Research and Greenhouse remain
+ * first-class, app-owned skins on the same token axis, but are not part of
+ * that global shared chrome control.
  */
-export type Skin = 'garden' | 'emporium' | '98' | 'glass' | 'research' | 'greenhouse' | 'observatory'
+export type Skin = 'garden' | 'emporium' | '98' | 'glass' | 'mithras' | 'hotdog-stand' | 'research' | 'greenhouse' | 'observatory'
 
-export const VISUAL_IDENTITY_SKINS = ['garden', 'emporium', '98', 'glass'] as const
+export const VISUAL_IDENTITY_SKINS = ['garden', 'emporium', '98', 'glass', 'mithras', 'hotdog-stand'] as const
 export type VisualIdentitySkin = (typeof VISUAL_IDENTITY_SKINS)[number]
 
 export const SKIN_LABELS: Readonly<Record<Skin, string>> = {
@@ -35,6 +36,8 @@ export const SKIN_LABELS: Readonly<Record<Skin, string>> = {
   emporium: 'Sophia',
   '98': '98',
   glass: 'Glass',
+  mithras: 'Mithras',
+  'hotdog-stand': 'Hotdog Stand',
   research: 'Research',
   greenhouse: 'Greenhouse',
   observatory: 'Observatory',
@@ -49,7 +52,11 @@ export function isVisualIdentitySkin(value: unknown): value is VisualIdentitySki
     && (VISUAL_IDENTITY_SKINS as readonly string[]).includes(value)
 }
 
-/** Advance the global Garden → Sophia → 98 → Glass → Garden identity cycle. */
+/**
+ * The successor in the global Garden → Sophia → 98 → Glass → Mithras → Hotdog Stand → Garden order, wrapping.
+ * No shell cycles with it any more: the chrome's skin picker lists every skin by its label and the user
+ * chooses (`mn-skin-select`). It stays as the registry's own order helper.
+ */
 export function nextVisualIdentitySkin(value: Skin | string): VisualIdentitySkin {
   const index = (VISUAL_IDENTITY_SKINS as readonly string[]).indexOf(value)
   return index < 0
@@ -129,6 +136,23 @@ export const SKIN_APPLICATIONS: Readonly<Record<Skin, ConfigValueApplication>> =
     attr: 'data-skin',
     value: 'glass',
   },
+  // Mithras stamps [data-skin=mithras] - Mithras Flow's whiteboard identity
+  // (light-only; see SKIN_FIXED_THEME).
+  mithras: {
+    literalValue: 'mithras',
+    appliesAttribute: '[data-skin=mithras]',
+    attr: 'data-skin',
+    value: 'mithras',
+  },
+  // Hotdog Stand stamps [data-skin=hotdog-stand] - the Windows 3.1 colour scheme of
+  // that name (yellow desktop, red windows, black captions); it has a dark register
+  // of its own ("After Hours"), so SKIN_FIXED_THEME does not pin it.
+  'hotdog-stand': {
+    literalValue: 'hotdog-stand',
+    appliesAttribute: '[data-skin=hotdog-stand]',
+    attr: 'data-skin',
+    value: 'hotdog-stand',
+  },
   // Research stamps [data-skin=research] - the SRS scholar-desk skin.
   research: {
     literalValue: 'research',
@@ -150,6 +174,23 @@ export const SKIN_APPLICATIONS: Readonly<Record<Skin, ConfigValueApplication>> =
     attr: 'data-skin',
     value: 'observatory',
   },
+}
+
+/**
+ * Skins that carry ONE register only. Mithras mirrors Mithras Flow, which has
+ * no dark mode; stamping data-theme=dark under it would let dark-keyed
+ * component rules (e.g. sh-chat-panel[data-theme=dark]) bleed into a light
+ * identity. applySkinTheme() stamps the fixed theme instead of the requested
+ * one; skin-mithras.css also pins its roles under [data-theme=dark] as a
+ * second fence.
+ */
+export const SKIN_FIXED_THEME: Readonly<Partial<Record<Skin, Theme>>> = {
+  mithras: 'light',
+}
+
+/** The theme actually rendered for a {skin, requested theme} pair. */
+export function effectiveTheme(skin: Skin, requested: Theme): Theme {
+  return SKIN_FIXED_THEME[skin] ?? requested
 }
 
 // ── dim-theme — appliesAttribute map (light/dark; system resolved by host) ────
@@ -304,7 +345,7 @@ export function applySkinTheme(
       ? (document.documentElement as unknown as AttrTarget)
       : undefined)
   const skin = SKIN_APPLICATIONS[opts.skin]
-  const theme = THEME_APPLICATIONS[opts.theme]
+  const theme = THEME_APPLICATIONS[effectiveTheme(opts.skin, opts.theme)]
   if (target) {
     apply(target, skin)
     apply(target, theme)
@@ -443,6 +484,60 @@ export const NINETY_EIGHT_PALETTE = {
 export const NINETY_EIGHT_FONT_SANS =
   "'Public Sans Variable', 'Public Sans', Arial, sans-serif"
 
+/**
+ * The Windows 3.1 "Hotdog Stand" colour scheme, as the CONTROL.INI [color schemes]
+ * section of a stock Windows 3.1x install carries it — verbatim. 21 values, one per
+ * Windows system colour, in WIN.INI [colors] key order (Desktop, Application
+ * Workspace, Window, Window Text, Menu Bar, Menu Text, Active Title Bar, Inactive
+ * Title Bar, Title Bar Text, Active Border, Inactive Border, Window Frame, Scroll
+ * Bars, Button Face, Button Shadow, Button Text, Gray Text, Highlight, Highlighted
+ * Text, Inactive Title Bar Text, Button Highlight); each is a COLORREF (0x00BBGGRR)
+ * in hex without leading zeros. The INI spells the name "Hotdog Stand".
+ * css/skin-hotdog-stand.css carries the slot-by-slot decoding and the sources;
+ * the token test decodes this line independently and holds both to it.
+ */
+export const HOTDOG_STAND_CONTROL_INI =
+  'Hotdog Stand=FFFF,FFFF,FF,FFFFFF,FFFFFF,0,0,FF,FFFFFF,FF,FF,0,C0C0C0,C0C0C0,808080,0,808080,0,FFFFFF,FFFFFF,FFFFFF'
+
+/** The scheme decoded: one #RRGGBB per Windows slot, in INI order (six distinct colours). */
+export const HOTDOG_STAND_PALETTE = {
+  desktop: '#FFFF00',
+  workspace: '#FFFF00',
+  window: '#FF0000',
+  windowText: '#FFFFFF',
+  menu: '#FFFFFF',
+  menuText: '#000000',
+  caption: '#000000',
+  captionInactive: '#FF0000',
+  captionText: '#FFFFFF',
+  borderActive: '#FF0000',
+  borderInactive: '#FF0000',
+  frame: '#000000',
+  scrollbar: '#C0C0C0',
+  face: '#C0C0C0',
+  shadow: '#808080',
+  buttonText: '#000000',
+  grayText: '#808080',
+  highlight: '#000000',
+  highlightText: '#FFFFFF',
+  captionTextInactive: '#FFFFFF',
+  light: '#FFFFFF',
+} as const
+
+/** Mithras Flow's whiteboard palette, as css/flow-tokens.css carries it (generated). */
+export const MITHRAS_FLOW_PALETTE = {
+  ink: '#111',
+  inkSoft: '#555',
+  inkFaint: '#999',
+  line: '#d9d9d9',
+  paper: '#fff',
+  paperDim: '#fafafa',
+  warn: '#b91c1c',
+} as const
+
+/** Flow's shippable font stack (GT Eesti dropped: licence unresolved, never shipped). */
+export const MITHRAS_FONT_SANS = "'Segoe UI', system-ui, sans-serif"
+
 /** Canonical Glass colors used by the translucent desktop skin. */
 export const GLASS_PALETTE = {
   sky: '#3A92CF',
@@ -535,9 +630,9 @@ export const GREENHOUSE_FONT_SANS =
 /** The Garden (default) accent + font, for the contrast assertion. */
 export const GARDEN_ACCENT = {
   /** accent (primary) = fern-600 */
-  accent: '#376d57',
+  accent: '#326f4c',
   /** fern-500 RGB channel triple */
-  accentChannel: '79 134 107',
+  accentChannel: '74 136 96',
 } as const
 
 export const GARDEN_FONT_CHROME =

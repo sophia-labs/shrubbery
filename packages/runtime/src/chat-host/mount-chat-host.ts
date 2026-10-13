@@ -26,10 +26,13 @@ import type { ChatService } from '../chat-services/chat-service.js'
 import type {
   ChatCodeCopyDetail,
   ChatHeaderActionDetail,
+  ChatHostCredits,
+  ChatHostWorkspace,
   ChatMessageActionDetail,
   ChatPresentation,
   ChatSessionActionDetail,
 } from './chat-host.js'
+import type { ConversationHomePorts } from './conversation-home-ports.js'
 // Side-effect import: registers the <sh-chat-host> custom element.
 import './chat-host.js'
 
@@ -56,6 +59,18 @@ export function mountChatHost(
     readonly onSessionAction?: (detail: ChatSessionActionDetail) => void
     readonly presentation?: ChatPresentation
     readonly composerReferenceResolver?: HojaWikiLinkResolver
+    /** What only the shell can do for the history drawer: save a copy, continue an import, download, the clock. */
+    readonly conversationHome?: ConversationHomePorts
+    /**
+     * What the shell lets the chat do about credits (the balance line, "Add credits"). Absent: neither.
+     * Written to the host on every render, so a render that no longer grants one takes it back.
+     */
+    readonly credits?: ChatHostCredits
+    /**
+     * What the shell lets the workspace chat do with what a turn changed (links, names, the live preview).
+     * Written to the host on every render, like credits.
+     */
+    readonly workspace?: ChatHostWorkspace
   } = {},
 ): unknown {
   if (!service) return nothing
@@ -68,6 +83,11 @@ export function mountChatHost(
       .sessionId=${sessionId ?? null}
       .presentation=${opts.presentation ?? 'rail'}
       .composerReferenceResolver=${opts.composerReferenceResolver}
+      .conversationHome=${opts.conversationHome}
+      .showBalance=${opts.credits?.showBalance === true}
+      .canAddCredits=${opts.credits?.canAddCredits === true}
+      .creditsNotice=${opts.credits?.notice}
+      .workspace=${opts.workspace}
       .onSurfaceAction=${opts.onSurfaceAction}
       .onMessageAction=${opts.onMessageAction}
       .onCodeCopy=${opts.onCodeCopy}

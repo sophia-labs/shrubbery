@@ -115,11 +115,81 @@ const EMPTY_DND_STATE: DndState = { sourcePos: null, indicator: null }
 
 export const blockDndKey = new PluginKey<DndState>('blockDnd')
 
+/**
+ * The element to resolve a document position from.
+ *
+ * NOT just closest([data-block-id]), and the difference is a real bug this
+ * fixes. A TABLE carries no block id — only its cells do, deliberately ("the
+ * wire source is the cell, not the table", block-id.ts) — so nothing in the
+ * chain above a table's drag handle has one:
+ *
+ *     handle in : tbody < table < div.tableWrapper < div.tiptap
+ *     closest   : NULL
+ *
+ * With a null hit, dragstart bails and sourcePos is never set, so the table
+ * cannot be picked up at all. Verified through the real handler
+ * (block-dnd-table-target.test.ts): buggy, sourcePos stays null; fixed, it is
+ * the table's own position.
+ *
+ * A CORRECTION, because the first version of this comment was confidently
+ * wrong and a wrong explanation is worse than none. It claimed the null also
+ * stopped dragover from calling preventDefault(), and that the browser
+ * therefore refused to deliver the drop. It does not: prosemirror-view merges
+ * its own editHandlers.dragover into the same dispatch table, and that one
+ * calls preventDefault() unconditionally whenever no plugin handler claims the
+ * event (prosemirror-view/dist/index.js, initInput). The drop was always
+ * delivered. What actually went wrong downstream is that OUR drop handler bails
+ * on the null sourcePos, so the event falls through to ProseMirror's generic
+ * slice-insert instead of the outliner-aware applyDrop — a different failure
+ * reached by a different path, which happens to look identical from a chair.
+ * Anyone optimising this later should know the browser was never the obstacle.
+ *
+ * The fallback is the nearest element that is a direct child of the editor
+ * root: the top-level block wrapper whatever the node type — a paragraph, or a
+ * .tableWrapper — which is exactly what .before(1) below resolves to a
+ * top-level position. Nothing about the drop math changes; only the search for
+ * a starting element stops assuming every block carries an id.
+ *
+ * WHEN THE FALLBACK FIRES is a coincidence between two lists that are
+ * maintained separately, and worth knowing before adding a node type: `table`
+ * is in OUTLINER_NODE_TYPES (outliner-tree.ts) but deliberately absent from
+ * BASE_BLOCK_TYPES (block-id.ts). Every other block type appears in both and is
+ * caught by the first branch. Add a draggable type to the first list without
+ * the second and it will quietly start depending on this geometric path rather
+ * than failing loudly as a missing id.
+ *
+ * One element genuinely does sit as a direct child of the root: ProseMirror's
+ * gapcursor widget, which StarterKit leaves enabled on the document profile.
+ * The walk can return it. That resolves safely rather than corrupting anything
+ * — ResolvedPos.before special-cases a depth+1 resolve by returning the
+ * position unchanged, which in this flat schema is the start of the following
+ * block — and at the end of the document blockIndexAtPos returns -1 and the
+ * drag fails closed exactly as it did before.
+ */
+function dragAnchorElement(view: EditorView, target: EventTarget | null): HTMLElement | null {
+  const el = target as HTMLElement | null
+  const identified = el?.closest?.('[data-block-id]') as HTMLElement | null
+  if (identified) return identified
+  const root = view.dom as HTMLElement
+  let node: HTMLElement | null = el
+  while (node && node !== root) {
+    if (node.parentElement === root) return node
+    node = node.parentElement
+  }
+  return null
+}
+
 function blockAtEvent(
   view: EditorView,
   event: { target: EventTarget | null },
 ): { dom: HTMLElement; pos: number } | null {
-  const el = (event.target as HTMLElement | null)?.closest?.('[data-block-id]') as HTMLElement | null
+  const positional = (event.target as HTMLElement | null)?.closest?.('[data-outliner-pos]') as HTMLElement | null
+  if (positional) {
+    const pos = Number(positional.dataset.outlinerPos)
+    const dom = view.nodeDOM(pos)
+    if (Number.isInteger(pos) && dom instanceof HTMLElement) return { dom, pos }
+  }
+  const el = dragAnchorElement(view, event.target)
   if (!el) return null
 
   try {
@@ -171,25 +241,6 @@ export const BlockDnd = Extension.create({
             const dndState = blockDndKey.getState(state)
             const decorations: Decoration[] = []
 
-            for (const block of blocks) {
-              const id = (block.node.attrs['data-block-id'] as string) || String(block.pos)
-              decorations.push(
-                Decoration.widget(
-                  block.pos + 1,
-                  () => {
-                    const handle = document.createElement('span')
-                    handle.className = 'block-drag-handle'
-                    handle.setAttribute('draggable', 'true')
-                    handle.setAttribute('contenteditable', 'false')
-                    handle.setAttribute('aria-label', 'Drag to move block')
-                    handle.title = 'Drag to move'
-                    return handle
-                  },
-                  { side: -1, key: `block-drag-handle-${id}`, ignoreSelection: true },
-                ),
-              )
-            }
-
             if (dndState?.sourcePos != null) {
               const index = blockIndexAtPos(blocks, dndState.sourcePos)
               if (index !== -1) {
@@ -221,7 +272,7 @@ export const BlockDnd = Extension.create({
           },
           handleDOMEvents: {
             dragstart: (view, event) => {
-              if (!view.editable) return false
+              if (!view.editable) { event.preventDefault(); return false }
               if (!(event.target as HTMLElement | null)?.closest?.('.block-drag-handle')) return false
 
               const hit = blockAtEvent(view, event)

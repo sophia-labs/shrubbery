@@ -73,6 +73,7 @@ function normalizedState(value: unknown): FilePaneSessionState {
     grouping: {
       separateArtifacts: groupingRecord.separateArtifacts !== false,
       showFolders: groupingRecord.showFolders !== false,
+      kind: groupingRecord.kind === 'documents' || groupingRecord.kind === 'files' ? groupingRecord.kind : 'all',
     },
     selectedIds,
     selectionAnchorId: typeof record.selectionAnchorId === 'string' ? record.selectionAnchorId : null,

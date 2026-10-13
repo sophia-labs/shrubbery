@@ -11,6 +11,7 @@ import { LitElement, css, html, nothing, unsafeCSS } from 'lit'
 import { customElement, property, query, state } from 'lit/decorators.js'
 import { classMap } from 'lit/directives/class-map.js'
 import { SkinAware } from './skin-aware.js'
+import { BEVELLED } from './bevelled-skins.js'
 import { icon, iconStyles } from './icons.js'
 
 export interface MnSearchInputDetail {
@@ -130,17 +131,17 @@ export class MnSearchInput extends SkinAware(LitElement) {
       outline: 2px solid var(--mn-focus-ring-color, var(--mn-color-border-focus, #2563eb));
       outline-offset: 1px;
     }
-    :host([data-skin='98']) .wrap {
+    :host(${BEVELLED}) .wrap {
       border: 0;
       border-radius: 0;
       background: var(--mn-color-surface-sunken);
       box-shadow: var(--mn-98-sunken);
     }
-    :host([data-skin='98']) .wrap.focused {
+    :host(${BEVELLED}) .wrap.focused {
       box-shadow: var(--mn-98-sunken), var(--mn-focus-ring);
     }
-    :host([data-skin='98']) .shortcut-chip,
-    :host([data-skin='98']) .clear-btn {
+    :host(${BEVELLED}) .shortcut-chip,
+    :host(${BEVELLED}) .clear-btn {
       border-radius: 0;
       background: var(--mn-98-face);
       box-shadow: var(--mn-98-raised);

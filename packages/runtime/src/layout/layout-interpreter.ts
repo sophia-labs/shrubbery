@@ -1008,7 +1008,9 @@ export class LayoutInterpreter {
     this.positionWrapper(state.outer, allocation)
     this.setConstrainedAttribute(state.outer, constrained)
     state.interior.style.gridTemplateColumns =
-      node.flow === 'stack' ? '1fr' : `repeat(auto-fill, minmax(${node.minCellWidth}px, 1fr))`
+      // An authored reflow minimum is a column preference, not permission
+      // to put the only column outside a smaller hidden-overflow viewport.
+      node.flow === 'stack' ? '1fr' : `repeat(auto-fill, minmax(min(100%, ${node.minCellWidth}px), 1fr))`
 
     if (node.children.kind === 'fixed') {
       // A grid that was collection-bound and just got `grid_set_cells`ed back

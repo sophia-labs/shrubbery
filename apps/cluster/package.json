@@ -1,0 +1,22 @@
+{
+  "name": "@shrubbery/cluster",
+  "version": "0.0.0",
+  "description": "Sophia Cluster's public site (cluster.sophia-labs.com): brochure and catalogue as plain static pages, no JavaScript. content/**/*.md -> build.mts -> dist/. Hosted on S3 + CloudFront (platform-next deploy/cluster-site; publish with its publish.sh).",
+  "type": "module",
+  "license": "LicenseRef-PolyForm-Noncommercial-1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "tsx build.mts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:run": "vitest run",
+    "pull": "tsx scripts/pull.mts"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.4",
+    "marked": "^14.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.4.5",
+    "vitest": "^3.2.6"
+  }
+}

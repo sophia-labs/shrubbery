@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Aviary — aigua field-recording library</title>
+    <style>
+      /* ── STRUCTURAL ONLY. Every colour / font / radius / density resolves
+         from @shrubbery/tokens' --mn-* role tokens (imported in main.ts), so
+         flipping skin or theme repaints the whole shell with no code here.
+         The class names below are the RUNTIME's, not ours: renderWorkspace
+         emits .app-container > (header, .main > (.rail-pane, .spine-pane >
+         .split-pane), footer). Giving that tree its heights is the one thing
+         a shell must do for the render host (see apps/atelier/index.html). ── */
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+      }
+      body {
+        display: flex;
+        flex-direction: column;
+        height: 100vh;
+        overflow: hidden;
+        font-family: var(--mn-font-chrome, system-ui, sans-serif);
+        color: var(--mn-color-text-primary, #111827);
+        background: var(--mn-color-surface-canvas, var(--mn-color-surface-base, #fff));
+      }
+
+      #host {
+        flex: 1 1 auto;
+        min-height: 0;
+        display: flex;
+      }
+      #host .app-container {
+        flex: 1 1 auto;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+      }
+      #host .app-container > header {
+        flex: 0 0 auto;
+      }
+      #host .app-container > footer {
+        flex: 0 0 auto;
+      }
+      #host .main {
+        flex: 1 1 auto;
+        display: flex;
+        flex-direction: row;
+        min-height: 0;
+        min-width: 0;
+      }
+      /* The left rail: a fixed-width chrome pane the runtime emits for a
+         non-resizable topChrome root that is not the top bar. */
+      #host .rail-pane {
+        flex: 0 0 var(--mn-left-panel-width, 240px);
+        min-height: 0;
+        display: flex;
+        overflow: hidden;
+      }
+      #host .rail-pane > * {
+        flex: 1 1 auto;
+        min-width: 0;
+      }
+      #host .spine-pane {
+        flex: 1 1 auto;
+        min-width: 0;
+        min-height: 0;
+        display: flex;
+      }
+      #host .split-pane {
+        flex: 1 1 auto;
+        min-width: 0;
+        min-height: 0;
+        display: flex;
+      }
+      #host .split-pane > * {
+        flex: 1 1 auto;
+        min-width: 0;
+      }
+
+      /* Boot-time status only. Once the transport strip exists it owns every
+         message, including errors — this is hidden the moment it does. */
+      .boot {
+        flex: 0 0 auto;
+        padding: 8px 14px;
+        font-family: ui-monospace, monospace;
+        font-size: 12px;
+        white-space: pre-wrap;
+        border-bottom: 1px solid var(--mn-color-border-subtle, #e5e7eb);
+        color: var(--mn-color-text-secondary, #4b5563);
+        background: var(--mn-color-surface-chrome, #f3f4f6);
+      }
+      .boot.err {
+        color: var(--mn-color-text-danger, #b91c1c);
+      }
+      .boot[hidden] {
+        display: none;
+      }
+
+      /* The single shell audio element. It is in the DOM (so a browser test can
+         read its real src) but never seen — the transport is the UI. */
+      #aviary-audio {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="boot" class="boot">booting…</div>
+    <!-- The ENTIRE interface below is stamped by @shrubbery/runtime from the
+         sux: layout graph. There is no markup for it here on purpose. -->
+    <div id="host"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

@@ -10,6 +10,7 @@ import { customElement, property } from 'lit/decorators.js'
 import { classMap } from 'lit/directives/class-map.js'
 import { icon as renderIcon, iconStyles } from './icons.js'
 import { SkinAware } from './skin-aware.js'
+import { BEVELLED } from './bevelled-skins.js'
 
 export type MnEmptyStateVariant = 'default' | 'compact' | 'inline'
 export type MnEmptyStateMood = 'neutral' | 'success' | 'warning' | 'danger'
@@ -129,7 +130,7 @@ export class MnEmptyState extends SkinAware(LitElement) {
       border-radius: var(--mn-radius-control, 4px);
       border: var(--mn-rule-line, 1px solid var(--mn-color-border-default, #d1d5db));
     }
-    :host([data-skin='98']) .icon-container {
+    :host(${BEVELLED}) .icon-container {
       border: 0;
       border-radius: 0;
       background: var(--mn-98-face);

@@ -37,6 +37,7 @@ import {
   type SourceMirrorStorage,
   type ResolveCurrentIntent,
   sourceOperationsForToolMutation,
+  retryable,
 } from '@shrubbery/source'
 import {
   type DocumentActivationManager,
@@ -46,7 +47,9 @@ import { IndexedDbSourceMirrorStorage } from './source-mirror-indexeddb.js'
 import {
   applyOfflineWorkspaceOverlay,
   offlineWorkspaceOverlay,
+  offlineWorkspaceOverlayKey,
 } from './offline-workspace-overlay.js'
+import { randomUUID } from '@shrubbery/nucleus/web-crypto'
 
 interface MirrorEntry {
   readonly userId: string
@@ -584,6 +587,10 @@ export class SourceMirrorRuntime {
     // some unrelated future activation. Once a complete idle mirror exists,
     // failed freshness pulls do not create an endless polling loop.
     if ((state.pending === 0 && state.complete) || state.fenced) return
+    // A permanent complete-mirror refusal is not a wake-up failure. Preserve
+    // the prior verified mirror/pending intents and visible error; do not
+    // reactivate the cell every30s to repeat an identical oversized pull.
+    if (!retryable(state.errorCode)) return
     const attempt = (this.syncRetryAttempts.get(graphId) ?? 0) + 1
     this.syncRetryAttempts.set(graphId, attempt)
     const delayMs = Math.min(30_000, 250 * (2 ** Math.min(attempt - 1, 7)))
@@ -940,39 +947,34 @@ export class SourceMirrorRuntime {
   }
 
   private randomId(): string {
-    return globalThis.crypto?.randomUUID?.()
-      ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
+    return randomUUID()
   }
 
   private randomUuid(): string {
-    const direct = globalThis.crypto?.randomUUID?.()
-    if (direct) return direct
-    const bytes = new Uint8Array(16)
-    if (globalThis.crypto?.getRandomValues) globalThis.crypto.getRandomValues(bytes)
-    else {
-      for (let index = 0; index < bytes.length; index += 1) {
-        bytes[index] = Math.floor(Math.random() * 256)
-      }
-    }
-    bytes[6] = ((bytes[6] ?? 0) & 0x0f) | 0x40
-    bytes[8] = ((bytes[8] ?? 0) & 0x3f) | 0x80
-    const hex = [...bytes].map(value => value.toString(16).padStart(2, '0')).join('')
-    return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
+    return randomUUID()
   }
 
   /**
-   * Stable within one mirror epoch and different across epochs. The Surface
-   * host treats service identity as a hard resource scope boundary, clearing
-   * retained derived stores before it reacquires query faces.
+   * Stable for the same authenticated readable snapshot, including its
+   * optimistic overlay. Status-only pulling/complete/error notifications do
+   * not change data identity. The Surface treats an identity change as a hard
+   * resource boundary, so a transient retry must not manufacture one.
    */
   surfaceQueryService(graphId: string): QueryBlockService {
     const entry = this.entry(graphId)
     const state = entry.manager.get()
+    const deleted = this.locallyDeleted(graphId, state.graphIncarnation)
+    const bundle = state.complete && !state.fenced && !deleted ? entry.manager.bundle() : undefined
     const identity = JSON.stringify([
       entry.userId,
+      this.options.auth.isAuthenticated(),
       graphId,
+      state.graphIncarnation,
       state.epoch,
       state.fenced ? 'fenced' : state.complete ? 'complete' : 'live',
+      deleted,
+      bundle?.manifest.sourceManifestHash ?? null,
+      bundle ? offlineWorkspaceOverlayKey(bundle, entry.manager.outboxRecords()) : null,
     ])
     const existing = this.surfaceServices.get(graphId)
     if (existing?.identity === identity) return existing.service
@@ -1044,7 +1046,9 @@ export class SourceMirrorRuntime {
   }
 
   private publish(entry: MirrorEntry): void {
-    this.surfaceServices.delete(entry.graphId)
+    // surfaceQueryService compares the actual read identity. Clearing its
+    // memo here used to remount notebook cells on every retry notification,
+    // even with byte-identical results and no graph/auth/content change.
     const state = entry.manager.get()
     for (const observer of this.observers) observer(entry.graphId, state)
   }

@@ -37,13 +37,13 @@ describe('FilePaneController', () => {
     first.setSelection('graph', { ids: ['doc', 'doc'], nodes: [], anchorId: 'doc' })
 
     const restored = new FilePaneController(storage).snapshot('graph')
-    expect(restored.grouping).toEqual({ separateArtifacts: false, showFolders: true })
+    expect(restored.grouping).toEqual({ separateArtifacts: false, showFolders: true, kind: 'all' })
     expect(restored.selectedIds).toEqual(['doc'])
 
     storage.data.set('shrubbery:file-pane:v1:broken', '{not-json')
     expect(new FilePaneController(storage).snapshot('broken')).toMatchObject({
       sort: { criterion: 'manual', direction: 'asc', foldersFirst: true },
-      grouping: { separateArtifacts: true, showFolders: true },
+      grouping: { separateArtifacts: true, showFolders: true, kind: 'all' },
     })
   })
 })

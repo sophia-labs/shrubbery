@@ -102,7 +102,8 @@ describe('QueryBlock Vega-Lite data contract', () => {
     const receivedSpec = receivedSpecs[0]
     expect(receivedSpec).toMatchObject({
       $schema: 'https://vega.github.io/schema/vega-lite/v6.json',
-      width: 460,
+      // the whole measured width: autosize fit contains the padding
+      width: 500,
       padding: 12,
       autosize: { type: 'fit', contains: 'padding' },
       data: { values: transformBindingsToVegaValues(bindings) },

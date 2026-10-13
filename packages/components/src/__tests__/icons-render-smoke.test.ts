@@ -52,6 +52,16 @@ describe('render-smoke — icon vocabulary', () => {
   })
 })
 
+/** The skin control is a picker: its trigger (an svg icon and a caret) lives in the dropdown inside the picker. */
+async function skinPickerTrigger(root: ShadowRoot): Promise<Element> {
+  const picker = root.querySelector('mn-skin-picker') as (HTMLElement & { updateComplete: Promise<unknown> }) | null
+  expect(picker, 'the bar carries the skin picker').not.toBeNull()
+  await picker!.updateComplete
+  const dropdown = picker!.shadowRoot!.querySelector('mn-dropdown-button') as HTMLElement & { updateComplete: Promise<unknown> }
+  await dropdown.updateComplete
+  return dropdown.shadowRoot!.querySelector('.trigger')!
+}
+
 describe('render-smoke — mn-top-bar renders icons, no emoji', () => {
   it('theme/skin/settings + masthead + switcher render <svg>, never emoji', async () => {
     const el = document.createElement('mn-top-bar') as MnTopBar
@@ -67,7 +77,7 @@ describe('render-smoke — mn-top-bar renders icons, no emoji', () => {
 
     // (a) the chrome action buttons each carry an inline <svg>.
     expect(btnByLabel(root, 'Toggle theme').querySelector('svg')).not.toBeNull()
-    expect(btnByLabel(root, 'Visual style').querySelector('svg')).not.toBeNull()
+    expect((await skinPickerTrigger(root)).querySelector('svg')).not.toBeNull()
     expect(btnByLabel(root, 'Settings').querySelector('svg')).not.toBeNull()
 
     // masthead brand glyph + both switcher tab glyphs are svgs too.
@@ -115,7 +125,7 @@ describe('render-smoke — mn-app-bar renders icons, no emoji', () => {
 
     // (a) chrome action buttons carry svgs.
     expect(btnByLabel(root, 'Toggle theme').querySelector('svg')).not.toBeNull()
-    expect(btnByLabel(root, 'Visual style').querySelector('svg')).not.toBeNull()
+    expect((await skinPickerTrigger(root)).querySelector('svg')).not.toBeNull()
     expect(btnByLabel(root, 'Settings').querySelector('svg')).not.toBeNull()
 
     // search glyph, clear button, and masthead glyph are svgs.
@@ -123,7 +133,8 @@ describe('render-smoke — mn-app-bar renders icons, no emoji', () => {
     expect(root.querySelector('.search-clear svg')).not.toBeNull()
     expect(root.querySelector('.masthead-glyph svg')).not.toBeNull()
 
-    expect(root.querySelectorAll('svg').length).toBeGreaterThanOrEqual(6)
+    // theme, settings, search, clear, masthead in the bar's own tree — the sixth, the skin's, is in the picker (above).
+    expect(root.querySelectorAll('svg').length).toBeGreaterThanOrEqual(5)
 
     // (b) NO emoji codepoint remains.
     const text = shadowText(root)

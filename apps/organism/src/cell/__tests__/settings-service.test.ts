@@ -15,10 +15,10 @@ class MemoryStorage implements Pick<Storage, 'getItem' | 'setItem'> {
 }
 
 describe('DefaultOrganismSettingsService', () => {
-  it('publishes the shell-owned Phanes workbench only when cross-graph authority exists', async () => {
+  it('publishes the shell-owned Phanes workbench only after explicit session authorization', async () => {
     const phanesControl = new PhanesControlApi({
       async callTool() { throw new Error('not called while projecting settings') },
-    })
+    }, { allowed: () => true, refresh: async () => true, assertAllowed: async () => {} })
     const service = createDefaultSettingsService({
       runtimeMode: 'hosted',
       phanesControl,
@@ -76,7 +76,7 @@ describe('DefaultOrganismSettingsService', () => {
     expect(readEditorMaterialPreference(storage)).toBe('continuous')
   })
 
-  it('publishes and persists the shared Garden, Sophia, 98, and Glass identity cycle', async () => {
+  it('publishes and persists the shared Garden, Sophia, 98, Glass, Mithras, and Hotdog Stand identity cycle', async () => {
     const storage = new MemoryStorage()
     const service = createDefaultSettingsService({ runtimeMode: 'local', storage })
     const initial = await service.load()
@@ -87,6 +87,8 @@ describe('DefaultOrganismSettingsService', () => {
       { value: 'emporium', label: 'Sophia' },
       { value: '98', label: '98' },
       { value: 'glass', label: 'Glass' },
+      { value: 'mithras', label: 'Mithras' },
+      { value: 'hotdog-stand', label: 'Hotdog Stand' },
     ])
 
     await service.select({ sectionId: 'appearance', settingId: 'skin', value: '98' })

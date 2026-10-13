@@ -2,7 +2,7 @@
  * Turtle codec — the serializer is sound because its emitted Turtle parses back
  * to the SAME triple set (a genuine inverse, no mock). We round-trip:
  *   - the real catalog resource triples,
- *   - the real GARDEN_DEFAULT workspace triples (275 triples, typed literals),
+ *   - the real GARDEN_DEFAULT workspace triples (282 triples, typed literals),
  *   - hand-built edge cases (typed literals, commas/quotes in literals, the `a`
  *     keyword for rdf:type, multi-object lists).
  */

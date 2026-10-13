@@ -2,7 +2,7 @@
 
 This is the explicit boundary definition for Shrubbery's public export: a
 **fresh-history publication** of the whole repository as it stands at the
-tip of `main`, minus exactly two directories. It is licensed
+tip of `main`, minus the exclusions listed below. It is licensed
 **source-available** under the [PolyForm Noncommercial License 1.0.0](LICENSE)
 — never described as OSS/open source — matching Garden's publication.
 
@@ -20,7 +20,7 @@ packages, the legal HTML pages (Shrubbery's own product text), demo-persona
 screenshots, and the hardcoded canary tenant identifiers used by the
 browser-side config (a public-by-design deployment detail, pinned by
 publication but not a secret). None of these required a judgment call; the
-two exclusions below are the only cuts.
+exclusions below are the only cuts.
 
 ## EXCLUDE (with reasons)
 
@@ -53,6 +53,24 @@ upstream licenses (VRM Public License 1.0 and the VRoid sample-avatar
 terms); excluding them avoids taking on that credit-notation obligation in
 a published repository, on top of matching their own provenance doc's
 stated intent.
+
+### An unreleased app (held back until it is released)
+
+One in-development app stays in the private repository until it is
+released. The cut is by name: every path whose name carries the app's id
+is left out (its organism modules and tests, its modules in
+`packages/domain-kit` and `packages/site`, its texts and editorial packets
+under `content/`, and its import tools under `tools/`), together with the
+few lines in shared code that register it (the app catalogue and its
+tile, the shell feature list, the mobile shell, the known-components list,
+the site-bundle catalogue and two `package.json` exports). Nothing else
+depends on it, and no dependency or lockfile entry changes.
+
+### Publication scrub
+
+Comments, test-fixture metadata and opaque test labels that name private
+working notes are rewritten to neutral text. Code behaviour does not
+change.
 
 ## Deviations from a plain "everything minus two directories" export
 

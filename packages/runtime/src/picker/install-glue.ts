@@ -918,7 +918,11 @@ function makeDefaultMount(doc: Document): HTMLElement {
   el.style.position = 'fixed'
   el.style.left = '-10000px'
   el.style.top = '-10000px'
-  el.style.zIndex = '10000'
+  // On the contract, not a magic number: the pickers are dropdowns, and this
+  // mount is what puts them above the shell once they escape the pane.
+  // setProperty rather than the .zIndex setter — both accept a var() today,
+  // but only setProperty is specified to.
+  el.style.setProperty('z-index', 'var(--mn-z-dropdown, 1000)')
   doc.body.appendChild(el)
   return el
 }

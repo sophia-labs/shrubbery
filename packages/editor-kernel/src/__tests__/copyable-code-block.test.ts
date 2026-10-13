@@ -4,10 +4,15 @@ import type { Node as ProseMirrorNode } from '@tiptap/pm/model'
 import {
   createCodeBlockNodeView,
   createKernelEditor,
+  fitMermaidSvg,
   isMermaidLanguage,
+  openMermaidFullscreen,
   kernelExtensions,
   mermaidSourceRenderKey,
   type MermaidRenderHost,
+  adoptEditorStyles,
+  FIGURE_ZOOM_MAX,
+  type FigureZoom,
 } from '../index'
 
 const editors: ReturnType<typeof createKernelEditor>[] = []
@@ -222,5 +227,99 @@ describe('CopyableCodeBlock — Mermaid lifecycle seam', () => {
     expect(unsubscribe).toHaveBeenCalledOnce()
     resolveFirst(true)
     await Promise.resolve()
+  })
+})
+
+describe('Mermaid figure — faces by stance (senderos mobile pass, 2026-09-25)', () => {
+  const host: MermaidRenderHost = {
+    render(_source, target) {
+      target.innerHTML = '<svg viewBox="0 0 660 300"><text style="font-size:16px">UH-01 · exact numerics</text></svg>'
+      return true
+    },
+  }
+
+  it('reads as the figure (read face), marked as an embed, with a 44px options affordance', () => {
+    const view = createCodeBlockNodeView(codeNode('graph TD; A-->B', 'mermaid'), { mermaid: host, renderDelayMs: 0 })
+    const wrapper = view.dom as HTMLElement
+    expect(wrapper.dataset.faceStance).toBe('read')
+    expect(wrapper.dataset.blockEmbed).toBe('')
+    const affordance = wrapper.querySelector<HTMLButtonElement>('.mermaid-affordance')!
+    expect(affordance.getAttribute('aria-label')).toBe('Diagram options')
+    affordance.click()
+    expect(wrapper.hasAttribute('data-chrome-open')).toBe(true)
+    expect(affordance.getAttribute('aria-expanded')).toBe('true')
+    affordance.click()
+    expect(wrapper.hasAttribute('data-chrome-open')).toBe(false)
+  })
+
+  it('opening the source turns the figure into its draft face', () => {
+    const view = createCodeBlockNodeView(codeNode('graph TD; A-->B', 'mermaid'), { mermaid: host, renderDelayMs: 0 })
+    const wrapper = view.dom as HTMLElement
+    wrapper.querySelector<HTMLButtonElement>('.mermaid-source-toggle')!.click()
+    expect(wrapper.dataset.faceStance).toBe('draft')
+  })
+
+  it('never scales labels below 11px: the diagram gets a legible minimum width', () => {
+    const preview = document.createElement('div')
+    document.body.appendChild(preview)
+    preview.innerHTML = '<svg viewBox="0 0 660 300"><text style="font-size:16px">x</text></svg>'
+    expect(fitMermaidSvg(preview)).toBe(Math.ceil(660 * (11 / 16)))
+    expect(preview.querySelector('svg')!.style.minWidth).toBe(`${Math.ceil(660 * (11 / 16))}px`)
+  })
+
+  it('the ⋯ lives in a bar above the figure, never inside it', () => {
+    const view = createCodeBlockNodeView(codeNode('graph TD; A-->B', 'mermaid'), { mermaid: host, renderDelayMs: 0 })
+    const wrapper = view.dom as HTMLElement
+    const children = Array.from(wrapper.children) as HTMLElement[]
+    const bar = children.find(el => el.classList.contains('mermaid-figure-bar'))!
+    const preview = children.find(el => el.classList.contains('mermaid-preview'))!
+    expect(bar.querySelector('.mermaid-affordance')).not.toBeNull()
+    expect(preview.querySelector('.mermaid-affordance')).toBeNull()
+    expect(Array.from(wrapper.children).indexOf(bar)).toBeLessThan(Array.from(wrapper.children).indexOf(preview))
+  })
+
+  it('full screen: above the app, zooms fit ⇄ 1:1, closes on Escape', () => {
+    const preview = document.createElement('div')
+    document.body.appendChild(preview)
+    preview.innerHTML = '<svg viewBox="0 0 660 300"><text>x</text></svg>'
+    const overlay = openMermaidFullscreen(preview) as HTMLElement & { figureZoom: FigureZoom }
+    expect(overlay.parentElement).toBe(document.body)
+    const zoom = overlay.figureZoom
+    expect(zoom.mode).toBe('fit')
+    expect(overlay.dataset.zoomMode).toBe('fit')
+    const canvas = overlay.querySelector<HTMLElement>('.mermaid-fullscreen-canvas')!
+    expect(canvas.style.width).toBe(`${Math.round(660 * zoom.fitScale)}px`)
+    zoom.zoomTo(2)
+    expect(zoom.mode).toBe('free')
+    expect(overlay.dataset.zoomMode).toBe('free')
+    expect(canvas.style.width).toBe('1320px')
+    expect(canvas.style.height).toBe('600px')
+    zoom.zoomTo(100)
+    expect(zoom.scale).toBe(FIGURE_ZOOM_MAX)
+    zoom.toggle()
+    expect(zoom.mode).toBe('fit')
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    expect(document.querySelector('.mermaid-fullscreen')).toBeNull()
+  })
+})
+
+describe('editor stylesheets reach the shadow root (2026-09-26)', () => {
+  it('adopts a kernel sheet into the shadow root the node renders in, once, before the host sheets', () => {
+    const host = document.createElement('div')
+    document.body.appendChild(host)
+    const root = host.attachShadow({ mode: 'open' })
+    const node = document.createElement('div')
+    root.appendChild(node)
+    expect(adoptEditorStyles(node, 'test-sheet', '.x{color:red}')).toBe(true)
+    expect(adoptEditorStyles(node, 'test-sheet', '.x{color:red}')).toBe(true)
+    const adopted = (root as ShadowRoot & { adoptedStyleSheets?: CSSStyleSheet[] }).adoptedStyleSheets
+    const inRoot = root.querySelectorAll('style[data-editor-style="test-sheet"]').length
+    // Constructable sheets where the DOM has them, a <style> in the root otherwise — never document.head.
+    expect((adopted?.length ?? 0) + inRoot).toBe(1)
+    expect(document.head.querySelector('[data-editor-style="test-sheet"]')).toBeNull()
+  })
+
+  it('does nothing until the node is connected', () => {
+    expect(adoptEditorStyles(document.createElement('div'), 'detached', '.y{}')).toBe(false)
   })
 })

@@ -13,7 +13,7 @@ import { applySkinTheme, type Skin, type Theme } from '@shrubbery/tokens'
 
 const preview: Preview = {
   // Toolbar globals = the two ConfigDimensions that are pure presentation:
-  // dim-skin (garden | emporium | 98 | glass | research | greenhouse) and dim-theme (light | dark). Orthogonal.
+  // dim-skin (garden | emporium | 98 | glass | mithras | hotdog-stand | research | greenhouse) and dim-theme (light | dark). Orthogonal.
   globalTypes: {
     skin: {
       description: 'Skin (sux dim-skin)',
@@ -26,6 +26,8 @@ const preview: Preview = {
           { value: 'emporium', title: 'Emporium (purple)' },
           { value: '98', title: '98 (classic desktop)' },
           { value: 'glass', title: 'Glass (luminous desktop)' },
+          { value: 'mithras', title: 'Mithras (Flow whiteboard)' },
+          { value: 'hotdog-stand', title: 'Hotdog Stand (Windows 3.1)' },
           { value: 'research', title: 'Research (SRS)' },
           { value: 'greenhouse', title: 'Greenhouse (sans Garden)' },
         ],

@@ -12,10 +12,20 @@
   /* ── Top bar / masthead ───────────────────────────────────────────────── */
   --mn-top-bar-height:     40px;
   /* Garden default masthead = fern 100/200/800/500 (a skin remaps these). */
-  --mn-top-bar-bg:         linear-gradient(102deg, #dcebe2 0%, #e7f0e9 58%, #e2ede6 100%);
-  --mn-top-bar-border:     rgba(43, 88, 70, 0.22);
+  --mn-top-bar-bg:         linear-gradient(102deg, #dbecde 0%, #e6f1e8 58%, #e1ede4 100%);
+  --mn-top-bar-border:     rgba(38, 90, 61, 0.22);
   --mn-top-bar-text:       var(--mn-ref-fern-800);
-  --mn-top-bar-text-muted: var(--mn-ref-fern-500);
+  --mn-top-bar-text-muted: var(--mn-ref-fern-700);  /* fern-500 read 3.4:1 on the fern-100 masthead */
+
+  /* ── App tiles (the launcher's colour-coded app glyphs) ────────────────
+   * Brand constants, not skin roles: an app keeps its colour in every skin so
+   * the launcher reads the same everywhere. Flat 2D shading: two tones split
+   * by one hard diagonal, no gloss. White glyphs clear 3:1 on every tone
+   * (lightest: fern-500 4.0:1, cobalt-400 3.6:1, purple-400 3.9:1). */
+  --mn-app-tile-garden:      linear-gradient(155deg, var(--mn-ref-fern-500) 0 58%, var(--mn-ref-fern-600) 58%);
+  --mn-app-tile-hoja:        linear-gradient(155deg, var(--mn-ref-fern-600) 0 58%, var(--mn-ref-fern-700) 58%);
+  --mn-app-tile-choreograph: linear-gradient(155deg, var(--mn-ref-cobalt-400) 0 58%, var(--mn-ref-cobalt-500) 58%);
+  --mn-app-tile-default:     linear-gradient(155deg, var(--mn-ref-purple-400) 0 58%, var(--mn-ref-purple-500) 58%);
 
   /* ── Bottom bar ───────────────────────────────────────────────────────── */
   --mn-bottom-bar-height:     30px;
@@ -50,4 +60,29 @@
   --mn-layout-tab-text-selected:  var(--mn-color-text-accent);
   --mn-layout-tab-bg-selected:    var(--mn-color-surface-accent);
   --mn-layout-tab-marker:         var(--mn-color-border-accent);
+
+  /* ── Files canvas (the card plane and the glyph it, the tree and the list share) ─
+   * The folder canvas reads these seven roles and nothing skin-specific, so a
+   * skin can change the canvas idiom without Files knowing which skin is
+   * active: no canvas palette object, no getComputedStyle resolver, no literal
+   * colour. Defaults are the semantic roles: a raised card on the room's
+   * canvas, primary ink on the card, the interactive-selected wash behind a
+   * selected caption. A skin overrides only what it wants to change.
+   *   --mn-files-card-surface: `transparent` draws desktop icons (no card).
+   *   --mn-files-glyph-stroke: the file glyph's outline at rest. An icon has to
+   *     be found by eye, so it must reach 3:1 against every surface it sits on
+   *     (WCAG 1.4.11): a border role, made to sit quietly beside content, does
+   *     not (1.6:1 in Garden). files-roles.test.ts measures it in every skin
+   *     and theme; a skin whose default falls short overrides it.
+   * 98 overrides five of them to go period (skin-98.css). Hot Dog Stand's
+   * defaults already read right: yellow desktop, silver cards, black ink.
+   * Like every family here these resolve on the root element, where skins and
+   * themes are stamped. */
+  --mn-files-canvas-surface:       var(--mn-color-surface-canvas);
+  --mn-files-card-surface:         var(--mn-color-surface-raised);
+  --mn-files-label-ink:            var(--mn-color-text-primary);
+  --mn-files-label-selected-wash:  var(--mn-color-interactive-selected);
+  --mn-files-label-selected-ink:   var(--mn-color-text-primary);
+  --mn-files-glyph-stroke:         var(--mn-color-text-quiet);
+  --mn-files-grid-step:            8px;
 }

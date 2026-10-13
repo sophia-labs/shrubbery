@@ -5,7 +5,7 @@ import { GardendLocalAiSettings } from '../local-ai-settings.js'
 const GRAPH_ID = 'local-ai-graph'
 const BASE = `https://cell.example/g/${GRAPH_ID}`
 
-function contract(): Pick<ShrubberyContract, 'auth' | 'runtime'> {
+function contract(mode: 'local' | 'hosted' = 'local'): Pick<ShrubberyContract, 'auth' | 'runtime'> {
   return {
     auth: {
       token: () => 'local-ai-token',
@@ -15,8 +15,8 @@ function contract(): Pick<ShrubberyContract, 'auth' | 'runtime'> {
       onChange: () => () => undefined,
     },
     runtime: {
-      mode: () => 'local',
-      isGateway: () => false,
+      mode: () => mode,
+      isGateway: () => mode === 'hosted',
       graphBaseUrl: () => BASE,
     },
   }
@@ -77,6 +77,8 @@ function backend(overrides: Record<string, (request: RecordedRequest) => Respons
       },
     ])
     if (request.path.endsWith(`/api/semantic/index/status/${GRAPH_ID}`)) return json({
+      graphId: GRAPH_ID,
+      exists: true,
       documentCount: 3,
       blockCount: 17,
       staleDocumentCount: 1,
@@ -147,6 +149,19 @@ const emptySection = {
 } as const
 
 describe('GardendLocalAiSettings', () => {
+  it.each(['local', 'hosted'] as const)('sends the real %s status/index requests with mode-correct identity', async mode => {
+    const fixture = backend()
+    const settings = new GardendLocalAiSettings(contract(mode), GRAPH_ID, { fetch: fixture.fetch, runtimeMode: mode, canWrite: async () => false })
+    await settings.ensureLoaded()
+    expect(fixture.requests).toHaveLength(mode === 'local' ? 6 : 2)
+    for (const request of fixture.requests) {
+      expect(request.authorization).toBe('Bearer local-ai-token')
+      expect(request.userId).toBe(mode === 'local' ? 'local-ai-user' : null)
+      expect(request.method).toBe('GET')
+    }
+    expect(settings.decorateSection(emptySection).metrics?.find(metric => metric.id === 'semantic-index-status')?.value).toBe('17 blocks')
+  })
+
   it('projects real model, index, and ingestion state without advertising unwired engines', async () => {
     const fixture = backend()
     const settings = new GardendLocalAiSettings(contract(), GRAPH_ID, { fetch: fixture.fetch })

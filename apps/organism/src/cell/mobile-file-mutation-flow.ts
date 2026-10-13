@@ -2,6 +2,7 @@ import type {
   FilePaneOperationAction,
   FilePaneOperationFeedback,
 } from '@shrubbery/nucleus'
+import { randomUUID } from '@shrubbery/nucleus/web-crypto'
 
 export interface MobileFileMutationIntent {
   readonly action: FilePaneOperationAction
@@ -107,13 +108,8 @@ export function classifyMobileFileMutationFailure(error: unknown): MobileFileMut
   return { state: 'indeterminate', message, retryable: false }
 }
 
-let nextMutationId = 0
-
 function defaultIdFactory(): string {
-  const uuid = globalThis.crypto?.randomUUID?.()
-  if (uuid) return `mobile-file-${uuid}`
-  nextMutationId += 1
-  return `mobile-file-${Date.now().toString(36)}-${nextMutationId.toString(36)}`
+  return `mobile-file-${randomUUID()}`
 }
 
 function defaultIndeterminateMessage(): string {

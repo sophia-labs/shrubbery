@@ -173,7 +173,7 @@
 
   /* surface-accent wash follows the (now-light) accent-ch in dark. */
   --mn-color-accent-ch:      181 159 224;   /* purple-300 RGB */
-  --mn-color-surface-accent: rgba(var(--mn-color-accent-ch), 0.12);
+  --mn-color-surface-accent: rgb(var(--mn-color-accent-ch) / 0.12);
 
   /* ── Surfaces — cool dark Swiss (not the warm Garden ink) ──────────────── */
   --mn-color-surface-base:   #120d1c;   /* deep cool charcoal-purple */

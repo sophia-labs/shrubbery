@@ -56,10 +56,10 @@
   --mn-color-surface-overlay:  #fffdf8;
   --mn-color-surface-subtle:   #f2f0eb;
   --mn-color-surface-warm:     #faf6ec;
-  --mn-color-surface-sunken: rgba(var(--research-accent-ch), 0.055);
-  --mn-color-surface-hover:  rgba(var(--research-accent-ch), 0.075);
-  --mn-color-surface-active: rgba(var(--research-accent-ch), 0.12);
-  --mn-color-surface-accent-subtle: rgba(var(--research-accent-ch), 0.08);
+  --mn-color-surface-sunken: rgb(var(--research-accent-ch) / 0.055);
+  --mn-color-surface-hover:  rgb(var(--research-accent-ch) / 0.075);
+  --mn-color-surface-active: rgb(var(--research-accent-ch) / 0.12);
+  --mn-color-surface-accent-subtle: rgb(var(--research-accent-ch) / 0.08);
   --mn-color-surface-accent-strong: #dfe8f3;
   --mn-color-backdrop: rgba(28, 34, 47, 0.30);
   --mn-atmosphere:
@@ -137,7 +137,7 @@
   --research-accent-ch:     169 186 216;
 
   --mn-color-accent-ch:      var(--research-accent-ch);
-  --mn-color-surface-accent: rgba(var(--research-accent-ch), 0.14);
+  --mn-color-surface-accent: rgb(var(--research-accent-ch) / 0.14);
   --mn-focus-ring-color:     rgb(var(--research-accent-ch) / 0.72);
 
   --mn-color-surface-base:   #141821;
@@ -151,10 +151,10 @@
   --mn-color-surface-subtle:   #191e29;
   --mn-color-surface-warm:     #24242a;
   --mn-color-surface-sunken: rgba(0, 0, 0, 0.28);
-  --mn-color-surface-hover:  rgba(var(--research-accent-ch), 0.07);
-  --mn-color-surface-active: rgba(var(--research-accent-ch), 0.12);
-  --mn-color-surface-accent-subtle: rgba(var(--research-accent-ch), 0.08);
-  --mn-color-surface-accent-strong: rgba(var(--research-accent-ch), 0.20);
+  --mn-color-surface-hover:  rgb(var(--research-accent-ch) / 0.07);
+  --mn-color-surface-active: rgb(var(--research-accent-ch) / 0.12);
+  --mn-color-surface-accent-subtle: rgb(var(--research-accent-ch) / 0.08);
+  --mn-color-surface-accent-strong: rgb(var(--research-accent-ch) / 0.20);
   --mn-color-backdrop: rgba(2, 4, 9, 0.66);
   --mn-atmosphere:
     radial-gradient(circle at 52% -16%, rgba(169, 186, 216, 0.09), transparent 40%),

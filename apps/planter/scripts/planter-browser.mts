@@ -218,20 +218,24 @@ async function main(): Promise<void> {
           button.click()
         }, selector)
       }
-      await clickTopBar('button[data-action="skin"]')
-      await page.waitForFunction(() => document.documentElement.dataset.skin === 'emporium')
-      await clickTopBar('button[data-action="skin"]')
-      await page.waitForFunction(() => document.documentElement.dataset.skin === '98')
-      await clickTopBar('button[data-action="skin"]')
-      await page.waitForFunction(() => document.documentElement.dataset.skin === 'glass')
+      // The skin control is a picker (a drop-down listing every skin): open it, choose from the list.
+      const chooseSkin = async (id: string): Promise<void> => {
+        await page!.locator('mn-top-bar mn-skin-picker button.trigger').click()
+        await page!.locator(`mn-top-bar mn-skin-picker [data-menu-item-id="${id}"]`).click()
+        await page!.waitForFunction((skin) => document.documentElement.dataset.skin === skin, id)
+      }
+      await chooseSkin('emporium')
+      await chooseSkin('98')
+      await chooseSkin('hotdog-stand')
+      await chooseSkin('glass')
       await clickTopBar('button[aria-label="Toggle theme"]')
       await page.waitForFunction(() => document.documentElement.dataset.theme === 'dark')
       await clickTopBar('button[aria-label="Settings"]')
       await page.waitForFunction(() => document.querySelector('.planter-bundle-notice')?.textContent?.includes('DEFERRED'))
       await page.evaluate(() => {
-        const masthead = document.querySelector('mn-top-bar')?.shadowRoot?.querySelector<HTMLElement>('.masthead')
-        if (!masthead) throw new Error('top-bar masthead not found')
-        masthead.click()
+        const home = document.querySelector('mn-top-bar')?.shadowRoot?.querySelector<HTMLElement>('[data-app-action="home"]')
+        if (!home) throw new Error('top-bar Home toolbar button not found')
+        home.click()
       })
       await page.waitForSelector('mn-home-view', { state: 'attached' })
       await page.waitForFunction(() => document.querySelector<HTMLElement>('#app')?.dataset.siteRoute === 'home')

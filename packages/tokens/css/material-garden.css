@@ -1,0 +1,159 @@
+/* ═══ MATERIAL: Garden liquid glass (the floating control layer only) ════════
+ * Garden's glass is a MATERIAL, not a skin: it belongs to surfaces that float
+ * above the document — context menus, dropdown menus, the workspace popover,
+ * toasts. Document content (editor paper, sidebars, cards, chat transcript)
+ * stays opaque. The docked top/bottom bars are chrome but they do not float
+ * (nothing scrolls beneath them), so they take the material's EDGE (specular
+ * hairline + fern tint) and stay solid: the "hard" scroll-edge style, and no
+ * backdrop-filter on a host that has position:fixed descendants.
+ *
+ * Contract (consumed by components with a fallback chain, so every other skin
+ * is untouched — the tokens exist only under the Garden scope):
+ *   --mn-material-popover-bg      translucent tint (solid under fallbacks)
+ *   --mn-material-popover-filter  backdrop-filter recipe (none under fallbacks)
+ *   --mn-material-popover-edge    hairline border colour
+ *   --mn-material-popover-shadow  specular inset + contact + lift
+ *   --mn-material-specular        1px top highlight, reused by bar chrome
+ *
+ * Numbers (from the 2026-09-22 liquid-green study):
+ *   tint alpha 0.84 light / 0.86 dark — AA holds for body text even over a
+ *   fully dark (light theme) or fully light (dark theme) backdrop, because the
+ *   filter also compresses the backdrop: contrast(0.6) + brightness(1.15 | 0.7).
+ *   blur 20px, saturate 160% light / 140% dark.
+ *
+ * Fallbacks go solid, never "a bit less glass":
+ *   @supports not backdrop-filter · prefers-reduced-transparency: reduce ·
+ *   prefers-contrast: more (also a stronger edge) · forced-colors: active.
+ *
+ * Scope: the Garden default is "[data-skin] absent" on the root, or an explicit
+ * [data-skin=garden]. :is() carries the stronger argument's specificity (0,2,0),
+ * so the light block beats theme-dark's (0,1,0) literals; the dark block is
+ * (0,3,0).
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+:is(:root:not([data-skin]), [data-skin="garden"]) {
+  --mn-material-popover-tint:  rgb(255 254 250 / 0.84);   /* surface-raised @ .84 */
+  --mn-material-popover-solid: var(--mn-color-surface-raised);
+  --mn-material-popover-filter-glass: blur(20px) saturate(160%) contrast(0.6) brightness(1.15);
+  --mn-material-popover-edge:  rgb(30 69 48 / 0.16);      /* fern-800 hairline */
+  --mn-material-popover-text-muted: #625d56;
+  --mn-material-specular:      inset 0 1px 0 rgb(255 255 255 / 0.62);
+  --mn-material-lift:          0 1px 2px rgb(22 50 35 / 0.08), 0 12px 32px rgb(22 50 35 / 0.14);
+
+  /* Live values (the fallback blocks below re-point only these two). */
+  --mn-material-popover-bg:     var(--mn-material-popover-tint);
+  --mn-material-popover-filter: var(--mn-material-popover-filter-glass);
+  --mn-material-popover-shadow: var(--mn-material-specular), var(--mn-material-lift);
+
+  /* Docked bars keep their solid fern masthead (component.css / theme-dark.css)
+     and take the material's specular edge. */
+  --mn-shadow-chrome:      var(--mn-material-specular), 0 1px 5px rgb(22 50 35 / 0.05);
+  --mn-top-bar-height:     46px;
+
+  /* Garden control material — flat, 2D. Vera found the glossy sphere loud,
+     so the language is now minimal: tonal fills, hairlines, and HARD-EDGED
+     shading (a 1px lip instead of a blurred shadow, a crisp crescent instead
+     of a specular gloss). No gradients that imitate light, no blur. */
+  --mn-garden-control-bg:        var(--mn-color-surface-raised);
+  --mn-garden-control-bg-hover:  var(--mn-ref-fern-50);
+  --mn-garden-control-bg-active: var(--mn-ref-fern-100);
+  --mn-garden-control-edge:      rgb(30 69 48 / 0.16);
+  --mn-garden-control-text:      var(--mn-ref-fern-800);
+  /* The lip: a 1px, zero-blur shade under the control — a printed edge. */
+  --mn-garden-control-shadow:    0 1px 0 rgb(30 69 48 / 0.12);
+  --mn-garden-control-shadow-active: inset 0 1px 0 rgb(30 69 48 / 0.10);
+  /* The mark: a tonal fern disc with a hard crescent of shade at lower
+     right (two flat tones, one crisp edge) and a hairline ring. */
+  --mn-garden-orb:
+    radial-gradient(circle at 42% 38%, var(--mn-ref-fern-100) 0 60%, var(--mn-ref-fern-200) calc(60% + 0.5px));
+  --mn-garden-orb-mark:          var(--mn-ref-fern-800);
+  --mn-garden-orb-shadow:        inset 0 0 0 1px rgb(30 69 48 / 0.14);
+  /* Switch "on": flat accent, never the disc. */
+  --mn-garden-track-on:          var(--mn-color-accent);
+  /* Opaque content cards: a hairline and the same 1px lip. */
+  --mn-garden-card-edge:         rgb(30 69 48 / 0.11);
+  --mn-garden-card-shadow:       0 1px 0 rgb(30 69 48 / 0.07);
+  --mn-garden-track-off:         var(--mn-ref-parchment-200);
+  --mn-garden-track-edge:        var(--mn-ref-parchment-500);
+}
+
+[data-theme="dark"]:is(:root:not([data-skin]), [data-skin="garden"]) {
+  --mn-material-popover-tint:  rgb(39 44 37 / 0.86);      /* surface-raised @ .86 */
+  --mn-material-popover-filter-glass: blur(20px) saturate(140%) contrast(0.6) brightness(0.7);
+  --mn-material-popover-edge:  rgb(188 218 195 / 0.14);   /* fern-200 hairline */
+  --mn-material-popover-text-muted: #b4baae;
+  --mn-material-specular:      inset 0 1px 0 rgb(255 255 255 / 0.07);
+  --mn-material-lift:          0 1px 2px rgb(0 0 0 / 0.30), 0 16px 40px rgb(0 0 0 / 0.42);
+
+  --mn-shadow-chrome:      var(--mn-material-specular), 0 2px 7px rgb(0 0 0 / 0.18);
+
+  --mn-garden-control-bg:        var(--mn-color-surface-raised);
+  --mn-garden-control-bg-hover:  rgb(150 192 160 / 0.10);
+  --mn-garden-control-bg-active: rgb(150 192 160 / 0.18);
+  --mn-garden-control-edge:      rgb(188 218 195 / 0.16);
+  --mn-garden-control-text:      var(--mn-ref-fern-100);
+  --mn-garden-control-shadow:    0 1px 0 rgb(0 0 0 / 0.40);
+  --mn-garden-control-shadow-active: inset 0 1px 0 rgb(0 0 0 / 0.35);
+  --mn-garden-orb:
+    radial-gradient(circle at 42% 38%, rgb(150 192 160 / 0.20) 0 60%, rgb(150 192 160 / 0.11) calc(60% + 0.5px));
+  --mn-garden-orb-mark:          var(--mn-ref-fern-200);
+  --mn-garden-orb-shadow:        inset 0 0 0 1px rgb(188 218 195 / 0.18);
+  --mn-garden-card-edge:         rgb(188 218 195 / 0.10);
+  --mn-garden-card-shadow:       0 1px 0 rgb(0 0 0 / 0.35);
+  --mn-garden-track-off:         var(--mn-color-surface-sunken);
+  --mn-garden-track-edge:        var(--mn-ref-ink-500);
+}
+
+/* ── Fallbacks: solid material, same geometry ─────────────────────────────── */
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :is(:root:not([data-skin]), [data-skin="garden"]) {
+    --mn-material-popover-bg:     var(--mn-material-popover-solid);
+    --mn-material-popover-filter: none;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  :is(:root:not([data-skin]), [data-skin="garden"]),
+  [data-theme="dark"]:is(:root:not([data-skin]), [data-skin="garden"]) {
+    --mn-material-popover-bg:     var(--mn-material-popover-solid);
+    --mn-material-popover-filter: none;
+    --mn-garden-control-bg:       var(--mn-color-surface-raised);
+    --mn-garden-control-bg-hover: var(--mn-color-surface-elevated);
+  }
+}
+
+/* The in-app preference also covers browsers without the media query. */
+:root[data-reduced-transparency]:is(:not([data-skin]), [data-skin="garden"]) {
+  --mn-material-popover-bg:     var(--mn-material-popover-solid);
+  --mn-material-popover-filter: none;
+  --mn-garden-control-bg:       var(--mn-color-surface-raised);
+  --mn-garden-control-bg-hover: var(--mn-color-surface-elevated);
+}
+
+@media (prefers-contrast: more) {
+  :is(:root:not([data-skin]), [data-skin="garden"]),
+  [data-theme="dark"]:is(:root:not([data-skin]), [data-skin="garden"]) {
+    --mn-material-popover-bg:     var(--mn-material-popover-solid);
+    --mn-material-popover-filter: none;
+    --mn-material-popover-edge:   var(--mn-color-border-strong);
+    --mn-material-specular:       0 0 0 transparent;
+    --mn-top-bar-text-muted:      var(--mn-top-bar-text);
+    --mn-top-bar-border:          var(--mn-color-border-strong);
+    --mn-garden-control-bg:       var(--mn-color-surface-raised);
+    --mn-garden-control-bg-hover: var(--mn-color-surface-elevated);
+    --mn-garden-control-edge:     var(--mn-color-border-strong);
+    --mn-garden-control-text:     var(--mn-color-text-primary);
+    --mn-garden-card-edge:        var(--mn-color-border-strong);
+  }
+}
+
+@media (forced-colors: active) {
+  :is(:root:not([data-skin]), [data-skin="garden"]),
+  [data-theme="dark"]:is(:root:not([data-skin]), [data-skin="garden"]) {
+    --mn-material-popover-bg:     Canvas;
+    --mn-material-popover-filter: none;
+    --mn-material-popover-edge:   CanvasText;
+    --mn-material-specular:       0 0 0 transparent;
+  }
+}

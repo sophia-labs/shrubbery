@@ -40,6 +40,7 @@
  */
 
 import * as Y from 'yjs'
+export { captureEditorSelection, editorBlockContext, placeCaretInBlock } from './editor-interaction.js'
 import { css, unsafeCSS } from 'lit'
 import { Editor, Extension, type JSONContent } from '@tiptap/core'
 import Collaboration from '@tiptap/extension-collaboration'
@@ -55,10 +56,14 @@ import {
   kernelExtensions,
   tagChipStyles,
   wikilinkStyles,
+  setWireHighlight,
+  setWiredBlocks,
   type CitationAttrs,
   type KernelOptions,
   type SlashCommandId,
   type TagChipAttrs,
+  type WireHighlightMode,
+  type WiredBlockEntry,
   type WikiLinkAttrs,
 } from '@shrubbery/editor-kernel'
 
@@ -135,6 +140,60 @@ function zoomLabel(node: { textContent: string }): string {
  * The plugin remains the source of truth; this helper just gives the island host
  * an opaque, serializable snapshot without importing the kernel there.
  */
+/**
+ * Move the wire highlight, through the kernel's decoration plugin.
+ *
+ * THIS INDIRECTION IS THE POINT, not ceremony: `editor-host.ts` is island-
+ * scanned and forbidden from importing @shrubbery/editor-kernel, so the host
+ * cannot call the plugin helper directly. Same shape the wikilink insert and
+ * the outliner commands already use — the collab plane owns the kernel import,
+ * the host reaches through it.
+ *
+ * The mode alias is re-exported for the same reason: the host needs to NAME
+ * hover vs arrival without importing the kernel's type.
+ */
+export type LiveWireHighlightMode = WireHighlightMode
+
+export type LiveWiredBlockEntry = WiredBlockEntry
+
+/**
+ * Replace the set of blocks wearing a wire indicator bubble. Same indirection
+ * and same reason as setLiveWireHighlight below — and the same bug history:
+ * the indicator was a DOM attribute too, and died to the same redraws.
+ */
+export function setLiveWiredBlocks(
+  editor: unknown,
+  wired: readonly LiveWiredBlockEntry[],
+): boolean {
+  const view = usableView(editor)
+  return view ? setWiredBlocks(view, wired) : false
+}
+
+/** The opaque->concrete resolution, in the one place the contract allows it. */
+function usableView(editor: unknown): Parameters<typeof setWireHighlight>[0] | null {
+  const view = (editor as { view?: unknown } | null | undefined)?.view
+  const dispatchable = typeof (view as { dispatch?: unknown } | undefined)?.dispatch === 'function'
+  const stateful = Boolean((view as { state?: unknown } | undefined)?.state)
+  if (!view || !dispatchable || !stateful) return null
+  return view as Parameters<typeof setWireHighlight>[0]
+}
+
+export function setLiveWireHighlight(
+  editor: unknown,
+  blockId: string | null,
+  mode: LiveWireHighlightMode = 'hover',
+): boolean {
+  // `unknown` because the host holds the editor as RawLiveEditor — a narrow
+  // structural shape whose `view` exposes dispatch/dom/posAtDOM but not
+  // `state`. Naming the concrete type belongs HERE: the collab plane is the
+  // sanctioned place to resolve the contract's opacity (the same rule as the
+  // `doc as Y.Doc` cast in createLiveCollabEditor below). Guarded rather than
+  // blind-cast, so a shape that cannot serve the plugin returns false instead
+  // of throwing inside a hover handler.
+  const view = usableView(editor)
+  return view ? setWireHighlight(view, blockId, mode) : false
+}
+
 export function liveZoomSnapshot(editor: Pick<Editor, 'state'>): LiveZoomSnapshot {
   const blockId = getZoomedBlockId(editor.state)
   if (!blockId) return EMPTY_ZOOM_SNAPSHOT
@@ -252,6 +311,91 @@ export const collaborationCursorStyles = css`
 export const editorSemanticStyles = css`
   ${unsafeCSS(wikilinkStyles)}
   ${unsafeCSS(tagChipStyles)}
+  /* Content kept verbatim because this editor cannot render it yet
+     (editor-kernel extensions/unsupported-content.ts). */
+  .unsupported-block {
+    margin: 0.5em 0;
+    padding: 0.55em 0.8em 0.6em;
+    border-left: 2px solid color-mix(in srgb, currentColor 22%, transparent);
+    background: color-mix(in srgb, currentColor 3.5%, transparent);
+    border-radius: 0 4px 4px 0;
+    cursor: default;
+  }
+  .unsupported-block-label {
+    display: block;
+    margin-bottom: 0.2em;
+    font: 500 var(--mn-text-2xs, 0.72rem)/1.4 var(--mn-font-chrome, system-ui, sans-serif);
+    letter-spacing: 0.02em;
+    color: var(--mn-color-text-tertiary, #697386);
+  }
+  .unsupported-block-label::after {
+    content: ' · kept as stored, read-only here';
+    opacity: 0.8;
+  }
+  /* One line per item: the binding keeps the original's line structure. */
+  .unsupported-block-text { display: block; }
+  .unsupported-block-line {
+    display: block;
+    padding-left: calc(var(--unsupported-indent, 0) * 1.1em);
+    white-space: pre-wrap;
+  }
+  .unsupported-block-line[data-item] {
+    padding-left: calc(0.85em + var(--unsupported-indent, 0) * 1.1em);
+    text-indent: -0.85em;
+  }
+  /* gardend block contract: unknown content stored as opaqueBlock
+     (editor-kernel extensions/unsupported-content.ts OpaqueBlock). The same
+     quiet frame as the placeholder above: the type as a mono chip, the text,
+     and the stored JSON on request. */
+  .opaque-block {
+    margin: 0.5em 0;
+    padding: 0.5em 0.8em 0.6em;
+    border-left: 2px solid color-mix(in srgb, currentColor 22%, transparent);
+    background: color-mix(in srgb, currentColor 3.5%, transparent);
+    border-radius: 0 4px 4px 0;
+    cursor: default;
+  }
+  .opaque-block-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.2em 0.6em;
+    margin-bottom: 0.25em;
+    font: 500 var(--mn-text-2xs, 0.72rem)/1.4 var(--mn-font-chrome, system-ui, sans-serif);
+    color: var(--mn-color-text-tertiary, #697386);
+  }
+  .opaque-block-type {
+    padding: 0.05em 0.45em;
+    border-radius: 4px;
+    background: color-mix(in srgb, currentColor 8%, transparent);
+    color: var(--mn-color-text-secondary, #475467);
+    font: 500 var(--mn-text-2xs, 0.72rem)/1.5 var(--mn-font-mono, ui-monospace, monospace);
+  }
+  .opaque-block-note { flex: 1; min-width: 0; opacity: 0.8; }
+  .opaque-block-source-toggle {
+    min-height: 32px;
+    padding: 0 0.5em;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-decoration: underline dotted;
+    cursor: pointer;
+  }
+  .opaque-block-source-toggle:hover { color: var(--mn-color-text-primary, #1f2933); }
+  .opaque-block-text { display: block; }
+  .opaque-block-text[hidden], .opaque-block-source[hidden] { display: none; }
+  .opaque-block-source {
+    margin: 0.5em 0 0;
+    padding: 0.5em 0.6em;
+    max-height: 24em;
+    overflow: auto;
+    border-radius: 4px;
+    background: color-mix(in srgb, currentColor 5%, transparent);
+    font: 400 var(--mn-text-xs, 0.78rem)/1.5 var(--mn-font-mono, ui-monospace, monospace);
+    white-space: pre;
+  }
 `
 
 /** What the live-editor factory needs to compose the CRDT plane. */

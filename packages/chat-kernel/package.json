@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@shrubbery/hoja": "workspace:*",
+    "@shrubbery/nucleus": "workspace:*",
     "dompurify": "^3.1.0",
     "lit": "^3.1.4",
     "marked": "^14.0.0"

@@ -81,6 +81,19 @@ import {
   GRID_COLLECTION_QUERY_ADAPTER_ID,
   createGridCollectionQueryResourceAdapter,
 } from './faces/grid-collection-query-resource-adapter.js'
+import {
+  NO_CUENTA_VERB_SEAM,
+  createCardCuentaFace,
+  createCardCuentaResourceAdapter,
+  type CuentaVerbSeam,
+} from './faces/card-cuenta-face.js'
+import { createCardSeatFace, createCardSeatResourceAdapter } from './faces/card-seat-face.js'
+import { createCardLetterFace, createCardLetterResourceAdapter } from './faces/card-letter-face.js'
+import { createCardFocusFace, createCardFocusResourceAdapter } from './faces/card-focus-face.js'
+import { createCardInboxFace, createCardInboxResourceAdapter } from './faces/card-inbox-face.js'
+import { createCardMyWorkFace, createCardMyWorkResourceAdapter } from './faces/card-my-work-face.js'
+// el Despacho W11: the roster pokédex — a seat as a catalogue entry.
+import { createCardAgentFace, createCardAgentResourceAdapter } from './faces/card-agent-face.js'
 
 /**
  * The adapter id the Surface interpreter resolves a grid's COLLECTION children
@@ -107,6 +120,23 @@ export function createFragmentFaceRegistrations(): readonly FaceRegistration[] {
     createFilmstripFace(),
     createComputeCellFace(),
     createAgentSessionFamilyFace(),
+    // el Despacho W1 (plans/2026-09-15-despacho-design.md §7): one bead as a
+    // chapter with one act. Reads through the SAME query seam; its ONE write
+    // path is the verb seam threaded below (`CuentaVerbSeam`).
+    createCardCuentaFace(),
+    // el Despacho W2: a seat as a character with a heartbeat, a letter as a
+    // page, and the focus AS WHAT IT IS (a bead, a seat or a letter) so one
+    // leaf and one mixed grid can follow the cursor across kinds.
+    createCardSeatFace(),
+    createCardLetterFace(),
+    createCardFocusFace(),
+    // el Despacho W4: the two rooms that are not a subject in the graph — an
+    // inbox (everything that waits on one person, and nothing else) with the
+    // one act `read`, and the work one office holds. Both take WHOSE from
+    // closed params; the reader is always the session's own witness.
+    createCardInboxFace(),
+    createCardMyWorkFace(),
+    createCardAgentFace(),
   ]
 }
 
@@ -128,8 +158,17 @@ export function createFragmentResourceAdapters(
   resolver: QueryTextResolver,
   objects: SourceObjectService,
   evidence: FilmstripEvidenceService,
+  /** The THIRD service seam: `card.cuenta`'s verb port + witness (el Despacho W1). Absent = the chapter reads, the act cannot be carried. */
+  verbs: CuentaVerbSeam = NO_CUENTA_VERB_SEAM,
 ): readonly ResourceAdapter[] {
   return [
+    createCardCuentaResourceAdapter(service, verbs),
+    createCardSeatResourceAdapter(service),
+    createCardLetterResourceAdapter(service),
+    createCardFocusResourceAdapter(service, verbs),
+    createCardInboxResourceAdapter(service, verbs),
+    createCardMyWorkResourceAdapter(service),
+    createCardAgentResourceAdapter(service),
     createStatScalarResourceAdapter(service, resolver),
     createChartVegaLiteResourceAdapter(service, resolver),
     createCardSubjectResourceAdapter(service),

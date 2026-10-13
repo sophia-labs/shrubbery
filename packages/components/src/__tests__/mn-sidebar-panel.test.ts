@@ -207,7 +207,22 @@ describe('mn-sidebar-panel — real custom element', () => {
     expect(opens[0]).toMatchObject({ id: 'doc-a' })
     expect(intents[0]).toMatchObject({ id: 'doc-a' })
     expect(intentEnds[0]).toMatchObject({ id: 'doc-a' })
-    expect(actions[1]).toMatchObject({ action: 'node-menu', nodeId: 'doc-a', clientX: 72, clientY: 96 })
+    expect(actions[1]).toMatchObject({ action: 'node-menu', nodeId: 'doc-a' })
+  })
+
+  it('anchors pointer menus to the cursor, but ellipsis and keyboard menus to their element', async () => {
+    const el = await mount(node => { node.sections = sections })
+    const actions: MnSidebarActionDetail[] = []
+    el.addEventListener('mn-sidebar-action', event => actions.push((event as CustomEvent<MnSidebarActionDetail>).detail))
+    const row = sr(el).querySelector('[data-node-id="doc-a"]') as HTMLElement
+    const ellipsis = row.querySelector('.node-menu') as HTMLElement
+    row.getBoundingClientRect = () => ({ left: 24, bottom: 160 } as DOMRect)
+    ellipsis.getBoundingClientRect = () => ({ left: 210, bottom: 154 } as DOMRect)
+    row.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, composed: true, button: 2, clientX: 90, clientY: 144 }))
+    ellipsis.dispatchEvent(new MouseEvent('click', { bubbles: true, composed: true, clientX: 218, clientY: 147, detail: 1 }))
+    row.dispatchEvent(new KeyboardEvent('keydown', { bubbles: true, key: 'F10', shiftKey: true }))
+    expect(actions.map(({ clientX, clientY }) => [clientX, clientY])).toEqual([[90, 144], [210, 154], [24, 160]])
+    el.remove()
   })
 
   it('implements roving ARIA-tree focus, hierarchy arrows, Home/End, typeahead, and Enter activation', async () => {
@@ -460,7 +475,7 @@ describe('mn-sidebar-panel — real custom element', () => {
       sort: { criterion: 'connectivity', direction: 'desc', foldersFirst: true },
     }])
     expect(groups).toEqual([{
-      grouping: { separateArtifacts: true, showFolders: false },
+      grouping: { separateArtifacts: true, showFolders: false, kind: 'all' },
     }])
 
     const input = sr(el).querySelector('.search-input') as HTMLInputElement
@@ -566,5 +581,25 @@ describe('mn-sidebar-panel — real custom element', () => {
     expect(intents).toHaveLength(0)
 
     expect(row.getAttribute('draggable')).toBe('false')
+  })
+
+  it('has one kind filter in the toolbar: it asks for the kind, and shows only that kind', async () => {
+    const groups: MnSidebarGroupingChangeDetail[] = []
+    const el = await mount(node => {
+      node.sections = [{ id: 'tree', label: 'Workspace', icon: 'folder', nodes: [
+        { id: 'd1', label: 'A note', kind: 'document' }, { id: 'a1', label: 'A scan', kind: 'artifact' }] }]
+      node.capabilities = { group: true, sort: true }
+      node.addEventListener('mn-sidebar-grouping-change', event => groups.push((event as CustomEvent<MnSidebarGroupingChangeDetail>).detail))
+    })
+    const filter = sr(el).querySelector('.kind-select') as HTMLSelectElement
+    expect(filter.getAttribute('aria-label')).toBe('Show')
+    expect([...filter.options].map(o => o.textContent)).toEqual(['All', 'Documents', 'Files'])
+    expect(sr(el).querySelectorAll('.sidebar-controls button, .sidebar-controls select').length).toBe(4)
+    filter.value = 'files'
+    filter.dispatchEvent(new Event('change', { bubbles: true, composed: true }))
+    expect(groups.at(-1)).toEqual({ grouping: { separateArtifacts: true, showFolders: true, kind: 'files' } })
+    el.grouping = { separateArtifacts: true, showFolders: true, kind: 'files' }
+    await el.updateComplete
+    expect([...sr(el).querySelectorAll('[data-node-id]')].map(n => n.getAttribute('data-node-id'))).toEqual(['a1'])
   })
 })

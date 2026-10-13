@@ -4,7 +4,7 @@
  * NO MOCKS: instantiates the REAL @customElement, mounts it in the (happy-dom)
  * document, and asserts its REAL shadow DOM + behaviour.
  */
-import { describe, it, expect, beforeAll } from 'vitest'
+import { describe, it, expect, beforeAll, beforeEach } from 'vitest'
 import '../mn-bottom-bar.js'
 import type { MnBottomBar, ChromeSourceStatus } from '../mn-bottom-bar.js'
 import type { MnBadge } from '../mn-badge.js'
@@ -20,6 +20,7 @@ async function mount(setup?: (el: MnBottomBar) => void): Promise<MnBottomBar> {
 const sr = (el: MnBottomBar) => el.shadowRoot!
 
 describe('mn-bottom-bar — real custom element', () => {
+  beforeEach(() => { document.body.replaceChildren() })
   beforeAll(() => {
     expect(customElements.get('mn-bottom-bar')).toBeDefined()
   })
@@ -30,7 +31,7 @@ describe('mn-bottom-bar — real custom element', () => {
     expect(el.tagName.toLowerCase()).toBe('mn-bottom-bar')
   })
 
-  it('renders the 3-section grid (left / center / right)', async () => {
+  it('renders the three responsive sections (left / center / right)', async () => {
     const el = await mount()
     expect(sr(el).querySelector('.left-section')).not.toBeNull()
     expect(sr(el).querySelector('.center-section')).not.toBeNull()
@@ -104,6 +105,17 @@ describe('mn-bottom-bar — real custom element', () => {
     expect(toggles[0].classList.contains('active')).toBe(true) // 'chat' in default panels
     expect(toggles[1].classList.contains('active')).toBe(false)
     expect(toggles[3].classList.contains('active')).toBe(false)
+  })
+
+  it('drops the Sophia toggle where the deployment has no chat (a self-host)', async () => {
+    const el = await mount(e => { e.chatAvailable = false; e.panel = 'comments' })
+    const toggles = Array.from(
+      sr(el).querySelector('.right-section')!.querySelectorAll('.toggle-btn'),
+    ) as HTMLButtonElement[]
+    expect(
+      toggles.map(t => t.querySelector('.toggle-label')!.textContent!.trim()),
+    ).toEqual(['Comments', 'Wires', 'Graph'])
+    expect(toggles[0].classList.contains('active')).toBe(true)
   })
 
   it('the compatibility panels prop projects to one active right toggle', async () => {
@@ -214,6 +226,18 @@ describe('mn-bottom-bar — real custom element', () => {
       expect(sr(el).querySelector('.sync-state')?.textContent?.trim()).toBe(label)
     }
     expect(sr(el).querySelector('.sync-state')?.textContent).not.toMatch(/saved|up to date/i)
+  })
+
+  it('says "No document open", never "Offline", while no document session exists', async () => {
+    // Hosted mode always draws the live group (the runtime pill is there), so an idle
+    // sync state (no provider bound: nothing is being synced) is what the person sees
+    // beside HOSTED. It is not a lost connection and must not read like one.
+    const el = await mount(e => { e.runtimeMode = 'hosted' })
+    expect(el.syncState).toBe('idle')
+    const indicator = sr(el).querySelector('.sync-state')
+    expect(indicator?.textContent?.trim()).toBe('No document open')
+    expect(indicator?.getAttribute('title')).toBe('No document open')
+    expect(indicator?.textContent).not.toMatch(/offline/i)
   })
 
   it('explains grouped same-human tabs and emits a controlled presence-open intent', async () => {
@@ -356,7 +380,7 @@ describe('mn-bottom-bar — real custom element', () => {
     expect(opened).toEqual([{ person: people[4] }])
   })
 
-  it('collapse props reflect to host attributes (drives the grid CSS)', async () => {
+  it('collapse props reflect to host attributes (drives the layout CSS)', async () => {
     const el = await mount(e => { e.leftCollapsed = true; e.rightCollapsed = true })
     expect(el.hasAttribute('left-collapsed')).toBe(true)
     expect(el.hasAttribute('right-collapsed')).toBe(true)
@@ -396,12 +420,14 @@ describe('mn-bottom-bar — real custom element', () => {
     expect(sr(el).querySelector('[data-mirror-status]')).toBeNull()
   })
 
-  it('renders one real <mn-badge> per mirror badge, inside an announced role="status" group', async () => {
+  it('keeps exact source facts in a popup, with a separate concise live announcement', async () => {
     const el = await mount(e => { e.sourceStatus = THREE_BADGES })
     const group = sr(el).querySelector('[data-mirror-status]')!
-    expect(group.getAttribute('role')).toBe('status')
-    expect(group.getAttribute('aria-live')).toBe('polite')
-    expect(group.getAttribute('aria-atomic')).toBe('true')
+    const announcement = group.querySelector('[data-mirror-announcement]')!
+    expect(announcement.getAttribute('role')).toBe('status')
+    expect(announcement.getAttribute('aria-live')).toBe('polite')
+    expect(announcement.getAttribute('aria-atomic')).toBe('true')
+    expect(group.querySelector('[data-source-details]')?.getAttribute('aria-live')).toBe('off')
     expect(group.getAttribute('aria-label')).toBe('Local source state')
     const badges = Array.from(group.querySelectorAll('mn-badge')) as MnBadge[]
     expect(badges).toHaveLength(3)
@@ -444,10 +470,11 @@ describe('mn-bottom-bar — real custom element', () => {
     expect(parked.state).toBe('warning')
   })
 
-  it('right-collapsed renders badges GLYPH-ONLY (label cleared) — count stays reachable via aria-label', async () => {
+  it('right-collapsed retains full detail labels while the indicator stays compact', async () => {
     const el = await mount(e => { e.sourceStatus = THREE_BADGES; e.rightCollapsed = true })
     const badges = Array.from(sr(el).querySelectorAll('mn-badge')) as MnBadge[]
-    expect(badges.map(b => b.label)).toEqual(['', '', ''])
+    expect(badges.map(b => b.label)).toEqual(['3 contested', '2 pending', '1 parked'])
+    expect(sr(el).querySelector('[data-source-indicator]')?.textContent?.trim()).toBe('◆Local copy')
     expect(badges.map(b => b.glyph)).toEqual(['◆', '↑', '⏸'])
     expect(badges.map(b => b.getAttribute('aria-label'))).toEqual([
       '3 objects are contested. Open the contested list.',
@@ -503,5 +530,39 @@ describe('mn-bottom-bar — real custom element', () => {
     const [contested] = Array.from(sr(el).querySelectorAll('mn-badge')) as MnBadge[]
     contested.shadowRoot!.querySelector('button')!.click()
     expect(seen).toEqual([{ kind: 'contested' }])
+  })
+
+  it('retains long expanded status labels and every control independently of available panel width', async () => {
+    // happy-dom verifies content/event custody only. Real width/non-overlap is
+    // exercised by scripts/footer-layout-browser.mts in the Organism package.
+    const labels = [
+      '130 contested objects awaiting a choice',
+      '2 pending changes saved only on this device',
+      '17 parked items from an earlier graph',
+    ]
+    const el = await mount(e => {
+      e.style.width = '320px'
+      e.style.setProperty('--mn-right-panel-width', '420px')
+      e.sourceStatus = { badges: THREE_BADGES.badges.map((badge, i) => ({ ...badge, label: labels[i] })) }
+      e.syncState = 'synced'
+      e.runtimeMode = 'hosted'
+      e.documentStats = { words: 12483, characters: 80312, selectedCharacters: 1024, readingTimeMinutes: 62, blockType: 'Block quotation' }
+      e.documentExportAvailable = true
+    })
+    expect([...sr(el).querySelectorAll('mn-badge')].map(badge => (badge as MnBadge).label)).toEqual(labels)
+    expect(sr(el).querySelector('.sync-state')?.textContent?.trim()).toBe('Connected')
+    expect(sr(el).querySelector('.runtime-pill')?.textContent).toBe('hosted')
+    expect(sr(el).querySelector('[data-mirror-announcement]')?.getAttribute('aria-live')).toBe('polite')
+    expect(sr(el).querySelector('[data-live-status]')?.getAttribute('aria-live')).toBe('off')
+    expect(sr(el).querySelectorAll('.left-section .toggle-btn')).toHaveLength(3)
+    const panels: string[] = []
+    el.addEventListener('mn-panel-toggle', event => panels.push((event as CustomEvent).detail.panel))
+    for (const button of sr(el).querySelectorAll<HTMLButtonElement>('.right-section .toggle-btn')) button.click()
+    expect(panels).toEqual(['chat', 'comments', 'wires', 'graph'])
+    expect(el.panel).toBeUndefined()
+    const exports: unknown[] = []
+    el.addEventListener('mn-document-export', event => exports.push(event))
+    sr(el).querySelector<HTMLButtonElement>('.export-btn')!.click()
+    expect(exports).toHaveLength(1)
   })
 })

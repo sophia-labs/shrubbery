@@ -16,7 +16,9 @@ export function settingsNavigationUrl(current: URL, graphId?: string | null): UR
     next.searchParams.set('source', 'cell')
     next.searchParams.set('graph', graph)
   }
-  const returnTo = localPath(current)
+  const returnTo = current.pathname.replace(/\/+$/, '') === '/settings'
+    ? settingsReturnPath(current)
+    : localPath(current)
   if (returnTo !== '/') next.searchParams.set('returnTo', returnTo)
   return next
 }
@@ -39,7 +41,7 @@ export function settingsReturnPath(url: URL): string {
   ) return '/'
   try {
     const resolved = new URL(requested, url.origin)
-    return resolved.origin === url.origin
+    return resolved.origin === url.origin && resolved.pathname.replace(/\/+$/, '') !== '/settings'
       ? `${resolved.pathname}${resolved.search}${resolved.hash}`
       : '/'
   } catch {

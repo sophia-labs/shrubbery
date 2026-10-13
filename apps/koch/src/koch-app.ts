@@ -12,7 +12,6 @@ import type {
 import {
   applySkinTheme,
   isVisualIdentitySkin,
-  nextVisualIdentitySkin,
   type Theme,
   type VisualIdentitySkin,
 } from '@shrubbery/tokens'
@@ -1604,8 +1603,10 @@ export class KochApp extends LitElement {
     this.applyAppearance()
   }
 
-  private toggleSkin(): void {
-    this.activeSkin = nextVisualIdentitySkin(this.activeSkin)
+  private selectSkin(event: CustomEvent<{ skin?: unknown }>): void {
+    const chosen = event.detail?.skin
+    if (!isVisualIdentitySkin(chosen)) return
+    this.activeSkin = chosen
     persistAppearance({ skin: this.activeSkin })
     this.applyAppearance()
   }
@@ -1646,7 +1647,7 @@ export class KochApp extends LitElement {
           @mn-access-role-change=${(event: CustomEvent<MnAccessRoleChangeDetail>) => this.changeAccessRole(event.detail)}
           @mn-access-remove=${(event: CustomEvent<MnAccessRemoveDetail>) => this.removeAccess(event.detail)}
           @mn-theme-toggle=${() => this.toggleTheme()}
-          @mn-skin-toggle=${() => this.toggleSkin()}
+          @mn-skin-select=${(event: CustomEvent<{ skin?: unknown }>) => this.selectSkin(event)}
           @mn-settings-toggle=${() => { this.notice = 'Koch uses the graph’s normal Garden settings; open the full Garden shell to change account or cell settings.' }}
           @mn-app-change=${() => { this.notice = 'Koch is a custom view of the active Garden graph.' }}
           @mn-navigate-home=${() => { this.notice = 'Use the graph picker to move through your Garden catalog.' }}

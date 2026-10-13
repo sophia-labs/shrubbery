@@ -1,0 +1,77 @@
+# Tabula W1 rung scheme, verbatim from plans/2026-09-23-tabula-w1/10-tabula-vocab.ttl (sophia monorepo, 2026-09-23;
+# prefix block + lines 275-337). Draft vocabulary (D7), used here as the real ladder data a value dictionary reads.
+@prefix claim: <https://sophia-labs.ai/ontology/claim#> .
+@prefix cite:  <https://sophia-labs.ai/ontology/cite#> .
+@prefix tab:   <https://sophia-labs.ai/ontology/tabula#> .
+@prefix musa:  <https://sophia-labs.ai/ontology/mus-audio#> .
+@prefix rdf:   <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs:  <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl:   <http://www.w3.org/2002/07/owl#> .
+@prefix xsd:   <http://www.w3.org/2001/XMLSchema#> .
+@prefix skos:  <http://www.w3.org/2004/02/skos/core#> .
+@prefix dct:   <http://purl.org/dc/terms/> .
+@prefix obo: <http://purl.obolibrary.org/obo/> .
+
+# --- rung scheme -------------------------------------------------------------------------------------
+
+claim:Rung a owl:Class ; rdfs:subClassOf skos:Concept ; rdfs:label "rung"@en .
+claim:Direction a owl:Class ; rdfs:subClassOf skos:Concept ; rdfs:label "direction"@en .
+claim:AnalysisTiming a owl:Class ; rdfs:subClassOf skos:Concept ; rdfs:label "analysis timing"@en .
+claim:Qualifier a owl:Class ; rdfs:subClassOf skos:Concept ; rdfs:label "rung qualifier"@en .
+claim:Scope a owl:Class ; rdfs:subClassOf skos:Concept ; rdfs:label "claim scope"@en .
+claim:EvidenceKindConcept a owl:Class ; rdfs:subClassOf skos:Concept ; rdfs:label "Tabula evidence kind"@en .
+
+claim:RungScheme a skos:ConceptScheme ;
+    skos:prefLabel "Tabula claim ladder (six rungs + two reserved)"@en ;
+    skos:hasTopConcept claim:ProvedLean , claim:ExactNumerics , claim:HeldOutConfirmed , claim:PostHoc ,
+        claim:Falsified , claim:NotEstablished , claim:Reproduced , claim:Replicated .
+
+claim:RungDisplayOrder a skos:OrderedCollection ;
+    skos:prefLabel "margin display order"@en ;
+    skos:memberList ( claim:Replicated claim:Reproduced claim:ProvedLean claim:ExactNumerics
+                      claim:HeldOutConfirmed claim:PostHoc claim:NotEstablished claim:Falsified ) .
+
+claim:ProvedLean a claim:Rung ; skos:inScheme claim:RungScheme ;
+    skos:prefLabel "proved (Lean)"@en ; skos:notation "proved-Lean" ;
+    claim:supportStrength 4 ;
+    skos:definition "direction Supports; evidence kind claim:MachineCheckedProof; the claim names the Lean declaration(s) it formalizes (claim:formalizes) and a scope note. The proof covers the formal statement only." ;
+    skos:broadMatch obo:ECO_0000362 .
+
+claim:ExactNumerics a claim:Rung ; skos:inScheme claim:RungScheme ;
+    skos:prefLabel "exact numerics"@en ; skos:notation "exact-numerics" ;
+    claim:supportStrength 3 ;
+    skos:definition "direction Supports; evidence kind claim:ExactComputation (deterministic or exact computation with a receipt: bundle hash, verify command)." ;
+    skos:broadMatch obo:ECO_0007672 .
+
+claim:HeldOutConfirmed a claim:Rung ; skos:inScheme claim:RungScheme ;
+    skos:prefLabel "held-out confirmed"@en ;
+    skos:altLabel "replicated on untouched seeds"@en , "replicated"@en ;
+    skos:notation "replicated" ;
+    claim:supportStrength 2 ;
+    skos:definition "direction Supports; timing PreDeclared; same team; a gate or seed set locked before the confirming run. Stored under this name because 'replicated' is reserved by ACM/NISO/ETAPS for independent teams (study §2.16). The working notation 'replicated' is kept for the D3 UX." ;
+    skos:closeMatch obo:ECO_0000006 .
+
+claim:PostHoc a claim:Rung ; skos:inScheme claim:RungScheme ;
+    skos:prefLabel "post-hoc"@en ; skos:notation "post-hoc" ;
+    claim:supportStrength 1 ;
+    skos:definition "direction Supports; timing PostHoc (a pattern noticed after looking, or a registered round whose own decision rule was not met)." .
+
+claim:Falsified a claim:Rung ; skos:inScheme claim:RungScheme ;
+    skos:prefLabel "falsified"@en ; skos:notation "falsified" ;
+    skos:definition "direction Disputes. Off-axis: a claim can be falsified by evidence of any kind, and the falsifying receipt is as strong as its kind. Falsification is a rung change recorded as a new assessment. The claim is never deleted." ;
+    skos:relatedMatch obo:CIO_0000039 .
+
+claim:NotEstablished a claim:Rung ; skos:inScheme claim:RungScheme ;
+    skos:prefLabel "not established"@en ; skos:notation "not-established" ;
+    claim:supportStrength 0 ;
+    skos:definition "direction Neutral, or no assessment yet. This is the default. It needs no evidence." .
+
+claim:Reproduced a claim:Rung ; skos:inScheme claim:RungScheme ;
+    skos:prefLabel "reproduced (independent)"@en ; skos:notation "reproduced" ;
+    claim:supportStrength 3 ;
+    skos:editorialNote "RESERVED. Different team, using author artifacts (ETAPS 'Results Validated – Reproduced'). No senderos claim holds it." .
+
+claim:Replicated a claim:Rung ; skos:inScheme claim:RungScheme ;
+    skos:prefLabel "replicated (independent)"@en ; skos:notation "replicated-independent" ;
+    claim:supportStrength 4 ;
+    skos:editorialNote "RESERVED. Different team, without author artifacts (ETAPS/NISO 'Replicated'). No senderos claim holds it." .

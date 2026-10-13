@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Shrubbery Organism — Files rudiments proof</title>
+    <style>
+      * { box-sizing: border-box; }
+      html, body, #files-harness-root, #files-harness-root > .app-container {
+        width: 100%; height: 100%; margin: 0; min-width: 0; min-height: 0;
+      }
+      body { overflow: hidden; background: var(--mn-color-surface-base, #f7faf7); }
+      #files-harness-root > .app-container { display: flex; flex-direction: column; }
+      #files-harness-root .main { position: relative; display: flex; flex: 1 1 auto; min-width: 0; min-height: 0; overflow: hidden; }
+      #files-harness-root sl-split-panel { display: flex; flex: 1 1 auto; min-width: 0; min-height: 0; overflow: hidden; }
+      #files-harness-root .split-pane { position: relative; display: flex; min-width: 0; min-height: 0; overflow: hidden; border-right: 1px solid var(--mn-color-border-subtle, #d8e2dc); }
+      #files-harness-root .split-pane > * { flex: 1 1 auto; min-width: 0; min-height: 0; }
+      #files-harness-root .panel-edge-btns { z-index: 4; }
+    </style>
+  </head>
+  <body>
+    <main id="files-harness-root" aria-label="Files rudiments browser harness"></main>
+    <script type="module" src="/src/harness/files-rudiments-main.ts"></script>
+  </body>
+</html>

@@ -97,8 +97,8 @@ describe('INTEGRATION — real seed .nt → config → plan → renderWorkspace 
   it('the seed file exists and parses to a non-trivial triple set', () => {
     const ntBody = readFileSync(SEED_NT_PATH, 'utf8')
     const triples = parseNT(ntBody)
-    // The committed seed header records 275 triples; assert we recovered them.
-    expect(triples.length).toBe(275)
+    // The committed seed header records 282 triples; assert we recovered them.
+    expect(triples.length).toBe(282)
   })
 
   it('parseTriplesToConfig recovers the GardenDefault workspace shape', () => {
@@ -1268,6 +1268,24 @@ describe('INTEGRATION — real seed .nt → config → plan → renderWorkspace 
       ])
     })
 
+    it.each([false, true])('forwards committed HTML, including empty source, with explicit script policy %s', allowHtmlScripts => {
+      const artifact = { graphId: 'g', artifactId: 'html-a', mimeType: 'text/html',
+        status: 'ready' as const, previewHtml: '', previewIdentity: 'life:hash-a', allowHtmlScripts }
+      const container = renderWorkspace(config, { artifact })
+      const view = container.querySelector('mn-artifact-view') as HTMLElement & {
+        previewHtml: string | null; previewIdentity: string | null; allowHtmlScripts: boolean
+      }
+      expect(view.previewHtml).toBe('')
+      expect(view.previewIdentity).toBe('life:hash-a')
+      expect(view.allowHtmlScripts).toBe(allowHtmlScripts)
+      renderWorkspace(config, { container, artifact: { ...artifact, previewHtml: '<p>New edition</p>', previewIdentity: 'life:hash-b' } })
+      expect(container.querySelector('mn-artifact-view')).toBe(view)
+      expect(view.previewHtml).toBe('<p>New edition</p>')
+      expect(view.previewIdentity).toBe('life:hash-b')
+      renderWorkspace(config, { container, artifact: { ...artifact, previewHtml: null } })
+      expect(view.previewHtml).toBeNull()
+    })
+
     it('renders a controlled artifact view in the center and forwards artifact intents', () => {
       const refreshes: ArtifactViewIntentDetail[] = []
       const historyOpens: ArtifactViewIntentDetail[] = []
@@ -1614,8 +1632,9 @@ describe('INTEGRATION — real seed .nt → config → plan → renderWorkspace 
     })
 
     it('chrome options reflect controlled shell state into the top and bottom bars', () => {
+      // Rendered on the Garden spine: Choreograph's own spine has no bottom bar
+      // (2026-09-23), but the controlled chrome state must still reach both bars.
       const c = renderWorkspace(config, {
-        app: 'choreograph',
         leftCollapsed: true,
         rightCollapsed: true,
         chrome: {
@@ -1731,17 +1750,18 @@ describe('INTEGRATION — real seed .nt → config → plan → renderWorkspace 
   describe('choreograph app spine (the 4th app dimension)', () => {
     const config = loadSeedConfig()
 
-    it('app="choreograph" renders the wf-studio-shell leaf, not the garden split-tree', () => {
+    it('app="choreograph" renders the choreo-modes-surface leaf, not the garden split-tree', () => {
       const c = renderWorkspace(config, { app: 'choreograph' })
       // choreo spine head is region-choreo-center, a resizable LEAF → no splits.
       expect(c.querySelectorAll('sl-split-panel').length).toBe(0)
-      // its resolved tag is the Choreograph Studio shell.
-      expect(c.querySelector('wf-studio-shell')).not.toBeNull()
+      // its resolved tag is the Choreograph modes surface.
+      expect(c.querySelector('choreo-modes-surface')).not.toBeNull()
       // and the garden sidebar/editor do NOT appear in this app's spine.
       expect(c.querySelector('mn-sidebar-panel')).toBeNull()
-      // shared chrome still present (top + bottom bar in the choreo set).
+      // shared top bar still present; Garden's bottom bar (panel controls) is not
+      // part of the Choreograph set since the 2026-09-23 overhaul.
       expect(c.querySelector('header[data-region="region-top-bar"]')).not.toBeNull()
-      expect(c.querySelector('footer[data-region="region-bottom-bar"]')).not.toBeNull()
+      expect(c.querySelector('footer[data-region="region-bottom-bar"]')).toBeNull()
     })
   })
 })

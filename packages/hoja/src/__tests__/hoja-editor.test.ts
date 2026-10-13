@@ -541,3 +541,14 @@ describe('<hoja-editor> scoped wikilink seam', () => {
     expect(element.querySelector('.ProseMirror')?.hasAttribute('aria-controls')).toBe(false)
   })
 })
+
+describe('page posture scroll chaining (QA 2026-09-23 P0-3)', () => {
+  it('stops scroll chaining only in the capped composer, never on the growing page mount', () => {
+    const cssText = (HojaEditor.styles as { cssText: string }).cssText
+    const containRules = [...cssText.matchAll(/([^{}]+)\{[^{}]*overscroll-behavior:\s*contain/g)].map(match => match[1]!.trim())
+    expect(containRules.some(selector => selector.includes('.hoja-editor__mount'))).toBe(true)
+    for (const selector of containRules.filter(rule => rule.includes('.hoja-editor__mount'))) {
+      expect(selector).toContain("[posture='composer']")
+    }
+  })
+})

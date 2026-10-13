@@ -1,0 +1,36 @@
+{
+ "graphId": "datasheet-library",
+ "query": {
+  "part": "SI2302CDS",
+  "artifact": null,
+  "parameter": null
+ },
+ "namespaces": {
+  "de": "https://sophia-labs.ai/ontology/document-evidence#",
+  "eng": "https://sophia-labs.ai/ontology/engineering#",
+  "ep": "https://sophia-labs.ai/concept/engineering-parameter#"
+ },
+ "matched": 1,
+ "editions": [
+  {
+   "title": null,
+   "revision": null,
+   "maker": null,
+   "documentType": "datasheet",
+   "parts": [
+    "si2302cds"
+   ],
+   "artifact": "ds-728a4847478dc4de",
+   "sha256": "728a4847478dc4de3cfcd614f26b26c450724f003ea1eab35ada2fc976c17f21",
+   "byteCheck": "matched",
+   "pageCount": 8,
+   "namedGraph": "urn:mnemosyne:local:graph:datasheet-library:projection:datasheet:ds-728a4847478dc4de:m1",
+   "diagnostics": [
+    "text_readers_disagree"
+   ],
+   "corrections": [],
+   "claims": [],
+   "truncated": false
+  }
+ ]
+}

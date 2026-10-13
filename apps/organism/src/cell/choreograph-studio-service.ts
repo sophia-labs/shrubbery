@@ -22,10 +22,15 @@ import type {
   WfWorkflowDefinition,
   WfWorkflowGate,
   WfWorkflowLaunchDetail,
+  WfAgentStatusSubject,
+  WfAgentStatusReadState,
 } from '@shrubbery/components'
 import type { ShrubberyContract } from '@shrubbery/nucleus'
+import { decodeAgentStatus, type AgentStatusSnapshot } from './agent-status-read.js'
 
-type StudioContract = Pick<ShrubberyContract, 'auth' | 'runtime' | 'rest'>
+type StudioContract = Pick<ShrubberyContract, 'auth' | 'runtime' | 'rest'> & {
+  readonly rawMcp?: { callTool(name:string,args:Readonly<Record<string,unknown>>):Promise<unknown> }
+}
 
 export interface ChoreographStudioServiceOptions {
   readonly fetch?: typeof fetch
@@ -76,6 +81,13 @@ export interface ChoreographTelemetrySnapshot {
 }
 
 export interface ChoreographStudioSnapshot {
+  readonly agentStatus:WfAgentStatusReadState
+  readonly agentStatusError:string
+  readonly agentStatusSource:string
+  readonly agentSubjects:readonly WfAgentStatusSubject[]
+  readonly selectedAgentIri:string
+  readonly agentObservedAtMs:number
+  readonly agentReceivedAtMonotonicMs:number
   readonly historyStatus: WfChoreographStatus
   readonly historyError: string
   readonly historyRuns: readonly WfRunListItem[]
@@ -191,12 +203,18 @@ function normalizeRun(value: unknown): WfRunListItem | null {
   const row = object(value)
   const runId = text(row.runId) ?? text(row.run_id)
   if (!runId) return null
+  const endedAt = finite(row.endedAt) ?? finite(row.ended_at)
+  const agentCount = finite(row.agentCount) ?? finite(row.agent_count)
+  const totalTokens = finite(row.totalTokens) ?? finite(row.total_tokens)
   return {
     runId,
     workflowName: text(row.workflowName) ?? text(row.workflow_name),
     status: text(row.status) ?? 'unknown',
     startedAt: finite(row.startedAt) ?? finite(row.started_at),
     durationMs: finite(row.durationMs) ?? finite(row.duration_ms),
+    ...(endedAt === null ? {} : { endedAt }),
+    ...(agentCount === null ? {} : { agentCount }),
+    ...(totalTokens === null ? {} : { totalTokens }),
   }
 }
 
@@ -769,6 +787,41 @@ export class ChoreographStudioService {
     this.fetchImpl = fetchImpl.bind(globalThis) as typeof fetch
   }
 
+  scopeKey(graphId:string):string {
+    return JSON.stringify([this.contract.auth.userId(),routeBase(this.contract,graphId)])
+  }
+
+  conversationContext(graphId:string,agentRef:string) {
+    return {graphId,agentRef,principal:this.contract.auth.userId(),graphBaseUrl:routeBase(this.contract,graphId)}
+  }
+
+  onAuthChange(listener:()=>void):()=>void { return this.contract.auth.onChange(listener) }
+
+  async loadAgentStatus(graphId:string):Promise<{kind:'ok';snapshot:AgentStatusSnapshot;source:string}|{kind:'unavailable'}|{kind:'error';error:string}> {
+    if(!this.contract.rawMcp) return {kind:'unavailable'}
+    let timer:ReturnType<typeof setTimeout>|undefined
+    let expired=false
+    try {
+      const read=async()=>{
+        await this.contract.auth.whenReady()
+        if(expired) throw Error('Agent status authentication wait expired.')
+        const scope=this.scopeKey(graphId)
+        const value=await this.contract.rawMcp!.callTool('agent_status',{graphId,graph_id:graphId})
+        if(scope!==this.scopeKey(graphId)) throw Error('The viewer or graph route changed during the Agent status read.')
+        return {value,source:routeBase(this.contract,graphId)}
+      }
+      const result=await Promise.race([
+        read(),
+        new Promise<never>((_,reject)=>{timer=setTimeout(()=>{expired=true;reject(Error('Agent status read timed out. No report was written.'))},12000)}),
+      ])
+      return {kind:'ok',snapshot:decodeAgentStatus(result.value,graphId),source:result.source}
+    } catch(error) {
+      const code=object(error).code
+      if(code===-32601) return {kind:'unavailable'}
+      return {kind:'error',error:message(error)}
+    } finally {if(timer!==undefined) clearTimeout(timer)}
+  }
+
   async loadRuns(graphId: string, signal?: AbortSignal): Promise<ChoreographRunListRead> {
     const id = graphId.trim()
     if (!id) return { kind: 'error', error: 'A graph is required to list workflow runs.' }
@@ -932,6 +985,7 @@ export class ChoreographStudioService {
 }
 
 const EMPTY_STUDIO_SNAPSHOT: ChoreographStudioSnapshot = {
+  agentStatus:'idle',agentStatusError:'',agentStatusSource:'',agentSubjects:[],selectedAgentIri:'',agentObservedAtMs:0,agentReceivedAtMonotonicMs:0,
   historyStatus: 'idle',
   historyError: '',
   historyRuns: [],
@@ -969,10 +1023,18 @@ export class ChoreographStudioController {
   private workflowAbort: AbortController | null = null
   private runGeneration = 0
   private activeGraphId = ''
+  private activeAuthorityScope = ''
   private activeRunId = ''
   private destroyed = false
+  private agentGeneration=0
+  private readonly unsubscribeAuth:()=>void
 
-  constructor(private readonly service: ChoreographStudioService) {}
+  constructor(private readonly service: ChoreographStudioService) {
+    this.unsubscribeAuth=service.onAuthChange(()=>{
+      const graph=this.activeGraphId
+      if(graph && service.scopeKey(graph)!==this.activeAuthorityScope) this.activateGraph(graph)
+    })
+  }
 
   getState(): ChoreographStudioSnapshot {
     return this.snapshot
@@ -988,11 +1050,37 @@ export class ChoreographStudioController {
     const graph = graphId.trim()
     this.activateGraph(graph)
     const jobs: Promise<void>[] = [this.refreshWorkflows(graph)]
+    if(screen==='home' || screen==='agents') jobs.push(this.refreshAgentStatus(graph))
     if (screen === 'home' || screen === 'runs' || screen === 'compare') {
       jobs.push(this.refreshHistory(graph))
     }
     if (screen === 'run' && runId.trim()) jobs.push(this.openRun(graph, runId))
     await Promise.all(jobs)
+  }
+
+  async refreshAgentStatus(graphId=this.activeGraphId):Promise<void> {
+    if(this.destroyed) return
+    const graph=graphId.trim()
+    this.activateGraph(graph)
+    if(!graph) {this.patch({agentStatus:'error',agentStatusError:'A graph is required.'});return}
+    const generation=++this.agentGeneration
+    this.patch({agentStatus:'loading',agentStatusError:'',agentSubjects:[],agentStatusSource:'',agentObservedAtMs:0})
+    const result=await this.service.loadAgentStatus(graph)
+    if(this.destroyed || generation!==this.agentGeneration || graph!==this.activeGraphId) return
+    if(result.kind==='ok') this.patch({agentStatus:result.snapshot.agents.length?'ready':'empty',agentStatusError:'',agentSubjects:result.snapshot.agents,agentStatusSource:result.source,agentObservedAtMs:result.snapshot.asOfMs,agentReceivedAtMonotonicMs:performance.now()})
+    else this.patch({agentStatus:result.kind,agentStatusError:result.kind==='error'?result.error:'This host does not provide the Agent status read interface.',agentSubjects:[],agentStatusSource:'',agentObservedAtMs:0})
+  }
+
+  selectAgent(agentIri:string):void {
+    if(!agentIri || this.snapshot.agentSubjects.some(agent=>agent.agentIri===agentIri)) this.patch({selectedAgentIri:agentIri})
+  }
+
+  restoreAgentSelection(agentIri:string):void { this.patch({selectedAgentIri:agentIri}) }
+
+  openAgentConversation(agentIri:string):void {
+    if(this.destroyed || this.snapshot.agentStatus!=='ready' || !this.snapshot.agentSubjects.some(agent=>agent.agentIri===agentIri)) return
+    if(document.documentElement.dataset.grapevineNavigation!=='v1') return
+    document.dispatchEvent(new CustomEvent('mn-grapevine-open',{detail:this.service.conversationContext(this.activeGraphId,agentIri)}))
   }
 
   async refreshHistory(graphId = this.activeGraphId): Promise<void> {
@@ -1233,6 +1321,8 @@ export class ChoreographStudioController {
 
   destroy(): void {
     this.destroyed = true
+    this.agentGeneration+=1
+    this.unsubscribeAuth()
     this.runGeneration += 1
     this.historyAbort?.abort()
     this.historyAbort = null
@@ -1250,8 +1340,11 @@ export class ChoreographStudioController {
   }
 
   private activateGraph(graphId: string): boolean {
-    if (graphId === this.activeGraphId) return false
+    const scope=graphId ? this.service.scopeKey(graphId) : ''
+    if (graphId === this.activeGraphId && scope===this.activeAuthorityScope) return false
     this.activeGraphId = graphId
+    this.activeAuthorityScope=scope
+    this.agentGeneration+=1
     this.runGeneration += 1
     this.activeRunId = ''
     this.historyAbort?.abort()
@@ -1260,6 +1353,7 @@ export class ChoreographStudioController {
     this.workflowAbort = null
     this.closeTelemetry()
     this.patch({
+      agentStatus:'idle',agentStatusError:'',agentStatusSource:'',agentSubjects:[],selectedAgentIri:'',agentObservedAtMs:0,agentReceivedAtMonotonicMs:0,
       historyStatus: 'idle',
       historyError: '',
       historyRuns: [],

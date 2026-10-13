@@ -46,6 +46,12 @@ export {
   type WorkspaceAccessGrant,
   type WorkspaceAccessOptions,
   type WorkspaceAccessRemoveDetail,
+  type WorkspaceAccessSharing,
+  type WorkspaceEveryoneChangeDetail,
+  type WorkspaceShareLink,
+  type WorkspaceShareLinkCreateDetail,
+  type WorkspaceShareLinkRevokeDetail,
+  type WorkspaceSharingBusyAction,
   type WorkspaceAccessRole,
   type WorkspaceAccessRoleChangeDetail,
   type WorkspaceAccessStatus,
@@ -139,6 +145,8 @@ export {
   type WorkspaceInspectorModel,
   type WorkspaceInspectorModifiers,
   type WorkspaceInspectorOptions,
+  type WorkspaceFileInfoModel,
+  type WorkspaceFileInfoRow,
   type WorkspaceInspectorRelationGroup,
   type WorkspaceInspectorRelationItem,
   type WorkspaceInspectorRelationOpenDetail,
@@ -199,6 +207,9 @@ export {
   type EditorImageInserter,
   type EditorOriginalFileChapter,
   type EditorOriginalFileView,
+  type EditorPdfSourceLocation,
+  type EditorPdfSourceMapping,
+  type EditorOriginalPdfPage,
   type LiveEditorHandle,
   type LiveOutlinerCommand,
   type LiveZoteroPromotion,
@@ -518,6 +529,7 @@ export {
   defaultModels,
   makeLocalChatService,
   makeHostedChatService,
+  purgeHostedChatWindows,
   makeGrowTurnDriver,
   ChatServiceFailure,
   asChatServiceFailure,
@@ -547,8 +559,10 @@ export {
   CHAT_HEADER_ACTION_EVENT,
   CHAT_MESSAGE_ACTION_EVENT,
   CHAT_SESSION_ACTION_EVENT,
+  CHAT_CONTINUE_EVENT,
   mountChatHost,
   createChatServiceStore,
+  type ConversationHomePorts,
   type ChatCodeCopyDetail,
   type ChatHeaderActionDetail,
   type ChatMessageActionDetail,
@@ -562,6 +576,76 @@ export {
   type ChatServiceStore,
   type ChatServiceStoreState,
 } from './chat-host/index.js'
+
+// Sobremesa (voices, continuing an imported conversation, the credit line, the one
+// conversation home): the vocabulary a shell needs to drive them. Kept as its own
+// statements, apart from the blocks above.
+export {
+  feePercentOf,
+  formatFeePercent,
+  parseCreditsFacts,
+  parseCreditsStartDate,
+  NO_CAPABILITIES,
+  ChatBillingFailure,
+  ContinuationError,
+  DEFAULT_WINDOW_LIMITS,
+  readContinuationPlan,
+  windowToChatMessages,
+  type ChatBalance,
+  type ChatBillingDetail,
+  type ChatBillingKind,
+  type ChatCapabilities,
+  type ChatCreditsNoticeSource,
+  type ChatCreditsNoticeView,
+  type CreditsFacts,
+  type CreditsGateMode,
+  type ContinuationChoice,
+  type ContinuationErrorCode,
+  type ContinuationPlan,
+  type ContinuationWindow,
+  type ContinueIntent,
+  type ConversationLineage,
+  type ConversationSummary,
+  type SourceVoice,
+  type WindowLimits,
+  type WindowMessage,
+} from './chat-services/index.js'
+// The empowered workspace chat: what a turn changed, where its links go, and the live HTML preview.
+export {
+  CHAT_CHANGE_ACTION_EVENT,
+  ShChatArtifactPreview,
+  type ChatArtifactPreviewHandle,
+  type ChatArtifactPreviewPort,
+  type ChatArtifactPreviewView,
+  type ChatHostWorkspace,
+  type ChatChangeIntent,
+  type ChatArtifactPreviewRequest,
+} from './chat-host/index.js'
+export { accessNoteFor } from './chat-services/chat-access.js'
+export type { ChatAccess, ChatAccessAdvert, ChatWorkspaceRole } from './chat-services/chat-service.js'
+export {
+  CHAT_ADD_CREDITS_EVENT,
+  CHAT_CONTINUE_WITH_EVENT,
+  CHAT_OPEN_ORIGINAL_EVENT,
+  ShContinueChooser,
+  type ChatAddCreditsDetail,
+  type ChatHostCredits,
+  type ChatServiceStoreOptions,
+  type ContinueConfirmDetail,
+  type ContinuePhase,
+} from './chat-host/index.js'
+
+// The history drawer's ports (Sobremesa): what the shell hands the chat host so a
+// conversation can be copied into a workspace (Save to Garden), continued (an
+// imported one), or downloaded. Types only; the host draws only what a port honours.
+export type {
+  ContinueConversationIntent,
+  MarkdownFile,
+  SaveTarget,
+  SaveToGardenPort,
+  SaveToGardenRequest,
+  SaveToGardenResult,
+} from './chat-services/index.js'
 
 // Excalidraw React island — mounts the real drawing runtime into the controlled
 // component's named slot while graph semantics stay injected shell callbacks.
@@ -666,6 +750,136 @@ export {
   type VtuberAppearanceEdit,
   type VtuberAppearanceTarget,
 } from './grow/set-appearance.js'
+
+// el Despacho (plans/2026-09-15-despacho-design.md): the cuentas bead reading
+// and the closed verb union — a SIBLING cycle to grow() with the same
+// discipline (typed spec → pure plan → dry run → apply through an injected
+// port; every refusal typed and verbatim). The `card.cuenta` face is the first
+// client; an agent tool over the identical executor is the intended second.
+export {
+  CTA_NS,
+  CUENTA_BEAD_KINDS,
+  CUENTA_EDGE_PREDICATES,
+  CUENTA_STATUSES,
+  cuentaAwaitsWord,
+  cuentaEdgesQuery,
+  cuentaLocalId,
+  cuentaPropertiesQuery,
+  cuentaRendicionesQuery,
+  readCuenta,
+  type CuentaEdge,
+  type CuentaReading,
+  type CuentaRendicion,
+} from './despacho/cuenta-reading.js'
+export {
+  CUENTA_VERBS,
+  CUENTA_WORDS,
+  createCuentaVerbExecutor,
+  parseEmporiumWriteReceipt,
+  planCuentaVerb,
+  restateCuenta,
+  validateCuentaVerb,
+  type CuentaVerbApplied,
+  type CuentaVerbExecutor,
+  type CuentaVerbOutcome,
+  type CuentaVerbPlan,
+  type CuentaVerbPort,
+  type CuentaVerbRefusal,
+  type CuentaVerbSpec,
+  type CuentaWord,
+  type EmporiumRecord,
+  type EmporiumWriteArgs,
+  type EmporiumWriteReceipt,
+} from './despacho/cuenta-verbs.js'
+// el Despacho W2: seats and letters of the Demi correspondence register
+// (correo v0.1.0) as pure readings, and the focus probe that says what the
+// thing under the cursor is.
+export {
+  COR_NS,
+  CORREO_ATTESTATION_LOCAL,
+  readSeat,
+  seatCapabilitiesQuery,
+  seatCorrespondentsQuery,
+  seatCountsQuery,
+  seatHeldBeadsQuery,
+  seatLocalId,
+  seatPropertiesQuery,
+  seatRunsQuery,
+  siblingSeatIri,
+  type SeatCapability,
+  type SeatCorrespondent,
+  type SeatHeldBead,
+  type SeatReading,
+  type SeatRun,
+} from './despacho/seat-reading.js'
+export {
+  AGENT_SILENT_AFTER_DAYS,
+  agentLineageQuery,
+  agentRunStatsQuery,
+  deriveDormancy,
+  habitatOf,
+  readAgent,
+  type AgentDormancy,
+  type AgentEntry,
+  type AgentLineage,
+  type AgentLineageLink,
+  type AgentRunStats,
+} from './despacho/agent-reading.js'
+export {
+  letterAcksQuery,
+  letterLocalId,
+  letterPartiesQuery,
+  letterPropertiesQuery,
+  letterRepliesQuery,
+  readLetter,
+  type LetterAck,
+  type LetterParty,
+  type LetterReading,
+  type LetterRef,
+} from './despacho/letter-reading.js'
+export { classifyFocus, focusTypesQuery, type FocusKind, type FocusProbe } from './despacho/focus-probe.js'
+// el Despacho W4: an inbox is everything that waits on one person and nothing
+// else; read-state is the reader's own dated testimony (`cta:Lectura`,
+// cuentas v0.3.0), carried by the same closed-verb discipline as the word.
+export {
+  INBOX_MAX_ROWS,
+  correoGraphIri,
+  cuentasGraphIri,
+  inboxGatesQuery,
+  inboxLettersQuery,
+  inboxReturnsQuery,
+  readInbox,
+  rendicionLocalId,
+  sparqlStringLiteral,
+  type InboxBlocker,
+  type InboxGate,
+  type InboxLetter,
+  type InboxReading,
+  type InboxReturn,
+} from './despacho/inbox-reading.js'
+export {
+  INBOX_VERBS,
+  createInboxVerbExecutor,
+  planInboxVerb,
+  readerSlug,
+  validateInboxVerb,
+  type InboxVerb,
+  type InboxVerbApplied,
+  type InboxVerbExecutor,
+  type InboxVerbPlan,
+  type InboxVerbPreviewed,
+  type InboxVerbRefusal,
+  type InboxVerbSpec,
+} from './despacho/inbox-verbs.js'
+export {
+  MY_WORK_MAX_ROWS,
+  myWorkGatedOnQuery,
+  myWorkHeldQuery,
+  readMyWork,
+  type MyWorkBead,
+  type MyWorkGatedBead,
+  type MyWorkReading,
+} from './despacho/mywork-reading.js'
 
 // Visual wire mode — overlays, body-class-via-host-attribute, lifecycle. Subdir-
 // quarantined like collab/: it touches the DOM and reads the contract's wireMode
@@ -801,3 +1015,24 @@ export {
   type PresenceSession,
   type PresenceProfilePatch,
 } from './presence-projection.js'
+export {
+  MnFilesCanvas,
+  filesCanvasCapabilities,
+  type FilesCanvasCommand,
+  type FilesCanvasHostInput,
+} from './files-canvas/files-canvas-host.js'
+export {
+  renderFilesPane,
+  type FilesFace,
+  type FilesIconSize,
+  type FilesPaneCrumb,
+  type FilesPaneAssertion,
+  type FilesPanePreview,
+  type FilesPaneReaderView,
+  type FilesPaneRow,
+  type FilesPaneStatus,
+  type FilesPaneNeedsLook,
+  type FilesPaneTrash,
+  type FilesPaneTrashItem,
+  type WorkspaceFilesOptions,
+} from './files-pane.js'

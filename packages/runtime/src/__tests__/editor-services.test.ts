@@ -828,8 +828,10 @@ describe('NavigationService + buildKernelOptions — boundary adapter (real even
       'onMarginGlossOpen',
       'onWikiLinkClick',
       'onWikiLinkDelete',
+      'renderMath',
       'renderQueryBlock',
     ])
+    expect(opts.renderMath).toBeTypeOf('function')
     expect(opts.mermaid?.render).toBeTypeOf('function')
     expect(opts.mermaid?.subscribe).toBeTypeOf('function')
     expect('collaborative' in opts).toBe(false)

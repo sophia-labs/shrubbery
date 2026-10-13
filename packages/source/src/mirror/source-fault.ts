@@ -43,6 +43,7 @@ export const SOURCE_FAULT_CODES = [
   'operation_id_reused',
   'event_identity_reused',
   'ledger_integrity',
+  'source_bundle_too_large',
   'object_not_found',
   'graph_exists',
   'graph_lifecycle_identity_mismatch',
@@ -80,6 +81,7 @@ export const FENCE_CODES: readonly SourceFaultCode[] = [
  *  transient fault (network errors), which stays `pending` and is retried
  *  unchanged. */
 export const PERMANENT_CODES: readonly SourceFaultCode[] = [
+  'source_bundle_too_large',
   'document_exists',
   'operation_id_reused',
   'event_identity_reused',

@@ -65,13 +65,14 @@ const host = document.getElementById('host') as HTMLElement
 renderWorkspace(config, { container: host })
 
 // ── Brand the stamped masthead (the rhizome/emporium pattern) ────────────────
-const SKIN_CYCLE: readonly Skin[] = ['observatory', 'garden', 'emporium', '98', 'glass']
+const SKINS: readonly Skin[] = ['observatory', 'garden', 'emporium', '98', 'glass', 'hotdog-stand']
 const bar = host.querySelector('mn-app-bar') as
   | (HTMLElement & {
       brand?: string
       glyph?: string
       badge?: string
       activeSkin?: Skin
+      skins?: readonly Skin[]
       isDark?: boolean
       showSearch?: boolean
     })
@@ -83,8 +84,11 @@ if (bar) {
   bar.activeSkin = activeSkin
   bar.isDark = activeTheme === 'dark'
   bar.showSearch = false
-  bar.addEventListener('mn-skin-toggle', () => {
-    activeSkin = SKIN_CYCLE[(SKIN_CYCLE.indexOf(activeSkin) + 1) % SKIN_CYCLE.length]
+  bar.skins = SKINS
+  bar.addEventListener('mn-skin-select', (event) => {
+    const chosen = (event as CustomEvent<{ skin?: Skin }>).detail?.skin
+    if (!chosen || !SKINS.includes(chosen)) return
+    activeSkin = chosen
     applySkinTheme({ skin: activeSkin, theme: activeTheme })
     bar.activeSkin = activeSkin
   })

@@ -342,8 +342,9 @@ export function readPublicWorkspaceProjection(graphId: string, blob: Uint8Array)
       .filter((folder) => folder.section !== 'artifacts')
       .map(({ section: _section, ...folder }) => folder)
 
+    // A trashed document (the cell's `trashed` flag on its workspace entry) is out of the tree, the search and quick open.
     const documents = Array.from(docsMap.entries())
-      .filter(([, value]) => value instanceof Y.Map)
+      .filter(([, value]) => value instanceof Y.Map && value.get('trashed') !== true)
       .map(([rawId, value]) => {
         const id = extractEntityId(rawId) ?? rawId
         if (!rawDocumentIdsByNormalized.has(id)) rawDocumentIdsByNormalized.set(id, rawId)

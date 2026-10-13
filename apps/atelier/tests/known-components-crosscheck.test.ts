@@ -43,12 +43,18 @@ import { ShEditorHost, ShChatHost, ShWirePinnedLayer, ShWiresPanel } from '@shru
  *  - sh-layout-dashboard: serialized dashboard center anchor; its host element
  *    is LAZILY defined by the runtime at surface render time (exactly like
  *    sh-workspace-surface, which is likewise unregistered at import time), so
- *    at this import-only crosscheck it is deliberately not registered. */
+ *    at this import-only crosscheck it is deliberately not registered.
+ *  - The three Organism-owned extensions are registered/tested by that rich
+ *    host, which Atelier does not import. These are exact external tags, not
+ *    permission for arbitrary unregistered components. */
 const UNREGISTERED_ALLOWLIST_TAGS = [
   'mn-document-editor',
   'mn-chat-panel',
   'mn-wires-panel',
   'sh-layout-dashboard',
+  'mn-phanes-control-editor',
+  'mn-agent-studio-editor',
+  'mn-grapevine-pane',
 ] as const
 
 describe('KNOWN_COMPONENTS drift cross-check (test-only, not gate-time)', () => {

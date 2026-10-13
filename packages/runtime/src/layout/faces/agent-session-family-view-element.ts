@@ -115,13 +115,15 @@ export class ShAgentSessionFamilyView extends LitElement {
       flex: 1 1 auto;
       flex-direction: column;
       min-width: 0;
-      overflow: hidden;
+      min-height: 0;
+      overflow: auto;
       background: var(--mn-color-surface-raised);
       border: 1px solid var(--mn-color-border-subtle);
       border-radius: var(--mn-radius-surface, 8px);
       box-shadow: var(--mn-shadow-card);
     }
     header {
+      flex: 0 0 auto;
       display: flex;
       align-items: center;
       flex-wrap: wrap;
@@ -154,9 +156,10 @@ export class ShAgentSessionFamilyView extends LitElement {
       color: var(--mn-color-warning-strong, var(--mn-color-text-primary));
       background: color-mix(in srgb, var(--mn-color-warning-strong, currentColor) 12%, transparent);
     }
-    .rows { overflow: auto; }
+    .rows { flex: 0 0 auto; overflow: auto; }
     .ledger {
       display: flex;
+      flex: 0 0 auto;
       align-items: baseline;
       flex-wrap: wrap;
       gap: var(--mn-space-2, 8px) var(--mn-space-4, 16px);
@@ -166,7 +169,15 @@ export class ShAgentSessionFamilyView extends LitElement {
       border-bottom: 1px solid var(--mn-color-border-subtle);
       font-size: var(--mn-text-xs, 12px);
     }
-    .ledger-metric { display: inline-flex; gap: var(--mn-space-1, 4px); align-items: baseline; }
+    .ledger-metric {
+      display: inline-flex;
+      flex-wrap: wrap;
+      min-width: 0;
+      max-width: 100%;
+      overflow-wrap: anywhere;
+      gap: var(--mn-space-1, 4px);
+      align-items: baseline;
+    }
     .ledger-revision { margin-left: auto; color: var(--mn-color-text-muted); }
     .child {
       display: grid;

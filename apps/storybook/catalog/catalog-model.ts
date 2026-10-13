@@ -116,7 +116,7 @@ export interface CatalogEntry {
  * side-effect import runs (e.g. in a pure unit test); `isBuilt` is the live check.
  */
 const BUILT_CHROME: ReadonlyArray<{ tag: string; blurb: string }> = [
-  { tag: 'mn-top-bar', blurb: 'Chrome top bar — masthead, app-switcher, inert breadcrumb slot, action buttons.' },
+  { tag: 'mn-top-bar', blurb: 'Chrome top bar — app picker + launcher, per-app toolbar, inert breadcrumb slot, action buttons.' },
   { tag: 'mn-bottom-bar', blurb: 'Chrome bottom bar — panel toggles + three inert status slots.' },
 ]
 

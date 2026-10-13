@@ -12,6 +12,7 @@ import {
   type Axis,
   type LayoutDocument,
   type LayoutOperation,
+  type LayoutPlanNode,
   type LayoutSplitNode,
   type LayoutTabsNode,
 } from '@shrubbery/nucleus/layout'
@@ -97,16 +98,17 @@ function clampBasisPoints(value: number, policy: SurfaceDividerPolicy): number {
   return Math.min(max, Math.max(min, Math.round(value)))
 }
 
-function collectSplitIds(node: unknown, into: string[]): void {
-  const candidate = node as { readonly kind?: string; readonly id?: string; readonly start?: unknown; readonly end?: unknown }
-  if (candidate.kind === 'tabs') {
-    collectSplitIds((candidate as { readonly active?: unknown }).active, into)
+type SolvedSplit = Extract<LayoutPlanNode, { readonly kind: 'split' }>
+
+function collectSplits(node: LayoutPlanNode, into: SolvedSplit[]): void {
+  if (node.kind === 'tabs') {
+    collectSplits(node.active, into)
     return
   }
-  if (candidate.kind !== 'split' || typeof candidate.id !== 'string') return
-  into.push(candidate.id)
-  collectSplitIds(candidate.start, into)
-  collectSplitIds(candidate.end, into)
+  if (node.kind !== 'split') return
+  into.push(node)
+  collectSplits(node.start, into)
+  collectSplits(node.end, into)
 }
 
 /**
@@ -291,9 +293,10 @@ export class LayoutSurfaceController {
     const current = this.document
     if (!plan || !current) return
 
-    const splitIds: string[] = []
-    collectSplitIds(plan.root, splitIds)
-    for (const splitId of splitIds) {
+    const splits: SolvedSplit[] = []
+    collectSplits(plan.root, splits)
+    for (const solved of splits) {
+      const splitId = solved.id
       const wrapper = this.interpreter.splitWrapperElement(splitId)
       const node = current.nodes[splitId]
       if (!wrapper || !node || node.kind !== 'split') continue
@@ -301,7 +304,14 @@ export class LayoutSurfaceController {
       const policy = this.dividerPolicy(node, box)
       if (!policy.enabled) continue
 
-      const ratio = node.startBasisPoints / 10000
+      // Constraints can move the actual boundary away from the authored
+      // ratio. Chrome must follow the same solved, root-absolute allocation
+      // as content, including nested splits and either axis. Keep the ratio
+      // and pointer/keyboard operation contract unchanged; this is geometry,
+      // not a document rewrite or a second layout solver.
+      const boundary = node.axis === 'horizontal'
+        ? (solved.start.allocation.x + solved.start.allocation.width + solved.end.allocation.x) / 2
+        : (solved.start.allocation.y + solved.start.allocation.height + solved.end.allocation.y) / 2
       const handle = document.createElement('div')
       handle.dataset.layoutDivider = splitId
       handle.tabIndex = 0
@@ -320,14 +330,14 @@ export class LayoutSurfaceController {
         'outline-offset:-2px',
       ].join(';')
       if (node.axis === 'horizontal') {
-        handle.style.left = `${box.left + box.width * ratio - 6}px`
+        handle.style.left = `${boundary - 6}px`
         handle.style.top = `${box.top}px`
         handle.style.width = '12px'
         handle.style.height = `${box.height}px`
         handle.style.cursor = 'col-resize'
       } else {
         handle.style.left = `${box.left}px`
-        handle.style.top = `${box.top + box.height * ratio - 6}px`
+        handle.style.top = `${boundary - 6}px`
         handle.style.width = `${box.width}px`
         handle.style.height = '12px'
         handle.style.cursor = 'row-resize'

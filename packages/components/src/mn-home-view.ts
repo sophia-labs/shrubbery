@@ -76,6 +76,7 @@ export class MnHomeView extends SkinAware(LitElement) {
       margin-bottom: var(--mn-space-8, 2rem);
       text-align: center;
     }
+    .welcome-copy { display: none; }
     .bookplate {
       display: grid;
       grid-template-columns: minmax(28px, 72px) auto minmax(28px, 72px);
@@ -319,10 +320,51 @@ export class MnHomeView extends SkinAware(LitElement) {
       .pin { opacity: 0.68; }
     }
     @media (max-width: 620px) {
-      .home { padding: var(--mn-space-7, 1.75rem) var(--mn-space-4, 1rem) var(--mn-space-10, 2.5rem); }
-      .heading { margin-bottom: var(--mn-space-7, 1.75rem); }
-      .bookplate { grid-template-columns: 40px auto 40px; }
-      section { margin-top: var(--mn-space-7, 1.75rem); }
+      .home { padding: 27px 18px 120px; scrollbar-gutter: auto; }
+      .heading { margin-bottom: 28px; text-align: left; }
+      .bookplate { display: none; }
+      .workspace { margin-bottom: 7px; font-size: 10px; letter-spacing: 0.12em; }
+      h1 { font-size: clamp(36px, 10vw, 46px); line-height: 1.05; }
+      .welcome-copy {
+        display: block;
+        margin: 10px 0 0;
+        color: var(--mn-color-text-secondary, #58665c);
+        font: 15px/1.45 var(--mn-font-prose, Georgia, serif);
+      }
+      .actions { margin-bottom: 18px; }
+      .home-action-btn.new-document {
+        justify-content: flex-start;
+        min-height: 56px;
+        padding: 0 18px;
+        border: 1px solid var(--mn-color-text-accent-strong, #2d6a4f);
+        border-radius: 16px;
+        background: var(--mn-color-text-accent-strong, #2d6a4f);
+        color: var(--mn-color-surface-raised, #fff);
+        box-shadow: 0 2px 0 rgb(25 65 43 / 0.16);
+        font-size: 15px;
+      }
+      .home-action-btn.resume {
+        min-height: 72px;
+        border: 1px solid var(--mn-garden-card-edge, var(--mn-color-rule, #d8ded9));
+        border-radius: 16px;
+        background: var(--mn-color-surface-raised, #fff);
+        box-shadow: var(--mn-garden-card-shadow, none);
+      }
+      section { margin-top: 29px; }
+      h2 { margin-bottom: 12px; font-size: 11px; }
+      h2::after { display: none; }
+      .rows {
+        overflow: hidden;
+        border: 1px solid var(--mn-garden-card-edge, var(--mn-color-rule, #d8ded9));
+        border-radius: 16px;
+        background: var(--mn-color-surface-raised, #fff);
+        box-shadow: var(--mn-garden-card-shadow, none);
+      }
+      .row { min-height: 58px; padding-inline: 8px; }
+      .row:last-child { border-bottom: 0; }
+      .open { min-height: 58px; font-size: 16px; }
+      .pin { opacity: 0.75; }
+      .dream, .daily { border-radius: 14px; background: var(--mn-color-surface-raised, #fff); }
     }
   `
 
@@ -381,6 +423,7 @@ export class MnHomeView extends SkinAware(LitElement) {
           <span class="bookplate" aria-hidden="true"><span class="mark">${icon('sprout', { size: 30 })}</span></span>
           ${this.graphTitle || this.graphId ? html`<p class="workspace">${this.graphTitle || this.graphId}</p>` : nothing}
           <h1>Garden</h1>
+          <p class="welcome-copy">A little room for what’s growing.</p>
         </header>
 
         ${this.status === 'loading'

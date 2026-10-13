@@ -93,25 +93,32 @@ describe('REAL INTEGRATION — Emporium product shell from a current cell', () =
     expect(document.documentElement.getAttribute('data-theme')).toBe('light')
   })
 
-  it('uses the shared Sophia → 98 → Glass → Garden → Sophia identity cycle', async () => {
-    const toggle = (): void => {
+  it('chooses any skin from the shared picker — Sophia, 98, Glass, Mithras, Hotdog Stand, Garden — in any order', async () => {
+    type Updating = HTMLElement & { updateComplete: Promise<unknown> }
+    const choose = async (id: string): Promise<void> => {
       const bar = mounts.appBarMount.querySelector('mn-app-bar') as HTMLElement
-      const button = bar.shadowRoot?.querySelector<HTMLButtonElement>('button[data-action="skin"]')
-      expect(button).toBeTruthy()
-      button!.click()
+      const picker = bar.shadowRoot?.querySelector('mn-skin-picker') as Updating | null
+      expect(picker).toBeTruthy()
+      await picker!.updateComplete
+      const dropdown = picker!.shadowRoot!.querySelector('mn-dropdown-button') as Updating
+      await dropdown.updateComplete
+      dropdown.shadowRoot!.querySelector<HTMLButtonElement>('.trigger')!.click()
+      await dropdown.updateComplete
+      dropdown.shadowRoot!.querySelector<HTMLButtonElement>(`[data-menu-item-id="${id}"]`)!.click()
+      await tick()
     }
 
-    toggle()
-    await tick()
+    await choose('hotdog-stand')
+    expect(document.documentElement.dataset.skin).toBe('hotdog-stand')
+    await choose('98')
     expect(document.documentElement.dataset.skin).toBe('98')
-    toggle()
-    await tick()
+    await choose('glass')
     expect(document.documentElement.dataset.skin).toBe('glass')
-    toggle()
-    await tick()
+    await choose('mithras')
+    expect(document.documentElement.dataset.skin).toBe('mithras')
+    await choose('garden')
     expect(document.documentElement.hasAttribute('data-skin')).toBe(false)
-    toggle()
-    await tick()
+    await choose('emporium')
     expect(document.documentElement.dataset.skin).toBe('emporium')
   })
 

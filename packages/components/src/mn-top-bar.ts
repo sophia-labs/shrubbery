@@ -22,12 +22,14 @@
  *   - the native title-bar drag guard (Tauri-only) — not lifted.
  *
  * What was KEPT as REAL chrome (no backend coupling — pure DOM + events):
- *   - the masthead brand (a static label; click emits `mn-navigate-home`).
+ *   - the app picker (current app tile + name) opening an Office-style app
+ *     launcher, and to its right the contextual app toolbar, whose buttons are
+ *     declared per app in app-toolbar.ts (Garden: Home → `mn-navigate-home`).
  *   - the app-switcher (Garden / Choreograph toggle): a controlled tab strip.
  *     `activeApp` is a PROPERTY a shell sets; clicking a tab emits
  *     `mn-app-change` (detail.app) and does NOT mutate any store.
  *   - the action buttons (theme / skin / settings): chrome that emits composed
- *     events (`mn-theme-toggle`, `mn-skin-toggle`, `mn-settings-toggle`); their
+ *     events (`mn-theme-toggle`, `mn-skin-select`, `mn-settings-toggle`); their
  *     pressed state is driven by PROPERTIES, never read from a theme store.
  *
  * This is a REAL @customElement, not a stub-that-pretends: it renders the chrome
@@ -50,16 +52,25 @@
  */
 
 import { LitElement, css, html, nothing, unsafeCSS } from 'lit'
-import { customElement, property } from 'lit/decorators.js'
+import { customElement, property, state } from 'lit/decorators.js'
 import { SkinAware } from './skin-aware.js'
+import { BEVELLED } from './bevelled-skins.js'
 import { icon, iconStyles } from './icons.js'
-import { chromeSkinMeta, type ChromeSkinId } from './chrome-skin.js'
+import { CHROME_PICKER_SKINS, type ChromeSkinId } from './chrome-skin.js'
+import './mn-skin-picker.js'
+import { hidePopover, isPopoverOpen, positionPopover, showPopover } from './popover.js'
+import { appToolbarActions, type AppToolbarAction } from './app-toolbar.js'
+import { orderSophiaApps, sophiaApp, sophiaAppAccessibleName } from './sophia-suite.js'
 import './mn-workspace-selector.js'
 import './mn-quick-clip.js'
 import './mn-access-manager.js'
 import type { MnWorkspaceSelectorStatus, MnWorkspaceSummary } from './mn-workspace-selector.js'
+import type { MnWorkspaceActionCapability } from './mn-workspace-selector-model.js'
 import type { MnQuickClipStatus } from './mn-quick-clip.js'
 import type { MnAccessManagerModel } from './mn-access-manager.js'
+
+const WORKSPACE_CREATE_ENABLED: MnWorkspaceActionCapability = Object.freeze({ available: true })
+const WORKSPACE_CREATE_ABSENT: MnWorkspaceActionCapability = Object.freeze({ available: false })
 
 /**
  * An app id (the gen-2 dim-app dimension). OPEN — any string a workspace
@@ -80,7 +91,30 @@ export interface ChromeAppTab {
   readonly label: string
   /** An icons.ts glyph name. Absent ⇒ no icon, label-only tab. */
   readonly icon?: string
+  /** One line for the app launcher. Absent ⇒ a known app's default, else none. */
+  readonly description?: string
+  /** Release stage tag ('experimental', …). Absent ⇒ a known app's catalogue stage, else none. */
+  readonly stage?: string
 }
+
+/**
+ * One app the launcher opens by NAVIGATING (a different page: the standalone
+ * Hoja app, the Choreograph route, Garden from outside the organism) rather
+ * than by an in-shell `mn-app-change`. The shell builds `href` so the target
+ * lands in the same workspace (`sophiaAppHref`, `?graph=`).
+ */
+export interface ChromeAppLink extends ChromeAppTab {
+  readonly href: string
+}
+
+/** The built-in right-side controls a shell may show (see `controls`). */
+export type ChromeControl = 'appearance' | 'quick-clip' | 'access' | 'theme' | 'skin' | 'settings'
+
+/** One launcher row: an in-shell tab (event) or a link (navigation). */
+type LauncherEntry =
+  | { readonly kind: 'tab'; readonly app: ChromeAppTab }
+  | { readonly kind: 'link'; readonly app: ChromeAppLink }
+
 export type { ChromeSkinId } from './chrome-skin.js'
 
 export interface ChromeBreadcrumb {
@@ -126,104 +160,236 @@ export class MnTopBar extends SkinAware(LitElement) {
       z-index: 2;
     }
 
-    /* ── Masthead / brand (static chrome) ── */
-    .masthead {
-      display: flex;
-      align-items: center;
-      gap: var(--mn-space-2, 6px);
-      flex-shrink: 0;
-      cursor: pointer;
-      border-radius: var(--mn-radius-sm, 4px);
-      padding: 2px 6px 2px 0;
-      transition: background var(--mn-transition-fast, 120ms ease);
-    }
-    .masthead:hover {
-      background: var(--mn-color-surface-accent, #f3f4f6);
-    }
-    .masthead-icon {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      width: 26px;
-      height: 26px;
-      color: var(--mn-top-bar-text, #111);
-      font-size: 18px;
-    }
-    .masthead-name-group {
-      display: flex;
-      flex-direction: column;
-      align-items: flex-start;
-      line-height: 1;
-    }
-    .masthead-name {
-      font-family: var(--mn-font-display, var(--mn-font-serif, Georgia, serif));
-      font-size: var(--mn-text-md, 15px);
-      font-weight: 600;
-      letter-spacing: -0.005em;
-      color: var(--mn-top-bar-text, #111);
-    }
-    .masthead-badge {
-      font-size: 9px;
-      font-weight: 500;
-      letter-spacing: 0.07em;
-      text-transform: uppercase;
-      color: var(--mn-color-text-accent, #6366f1);
-      margin-top: 1px;
-    }
-
-    /* ── App switcher (controlled tab strip) ── */
-    .app-switcher {
+    /* ── Contextual app toolbar ─────────────────────────────────────────────
+       Icon-only buttons declared per app in app-toolbar.ts. A hairline rule
+       separates them from the picker; they share the action buttons' size,
+       radius, hover and focus treatment so the bar reads as one instrument. */
+    .app-toolbar {
       display: flex;
       align-items: center;
       gap: 2px;
-      background: var(--mn-color-surface-sunken, #f3f4f6);
-      border: 1px solid var(--mn-color-border-subtle, #e5e7eb);
-      /* Skin radius role: Garden rounded (8px surface), Emporium square (4px). */
-      border-radius: var(--mn-radius-surface, 6px);
-      padding: 2px;
       flex-shrink: 0;
-      box-shadow: inset 0 1px 1px rgba(20, 35, 26, 0.035);
+      padding-left: var(--mn-space-2, 8px);
+      margin-left: calc(var(--mn-space-2, 8px) * -1);
+      border-left: 1px solid var(--mn-top-bar-border, rgba(0, 0, 0, 0.12));
     }
-    .app-switcher-btn {
+    .app-toolbar[hidden] { display: none; }
+    .toolbar-btn:disabled { opacity: 0.45; cursor: default; }
+    .toolbar-btn:disabled:hover { background: transparent; color: var(--mn-top-bar-text-muted, #6b7280); }
+
+    /* ── Current app (the Office-style picker trigger) ── */
+    .app-title {
       display: flex;
       align-items: center;
-      gap: 5px;
-      padding: 3px 10px;
-      /* Control radius role: Garden rounded, Emporium square (0). */
-      border-radius: var(--mn-radius-control, 4px);
-      border: none;
+      flex-shrink: 0;
+    }
+    .app-picker {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      height: 32px;
+      padding: 0 8px 0 5px;
+      border: 1px solid transparent;
+      border-radius: var(--mn-radius-lg, 8px);
       background: transparent;
-      color: var(--mn-color-text-muted, #6b7280);
-      font-size: var(--mn-text-xs, 12px);
-      font-family: var(--mn-font-utility, system-ui, sans-serif);
-      font-weight: 600;
+      color: var(--mn-top-bar-text, #111);
+      font: inherit;
       cursor: pointer;
-      transition:
-        background var(--mn-transition-fast, 120ms ease),
-        color var(--mn-transition-fast, 120ms ease),
-        box-shadow var(--mn-transition-fast, 120ms ease);
-      white-space: nowrap;
+      transition: background var(--mn-transition-fast, 120ms ease), border-color var(--mn-transition-fast, 120ms ease);
     }
-    /* The tab CAPTION — an icon-only skin (Emporium) hides this text and the
-       button collapses to its icon glyph. --mn-label-display is the skin flag:
-       'inline' (Garden) | 'none' (Emporium). */
-    .app-switcher-btn .switcher-label {
-      display: var(--mn-label-display, inline);
-    }
-    .app-switcher-btn .switcher-icon {
-      display: none;
-      font-size: 14px;
-      line-height: 1;
-    }
-    .app-switcher-btn:hover:not(.app-switcher-btn--active) {
-      color: var(--mn-color-text-secondary, #374151);
-    }
-    .app-switcher-btn--active {
-      background: var(--mn-color-surface-raised, #fff);
-      color: var(--mn-color-text-primary, #111);
-      box-shadow: var(--mn-shadow-xs, 0 1px 2px rgba(0, 0, 0, 0.08));
+    .app-picker:disabled {
       cursor: default;
     }
+    .app-picker:hover:not(:disabled),
+    .app-picker[aria-expanded='true'] {
+      background: var(--mn-color-surface-hover, rgba(0, 0, 0, 0.05));
+      border-color: var(--mn-top-bar-border, rgba(0, 0, 0, 0.1));
+    }
+    .masthead-name {
+      font-family: var(--mn-font-display, var(--mn-font-serif, Georgia, serif));
+      font-size: var(--mn-text-md, 16px);
+      font-weight: 600;
+      letter-spacing: -0.005em;
+      line-height: 1;
+      color: var(--mn-top-bar-text, #111);
+      white-space: nowrap;
+    }
+    .masthead-badge {
+      padding: 2px 5px;
+      border: 1px solid var(--mn-top-bar-border, rgba(0, 0, 0, 0.12));
+      border-radius: var(--mn-radius-full, 9999px);
+      font-family: var(--mn-font-utility, system-ui, sans-serif);
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: 0.07em;
+      line-height: 1;
+      text-transform: uppercase;
+      color: var(--mn-top-bar-text-muted, #4b5563);
+    }
+    .masthead-badge[hidden],
+    .app-picker-caret[hidden] { display: none; }
+    .app-picker-caret {
+      display: inline-flex;
+      color: var(--mn-top-bar-text-muted, #4b5563);
+    }
+
+    /* App tiles: one colour-coded glyph square per app (Office's launcher
+       grammar). Tile colours are brand constants from component.css. */
+    .app-tile {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      flex: 0 0 auto;
+      width: 22px;
+      height: 22px;
+      border-radius: 6px;
+      background: var(--mn-app-tile-default, var(--mn-color-accent, #376d57));
+      color: #fff;
+      box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.10);
+      font-family: var(--mn-font-utility, system-ui, sans-serif);
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .app-tile[data-app-id='garden'] { background: var(--mn-app-tile-garden, var(--mn-app-tile-default)); }
+    .app-tile[data-app-id='choreograph'] { background: var(--mn-app-tile-choreograph, var(--mn-app-tile-default)); }
+    .app-tile[data-app-id='hoja'] { background: var(--mn-app-tile-hoja, var(--mn-app-tile-garden, var(--mn-app-tile-default))); }
+    .app-tile[data-app-id='grapevine'] { background: var(--mn-app-tile-grapevine, var(--mn-app-tile-default)); }
+    .app-tile[data-app-id='flow'] { background: var(--mn-app-tile-flow, var(--mn-app-tile-default)); }
+
+    /* ── Floating panel: the app launcher ────────────────────────────────────
+       Native top layer (popover="auto": light dismiss + Escape for free), so
+       no ancestor transform/filter/overflow can clip it. This is the ONLY
+       glass in the header: Garden's --mn-material-popover-* material. */
+    .app-switcher {
+      position: fixed;
+      inset: auto;
+      margin: 0;
+      box-sizing: border-box;
+      padding: 8px;
+      border: 1px solid var(--mn-material-popover-edge, var(--mn-color-border-default, #d1d5db));
+      border-radius: var(--mn-radius-popover, 16px);
+      background: var(--mn-material-popover-bg, var(--mn-color-surface-raised, #fff));
+      color: var(--mn-color-text-primary, #111827);
+      box-shadow: var(--mn-material-popover-shadow, var(--mn-shadow-lg, 0 18px 40px rgba(15, 23, 42, 0.16)));
+      backdrop-filter: var(--mn-material-popover-filter, var(--mn-window-backdrop-filter, none));
+      -webkit-backdrop-filter: var(--mn-material-popover-filter, var(--mn-window-backdrop-filter, none));
+      font-family: var(--mn-font-chrome, system-ui, sans-serif);
+      opacity: 1;
+      transform: none;
+      transform-origin: top left;
+      transition:
+        opacity var(--mn-transition-fast, 120ms ease),
+        transform var(--mn-transition-fast, 120ms ease),
+        display var(--mn-transition-fast, 120ms ease) allow-discrete,
+        overlay var(--mn-transition-fast, 120ms ease) allow-discrete;
+    }
+    .app-switcher:not(:popover-open):not([popover-open]),
+    .app-switcher[hidden] {
+      display: none;
+    }
+    @starting-style {
+      .app-switcher:popover-open {
+        opacity: 0;
+        transform: translateY(-4px) scale(0.98);
+      }
+    }
+    .app-switcher { width: 332px; }
+
+    .panel-caption {
+      padding: 6px 8px 8px;
+      font-family: var(--mn-font-utility, system-ui, sans-serif);
+      font-size: 11px;
+      font-weight: 650;
+      letter-spacing: var(--mn-tracking-label, 0.05em);
+      text-transform: uppercase;
+      color: var(--mn-material-popover-text-muted, var(--mn-color-text-muted, #4b5563));
+    }
+    .app-grid {
+      display: grid;
+      gap: 2px;
+    }
+    .app-switcher-btn {
+      display: grid;
+      grid-template-columns: 36px 1fr auto;
+      align-items: center;
+      column-gap: 12px;
+      width: 100%;
+      padding: 8px;
+      border: 0;
+      border-radius: 8px;
+      background: transparent;
+      color: var(--mn-color-text-primary, #111);
+      font: inherit;
+      text-align: left;
+      cursor: pointer;
+      transition: background var(--mn-transition-fast, 120ms ease);
+      text-decoration: none;
+    }
+    .app-switcher-btn .app-tile {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      font-size: 16px;
+    }
+    .app-switcher-btn:hover,
+    .app-switcher-btn:focus-visible {
+      outline: none;
+      background: var(--mn-color-interactive-hover, rgba(0, 0, 0, 0.05));
+    }
+    .app-switcher-btn--active {
+      background: var(--mn-color-interactive-selected, rgba(0, 0, 0, 0.08));
+      cursor: default;
+    }
+    .switcher-text {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      min-width: 0;
+    }
+    .switcher-label {
+      font-family: var(--mn-font-display, var(--mn-font-serif, Georgia, serif));
+      font-size: 14px;
+      font-weight: 650;
+      line-height: 1.15;
+    }
+    /* Release stage tag beside an app's name (sophia-suite SophiaAppStage).
+       Tokens only, so it follows light, dark and every skin; inline, so it
+       wraps with the label at phone width instead of widening the row. */
+    .switcher-name {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 3px 6px;
+      min-width: 0;
+    }
+    .app-stage {
+      display: inline-block;
+      padding: 2px 6px;
+      border: 1px solid color-mix(in srgb, currentColor 35%, transparent);
+      border-radius: var(--mn-radius-full, 9999px);
+      font-family: var(--mn-font-utility, system-ui, sans-serif);
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: 0.07em;
+      line-height: 1;
+      text-transform: uppercase;
+      white-space: nowrap;
+      color: var(--mn-material-popover-text-muted, var(--mn-color-text-secondary, #4b5563));
+    }
+    .switcher-description {
+      /* Skin label flag: icon-only skins (emporium) drop the one-liners. */
+      display: var(--mn-label-display, inline);
+      font-family: var(--mn-font-utility, system-ui, sans-serif);
+      font-size: 12px;
+      line-height: 1.3;
+      color: var(--mn-material-popover-text-muted, var(--mn-color-text-secondary, #4b5563));
+    }
+    .switcher-check {
+      display: inline-flex;
+      color: var(--mn-color-text-accent, #376d57);
+      visibility: hidden;
+    }
+    .app-switcher-btn--active .switcher-check { visibility: visible; }
 
     /* ── Breadcrumbs (INERT data slot) ── */
     .breadcrumbs {
@@ -297,6 +463,7 @@ export class MnTopBar extends SkinAware(LitElement) {
       gap: var(--mn-space-2, 6px);
       flex-shrink: 0;
     }
+    .actions .action-btn[hidden] { display: none; }
     .action-btn {
       display: flex;
       align-items: center;
@@ -317,6 +484,13 @@ export class MnTopBar extends SkinAware(LitElement) {
         box-shadow var(--mn-transition-fast, 120ms ease);
       font-size: 16px;
     }
+    .appearance-btn {
+      white-space: nowrap;
+      font-family: var(--mn-font-mono, ui-monospace, monospace);
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: -0.04em;
+    }
     .action-btn:hover {
       background: var(--mn-color-surface-accent, #f3f4f6);
       color: var(--mn-top-bar-text, #111);
@@ -326,7 +500,7 @@ export class MnTopBar extends SkinAware(LitElement) {
       color: var(--mn-color-text-accent-strong, #4338ca);
       box-shadow: inset 0 0 0 1px var(--mn-color-border-subtle, transparent);
     }
-    .masthead:focus-visible,
+    .app-picker:focus-visible,
     .app-switcher-btn:focus-visible,
     .breadcrumb:focus-visible,
     .action-btn:focus-visible {
@@ -352,71 +526,88 @@ export class MnTopBar extends SkinAware(LitElement) {
       text-transform: uppercase;
       font-size: var(--mn-text-sm, 13px);
     }
-    :host([data-skin='emporium']) .app-switcher-btn .switcher-icon {
-      display: inline;
+    :host([data-skin='emporium']) .app-switcher {
+      border-radius: var(--mn-radius-surface, 4px);
+    }
+    :host([data-skin='emporium']) :is(.app-switcher-btn, .app-switcher-btn .app-tile) {
+      border-radius: var(--mn-radius-control, 3px);
     }
 
     /* ── 98 skin structural overrides ───────────────────────────────
        The caption bar remains the host background. Controls inside it become
        discrete silver widgets with period-correct raised/sunken bevels. */
-    :host([data-skin='98']) {
+    :host(${BEVELLED}) {
       padding-inline: 6px;
       gap: 8px;
       border: 2px solid var(--mn-98-face, #c0c0c0);
       border-bottom-color: var(--mn-98-dark, #000);
     }
-    :host([data-skin='98']) .masthead {
-      padding: 1px 5px 1px 0;
+    :host(${BEVELLED}) .app-picker {
       border-radius: 0;
     }
-    :host([data-skin='98']) .masthead:hover {
-      background: transparent;
+    :host(${BEVELLED}) .app-toolbar {
+      border-left-color: var(--mn-98-dark, #000);
     }
-    :host([data-skin='98']) .masthead-name {
+    :host(${BEVELLED}) .app-picker:hover:not(:disabled),
+    :host(${BEVELLED}) .app-picker[aria-expanded='true'] {
+      background: transparent;
+      border-color: transparent;
+      box-shadow: var(--mn-98-raised);
+    }
+    :host([data-skin='98']) .app-switcher {
+      border: 0;
+      border-radius: 0;
+      padding: 3px;
+      background: var(--mn-98-face, #c0c0c0);
+      box-shadow: var(--mn-98-raised), 2px 2px 0 rgba(0, 0, 0, 0.45);
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+    }
+    :host(${BEVELLED}) :is(.app-switcher-btn, .app-switcher-btn .app-tile) {
+      border-radius: 0;
+    }
+    :host(${BEVELLED}) .app-switcher-btn:hover,
+    :host(${BEVELLED}) .app-switcher-btn:focus-visible {
+      background: var(--mn-98-selection, #000080);
+      color: var(--mn-98-selection-text, #fff);
+    }
+    :host(${BEVELLED}) .app-switcher-btn:hover :is(.switcher-description, .switcher-check),
+    :host(${BEVELLED}) .app-switcher-btn:focus-visible :is(.switcher-description, .switcher-check) {
+      color: var(--mn-98-selection-text, #fff);
+    }
+    :host(${BEVELLED}) .masthead-name {
       font-size: 13px;
       font-weight: 750;
       letter-spacing: 0;
       text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.55);
     }
-    :host([data-skin='98']) .masthead-badge {
+    :host(${BEVELLED}) .masthead-badge {
+      border-color: currentColor;
       color: var(--mn-top-bar-text, #fff);
       letter-spacing: 0;
     }
-    :host([data-skin='98']) .app-switcher {
-      gap: 3px;
-      padding: 3px;
-      border: 0;
-      border-radius: 0;
-      background: var(--mn-98-face, #c0c0c0);
+    :host(${BEVELLED}) .app-picker-caret {
+      color: var(--mn-top-bar-text, #fff);
+    }
+    :host(${BEVELLED}) .app-switcher-btn--active {
       box-shadow: var(--mn-98-sunken);
     }
-    :host([data-skin='98']) .app-switcher-btn {
-      min-height: 22px;
-      padding: 2px 8px;
-      border-radius: 0;
-      color: var(--mn-color-text-primary, #000);
-    }
-    :host([data-skin='98']) .app-switcher-btn--active {
+    :host(${BEVELLED}) .breadcrumb:hover:not(:disabled) {
       background: var(--mn-98-face, #c0c0c0);
       color: var(--mn-color-text-primary, #000);
       box-shadow: var(--mn-98-raised);
     }
-    :host([data-skin='98']) .breadcrumb:hover:not(:disabled) {
+    :host(${BEVELLED}) .action-btn {
       background: var(--mn-98-face, #c0c0c0);
       color: var(--mn-color-text-primary, #000);
       box-shadow: var(--mn-98-raised);
     }
-    :host([data-skin='98']) .action-btn {
-      background: var(--mn-98-face, #c0c0c0);
-      color: var(--mn-color-text-primary, #000);
-      box-shadow: var(--mn-98-raised);
-    }
-    :host([data-skin='98']) .action-btn:hover {
+    :host(${BEVELLED}) .action-btn:hover {
       background: var(--mn-98-face, #c0c0c0);
       color: var(--mn-color-text-primary, #000);
     }
-    :host([data-skin='98']) .action-btn:active,
-    :host([data-skin='98']) .action-btn.active {
+    :host(${BEVELLED}) .action-btn:active,
+    :host(${BEVELLED}) .action-btn.active {
       background: var(--mn-98-face, #c0c0c0);
       color: var(--mn-color-text-primary, #000);
       box-shadow: var(--mn-98-sunken);
@@ -432,26 +623,51 @@ export class MnTopBar extends SkinAware(LitElement) {
       box-shadow: var(--mn-shadow-chrome);
       backdrop-filter: var(--mn-window-backdrop-filter);
     }
-    :host([data-skin='glass']) .masthead {
+    :host([data-skin='glass']) .app-picker {
       text-shadow: 0 1px 0 rgba(255, 255, 255, 0.62);
     }
-    :host([data-skin='glass']) .app-switcher,
     :host([data-skin='glass']) .action-btn {
       border: var(--mn-control-border);
       background: var(--mn-control-background);
       box-shadow: var(--mn-control-shadow);
       backdrop-filter: var(--mn-window-backdrop-filter);
     }
-    :host([data-skin='glass']) .app-switcher-btn:hover,
     :host([data-skin='glass']) .breadcrumb:hover:not(:disabled),
     :host([data-skin='glass']) .action-btn:hover {
       background: var(--mn-control-background-hover);
     }
-    :host([data-skin='glass']) .app-switcher-btn--active,
     :host([data-skin='glass']) .action-btn:active,
     :host([data-skin='glass']) .action-btn.active {
       background: var(--mn-control-background-active);
       box-shadow: var(--mn-control-shadow-active);
+    }
+
+    /* ── Phone widths ─────────────────────────────────────────────────────
+       One bar at every width, in every app: at 600px and below the bar keeps
+       the picker (tile + name), the app toolbar and theme + settings, and
+       folds the rest so nothing overflows a 390px screen. The breadcrumb
+       region is the only flexible part; it shrinks first. */
+    @media (max-width: 600px) {
+      :host {
+        padding: 0 var(--mn-top-bar-compact-padding, 8px);
+        gap: 6px;
+      }
+      :host(${BEVELLED}) { padding-inline: 4px; gap: 4px; }
+      .app-picker { gap: 6px; padding: 0 4px 0 3px; }
+      .masthead-name { font-size: 15px; }
+      .app-toolbar { padding-left: 4px; margin-left: 0; }
+      .actions { gap: 2px; }
+      .appearance-btn,
+      .skin-action { display: none; }
+      .breadcrumb { max-width: 40vw; }
+      .app-switcher { width: min(332px, calc(100vw - 16px)); }
+    }
+    /* Phone portrait: the picker is the app's tile + caret (the name stays
+       its accessible label and heads the launcher), leaving the breadcrumb
+       region room for the workspace / document title. */
+    @media (max-width: 480px) {
+      .masthead-name,
+      .masthead-badge { display: none; }
     }
   `
 
@@ -491,8 +707,44 @@ export class MnTopBar extends SkinAware(LitElement) {
    */
   @property({ attribute: false }) apps: readonly ChromeAppTab[] = []
 
-  /** The brand label (chrome only). Default 'Garden'; a shell may override. */
+  /**
+   * The CURRENT APP's title when no `apps` are configured (a route with no
+   * workspace config). With apps, the title is the active app's label.
+   */
   @property({ type: String }) brand = 'Garden'
+
+  /** The suite name that captions the app launcher ("Sophia apps"). */
+  @property({ type: String, attribute: 'suite-name' }) suiteName = 'Sophia'
+
+  /**
+   * Override for the contextual toolbar. Null (the default) reads the active
+   * app's declared set from the registry in app-toolbar.ts; an array replaces
+   * it (a shell or story with its own set).
+   */
+  @property({ attribute: false }) toolbarActions: readonly AppToolbarAction[] | null = null
+
+  /** Standalone apps may supply their own actions in the slot. */
+  @property({ type: Boolean, attribute: 'custom-actions-only' }) customActionsOnly = false
+
+  /**
+   * Suite route for the standalone Hoja app, separate from graph-local app
+   * tabs. Sugar for an `appLinks` Hoja entry; kept for existing shells.
+   */
+  @property({ type: String }) hojaHref = ''
+
+  /**
+   * Apps the launcher opens by navigation (see ChromeAppLink). Merged with
+   * `apps` into ONE list in the suite's canonical order (sophia-suite.ts); an
+   * in-shell tab wins over a link with the same id.
+   */
+  @property({ attribute: false }) appLinks: readonly ChromeAppLink[] = []
+
+  /**
+   * Which built-in right-side controls render. Null (the default) = all of
+   * them, unless `customActionsOnly` is set (then none). An app that owns only
+   * some of them (Hoja: its own theme, no skins) lists exactly those.
+   */
+  @property({ attribute: false }) controls: readonly ChromeControl[] | null = null
 
   /**
    * The masthead brand glyph — a configurable ICON NAME (see icons.ts), default a
@@ -501,14 +753,17 @@ export class MnTopBar extends SkinAware(LitElement) {
    */
   @property({ type: String }) glyph = 'sprout'
 
-  /** The brand badge (e.g. 'beta' / 'staging'). Chrome only. */
-  @property({ type: String }) badge = 'beta'
+  /** Optional badge beside the app title (e.g. 'staging'). Empty — the default — renders nothing. */
+  @property({ type: String }) badge = ''
 
   /** Dark-mode pressed state — a CONTROLLED prop, never read from a theme store. */
   @property({ type: Boolean, attribute: 'is-dark' }) isDark = false
 
   /** Current visual identity — a CONTROLLED prop, never read from a store. */
   @property({ type: String, attribute: 'active-skin' }) activeSkin: ChromeSkinId = 'garden'
+
+  /** The skins the picker offers, in order; a shell with its own set passes it once. */
+  @property({ attribute: false }) skins: readonly ChromeSkinId[] = CHROME_PICKER_SKINS
 
   /** Live graph/document path supplied by the shell. Empty preserves the slot seam. */
   @property({ attribute: false }) breadcrumbs: readonly ChromeBreadcrumb[] = []
@@ -520,6 +775,8 @@ export class MnTopBar extends SkinAware(LitElement) {
   @property({ type: String }) workspaceError = ''
   @property({ type: String }) activeWorkspaceId = ''
   @property({ type: String }) workspaceBusyId = ''
+  /** False leaves "New Workspace" out of the selector (a person who may not create graphs). */
+  @property({ type: Boolean, attribute: 'workspace-create-available' }) workspaceCreateAvailable = true
 
   /** Controlled Quick Clip visibility/status; absent graph means no trigger. */
   @property({ type: Boolean }) quickClipAvailable = false
@@ -529,11 +786,127 @@ export class MnTopBar extends SkinAware(LitElement) {
   /** Hosted gateway member grants. Null means this deployment has no access surface. */
   @property({ attribute: false }) access: MnAccessManagerModel | null = null
 
+  @state() private _appsOpen = false
+  /** Was the launcher open when the pointer went down on its trigger? (light
+      dismiss closes it on pointerdown; the click that follows must not reopen it.) */
+  private _openAtPointerDown = false
+
+  private _launcher(): HTMLElement | null {
+    return this.renderRoot.querySelector<HTMLElement>('.app-switcher')
+  }
+
+  private _picker(): HTMLElement | null {
+    return this.renderRoot.querySelector<HTMLElement>('.app-picker')
+  }
+
+  private _notePointer(): void {
+    const panel = this._launcher()
+    this._openAtPointerDown = panel ? isPopoverOpen(panel) : false
+  }
+
+  private _toggleLauncher(): void {
+    const panel = this._launcher()
+    const trigger = this._picker()
+    if (!panel || !trigger) return
+    const wasOpen = this._openAtPointerDown || isPopoverOpen(panel)
+    this._openAtPointerDown = false
+    if (wasOpen) {
+      this._closeLauncher()
+      return
+    }
+    showPopover(panel)
+    positionPopover(trigger, panel, { placement: 'bottom-start', gap: 8 })
+    this._appsOpen = true
+    const first = panel.querySelector<HTMLElement>('[role^="menuitem"]:not([disabled])')
+    first?.focus({ preventScroll: true })
+  }
+
+  private _closeLauncher(restoreFocus = false): void {
+    const panel = this._launcher()
+    if (panel && isPopoverOpen(panel)) hidePopover(panel)
+    this._appsOpen = false
+    if (restoreFocus) this._picker()?.focus({ preventScroll: true })
+  }
+
+  /** Native light dismiss / Escape close the launcher without our help; mirror it. */
+  private _onToggle(event: Event): void {
+    const open = (event as Event & { newState?: string }).newState === 'open'
+    this._appsOpen = open
+    if (!open) {
+      // A native close must also clear the attribute fallback, or
+      // isPopoverOpen() keeps reporting a closed launcher as open and the next
+      // picker click "closes" it instead of opening it.
+      this._launcher()?.removeAttribute('popover-open')
+      const active = this.shadowRoot?.activeElement
+      if (active && this._launcher()?.contains(active)) this._picker()?.focus({ preventScroll: true })
+    }
+  }
+
+  /** Left/Right/Home/End move between toolbar buttons (Tab leaves the group). */
+  private _onToolbarKeydown(event: KeyboardEvent): void {
+    const bar = event.currentTarget as HTMLElement
+    const buttons = Array.from(bar.querySelectorAll<HTMLButtonElement>('button:not([disabled])'))
+    if (buttons.length < 2) return
+    const index = buttons.indexOf(this.shadowRoot?.activeElement as HTMLButtonElement)
+    let next = -1
+    if (event.key === 'ArrowRight') next = (index + 1) % buttons.length
+    else if (event.key === 'ArrowLeft') next = (index - 1 + buttons.length) % buttons.length
+    else if (event.key === 'Home') next = 0
+    else if (event.key === 'End') next = buttons.length - 1
+    if (next < 0) return
+    event.preventDefault()
+    buttons[next].focus()
+  }
+
+  /** The launcher rows: tabs + links (+ the Hoja sugar), one per id, in suite order. */
+  launcherEntries(): readonly LauncherEntry[] {
+    const tabs = this.apps.map(app => ({ kind: 'tab', app }) as const)
+    const seen = new Set(this.apps.map(app => app.id))
+    const links: LauncherEntry[] = []
+    const allLinks: ChromeAppLink[] = [...this.appLinks]
+    if (this.hojaHref && !allLinks.some(link => link.id === 'hoja')) {
+      allLinks.push({ id: 'hoja', label: 'Hoja', icon: 'leaf', href: this.hojaHref })
+    }
+    for (const link of allLinks) {
+      if (!link.href || seen.has(link.id)) continue
+      seen.add(link.id)
+      links.push({ kind: 'link', app: link })
+    }
+    return orderSophiaApps([...tabs, ...links].map(entry => ({ id: entry.app.id, entry }))).map(item => item.entry)
+  }
+
+  private _showControl(control: ChromeControl): boolean {
+    if (this.controls) return this.controls.includes(control)
+    return !this.customActionsOnly
+  }
+
+  /** The toolbar for the active app: the override, else the registry entry. */
+  private _toolbar(): readonly AppToolbarAction[] {
+    return this.toolbarActions ?? appToolbarActions(this.activeApp)
+  }
+
+  /** Arrow-key roving focus inside a menu panel (Tab and Escape stay native). */
+  private _onMenuKeydown(event: KeyboardEvent): void {
+    const panel = event.currentTarget as HTMLElement
+    const items = Array.from(panel.querySelectorAll<HTMLElement>('[role^="menuitem"]:not([disabled])'))
+    if (items.length === 0) return
+    const index = items.indexOf(this.shadowRoot?.activeElement as HTMLElement)
+    let next = -1
+    if (event.key === 'ArrowDown') next = (index + 1) % items.length
+    else if (event.key === 'ArrowUp') next = (index - 1 + items.length) % items.length
+    else if (event.key === 'Home') next = 0
+    else if (event.key === 'End') next = items.length - 1
+    if (next < 0) return
+    event.preventDefault()
+    items[next].focus()
+  }
+
   private _emit(name: string, detail?: unknown): void {
     this.dispatchEvent(new CustomEvent(name, { detail, bubbles: true, composed: true }))
   }
 
   private _selectApp(app: ChromeAppId): void {
+    this._closeLauncher(true)
     if (this.activeApp === app) return
     this._emit('mn-app-change', { app })
   }
@@ -558,42 +931,114 @@ export class MnTopBar extends SkinAware(LitElement) {
     this._emit('mn-breadcrumb-open', { breadcrumb } satisfies ChromeBreadcrumbOpenDetail)
   }
 
+  private _renderLauncherEntry(entry: LauncherEntry) {
+    const app = entry.app
+    const active = this.activeApp === app.id
+    const identity = sophiaApp(app.id)
+    const glyph = app.icon ?? (identity.description ? identity.icon : undefined)
+    const tile = glyph
+      ? html`<span class="app-tile switcher-icon" data-app-id=${app.id} aria-hidden="true">${icon(glyph, { size: 18 })}</span>`
+      : html`<span class="app-tile" data-app-id=${app.id} aria-hidden="true">${app.label.slice(0, 1)}</span>`
+    const description = app.description ?? identity.description
+    const stage = app.stage ?? identity.stage ?? ''
+    const accessibleName = `${sophiaAppAccessibleName(app.label, stage)} app`
+    const stageTag = stage ? html`<span class="app-stage" data-stage=${stage} aria-hidden="true">${stage}</span>` : nothing
+    // The row markup is written out in each branch (not shared through one
+    // nested template that OPENS with a part): under the pinned lit-html +
+    // happy-dom pair such a template commits its values one part off.
+    if (entry.kind === 'link' && !active) {
+      return html`<a
+        class="app-switcher-btn"
+        role="menuitemradio"
+        aria-checked="false"
+        aria-label=${accessibleName}
+        data-app-id=${app.id}
+        data-app-link=""
+        href=${entry.app.href}
+        @click=${() => this._closeLauncher()}
+      >${tile}<span class="switcher-text"><span class="switcher-name"><span class="switcher-label">${app.label}</span>${stageTag}</span><span class="switcher-description">${description}</span></span><span class="switcher-check" aria-hidden="true">${icon('check', { size: 16 })}</span></a>`
+    }
+    return html`<button
+      type="button"
+      class="app-switcher-btn ${active ? 'app-switcher-btn--active' : ''}"
+      role="menuitemradio"
+      aria-checked=${active ? 'true' : 'false'}
+      aria-label=${accessibleName}
+      data-app-id=${app.id}
+      @click=${() => this._selectApp(app.id)}
+    >${tile}<span class="switcher-text"><span class="switcher-name"><span class="switcher-label">${app.label}</span>${stageTag}</span><span class="switcher-description">${description}</span></span><span class="switcher-check" aria-hidden="true">${icon('check', { size: 16 })}</span></button>`
+  }
+
   render() {
-    const skinMeta = chromeSkinMeta(this.activeSkin)
-    const skinActionLabel = `Visual style: ${skinMeta.label}. Switch visual style`
+    const entries = this.launcherEntries()
+    const activeTab = entries.find(entry => entry.app.id === this.activeApp)?.app
+    const appLabel = activeTab?.label ?? this.brand
+    const appGlyph = activeTab
+      ? activeTab.icon ?? (sophiaApp(activeTab.id).description ? sophiaApp(activeTab.id).icon : this.glyph)
+      : this.glyph
+    const canPick = entries.length > 0
+    const toolbar = this._toolbar()
     const visibleBreadcrumbs = this.workspaces === null
       ? this.breadcrumbs
       : this.breadcrumbs.filter(breadcrumb => breadcrumb.kind !== 'graph')
     return html`
-      <div class="masthead" part="masthead" @click=${() => this._emit('mn-navigate-home')}>
-        <span class="masthead-icon" aria-hidden="true">${icon(this.glyph, { size: 18 })}</span>
-        <div class="masthead-name-group">
-          <span class="masthead-name">${this.brand}</span>
-          <span class="masthead-badge">${this.badge}</span>
-        </div>
+      <div class="app-title" part="app-title">
+        <button
+          type="button"
+          class="app-picker"
+          part="app-picker"
+          ?disabled=${!canPick}
+          aria-haspopup="menu"
+          aria-expanded=${this._appsOpen ? 'true' : 'false'}
+          aria-controls="app-launcher"
+          aria-label=${canPick ? `${appLabel}. Switch app` : appLabel}
+          @pointerdown=${() => this._notePointer()}
+          @click=${() => this._toggleLauncher()}
+        >
+          <span class="app-tile masthead-icon" data-app-id=${activeTab?.id ?? this.activeApp} aria-hidden="true">${icon(appGlyph, { size: 14 })}</span>
+          <span class="masthead-name">${appLabel}</span>
+          <span class="masthead-badge" ?hidden=${!this.badge}>${this.badge}</span>
+          <span class="app-picker-caret" aria-hidden="true" ?hidden=${!canPick}>${icon('chevron-down', { size: 12 })}</span>
+        </button>
+      </div>
+
+      <!-- Contextual toolbar: the active app's declared set (app-toolbar.ts).
+           Always in the template and hidden when empty, for the same ChildPart
+           reason the launcher is (see the note on \`apps\`). -->
+      <div
+        class="app-toolbar"
+        part="app-toolbar"
+        role="toolbar"
+        aria-label=${`${appLabel} tools`}
+        ?hidden=${toolbar.length === 0}
+        @keydown=${this._onToolbarKeydown}
+      >
+        ${toolbar.map(action => html`<button
+          type="button"
+          class="action-btn toolbar-btn"
+          data-app-action=${action.id}
+          aria-label=${action.label}
+          title=${action.label}
+          ?disabled=${Boolean(action.disabled)}
+          @click=${() => { if (!action.disabled) this._emit(action.event, action.detail) }}
+        >${icon(action.icon)}</button>`)}
       </div>
 
       <div
         class="app-switcher"
+        id="app-launcher"
         part="app-switcher"
-        role="tablist"
+        popover="auto"
+        role="menu"
         aria-label="Switch app"
-        ?hidden=${this.apps.length === 0}
+        ?hidden=${entries.length === 0}
+        @toggle=${(event: Event) => this._onToggle(event)}
+        @keydown=${this._onMenuKeydown}
       >
-        ${this.apps.map(
-          (tab) => html`<button
-            class="app-switcher-btn ${this.activeApp === tab.id ? 'app-switcher-btn--active' : ''}"
-            role="tab"
-            aria-selected=${this.activeApp === tab.id ? 'true' : 'false'}
-            aria-label="${tab.label} app"
-            @click=${() => this._selectApp(tab.id)}
-          >
-            ${tab.icon
-              ? html`<span class="switcher-icon" aria-hidden="true">${icon(tab.icon, { size: 14 })}</span>`
-              : nothing}
-            <span class="switcher-label">${tab.label}</span>
-          </button>`,
-        )}
+        <div class="panel-caption" role="presentation">${this.suiteName} apps</div>
+        <div class="app-grid" role="presentation">
+        ${entries.map(entry => this._renderLauncherEntry(entry))}
+        </div>
       </div>
 
       <!--
@@ -614,6 +1059,7 @@ export class MnTopBar extends SkinAware(LitElement) {
           .error=${this.workspaceError}
           .activeGraphId=${this.activeWorkspaceId}
           .busyGraphId=${this.workspaceBusyId}
+          .createCapability=${this.workspaceCreateAvailable ? WORKSPACE_CREATE_ENABLED : WORKSPACE_CREATE_ABSENT}
         ></mn-workspace-selector>` : nothing}
         ${visibleBreadcrumbs.length > 0
           ? html`<div class="breadcrumb-list">
@@ -638,31 +1084,43 @@ export class MnTopBar extends SkinAware(LitElement) {
       </nav>
 
       <div class="actions" part="actions">
-        ${this.quickClipAvailable ? html`<mn-quick-clip
+        <button
+          class="action-btn appearance-btn"
+          ?hidden=${!this._showControl('appearance')}
+          title="Appearance menu"
+          aria-label="Appearance menu"
+          aria-haspopup="menu"
+          @click=${(event: MouseEvent) => {
+            const box = (event.currentTarget as HTMLElement).getBoundingClientRect()
+            this.dispatchEvent(new CustomEvent('mn-appearance-menu', { detail: { x: box.left, y: box.bottom + 4 }, bubbles: true, composed: true }))
+          }}
+        >{ }</button>
+        ${this.quickClipAvailable && this._showControl('quick-clip') ? html`<mn-quick-clip
           .status=${this.quickClipStatus}
           .error=${this.quickClipError}
         ></mn-quick-clip>` : nothing}
-        ${this.access ? html`<mn-access-manager .model=${this.access}></mn-access-manager>` : nothing}
+        ${this.access && this._showControl('access') ? html`<mn-access-manager .model=${this.access}></mn-access-manager>` : nothing}
         <button
-          class="action-btn ${this.isDark ? 'active' : ''}"
+          class="action-btn theme-action ${this.isDark ? 'active' : ''}"
+          data-action="theme"
+          ?hidden=${!this._showControl('theme')}
           aria-label="Toggle theme"
           aria-pressed=${this.isDark ? 'true' : 'false'}
           @click=${() => this._emit('mn-theme-toggle')}
         >
           ${icon(this.isDark ? 'moon' : 'sun')}
         </button>
-        <button
-          class="action-btn skin-action"
+        <mn-skin-picker
+          class="skin-action"
+          ?hidden=${!this._showControl('skin')}
           data-action="skin"
-          data-active-skin=${this.activeSkin}
-          aria-label=${skinActionLabel}
-          title=${skinActionLabel}
-          @click=${() => this._emit('mn-skin-toggle')}
-        >
-          ${icon(skinMeta.icon)}
-        </button>
+          .value=${this.activeSkin}
+          .skins=${this.skins}
+        ></mn-skin-picker>
         <button
-          class="action-btn"
+          class="action-btn settings-action"
+          data-action="settings"
+          ?hidden=${!this._showControl('settings')}
           aria-label="Settings"
           @click=${() => this._emit('mn-settings-toggle')}
         >

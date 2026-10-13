@@ -19,6 +19,7 @@ import { ListItem } from './extensions/list-item'
 import { Outliner } from './extensions/outliner'
 import { BlockSelection, type BlockSelectionOverlayGate } from './extensions/block-selection'
 import { BlockDnd } from './extensions/block-dnd'
+import { WireDecorations } from './extensions/wire-decorations'
 import { OutlinerZoom, getZoomedBlockId } from './extensions/outliner-zoom'
 import { Search } from './extensions/search'
 import { Footnote } from './extensions/footnote'
@@ -41,6 +42,8 @@ import { TagAutocomplete } from './extensions/tag-autocomplete'
 import { BlockTags } from './extensions/block-tags'
 import { BlockId } from './extensions/block-id'
 import { WireShortcuts } from './extensions/wire-shortcuts'
+import { OpaqueBlock, UnsupportedBlock, UnsupportedMark } from './extensions/unsupported-content'
+import { DataTable } from './extensions/data-table'
 import type { ClipboardWriter, MermaidRenderHost } from './extensions/copyable-code-block'
 
 export type {
@@ -138,6 +141,7 @@ export interface KernelOptions {
  */
 export function kernelExtensions(opts: KernelOptions = {}): Extensions {
   const profile = opts.profile ?? 'document'
+  if (profile === 'source') return baseExtensions({ profile, collaborative: opts.collaborative })
   const wikiLink = WikiLink.configure({
     onOpenPicker: opts.onWikiLinkPickerOpen,
     emitLegacyPickerEvents: profile === 'document',
@@ -180,10 +184,13 @@ export function kernelExtensions(opts: KernelOptions = {}): Extensions {
       isOverlayOpen: opts.isOverlayOpen,
     }),
     BlockDnd,
+    WireDecorations,
     OutlinerZoom,
     Search,
     Footnote,
     ImageBlock,
+    // Tabular data as one atom over a side store (a query result, an embedded sheet): never thousands of table cells.
+    DataTable.configure({ writeClipboard: opts.writeClipboard }),
     CalendarEvent,
     QueryBlock.configure({
       renderQueryBlock: opts.renderQueryBlock,
@@ -215,9 +222,18 @@ export function kernelExtensions(opts: KernelOptions = {}): Extensions {
     TagAutocomplete,
     BlockTags,
     BlockId.configure({
-      enabledNodeTypes: ['queryBlock', ...(opts.enabledNodeTypes ?? [])],
+      // opaqueBlock: gardend's block contract carries data-block-id on it.
+      enabledNodeTypes: ['queryBlock', 'opaqueBlock', ...(opts.enabledNodeTypes ?? [])],
     }),
     WireShortcuts,
+    // Keeps stored content the schema cannot render (nested lists written by
+    // agents, unknown blocks/marks) instead of letting the collaborative
+    // binding delete it on open. See extensions/unsupported-content.ts.
+    UnsupportedBlock,
+    UnsupportedMark,
+    // gardend's block contract stores unknown content as opaqueBlock
+    // (originalType + verbatim originalJson + text): read-only, never rewritten.
+    OpaqueBlock,
   ]
 }
 
@@ -237,8 +253,10 @@ export { wikilinkStyles }
 export * from './outliner-tree'
 export * from './extensions/block-selection'
 export * from './extensions/block-dnd'
+export * from './extensions/wire-decorations'
 export * from './extensions/outliner-zoom'
 export * from './extensions/citation'
+export * from './editor-styles'
 export * from './extensions/math'
 export * from './extensions/query-block'
 export * from './extensions/copyable-code-block'
@@ -248,7 +266,12 @@ export * from './extensions/tag-chip'
 export * from './extensions/tag-recognition'
 export * from './extensions/tag-autocomplete'
 export * from './extensions/wire-shortcuts'
+export * from './extensions/unsupported-content'
 export * from './tag-suggestions'
+export * from './extensions/data-table'
+export * from './extensions/code-view'
+export * from './extensions/reader-image'
+export * from './reader'
 // Re-export the TipTap Editor type — it is already the public return type of
 // createKernelEditor, so hosts can name it without importing @tiptap/core
 // directly (keeps @tiptap out of host dependency surfaces).

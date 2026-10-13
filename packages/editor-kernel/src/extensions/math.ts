@@ -9,6 +9,7 @@
 
 import { InputRule, Node, mergeAttributes } from '@tiptap/core'
 import type { NodeViewRendererProps } from '@tiptap/core'
+import { adoptEditorStylesWhenConnected } from '../editor-styles'
 
 export interface MathRenderRequest {
   readonly src: string
@@ -96,12 +97,14 @@ const MATH_CSS = `
   }
 `
 
-function injectMathCss(doc: Document): void {
-  if (doc.querySelector('[data-mn-math-css]')) return
-  const style = doc.createElement('style')
-  style.setAttribute('data-mn-math-css', '')
-  style.textContent = MATH_CSS
-  doc.head.appendChild(style)
+/**
+ * The math node's own stylesheet, adopted into the root the editor renders
+ * in (a shadow root under `<sh-editor-host>`). It used to be appended to
+ * `document.head`, which a shadow root never sees: the hover outline and the
+ * inline edit bar went unstyled there (2026-09-26).
+ */
+function adoptMathCss(editorDom: HTMLElement): void {
+  adoptEditorStylesWhenConnected(editorDom, 'mn-math', MATH_CSS)
 }
 
 function defaultRenderMath(target: HTMLElement, request: MathRenderRequest): void {
@@ -131,7 +134,7 @@ function createMathNodeView(displayMode: boolean, renderMath: MathRenderer | und
     let currentNode = initNode
     const tag = displayMode ? 'div' : 'span'
     const doc = editor.view.dom.ownerDocument
-    injectMathCss(doc)
+    adoptMathCss(editor.view.dom)
 
     const dom = doc.createElement(tag)
     dom.className = `math-node ${displayMode ? 'math-block' : 'math-inline'}`

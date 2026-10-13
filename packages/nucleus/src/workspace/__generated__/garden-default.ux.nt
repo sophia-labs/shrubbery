@@ -2,7 +2,7 @@
 # UX-config seed body for GARDEN_DEFAULT (WP0.1 sux: schema).
 # This is the N-Triples body the gateway seed / WP5.1 / Rust ux_seed.rs
 # (build_ux_config_seed) insert into a cell's :ux:config named graph.
-# Triples: 275   sha256(body): c00aa0a84a386ea02046d43e614d2cff3d04170636c18a9731e9fe543a606cd1
+# Triples: 282   sha256(body): fb379ae9ad80ad2190ecd1abfa2d776236bc86de425dbea2cb932de9f739dad8
 # Regenerate: pnpm generate:ux-seed
 <http://sophia.ai/ux#dim-app> <http://sophia.ai/ux#defaultValue> "garden" .
 <http://sophia.ai/ux#dim-app> <http://sophia.ai/ux#hasValue> <http://sophia.ai/ux#val-app-choreograph> .
@@ -22,6 +22,8 @@
 <http://sophia.ai/ux#dim-skin> <http://sophia.ai/ux#hasValue> <http://sophia.ai/ux#val-skin-emporium> .
 <http://sophia.ai/ux#dim-skin> <http://sophia.ai/ux#hasValue> <http://sophia.ai/ux#val-skin-garden> .
 <http://sophia.ai/ux#dim-skin> <http://sophia.ai/ux#hasValue> <http://sophia.ai/ux#val-skin-glass> .
+<http://sophia.ai/ux#dim-skin> <http://sophia.ai/ux#hasValue> <http://sophia.ai/ux#val-skin-hotdog-stand> .
+<http://sophia.ai/ux#dim-skin> <http://sophia.ai/ux#hasValue> <http://sophia.ai/ux#val-skin-mithras> .
 <http://sophia.ai/ux#dim-skin> <http://sophia.ai/ux#localId> "dim-skin" .
 <http://sophia.ai/ux#dim-skin> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://sophia.ai/ux#ConfigDimension> .
 <http://sophia.ai/ux#dim-skin> <http://www.w3.org/2000/01/rdf-schema#label> "Skin" .
@@ -34,7 +36,6 @@
 <http://sophia.ai/ux#dim-theme> <http://www.w3.org/2000/01/rdf-schema#label> "Theme" .
 <http://sophia.ai/ux#GardenDefault> <http://sophia.ai/ux#hasAppRootEntry> <http://sophia.ai/ux#GardenDefault-approot-choreograph-0> .
 <http://sophia.ai/ux#GardenDefault> <http://sophia.ai/ux#hasAppRootEntry> <http://sophia.ai/ux#GardenDefault-approot-choreograph-1> .
-<http://sophia.ai/ux#GardenDefault> <http://sophia.ai/ux#hasAppRootEntry> <http://sophia.ai/ux#GardenDefault-approot-choreograph-2> .
 <http://sophia.ai/ux#GardenDefault> <http://sophia.ai/ux#hasConfigEdge> <http://sophia.ai/ux#GardenDefault-edge-0> .
 <http://sophia.ai/ux#GardenDefault> <http://sophia.ai/ux#hasConfigEdge> <http://sophia.ai/ux#GardenDefault-edge-1> .
 <http://sophia.ai/ux#GardenDefault> <http://sophia.ai/ux#hasConfigEdge> <http://sophia.ai/ux#GardenDefault-edge-2> .
@@ -73,10 +74,6 @@
 <http://sophia.ai/ux#GardenDefault-approot-choreograph-1> <http://sophia.ai/ux#forApp> "choreograph" .
 <http://sophia.ai/ux#GardenDefault-approot-choreograph-1> <http://sophia.ai/ux#rootRegion> <http://sophia.ai/ux#region-choreo-center> .
 <http://sophia.ai/ux#GardenDefault-approot-choreograph-1> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://sophia.ai/ux#AppRootEntry> .
-<http://sophia.ai/ux#GardenDefault-approot-choreograph-2> <http://sophia.ai/ux#atIndex> "2"^^<http://www.w3.org/2001/XMLSchema#integer> .
-<http://sophia.ai/ux#GardenDefault-approot-choreograph-2> <http://sophia.ai/ux#forApp> "choreograph" .
-<http://sophia.ai/ux#GardenDefault-approot-choreograph-2> <http://sophia.ai/ux#rootRegion> <http://sophia.ai/ux#region-bottom-bar> .
-<http://sophia.ai/ux#GardenDefault-approot-choreograph-2> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://sophia.ai/ux#AppRootEntry> .
 <http://sophia.ai/ux#GardenDefault-edge-0> <http://sophia.ai/ux#atIndex> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
 <http://sophia.ai/ux#GardenDefault-edge-0> <http://sophia.ai/ux#from> <http://sophia.ai/ux#face:comments> .
 <http://sophia.ai/ux#GardenDefault-edge-0> <http://sophia.ai/ux#predicate> "drivesSelection" .
@@ -180,12 +177,12 @@
 <http://sophia.ai/ux#region-choreo-center> <http://sophia.ai/ux#collapsible> "false"^^<http://www.w3.org/2001/XMLSchema#boolean> .
 <http://sophia.ai/ux#region-choreo-center> <http://sophia.ai/ux#localId> "region-choreo-center" .
 <http://sophia.ai/ux#region-choreo-center> <http://sophia.ai/ux#order> "2"^^<http://www.w3.org/2001/XMLSchema#integer> .
-<http://sophia.ai/ux#region-choreo-center> <http://sophia.ai/ux#renderedByComponent> "wf-studio-shell" .
+<http://sophia.ai/ux#region-choreo-center> <http://sophia.ai/ux#renderedByComponent> "choreo-modes-surface" .
 <http://sophia.ai/ux#region-choreo-center> <http://sophia.ai/ux#resizable> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
 <http://sophia.ai/ux#region-choreo-center> <http://sophia.ai/ux#sizeFraction> "0.8"^^<http://www.w3.org/2001/XMLSchema#decimal> .
 <http://sophia.ai/ux#region-choreo-center> <http://sophia.ai/ux#splitOrientation> "vertical" .
 <http://sophia.ai/ux#region-choreo-center> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://sophia.ai/ux#Region> .
-<http://sophia.ai/ux#region-choreo-center> <http://www.w3.org/2000/01/rdf-schema#label> "Choreograph Center (Studio)" .
+<http://sophia.ai/ux#region-choreo-center> <http://www.w3.org/2000/01/rdf-schema#label> "Choreograph Center (Modes)" .
 <http://sophia.ai/ux#region-left-rail> <http://sophia.ai/ux#childRegion> <http://sophia.ai/ux#region-center> .
 <http://sophia.ai/ux#region-left-rail> <http://sophia.ai/ux#collapsible> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
 <http://sophia.ai/ux#region-left-rail> <http://sophia.ai/ux#docksPanel> <http://sophia.ai/ux#panel-sidebar> .
@@ -264,6 +261,16 @@
 <http://sophia.ai/ux#val-skin-glass> <http://sophia.ai/ux#localId> "val-skin-glass" .
 <http://sophia.ai/ux#val-skin-glass> <http://sophia.ai/ux#ordinalIndex> "3"^^<http://www.w3.org/2001/XMLSchema#integer> .
 <http://sophia.ai/ux#val-skin-glass> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://sophia.ai/ux#ConfigValue> .
+<http://sophia.ai/ux#val-skin-hotdog-stand> <http://sophia.ai/ux#appliesAttribute> "[data-skin=hotdog-stand]" .
+<http://sophia.ai/ux#val-skin-hotdog-stand> <http://sophia.ai/ux#literalValue> "hotdog-stand" .
+<http://sophia.ai/ux#val-skin-hotdog-stand> <http://sophia.ai/ux#localId> "val-skin-hotdog-stand" .
+<http://sophia.ai/ux#val-skin-hotdog-stand> <http://sophia.ai/ux#ordinalIndex> "5"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<http://sophia.ai/ux#val-skin-hotdog-stand> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://sophia.ai/ux#ConfigValue> .
+<http://sophia.ai/ux#val-skin-mithras> <http://sophia.ai/ux#appliesAttribute> "[data-skin=mithras]" .
+<http://sophia.ai/ux#val-skin-mithras> <http://sophia.ai/ux#literalValue> "mithras" .
+<http://sophia.ai/ux#val-skin-mithras> <http://sophia.ai/ux#localId> "val-skin-mithras" .
+<http://sophia.ai/ux#val-skin-mithras> <http://sophia.ai/ux#ordinalIndex> "4"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<http://sophia.ai/ux#val-skin-mithras> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://sophia.ai/ux#ConfigValue> .
 <http://sophia.ai/ux#val-theme-dark> <http://sophia.ai/ux#appliesAttribute> "[data-theme=dark]" .
 <http://sophia.ai/ux#val-theme-dark> <http://sophia.ai/ux#literalValue> "dark" .
 <http://sophia.ai/ux#val-theme-dark> <http://sophia.ai/ux#localId> "val-theme-dark" .

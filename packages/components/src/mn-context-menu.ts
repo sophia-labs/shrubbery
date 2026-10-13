@@ -22,6 +22,7 @@ import type {
   MenuSelectModifiers,
 } from '@shrubbery/nucleus'
 import { SkinAware } from './skin-aware.js'
+import { BEVELLED } from './bevelled-skins.js'
 import { icon, iconStyles } from './icons.js'
 import { hidePopover, showPopover } from './popover.js'
 
@@ -91,17 +92,22 @@ export class MnContextMenu extends SkinAware(LitElement) {
     }
 
     .menu {
-      min-width: var(--mn-context-menu-min-width, 180px);
-      max-width: var(--mn-context-menu-max-width, 300px);
+      min-width: min(var(--mn-context-menu-min-width, 180px), calc(100vw - 16px));
+      max-width: min(var(--mn-context-menu-max-width, 300px), calc(100vw - 16px));
+      max-height: calc(100vh - 16px);
       padding: var(--mn-space-1, 4px);
-      overflow: hidden;
+      overflow-x: hidden;
+      overflow-y: auto;
       box-sizing: border-box;
-      border: 1px solid var(--mn-color-border-default, #d1d5db);
+      /* Floating control layer: Garden's glass material when the skin defines
+         it (tokens/css/material-garden.css), the skin's solid surface otherwise. */
+      border: 1px solid var(--mn-material-popover-edge, var(--mn-color-border-default, #d1d5db));
       border-radius: var(--mn-radius-surface, var(--mn-radius-lg, 8px));
-      background: var(--mn-color-surface-raised, #fff);
+      background: var(--mn-material-popover-bg, var(--mn-color-surface-raised, #fff));
       color: var(--mn-color-text-primary, #111827);
-      box-shadow: var(--mn-shadow-lg, 0 18px 40px rgba(15, 23, 42, 0.16));
-      backdrop-filter: var(--mn-window-backdrop-filter, none);
+      box-shadow: var(--mn-material-popover-shadow, var(--mn-shadow-lg, 0 18px 40px rgba(15, 23, 42, 0.16)));
+      backdrop-filter: var(--mn-material-popover-filter, var(--mn-window-backdrop-filter, none));
+      -webkit-backdrop-filter: var(--mn-material-popover-filter, var(--mn-window-backdrop-filter, none));
     }
 
     .menu-item {
@@ -209,10 +215,16 @@ export class MnContextMenu extends SkinAware(LitElement) {
       background: var(--mn-98-face);
       box-shadow: var(--mn-shadow-popover);
     }
-    :host([data-skin='98']) .menu-item:hover,
-    :host([data-skin='98']) .menu-item.focused {
+    :host(${BEVELLED}) .menu-item:hover,
+    :host(${BEVELLED}) .menu-item.focused {
       background: var(--mn-98-selection);
-      color: #fff;
+      color: var(--mn-98-selection-text, #fff);
+    }
+    /* The row's icon, check, submenu arrow and shortcut each set their own muted grey, which a Highlight row
+       cannot carry: 98's navy row read them at 1.37:1 (shortcut) and 1.64:1 (glyphs), Hotdog Stand's black and
+       yellow ones at 1.8:1 and 1.2:1. Every bevelled skin's highlighted row paints them in the selection text. */
+    :host(${BEVELLED}) :is(.menu-item:hover, .menu-item.focused) :is(.item-icon, .item-check, .submenu-icon, .item-shortcut) {
+      color: var(--mn-98-selection-text, #fff);
     }
     :host([data-skin='glass']) .menu {
       border: var(--mn-control-border);
@@ -245,17 +257,21 @@ export class MnContextMenu extends SkinAware(LitElement) {
   private position = { x: 0, y: 0 }
   private anchor: MnContextMenuAnchor = 'top-left'
   private outsideArmed = false
-  private readonly clickOutsideHandler = this.handleClickOutside.bind(this)
-  private readonly touchOutsideHandler = this.handleTouchOutside.bind(this)
+  private returnFocus: HTMLElement | null = null
+  private readonly pointerOutsideHandler = this.handlePointerOutside.bind(this)
+  private readonly dismissHandler = (): void => this.hide()
 
+  // Every listener is on the capture phase: the menu must close and take its keys whatever sits under it. A canvas that
+  // stops propagation of the keys it handles (Escape among them), or prevents default on pointerdown (which suppresses
+  // the compatibility mousedown), used to leave the menu open with no way out (10-08, the Files canvas).
   connectedCallback(): void {
     super.connectedCallback()
-    document.addEventListener('keydown', this.handleKeyDown)
+    document.addEventListener('keydown', this.handleKeyDown, true)
   }
 
   disconnectedCallback(): void {
     super.disconnectedCallback()
-    document.removeEventListener('keydown', this.handleKeyDown)
+    document.removeEventListener('keydown', this.handleKeyDown, true)
     this.disarmOutsideListeners()
     // The host IS the popover (no PopoverController here — see show()'s
     // doc comment), so nothing else clears its top-layer state on removal.
@@ -290,21 +306,38 @@ export class MnContextMenu extends SkinAware(LitElement) {
    * shape; see the layer-contract campaign diagnosis + plan §3.3).
    */
   show(position: { readonly x: number; readonly y: number }, anchor: MnContextMenuAnchor = 'top-left'): void {
+    if (!this.open) {
+      let active = document.activeElement
+      while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement
+      this.returnFocus = active instanceof HTMLElement ? active : null
+    }
     this.setAttribute('popover', 'manual')
     this.position = { x: position.x, y: position.y }
     this.anchor = anchor
     this.focusedIndex = this.firstSelectableIndex()
     this.open = true
     showPopover(this)
+    // Position and anchor are transient, non-reactive fields. Reopening an
+    // already-open menu must still measure its latest items and position.
+    this.requestUpdate()
+    void this.updateComplete.then(() => {
+      if (!this.open) return
+      this.adjustPosition()
+      this.focusCurrentItem()
+    })
     window.setTimeout(() => this.armOutsideListeners(), 0)
   }
 
   hide(): void {
     if (!this.open) return
+    const restoreFocus = this.shadowRoot?.activeElement != null
+    const returnFocus = this.returnFocus
+    this.returnFocus = null
     this.open = false
     this.focusedIndex = -1
     this.disarmOutsideListeners()
     hidePopover(this)
+    if (restoreFocus && returnFocus?.isConnected) returnFocus.focus({ preventScroll: true })
     this.emitClose()
   }
 
@@ -325,15 +358,17 @@ export class MnContextMenu extends SkinAware(LitElement) {
 
   private armOutsideListeners(): void {
     if (this.outsideArmed || !this.open) return
-    document.addEventListener('mousedown', this.clickOutsideHandler)
-    document.addEventListener('touchstart', this.touchOutsideHandler, { passive: true })
+    document.addEventListener('pointerdown', this.pointerOutsideHandler, true)
+    window.addEventListener('blur', this.dismissHandler)
+    window.addEventListener('resize', this.dismissHandler)
     this.outsideArmed = true
   }
 
   private disarmOutsideListeners(): void {
     if (!this.outsideArmed) return
-    document.removeEventListener('mousedown', this.clickOutsideHandler)
-    document.removeEventListener('touchstart', this.touchOutsideHandler)
+    document.removeEventListener('pointerdown', this.pointerOutsideHandler, true)
+    window.removeEventListener('blur', this.dismissHandler)
+    window.removeEventListener('resize', this.dismissHandler)
     this.outsideArmed = false
   }
 
@@ -361,11 +396,7 @@ export class MnContextMenu extends SkinAware(LitElement) {
     this.style.top = `${y}px`
   }
 
-  private handleClickOutside(event: MouseEvent): void {
-    if (!event.composedPath().includes(this)) this.hide()
-  }
-
-  private handleTouchOutside(event: TouchEvent): void {
+  private handlePointerOutside(event: PointerEvent): void {
     if (!event.composedPath().includes(this)) this.hide()
   }
 
@@ -387,15 +418,18 @@ export class MnContextMenu extends SkinAware(LitElement) {
 
     if (event.key === 'ArrowDown') {
       event.preventDefault()
+      event.stopPropagation()
       const current = Math.max(0, this.focusedIndex)
       this.focusedIndex = (current + 1) % actionable.length
       void this.updateComplete.then(() => this.focusCurrentItem())
     } else if (event.key === 'ArrowUp') {
       event.preventDefault()
+      event.stopPropagation()
       this.focusedIndex = this.focusedIndex <= 0 ? actionable.length - 1 : this.focusedIndex - 1
       void this.updateComplete.then(() => this.focusCurrentItem())
     } else if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault()
+      event.stopPropagation()
       const item = actionable[this.focusedIndex]
       if (item) this.selectItem(item, modifiersFrom(event))
     }

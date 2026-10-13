@@ -10,6 +10,10 @@
 
 import type { MnExportDialog } from '@shrubbery/components'
 import type { ShrubberyContract } from '@shrubbery/nucleus'
+import { PDF_SOURCE_ANCHOR_ATTRIBUTE, inspectPdfSourceAnchor, encodePdfSourceAnchor, sha256PdfSourceBytes } from '@shrubbery/nucleus'
+import type { PdfExtractionStatus, TipTapJsonNode } from './pdf-layout-parser.js'
+import { cellAuthHeaders } from './cell-auth-headers.js'
+import { randomUUID } from '@shrubbery/nucleus/web-crypto'
 
 export const DOCUMENT_IMPORT_ACCEPT = [
   '.pdf',
@@ -63,6 +67,10 @@ export interface UploadedDocument {
   readonly readOnly: boolean
   readonly sourceFile: Record<string, unknown> | null
   readonly jobId: string | null
+  readonly warnings: readonly string[]
+  /** Transfer success does not imply that the original yielded any text. */
+  readonly extractionStatus?: PdfExtractionStatus
+  readonly extractionStats?: Readonly<Record<string, unknown>>
 }
 
 export interface FailedDocumentUpload {
@@ -159,12 +167,17 @@ export interface GardendDocumentTransferOptions {
 
 export type BrowserBinaryFileType = 'pdf' | 'epub' | 'docx'
 
-export interface ParsedBrowserBinaryDocument {
+export type ParsedBrowserBinaryDocument = {
   readonly fileType: BrowserBinaryFileType
   readonly title: string
-  readonly markdown: string
   readonly warnings: readonly string[]
-}
+  readonly extractionStatus?: PdfExtractionStatus
+  readonly stats?: Readonly<Record<string, unknown>>
+} & (
+  // Existing injected Markdown parsers and EPUB/DOCX callers remain valid.
+  | { readonly markdown: string; readonly tiptapJson?: never }
+  | { readonly tiptapJson: TipTapJsonNode; readonly markdown?: never }
+)
 
 export type BrowserBinaryDocumentParser = (
   file: File,
@@ -313,15 +326,11 @@ async function blobBase64(blob: Blob, signal?: AbortSignal): Promise<string> {
 }
 
 function transferArtifactId(): string {
-  const id = globalThis.crypto?.randomUUID?.()
-    ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
-  return `document-import-${id}`
+  return `document-import-${randomUUID()}`
 }
 
 function transferDocumentId(): string {
-  const id = globalThis.crypto?.randomUUID?.()
-    ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
-  return `doc-${id.replace(/-/g, '')}`
+  return `doc-${randomUUID().replace(/-/g, '')}`
 }
 
 type CellWriteFormat = 'plain' | 'markdown' | 'html' | 'xml'
@@ -378,107 +387,18 @@ function cleanExtractedText(value: string): string {
     .trim()
 }
 
-interface PdfTextItemLike {
-  readonly str?: unknown
-  readonly transform?: unknown
-  readonly hasEOL?: unknown
-}
-
-let pdfJsPromise: Promise<typeof import('pdfjs-dist/legacy/build/pdf.mjs')> | null = null
-
-async function loadPdfJs(): Promise<typeof import('pdfjs-dist/legacy/build/pdf.mjs')> {
-  if (!pdfJsPromise) {
-    pdfJsPromise = Promise.all([
-      import('pdfjs-dist/legacy/build/pdf.mjs'),
-      import('pdfjs-dist/legacy/build/pdf.worker.mjs?url'),
-    ]).then(([pdfjs, worker]) => {
-      const maybeProcess = (globalThis as { process?: { versions?: { node?: string } } }).process
-      if (worker.default) {
-        const workerSrc = maybeProcess?.versions?.node && worker.default.startsWith('/@fs/')
-          ? `file://${worker.default.slice('/@fs'.length)}`
-          : worker.default
-        if (!(maybeProcess?.versions?.node && workerSrc.startsWith('/node_modules/'))) {
-          pdfjs.GlobalWorkerOptions.workerSrc = workerSrc
-        }
-      }
-      return pdfjs
-    })
-  }
-  return pdfJsPromise
-}
-
-function pdfItemCoordinate(item: PdfTextItemLike, index: number): number {
-  const transform = Array.isArray(item.transform) ? item.transform : []
-  const value = transform[index]
-  return typeof value === 'number' && Number.isFinite(value) ? value : 0
-}
-
-function pdfPageText(items: readonly unknown[]): string {
-  const rows = new Map<number, Array<{ x: number; text: string; eol: boolean }>>()
-  for (const candidate of items) {
-    if (!candidate || typeof candidate !== 'object') continue
-    const item = candidate as PdfTextItemLike
-    if (typeof item.str !== 'string' || !item.str.trim()) continue
-    const y = Math.round(pdfItemCoordinate(item, 5) * 2) / 2
-    const row = rows.get(y) ?? []
-    row.push({ x: pdfItemCoordinate(item, 4), text: item.str.trim(), eol: item.hasEOL === true })
-    rows.set(y, row)
-  }
-  return [...rows.entries()]
-    .sort(([left], [right]) => right - left)
-    .map(([, row]) => row
-      .sort((left, right) => left.x - right.x)
-      .map(item => item.text)
-      .join(' ')
-      .replace(/\s+/g, ' ')
-      .trim())
-    .filter(Boolean)
-    .join('\n')
-}
-
 async function parsePdfInBrowser(
   file: File,
   signal?: AbortSignal,
 ): Promise<ParsedBrowserBinaryDocument> {
   throwIfAborted(signal)
-  const pdfjs = await loadPdfJs()
-  throwIfAborted(signal)
-  const loadingTask = pdfjs.getDocument({
-    data: new Uint8Array(await file.arrayBuffer()),
-    disableFontFace: true,
-    useSystemFonts: true,
-    useWorkerFetch: false,
-    useWasm: false,
-    stopAtErrors: false,
+  const { parsePdfFastTextDocument } = await import('./pdf-layout-parser.js')
+  const parsed = await parsePdfFastTextDocument({
+    bytes: new Uint8Array(await file.arrayBuffer()),
+    fallbackTitle: basenameWithoutExtension(file.name),
+    signal,
   })
-  try {
-    const pdf = await loadingTask.promise
-    const pages: string[] = []
-    const warnings: string[] = []
-    for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
-      throwIfAborted(signal)
-      const page = await pdf.getPage(pageNumber)
-      try {
-        const content = await page.getTextContent()
-        const extracted = pdfPageText(content.items)
-        if (extracted) pages.push(extracted)
-        else warnings.push(`Page ${pageNumber} did not contain extractable text`)
-      } finally {
-        page.cleanup()
-      }
-    }
-    const title = basenameWithoutExtension(file.name)
-    const body = pages
-      .map((page, index) => `${pages.length > 1 ? `## Page ${index + 1}\n\n` : ''}${escapeMarkdownText(page)}`)
-      .join('\n\n')
-    const markdown = body
-      ? `# ${escapeMarkdownText(title)}\n\n${body}\n`
-      : `# ${escapeMarkdownText(title)}\n\n[No text could be extracted. This PDF may require OCR.]\n`
-    if (!body) warnings.push('No text extracted; OCR is not available in the browser fast path')
-    return { fileType: 'pdf', title, markdown, warnings }
-  } finally {
-    await loadingTask.destroy().catch(() => undefined)
-  }
+  return { fileType: 'pdf', ...parsed }
 }
 
 function normalizedXmlName(value: string): string {
@@ -932,12 +852,7 @@ export class GardendDocumentTransferService {
   }
 
   private headers(extra: Record<string, string> = {}): Headers {
-    const headers = new Headers(extra)
-    const token = this.contract.auth.token()
-    if (token) headers.set('Authorization', `Bearer ${token}`)
-    const userId = this.contract.auth.userId()
-    if (userId) headers.set('X-User-ID', userId)
-    return headers
+    return new Headers(cellAuthHeaders(this.contract, extra))
   }
 
   private async checked(response: Response, operation: string): Promise<unknown> {
@@ -971,12 +886,13 @@ export class GardendDocumentTransferService {
     graphId: string,
     input: {
       readonly title: string
-      readonly content: string
-      readonly format: CellWriteFormat
       readonly parentId?: string | null
       readonly readOnly?: boolean
       readonly signal?: AbortSignal
-    },
+    } & (
+      | { readonly content: string; readonly format: CellWriteFormat; readonly tiptapJson?: never }
+      | { readonly tiptapJson: TipTapJsonNode; readonly content?: never; readonly format?: never }
+    ),
   ): Promise<JobEnvelope> {
     const documentId = transferDocumentId()
     const response = await this.fetchImpl(`${apiBase}/api/crdt/operations`, {
@@ -989,8 +905,9 @@ export class GardendDocumentTransferService {
         payload: {
           documentId,
           title: input.title,
-          content: input.content,
-          format: input.format,
+          ...(input.tiptapJson
+            ? { tiptapJson: input.tiptapJson }
+            : { content: input.content, format: input.format }),
           parentId: input.parentId ?? null,
           readOnly: input.readOnly ?? false,
         },
@@ -1165,7 +1082,7 @@ export class GardendDocumentTransferService {
         signal: options.signal,
       },
     )
-    await this.checked(revisionResponse, `Archive "${file.name}"`)
+    const archivedRevision = await this.checked(revisionResponse, `Archive "${file.name}"`)
 
     const navigationResponse = await this.fetchImpl(
       `${apiBase}/navigation/${encodedGraphId}/artifacts/${encodedArtifactId}`,
@@ -1222,6 +1139,7 @@ export class GardendDocumentTransferService {
           storageKey: `local://artifacts/${artifactId}/original/${file.name}`,
         },
         jobId: null,
+        warnings: [],
       }
     }
 
@@ -1235,6 +1153,35 @@ export class GardendDocumentTransferService {
       })
       const parsed = await this.binaryParser(file, options.signal)
       throwIfAborted(options.signal)
+      if (parsed.fileType === 'pdf') {
+        const bytes = new Uint8Array(await file.arrayBuffer())
+        const digest = await sha256PdfSourceBytes(bytes)
+        throwIfAborted(options.signal)
+        const revision = isRecord(archivedRevision) ? archivedRevision : {}
+        // The real accepted engine returns ArtifactRevisionEntry in camelCase.
+        // Missing revision IDs remain absent; a supplied hash/size is evidence
+        // to verify, never an identity to trust in place of the submitted bytes.
+        if (revision.contentHashSha256 !== undefined && revision.contentHashSha256 !== digest)
+          throw new DocumentTransferError('Archived PDF content hash does not match the submitted original')
+        if (revision.sizeBytes !== undefined && revision.sizeBytes !== bytes.byteLength)
+          throw new DocumentTransferError('Archived PDF byte length does not match the submitted original')
+        if (revision.revisionId !== undefined && (typeof revision.revisionId !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$/.test(revision.revisionId)))
+          throw new DocumentTransferError('Archived PDF revision ID is malformed')
+        const stack: TipTapJsonNode[] = parsed.tiptapJson ? [parsed.tiptapJson] : []
+        while (stack.length) {
+          const node = stack.pop()!
+          const inspected = inspectPdfSourceAnchor(node.attrs?.[PDF_SOURCE_ANCHOR_ATTRIBUTE])
+          if (inspected.status === 'mapped') {
+            if (inspected.anchor.source.sha256 !== digest || inspected.anchor.source.byteLength !== bytes.byteLength)
+              throw new DocumentTransferError('Parsed PDF anchor does not identify the submitted original')
+            node.attrs![PDF_SOURCE_ANCHOR_ATTRIBUTE] = encodePdfSourceAnchor({ ...inspected.anchor,
+              source: { sha256: digest, byteLength: bytes.byteLength, artifactId,
+                ...(revision.revisionId === undefined ? {} : { revisionId: revision.revisionId as string }) } })
+          }
+          // Unknown/invalid strings are retained, not rewritten or interpreted.
+          if (node.content) stack.push(...node.content)
+        }
+      }
       options.onProgress?.(file, {
         jobId: artifactId,
         status: 'running',
@@ -1243,8 +1190,9 @@ export class GardendDocumentTransferService {
       })
       const written = await this.writeTextDocument(apiBase, graphId, {
         title: parsed.title,
-        content: parsed.markdown,
-        format: 'markdown',
+        ...(parsed.tiptapJson
+          ? { tiptapJson: parsed.tiptapJson }
+          : { content: parsed.markdown, format: 'markdown' as const }),
         parentId: options.parentId,
         readOnly: true,
         signal: options.signal,
@@ -1266,9 +1214,11 @@ export class GardendDocumentTransferService {
       options.onProgress?.(file, {
         jobId: artifactId,
         status: 'succeeded',
-        message: parsed.warnings.length > 0
-          ? `Imported ${file.name} with ${parsed.warnings.length} warning${parsed.warnings.length === 1 ? '' : 's'}`
-          : `Imported ${file.name}`,
+        message: parsed.extractionStatus === 'no-text'
+          ? `Original ${file.name} retained; no text extracted (OCR was not performed)`
+          : parsed.warnings.length > 0
+            ? `Imported ${file.name} with ${parsed.warnings.length} warning${parsed.warnings.length === 1 ? '' : 's'}`
+            : `Imported ${file.name}`,
         percent: 100,
       })
       return {
@@ -1285,6 +1235,9 @@ export class GardendDocumentTransferService {
           fileType: parsed.fileType,
         },
         jobId: null,
+        warnings: [...parsed.warnings],
+        ...(parsed.extractionStatus ? { extractionStatus: parsed.extractionStatus } : {}),
+        ...(parsed.stats ? { extractionStats: { ...parsed.stats } } : {}),
       }
     }
 
@@ -1320,6 +1273,7 @@ export class GardendDocumentTransferService {
       readOnly: firstNestedBoolean(envelopes, ['readOnly', 'read_only']) ?? true,
       sourceFile: firstNestedRecord(envelopes, ['sourceFile', 'source_file']),
       jobId: jobIdOf(submit),
+      warnings: [...new Set(envelopes.flatMap(envelope => stringArrayValue(envelope?.warnings)))],
     }
   }
 

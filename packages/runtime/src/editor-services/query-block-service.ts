@@ -10,7 +10,18 @@ import {
   mountQueryBlockVega,
   type QueryBlockVegaEmbedLoader,
 } from './query-block-vega.js'
-import { observeVegaThemeFlips } from './vega-theme.js'
+import {
+  EMPTY_VALUE_DICTIONARY,
+  type FaceStance,
+  genericValueView,
+  resolveValueFace,
+  type ValueDictionary,
+  type ValueView,
+} from '@shrubbery/nucleus/value-faces'
+import { observeVegaThemeFlips, resolveVegaThemeMode } from './vega-theme.js'
+import { renderValueView, VALUE_FACE_STYLE, type ValueDictionarySource } from './value-face-view.js'
+import { runWithRetry } from './query-retry.js'
+export { isRetryableQueryError } from './query-retry.js'
 
 export type QueryBlockQueryKind = 'ask' | 'select' | 'construct' | 'describe'
 
@@ -103,6 +114,10 @@ export interface QueryBlockService {
 export interface QueryBlockRendererOptions {
   /** Production leaves this unset and loads `vega-embed` only when a Vega result renders. */
   readonly loadVegaEmbed?: QueryBlockVegaEmbedLoader
+  /** The per-graph value dictionary for value faces (rung chips, ladder-ordered charts). */
+  readonly valueDictionary?: ValueDictionarySource
+  /** The host's stance for this pane (`?stance=`); `read` when absent. */
+  readonly stance?: () => FaceStance | null | undefined
 }
 
 const UPDATE_PATTERN = /\b(INSERT|DELETE|LOAD|CLEAR|CREATE|DROP|COPY|MOVE|ADD)\b/i
@@ -124,10 +139,26 @@ function withoutDeclarations(sparql: string): string {
   return remaining
 }
 
+/**
+ * Blank out every IRIREF (`<…>` with no whitespace or other IRI-excluded
+ * character inside — a `<` comparison operator is never matched) and every
+ * string literal (`'''…'''`, `"""…"""`, `"…"`, `'…'`) so the update-keyword
+ * scan below sees only SPARQL syntax. Found live on 2026-09-15 (el Despacho
+ * W1): a plain SELECT over the real bead `…:cuenta:sirin-w1-move-sophia-cluster`
+ * was refused because `\bMOVE\b` matched inside the IRI. Keywords inside an
+ * IRI or a string can never be an update operation; the guard's intent is
+ * unchanged, its false positives on real names are gone.
+ */
+function withoutIrisAndStrings(body: string): string {
+  return body
+    .replace(/<[^<>\s"{}|\\^`]*>/g, '<>')
+    .replace(/'''[\s\S]*?'''|"""[\s\S]*?"""|"(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*'/g, '""')
+}
+
 export function inferQueryBlockQueryKind(sparql: string): QueryBlockQueryKind {
   const body = withoutDeclarations(sparql)
   const match = /^(ASK|SELECT|CONSTRUCT|DESCRIBE)\b/i.exec(body)
-  if (!match || UPDATE_PATTERN.test(body)) {
+  if (!match || UPDATE_PATTERN.test(withoutIrisAndStrings(body))) {
     throw new Error('Only read-only ASK, SELECT, CONSTRUCT, and DESCRIBE queries are allowed')
   }
   return match[1].toLowerCase() as QueryBlockQueryKind
@@ -262,13 +293,9 @@ export function makeQueryBlockService(rest: RestClient): QueryBlockService {
   }
 }
 
+/** The generic value face in the REVIEW stance: the RDF term notation (nucleus value-faces). */
 export function formatQueryBlockTerm(term: QueryBlockTerm | undefined): string {
-  if (!term) return ''
-  if (term.type === 'uri') return term.value
-  if (term.type === 'bnode') return `_:${term.value}`
-  if (term.language) return `"${term.value}"@${term.language}`
-  if (term.datatype) return `"${term.value}"^^${term.datatype}`
-  return term.value
+  return genericValueView(term, 'review').text
 }
 
 /**
@@ -285,9 +312,8 @@ export function formatQueryBlockTerm(term: QueryBlockTerm | undefined): string {
  * blank-node label alone is not identifiable as one.
  */
 export function plainQueryBlockTermValue(term: QueryBlockTerm | undefined): string {
-  if (!term) return ''
-  if (term.type === 'bnode') return `_:${term.value}`
-  return term.value
+  // The generic value face in the READ stance (nucleus value-faces).
+  return genericValueView(term, 'read').text
 }
 
 /**
@@ -586,28 +612,231 @@ function chosenVisualization(attrs: QueryBlockAttrs, result: QueryBlockResult): 
   return available(result, requested) ? requested : automaticVisualization(result)
 }
 
+/**
+ * The query block's faces by STANCE (plans/2026-09-25-document-primitives.md
+ * §1, §6 step 2):
+ *   - read   (the resting face): the title as typography, the result, a quiet
+ *            caption ("25 rows · 3 min ago"). No controls.
+ *   - draft  (the editing chrome): shown INSIDE read on hover or focus-within,
+ *            and on touch through the block's options affordance; pinned open
+ *            while the query or chart editor is open. It keeps every function
+ *            the block had: visualization, row limit, Run, Collapse, Delete,
+ *            the query and title editors, and — behind "Edit chart" — the
+ *            Vega encoding builder and raw JSON.
+ *   - review (the query and its timing, set by the host, e.g. `?stance=review`):
+ *            the read face plus the query source and the run's timing.
+ * The stance is carried as `data-face-stance` (NOT `data-stance`, which is the
+ * room-posture register `stance.css` styles).
+ */
 const QUERY_BLOCK_STYLE = `
-.query-block{border:1px solid var(--mn-color-border-default,#d6d3d1);border-left:3px solid var(--mn-color-border-accent,#39725a);border-radius:6px;padding:8px;margin:8px 0;background:var(--mn-color-surface-raised,#fff);font-family:var(--mn-font-utility,sans-serif)}
-.query-block[data-status=running]{opacity:.72}.query-block[data-status=error]{border-left-color:var(--mn-color-danger-strong,#b42318)}
-.query-block-host-toolbar{display:flex;gap:6px;align-items:center}.query-block-host-toolbar button,.query-block-host-toolbar select,.query-block-host-toolbar input{font:inherit}
-.query-block-host-comment,.query-block-host-query{box-sizing:border-box;width:100%;margin-top:6px}.query-block-host-query{min-height:88px;font-family:var(--mn-font-mono,monospace)}
-.query-block-host-meta{font-size:11px;color:var(--mn-color-text-secondary,#666);margin:5px 0}.query-block-host-error{color:var(--mn-color-danger-strong,#b42318)}
-.query-block-host-table{width:100%;border-collapse:collapse;font-size:12px}.query-block-host-table th,.query-block-host-table td{border:1px solid var(--mn-color-border-subtle,#ddd);padding:4px;text-align:left;vertical-align:top}
-.query-block-host-stat{font-size:28px;font-weight:650;padding:10px 0}
-.query-block-host-vega-builder{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:6px;margin-top:6px;padding:8px;border:1px solid var(--mn-color-border-subtle,#ddd);border-radius:5px;background:var(--mn-color-surface-sunken,#fafafa)}
-.query-block-host-vega-field{display:flex;min-width:0;flex-direction:column;gap:3px;color:var(--mn-color-text-secondary,#666);font-size:10px;font-weight:650;text-transform:uppercase;letter-spacing:.03em}.query-block-host-vega-field select{min-width:0;width:100%;font:inherit;font-size:11px;text-transform:none;letter-spacing:normal}
-.query-block-host-vega-json-toggle{align-self:end;min-height:24px;font:inherit;font-size:11px}
-.query-block-host-vega-spec{box-sizing:border-box;width:100%;min-height:116px;margin-top:6px;font-family:var(--mn-font-mono,monospace);font-size:11px}
-.query-block-host-vega{min-height:120px;font-variant-numeric:tabular-nums}.query-block-host-vega-loading,.query-block-host-vega-hint{padding:12px 0;color:var(--mn-color-text-secondary,#666);font-size:12px}.query-block-host-vega-error{padding:12px 0;color:var(--mn-color-danger-strong,#b42318);font-size:12px;white-space:pre-wrap}
-.query-block-host-network{width:100%;height:260px;border:1px solid var(--mn-color-border-subtle,#ddd)}
+.query-block{position:relative;container-type:inline-size;margin:var(--mn-space-4,1rem) 0;padding:0;border:0;background:transparent;color:var(--mn-color-text-primary,#1f2933);font-family:var(--mn-font-chrome,system-ui,sans-serif)}
+.query-block[data-status=running] .query-block-output{opacity:.6;transition:opacity 120ms ease}
+.query-block-head{display:flex;align-items:flex-start;gap:var(--mn-space-2,.5rem)}
+.query-block-title{flex:1 1 auto;min-width:0;margin:0 0 var(--mn-space-2,.5rem);color:var(--mn-color-text-primary,#1f2933);font:600 var(--mn-text-sm,.9rem)/1.4 var(--mn-font-prose,Georgia,serif);letter-spacing:.005em}
+.query-block-title:empty{display:none}
+.query-block-chrome{position:absolute;top:-8px;right:0;z-index:3;display:flex;flex-wrap:wrap;justify-content:flex-end;align-items:center;gap:4px;max-width:100%;padding:3px;border:1px solid var(--mn-color-border-subtle,rgba(15,23,42,.12));border-radius:var(--mn-radius-md,8px);background:var(--mn-color-surface-raised,#fffdf8);box-shadow:var(--mn-shadow-card,0 8px 24px -16px rgba(0,0,0,.35));opacity:0;visibility:hidden;transform:translateY(-2px);transition:opacity 120ms ease,transform 120ms ease,visibility 0s linear 120ms}
+.query-block:is(:hover,:focus-within,[data-chrome-open]) .query-block-chrome,.query-block[data-face-stance=draft] .query-block-chrome{opacity:1;visibility:visible;transform:none;transition:opacity 120ms ease,transform 120ms ease}
+.query-block-host-meta{padding:0 6px;color:var(--mn-color-text-tertiary,#697386);font:500 var(--mn-text-2xs,.72rem)/1 var(--mn-font-mono,ui-monospace,monospace);font-variant-numeric:tabular-nums;white-space:nowrap}
+.query-block-chrome :is(button,select,input){box-sizing:border-box;height:24px;margin:0;padding:0 7px;border:1px solid transparent;border-radius:var(--mn-radius-sm,5px);background:transparent;color:var(--mn-color-text-secondary,#475467);font:500 var(--mn-text-2xs,.74rem)/1 var(--mn-font-chrome,system-ui,sans-serif);cursor:pointer}
+.query-block-chrome select{appearance:none;padding-right:20px;background-image:linear-gradient(45deg,transparent 50%,currentColor 50%),linear-gradient(135deg,currentColor 50%,transparent 50%);background-position:calc(100% - 11px) 11px,calc(100% - 7px) 11px;background-size:4px 4px;background-repeat:no-repeat}
+.query-block-chrome input[type=number]{width:52px;cursor:text;border-color:var(--mn-color-border-subtle,rgba(15,23,42,.12));font-variant-numeric:tabular-nums}
+.query-block-chrome :is(button,select):hover{background:var(--mn-color-surface-sunken,rgba(15,23,42,.05));color:var(--mn-color-text-primary,#1f2933)}
+.query-block-chrome :is(button,select,input):focus-visible,.query-block-affordance:focus-visible,.query-block-editor :is(input,textarea,button,select):focus-visible{outline:2px solid var(--mn-color-border-focus,#4d8768);outline-offset:1px}
+.query-block-chrome button[aria-pressed=true]{background:color-mix(in srgb,var(--mn-color-accent,#4d8768) 14%,transparent);color:var(--mn-color-text-accent,#3d7f5f)}
+.query-block-chrome .query-block-run{background:var(--mn-color-accent,#4d8768);color:var(--mn-color-text-on-accent,#fff)}
+.query-block-chrome .query-block-run:hover{background:var(--mn-color-accent-strong,var(--mn-color-accent,#3d7f5f));color:var(--mn-color-text-on-accent,#fff)}
+.query-block-chrome .query-block-delete:hover{color:var(--mn-color-danger-strong,#b42318);background:color-mix(in srgb,var(--mn-color-danger,#a8322d) 10%,transparent)}
+.query-block-chrome button:disabled,.query-block-chrome select:disabled,.query-block-chrome input:disabled{opacity:.45;cursor:default}
+.query-block-chrome-sep{width:1px;height:16px;background:var(--mn-color-border-subtle,rgba(15,23,42,.12))}
+.query-block-bar{display:none;align-items:center;justify-content:flex-end;min-height:44px}
+.query-block-affordance{flex:none;display:inline-grid;place-items:center;width:44px;height:44px;margin:0;padding:0;border:0;border-radius:999px;background:transparent;color:var(--mn-color-text-tertiary,#697386);font:600 18px/1 var(--mn-font-chrome,system-ui,sans-serif);cursor:pointer;-webkit-tap-highlight-color:transparent}
+.query-block[data-chrome-open] .query-block-affordance{color:var(--mn-color-text-accent,#3d7f5f)}
+@media (hover:none),(pointer:coarse){.query-block-bar{display:flex}.query-block .query-block-chrome,.query-block:is(:hover,:focus-within) .query-block-chrome{position:static;display:none;opacity:1;visibility:visible;transform:none;justify-content:flex-start;margin:0 0 var(--mn-space-3,.75rem);box-shadow:none}.query-block:is([data-chrome-open],[data-face-stance=draft]) .query-block-chrome{display:flex}.query-block-chrome :is(button,select,input){height:36px}}
+.query-block-editor{display:grid;gap:var(--mn-space-2,.5rem);margin:0 0 var(--mn-space-3,.75rem);padding:var(--mn-space-3,.75rem);border:1px solid var(--mn-color-border-subtle,rgba(15,23,42,.12));border-radius:var(--mn-radius-md,8px);background:var(--mn-color-surface-sunken,rgba(15,23,42,.03))}
+.query-block-editor[hidden],.query-block-editor label[hidden],.query-block-host-vega-builder[hidden],.query-block-host-vega-spec[hidden]{display:none}
+.query-block-editor label{display:grid;gap:4px;color:var(--mn-color-text-tertiary,#697386);font:600 var(--mn-text-2xs,.72rem)/1.2 var(--mn-font-chrome,system-ui,sans-serif);letter-spacing:var(--sophia-tracking-label,.04em);text-transform:lowercase;font-variant:small-caps}
+.query-block-host-comment,.query-block-host-query,.query-block-host-vega-spec{box-sizing:border-box;width:100%;padding:6px 8px;border:1px solid var(--mn-color-border-subtle,rgba(15,23,42,.14));border-radius:var(--mn-radius-sm,5px);background:var(--mn-color-surface-editor,var(--mn-color-surface-raised,#fff));color:var(--mn-color-text-primary,#1f2933);font:400 var(--mn-text-sm,.875rem)/1.45 var(--mn-font-chrome,system-ui,sans-serif);letter-spacing:normal;text-transform:none;font-variant:normal}
+.query-block-host-query,.query-block-host-vega-spec{min-height:120px;resize:vertical;font:400 var(--mn-text-xs,.78rem)/1.5 var(--mn-font-mono,ui-monospace,monospace);tab-size:2}
+.query-block-host-query[readonly]{background:transparent}
+.query-block-host-error{margin:0 0 var(--mn-space-2,.5rem);color:var(--mn-color-danger-strong,#b42318);font:500 var(--mn-text-xs,.78rem)/1.45 var(--mn-font-chrome,system-ui,sans-serif);white-space:pre-wrap}
+.query-block-host-error:empty{display:none}
+.query-block-caption{margin-top:var(--mn-space-2,.5rem);color:var(--mn-color-text-tertiary,#697386);font:400 var(--mn-text-2xs,.74rem)/1.4 var(--mn-font-chrome,system-ui,sans-serif);font-variant-numeric:tabular-nums}
+.query-block-caption:empty{display:none}
+.query-block-hint{color:var(--mn-color-text-tertiary,#697386);font:400 var(--mn-text-2xs,.72rem)/1.4 var(--mn-font-chrome,system-ui,sans-serif)}
+.query-block-output{min-width:0;overflow-x:auto}
+.query-block-output > pre{margin:0;padding:var(--mn-space-2,.5rem);border-radius:var(--mn-radius-sm,5px);background:var(--mn-color-surface-sunken,rgba(15,23,42,.04));font:400 var(--mn-text-xs,.78rem)/1.5 var(--mn-font-mono,ui-monospace,monospace);white-space:pre-wrap;overflow-wrap:anywhere}
+.query-block-host-table{width:100%;border-collapse:collapse;font:400 var(--mn-text-sm,.875rem)/1.45 var(--mn-font-chrome,system-ui,sans-serif);font-variant-numeric:tabular-nums}
+.query-block-host-table th{padding:0 var(--mn-space-3,.75rem) 6px 0;border-bottom:1px solid var(--mn-color-border-default,rgba(15,23,42,.18));color:var(--mn-color-text-tertiary,#697386);font:600 var(--mn-text-2xs,.72rem)/1.2 var(--mn-font-chrome,system-ui,sans-serif);letter-spacing:var(--sophia-tracking-label,.04em);text-align:left;text-transform:lowercase;font-variant:small-caps;white-space:nowrap}
+.query-block-host-table td{padding:7px var(--mn-space-3,.75rem) 7px 0;border-bottom:1px solid var(--mn-color-border-subtle,rgba(15,23,42,.08));color:var(--mn-color-text-primary,#1f2933);text-align:left;vertical-align:top}
+.query-block-host-table tr:last-child td{border-bottom:0}
+.query-block-host-table :is(th,td):last-child{padding-right:0}
+.query-block-host-table [data-column-shape=token],.query-block-host-table [data-column-shape=chip]{white-space:nowrap;width:1%}
+.query-block-host-table [data-column-shape=token]{color:var(--mn-color-text-secondary,#475467);font-family:var(--mn-font-mono,ui-monospace,monospace);font-size:var(--mn-text-xs,.78rem)}
+.query-block-host-table [data-column-shape=number]{white-space:nowrap;width:1%;text-align:right}
+.query-block-host-table th[data-column-shape=number]{text-align:right}
+.query-block-host-table [data-column-shape=reference]{overflow-wrap:anywhere;color:var(--mn-color-text-secondary,#475467);font-size:var(--mn-text-xs,.78rem)}
+.query-block-host-table [data-column-shape=prose]{min-width:16ch;font-family:var(--mn-font-prose,Georgia,serif)}
+.query-block-clamp{display:-webkit-box;overflow:hidden;-webkit-box-orient:vertical;-webkit-line-clamp:3}
+td[data-clamp]{cursor:pointer}
+td[data-clamp][data-expanded] .query-block-clamp{display:block;-webkit-line-clamp:unset}
+.query-block-host-stat{padding:var(--mn-space-2,.5rem) 0;font:650 var(--mn-text-3xl,1.75rem)/1.1 var(--mn-font-chrome,system-ui,sans-serif);font-variant-numeric:tabular-nums}
+.query-block-host-vega-builder{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:var(--mn-space-2,.5rem);margin:0 0 var(--mn-space-3,.75rem);padding:var(--mn-space-3,.75rem);border:1px solid var(--mn-color-border-subtle,rgba(15,23,42,.12));border-radius:var(--mn-radius-md,8px);background:var(--mn-color-surface-sunken,rgba(15,23,42,.03))}
+.query-block-host-vega-field{display:flex;min-width:0;flex-direction:column;gap:3px;color:var(--mn-color-text-tertiary,#697386);font:600 var(--mn-text-2xs,.72rem)/1.2 var(--mn-font-chrome,system-ui,sans-serif);letter-spacing:var(--sophia-tracking-label,.04em);text-transform:lowercase;font-variant:small-caps}
+.query-block-host-vega-field select,.query-block-host-vega-json-toggle{box-sizing:border-box;min-width:0;width:100%;height:28px;padding:0 6px;border:1px solid var(--mn-color-border-subtle,rgba(15,23,42,.14));border-radius:var(--mn-radius-sm,5px);background:var(--mn-color-surface-editor,var(--mn-color-surface-raised,#fff));color:var(--mn-color-text-primary,#1f2933);font:400 var(--mn-text-xs,.78rem)/1 var(--mn-font-chrome,system-ui,sans-serif);text-transform:none;font-variant:normal;letter-spacing:normal}
+.query-block-host-vega-json-toggle{align-self:end;cursor:pointer}
+.query-block-host-vega-spec{margin:0 0 var(--mn-space-3,.75rem)}
+.query-block-host-vega{min-height:120px;font-variant-numeric:tabular-nums}.query-block-host-vega-loading,.query-block-host-vega-hint{padding:12px 0;color:var(--mn-color-text-tertiary,#697386);font-size:var(--mn-text-xs,.78rem)}.query-block-host-vega-error{padding:12px 0;color:var(--mn-color-danger-strong,#b42318);font-size:var(--mn-text-xs,.78rem);white-space:pre-wrap}
+.query-block-host-network{width:100%;height:260px;border:1px solid var(--mn-color-border-subtle,rgba(15,23,42,.12));border-radius:var(--mn-radius-sm,5px)}
+.query-block[data-collapsed=true] .query-block-output,.query-block[data-collapsed=true] .query-block-caption{display:none}
+@container (max-width:559px){
+.query-block-host-table,.query-block-host-table tbody{display:block;width:100%}
+.query-block-host-table thead{display:none}
+.query-block-host-table tr{display:grid;grid-template-columns:auto minmax(0,1fr);column-gap:10px;row-gap:5px;align-items:center;padding:12px 0;border-bottom:1px solid var(--mn-color-border-subtle,rgba(15,23,42,.08))}
+.query-block-host-table tr:first-child{padding-top:4px}
+.query-block-host-table tr:last-child{border-bottom:0}
+.query-block-host-table td{display:block;min-width:0;width:auto;padding:0;border:0}
+.query-block-host-table td[data-column-shape=token]{order:1}
+.query-block-host-table td[data-column-shape=chip]{order:2;justify-self:start}
+.query-block-host-table td[data-column-shape=prose]{order:3;grid-column:1/-1;min-width:0}
+.query-block-host-table td:not([data-column-shape=token]):not([data-column-shape=chip]):not([data-column-shape=prose]){order:4;grid-column:1/-1;display:flex;gap:8px;align-items:baseline;width:auto;text-align:left;font-size:var(--mn-text-xs,.8rem)}
+.query-block-host-table td:not([data-column-shape=token]):not([data-column-shape=chip]):not([data-column-shape=prose])::before{content:attr(data-label);flex:none;color:var(--mn-color-text-tertiary,#697386);font:600 var(--mn-text-2xs,.72rem)/1.3 var(--mn-font-chrome,system-ui,sans-serif);letter-spacing:var(--sophia-tracking-label,.04em);text-transform:lowercase;font-variant:small-caps}
+.query-block-host-table td[data-empty]:not([data-column-shape=token]){display:none}
+.query-block-bar{display:flex}
+.query-block .query-block-chrome,.query-block:is(:hover,:focus-within) .query-block-chrome{position:static;display:none;opacity:1;visibility:visible;transform:none;justify-content:flex-start;margin:0 0 var(--mn-space-3,.75rem);box-shadow:none}
+.query-block:is([data-chrome-open],[data-face-stance=draft]) .query-block-chrome{display:flex}
+.query-block-chrome :is(button,select,input){height:36px}
+.query-block-host-meta{display:none}.query-block-host-table td,.query-block-host-table th{padding-right:var(--mn-space-2,.5rem)}.query-block-host-meta{display:none}}
+@media (prefers-reduced-motion:reduce){.query-block-chrome{transition:none}}
+${VALUE_FACE_STYLE}
 `
 
-function ensureStyle(document: Document): void {
-  if (document.querySelector('[data-shrubbery-query-block-style]')) return
-  const style = document.createElement('style')
+/**
+ * The editor lives in `<sh-editor-host>`'s SHADOW root: a `<style>` in
+ * `document.head` never reaches it (found 2026-09-25 — every block rendered
+ * as bare native widgets). Style the root the block actually renders in.
+ */
+function ensureStyle(target: HTMLElement): boolean {
+  const root = target.getRootNode()
+  const host: ParentNode | null = root instanceof ShadowRoot
+    ? root
+    : root === target.ownerDocument
+      ? target.ownerDocument.head
+      : null
+  if (!host) return false
+  if (host.querySelector(':scope > [data-shrubbery-query-block-style]')) return true
+  const style = target.ownerDocument.createElement('style')
   style.dataset.shrubberyQueryBlockStyle = ''
   style.textContent = QUERY_BLOCK_STYLE
-  document.head.appendChild(style)
+  host.appendChild(style)
+  return true
+}
+
+/** How a result column reads in the table: decides wrapping, alignment and clamping. */
+export type QueryBlockColumnShape = 'chip' | 'number' | 'token' | 'reference' | 'prose' | 'text'
+
+const TOKEN_MAX = 32
+const PROSE_MIN = 90
+
+/**
+ * Column shape from the column's terms and their value faces — never from its
+ * name. Tokens (ids, slugs: no whitespace, short) never wrap; prose clamps.
+ */
+export function queryBlockColumnShape(
+  terms: readonly (QueryBlockTerm | undefined)[],
+  views: readonly ValueView[],
+): QueryBlockColumnShape {
+  const present = terms.map((term, index) => ({ term, view: views[index] })).filter(({ term }) => term?.value)
+  if (present.length === 0) return 'text'
+  if (present.every(({ view }) => view?.face === 'value.chip')) return 'chip'
+  if (present.every(({ term }) => term && queryBlockValueKind(term) === 'number')) return 'number'
+  if (present.every(({ term }) => term?.type === 'uri' || term?.type === 'bnode')) return 'reference'
+  if (present.some(({ view }) => (view?.text.length ?? 0) > PROSE_MIN)) return 'prose'
+  if (present.every(({ view }) => view && view.text.length <= TOKEN_MAX && !/\s/.test(view.text))) return 'token'
+  return 'text'
+}
+
+/** "just now", "3 min ago" — the caption's relative time. */
+export function formatQueryBlockAge(ranAt: number, now: number = Date.now()): string {
+  const seconds = Math.max(0, Math.round((now - ranAt) / 1000))
+  if (seconds < 45) return 'just now'
+  const format = new Intl.RelativeTimeFormat('en', { numeric: 'auto', style: 'short' })
+  const minutes = Math.round(seconds / 60)
+  if (minutes < 60) return format.format(-minutes, 'minute')
+  const hours = Math.round(minutes / 60)
+  if (hours < 24) return format.format(-hours, 'hour')
+  return format.format(-Math.round(hours / 24), 'day')
+}
+
+/** The read face's caption: what came back, and when. */
+function pluralize(word: string, count: number): string {
+  if (count === 1) return word
+  if (/(s|x|ch|sh)$/.test(word)) return `${word}es`
+  if (/[^aeiou]y$/.test(word)) return `${word.slice(0, -1)}ies`
+  return `${word}s`
+}
+
+function singular(word: string): string {
+  if (/ies$/.test(word)) return `${word.slice(0, -3)}y`
+  if (/(ches|shes|xes|ses)$/.test(word)) return word.slice(0, -2)
+  return word.replace(/s$/, '')
+}
+
+/** The class a query binds `?variable` to (`?c a claim:Claim` → `claim`), lower-cased local name. */
+function classNounOf(query: string, variable: string): string | null {
+  const pattern = new RegExp(`\\?${variable}\\s+(?:a|rdf:type|<http://www\\.w3\\.org/1999/02/22-rdf-syntax-ns#type>)\\s+(<[^>]+>|[\\w-]*:[\\w-]+)`, 'g')
+  const classes = new Set([...query.matchAll(pattern)].map(match => match[1]))
+  if (classes.size !== 1) return null
+  const iri = [...classes][0].replace(/^<|>$/g, '')
+  const local = iri.slice(Math.max(iri.lastIndexOf('#'), iri.lastIndexOf('/'), iri.lastIndexOf(':')) + 1)
+  return local ? local.replace(/([a-z0-9])([A-Z])/g, '$1 $2').toLowerCase() : null
+}
+
+const GENERIC_COUNT_NAMES = new Set(['n', 'count', 'counts', 'total', 'num', 'number', 'value', 'values'])
+
+/**
+ * What a result counts, when the query says so — the caption's "25 claims"
+ * instead of "6 rows":
+ *   - one `COUNT(?x) AS ?alias` column: the sum of that column, named by the
+ *     alias when it is a word ("claims"), else by the class `?x` is bound to;
+ *   - no aggregate, one `?x a Class` pattern, and one row per distinct value of
+ *     the first column: the rows ARE those things.
+ * Null when unknown; the caption then counts rows.
+ */
+export function queryBlockCountUnit(query: string, result: QueryBlockResult): { count: number; unit: string } | null {
+  if (result.resultKind !== 'bindings' || result.rows.length === 0) return null
+  const counts = [...query.matchAll(/COUNT\s*\(\s*(?:DISTINCT\s+)?\?(\w+)\s*\)\s*AS\s+\?(\w+)/gi)]
+  if (counts.length === 1) {
+    const [, counted, alias] = counts[0]
+    if (!result.columns.includes(alias)) return null
+    const values = result.rows.map(row => Number(row[alias]?.value))
+    if (values.some(value => !Number.isFinite(value))) return null
+    const total = values.reduce((sum, value) => sum + value, 0)
+    const word = /^[a-z][a-z_]{2,}$/i.test(alias) && !GENERIC_COUNT_NAMES.has(alias.toLowerCase())
+      ? singular(alias.replace(/_/g, ' ').toLowerCase())
+      : classNounOf(query, counted)
+    return word ? { count: total, unit: pluralize(word, total) } : null
+  }
+  if (counts.length > 1 || /\bGROUP\s+BY\b/i.test(query)) return null
+  const bound = [...query.matchAll(/\?(\w+)\s+(?:a|rdf:type)\s+(?:<[^>]+>|[\w-]*:[\w-]+)/g)].map(match => match[1])
+  if (new Set(bound).size !== 1) return null
+  const noun = classNounOf(query, bound[0])
+  const first = result.columns[0]
+  const distinct = new Set(result.rows.map(row => row[first]?.value)).size
+  if (!noun || distinct !== result.rows.length) return null
+  if ((result.totalRowCount ?? result.rows.length) > result.rows.length) return null
+  return { count: result.rows.length, unit: pluralize(noun, result.rows.length) }
+}
+
+export function queryBlockCaption(result: QueryBlockResult, ranAt: number, now?: number, query?: string): string {
+  const age = formatQueryBlockAge(ranAt, now)
+  if (result.resultKind === 'ask') return `${result.boolean ? 'yes' : 'no'} · ${age}`
+  if (result.resultKind === 'serialized') return `${result.mediaType} · ${age}`
+  const unit = query ? queryBlockCountUnit(query, result) : null
+  if (unit) return `${unit.count} ${unit.unit} · ${age}`
+  const shown = result.rows.length
+  const total = result.totalRowCount ?? shown
+  const count = total > shown ? `${shown} of ${total} rows` : `${shown} ${shown === 1 ? 'row' : 'rows'}`
+  return `${count} · ${age}`
 }
 
 export function makeQueryBlockRenderer(
@@ -615,50 +844,118 @@ export function makeQueryBlockRenderer(
   options: QueryBlockRendererOptions = {},
 ): QueryBlockRenderer {
   return (target, initialRequest) => {
-    ensureStyle(target.ownerDocument)
     const document = target.ownerDocument
     let request = initialRequest
     let result: QueryBlockResult | null = null
+    let ranAt = 0
+    let dictionary: ValueDictionary = EMPTY_VALUE_DICTIONARY
     let runId = 0
     let richVisualizationCleanup: (() => void) | null = null
     let richVisualizationRenderId = 0
     let rawVegaJsonVisible = false
+    let queryEditorOpen = false
+    let chartEditorOpen = false
+    let chromeOpen = false
     let themeFlipDispose: (() => void) | null = null
+    // The chart an AUTO block would draw. Shown, never stored: a read must not
+    // write (2026-09-25: opening senderos turned `readme-weakest-q` from a
+    // table into a stored bar chart). It is persisted only when the author
+    // edits the chart.
+    let autoVegaSpec = ''
+    let valueFaceHints: readonly string[] = []
+
+    let styled = ensureStyle(target)
+    const styleWhenConnected = (): void => {
+      if (!styled) styled = ensureStyle(target)
+    }
+    queueMicrotask(styleWhenConnected)
+
+    const baseStance = (): FaceStance => {
+      const stance = options.stance?.()
+      return stance === 'draft' || stance === 'review' ? stance : 'read'
+    }
 
     const commitAttrs = (patch: Partial<QueryBlockAttrs>): void => {
       request.updateAttrs(patch)
       request = { ...request, attrs: { ...request.attrs, ...patch } }
     }
 
+    const button = (text: string, className: string, label?: string): HTMLButtonElement => {
+      const element = document.createElement('button')
+      element.type = 'button'
+      element.className = className
+      element.textContent = text
+      if (label) element.setAttribute('aria-label', label)
+      return element
+    }
+
+    // ── read face ─────────────────────────────────────────────────────────
+    const head = document.createElement('div')
+    head.className = 'query-block-head'
+    const title = document.createElement('div')
+    title.className = 'query-block-title'
+    head.appendChild(title)
+
+    // ── draft chrome (hover / focus-within / touch affordance) ────────────
     const toolbar = document.createElement('div')
-    toolbar.className = 'query-block-host-toolbar'
+    toolbar.className = 'query-block-chrome query-block-host-toolbar'
+    toolbar.setAttribute('role', 'toolbar')
+    toolbar.setAttribute('aria-label', 'Query block')
+    const meta = document.createElement('span')
+    meta.className = 'query-block-host-meta'
     const visualization = document.createElement('select')
+    visualization.setAttribute('aria-label', 'Visualization')
     for (const value of ['table', 'stat', 'triples', 'vega', 'network', 'json'] as const) {
       const option = document.createElement('option')
       option.value = value
-      option.textContent = value[0].toUpperCase() + value.slice(1)
+      option.textContent = value === 'vega' ? 'Chart' : value[0].toUpperCase() + value.slice(1)
       visualization.appendChild(option)
     }
     const maxRows = document.createElement('input')
     maxRows.type = 'number'
     maxRows.min = '1'
     maxRows.max = '500'
-    const run = document.createElement('button')
-    run.type = 'button'
-    run.textContent = 'Run'
-    const collapse = document.createElement('button')
-    collapse.type = 'button'
-    const remove = document.createElement('button')
-    remove.type = 'button'
-    remove.textContent = 'Delete'
-    toolbar.append(visualization, maxRows, run, collapse, remove)
+    maxRows.setAttribute('aria-label', 'Row limit')
+    maxRows.title = 'Row limit'
+    const editQuery = button('Query', 'query-block-edit-query', 'Edit query')
+    const editChart = button('Edit chart', 'query-block-edit-chart')
+    const run = button('Run', 'query-block-run')
+    const collapse = button('Collapse', 'query-block-collapse')
+    const remove = button('Delete', 'query-block-delete')
+    const separator = (): HTMLSpanElement => {
+      const element = document.createElement('span')
+      element.className = 'query-block-chrome-sep'
+      element.setAttribute('aria-hidden', 'true')
+      return element
+    }
+    toolbar.append(meta, separator(), visualization, maxRows, editQuery, editChart, separator(), run, collapse, remove)
+    const affordance = button('⋯', 'query-block-affordance', 'Query block options')
+    affordance.setAttribute('aria-expanded', 'false')
+    // The slim bar above the block (touch screens, narrow blocks): the ⋯ sits
+    // there, right-aligned, like the diagram's — never beside or over the
+    // title or the result (senderos follow-ups, 2026-09-26).
+    const bar = document.createElement('div')
+    bar.className = 'query-block-bar'
+    bar.appendChild(affordance)
 
+    // ── query editor (draft, pinned) / query source (review) ──────────────
+    const editor = document.createElement('div')
+    editor.className = 'query-block-editor'
+    const commentLabel = document.createElement('label')
+    commentLabel.textContent = 'Title'
     const comment = document.createElement('input')
     comment.className = 'query-block-host-comment'
-    comment.placeholder = 'Add a note…'
+    comment.placeholder = 'Add a title…'
+    commentLabel.appendChild(comment)
+    const queryLabel = document.createElement('label')
+    queryLabel.textContent = 'SPARQL'
     const query = document.createElement('textarea')
     query.className = 'query-block-host-query'
     query.spellcheck = false
+    queryLabel.appendChild(query)
+    editor.append(commentLabel, queryLabel)
+
+    // ── chart editor (behind "Edit chart") ────────────────────────────────
     const vegaBuilder = document.createElement('div')
     vegaBuilder.className = 'query-block-host-vega-builder'
     const builderSelect = (
@@ -710,18 +1007,24 @@ export function makeQueryBlockRenderer(
     jsonToggle.textContent = 'Edit JSON'
     jsonToggle.setAttribute('aria-expanded', 'false')
     vegaBuilder.appendChild(jsonToggle)
+    const vegaHint = document.createElement('div')
+    vegaHint.className = 'query-block-hint'
+    vegaBuilder.appendChild(vegaHint)
     const vegaSpec = document.createElement('textarea')
     vegaSpec.className = 'query-block-host-vega-spec'
     vegaSpec.spellcheck = false
     vegaSpec.placeholder = 'Vega-Lite JSON spec'
     vegaSpec.setAttribute('aria-label', 'Vega-Lite JSON spec')
-    const meta = document.createElement('div')
-    meta.className = 'query-block-host-meta'
+
     const error = document.createElement('div')
     error.className = 'query-block-host-error'
+    error.setAttribute('role', 'status')
     const output = document.createElement('div')
+    output.className = 'query-block-output'
     output.setAttribute('aria-live', 'polite')
-    target.replaceChildren(toolbar, comment, query, vegaBuilder, vegaSpec, meta, error, output)
+    const caption = document.createElement('div')
+    caption.className = 'query-block-caption'
+    target.replaceChildren(bar, head, toolbar, editor, vegaBuilder, vegaSpec, error, output, caption)
 
     const fieldSelects = [
       xSelect, ySelect, x2Select, colorSelect, sizeSelect, shapeSelect, opacitySelect, facetSelect,
@@ -815,14 +1118,76 @@ export function makeQueryBlockRenderer(
       delete output.dataset.visualizationStatus
     }
 
+    const effectiveVegaSpec = (): string => request.attrs.vegaLiteSpec.trim() ? request.attrs.vegaLiteSpec : autoVegaSpec
+
+    const renderTable = (columns: readonly string[], terms: ReadonlyArray<Record<string, QueryBlockTerm | undefined>>): void => {
+      const stance = baseStance()
+      const mode = resolveVegaThemeMode(target)
+      const views = terms.map(row => Object.fromEntries(columns.map(column => [
+        column, resolveValueFace(row[column], dictionary, { stance, slot: 'inline' }),
+      ])) as Record<string, ValueView>)
+      const shapes = new Map(columns.map(column => [
+        column,
+        queryBlockColumnShape(terms.map(row => row[column]), views.map(row => row[column])),
+      ]))
+      // The shared table structure (sh-sparql-table-view builds the same one),
+      // then the value faces into its cells.
+      const table = buildBindingsTableElement(columns, views.map(row => Object.fromEntries(
+        columns.map(column => [column, row[column].text]),
+      )))
+      table.className = 'query-block-host-table'
+      table.querySelectorAll('th').forEach((th, index) => {
+        th.dataset.columnShape = shapes.get(columns[index]) ?? 'text'
+      })
+      table.querySelectorAll('tbody tr').forEach((tr, rowIndex) => {
+        tr.querySelectorAll('td').forEach((td, columnIndex) => {
+          const column = columns[columnIndex]
+          const shape = shapes.get(column) ?? 'text'
+          const view = views[rowIndex]?.[column]
+          td.dataset.columnShape = shape
+          td.dataset.label = column.replace(/_/g, ' ')
+          if (!view?.text) td.dataset.empty = ''
+          if (!view) return
+          if (view.face === 'value.chip') {
+            td.replaceChildren(renderValueView(document, view, mode))
+          } else if (shape === 'prose') {
+            const clamp = document.createElement('div')
+            clamp.className = 'query-block-clamp'
+            clamp.textContent = view.text
+            td.replaceChildren(clamp)
+            if (view.text.length > PROSE_MIN) {
+              td.dataset.clamp = ''
+              td.title = 'Click to show the whole text'
+            }
+          } else if (view.title && view.title !== view.text) {
+            td.title = view.title
+          }
+        })
+      })
+      table.addEventListener('click', (event) => {
+        const cell = (event.target as Element | null)?.closest?.('td[data-clamp]') as HTMLElement | null
+        if (!cell) return
+        if (cell.hasAttribute('data-expanded')) cell.removeAttribute('data-expanded')
+        else cell.setAttribute('data-expanded', '')
+      })
+      output.appendChild(table)
+    }
+
     const renderOutput = (): void => {
       clearRichVisualization()
       output.replaceChildren()
       if (!result) {
-        output.textContent = target.dataset.status === 'running' ? 'Running query…' : 'No result yet.'
+        output.dataset.visualizationMode = ''
+        const pending = document.createElement('div')
+        pending.className = 'query-block-hint'
+        pending.textContent = target.dataset.status === 'running' ? 'Running query…' : 'No result yet.'
+        output.appendChild(pending)
         return
       }
+      // Baked colors (chips, charts) re-render when the root theme flips.
+      themeFlipDispose = observeVegaThemeFlips(target.ownerDocument, () => renderOutput())
       const mode = chosenVisualization(request.attrs, result)
+      output.dataset.visualizationMode = mode
       if (mode === 'json') {
         const pre = document.createElement('pre')
         pre.textContent = JSON.stringify(result.raw, null, 2)
@@ -832,11 +1197,13 @@ export function makeQueryBlockRenderer(
       if (mode === 'stat') {
         const stat = document.createElement('div')
         stat.className = 'query-block-host-stat'
-        stat.textContent = result.resultKind === 'ask'
-          ? String(result.boolean)
-          : result.resultKind === 'bindings'
-            ? formatQueryBlockTerm(result.rows[0]?.[result.columns[0]])
-            : ''
+        if (result.resultKind === 'ask') {
+          stat.textContent = String(result.boolean)
+        } else if (result.resultKind === 'bindings') {
+          const view = resolveValueFace(result.rows[0]?.[result.columns[0]], dictionary, { stance: baseStance(), slot: 'block' })
+          if (view.face === 'value.chip') stat.appendChild(renderValueView(document, view, resolveVegaThemeMode(target)))
+          else stat.textContent = view.text
+        }
         output.appendChild(stat)
         return
       }
@@ -845,27 +1212,22 @@ export function makeQueryBlockRenderer(
         host.className = 'query-block-host-vega'
         const loading = document.createElement('div')
         loading.className = 'query-block-host-vega-loading'
-        loading.textContent = 'Rendering Vega-Lite view…'
+        loading.textContent = 'Rendering chart…'
         host.appendChild(loading)
         output.dataset.visualizationStatus = 'rendering'
         output.appendChild(host)
-
-        // The SAME root theme/skin re-mount contract <sh-vega-chart-view>
-        // holds (vega-theme.ts's header: Vega bakes every color into spec
-        // JSON at mount time, so no CSS cascade can re-theme a mounted
-        // chart): an editor-embedded QueryBlock chart re-renders — re-baking
-        // the config against the new mode — when the root data-theme/
-        // data-skin flips. One shared observer per rendered chart, disposed
-        // by clearRichVisualization (every re-render and destroy() path),
-        // so nothing outlives the block.
-        themeFlipDispose = observeVegaThemeFlips(target.ownerDocument, () => renderOutput())
 
         const activeRender = ++richVisualizationRenderId
         void mountQueryBlockVega({
           container: host,
           result,
-          vegaLiteSpec: vegaSpec.value,
+          vegaLiteSpec: effectiveVegaSpec(),
           loadEmbed: options.loadVegaEmbed,
+          valueDictionary: dictionary,
+          onValueFaceHints: (hints) => {
+            valueFaceHints = hints
+            vegaHint.textContent = hints.length ? `Order: ${hints.join('; ')}.` : ''
+          },
         })
           .then((cleanup) => {
             if (activeRender !== richVisualizationRenderId) {
@@ -915,48 +1277,75 @@ export function makeQueryBlockRenderer(
           text.setAttribute('x', String(position.x))
           text.setAttribute('y', String(position.y))
           text.setAttribute('font-size', '10')
+          text.setAttribute('fill', 'currentColor')
           text.textContent = id.length > 24 ? `…${id.slice(-23)}` : id
           svg.appendChild(text)
         }
         output.appendChild(svg)
         return
       }
-      let columns: string[] = []
-      let rows: Array<Record<string, string>> = []
       if (mode === 'triples') {
-        columns = ['subject', 'predicate', 'object']
-        rows = triples
-      } else if (result.resultKind === 'bindings') {
-        const bindings = result
-        columns = [...bindings.columns]
-        rows = bindings.rows.map((row) =>
-          Object.fromEntries(
-            bindings.columns.map((column) => [column, formatQueryBlockTerm(row[column])]),
-          ),
-        )
+        const columns = ['subject', 'predicate', 'object']
+        renderTable(columns, triples.map(row => Object.fromEntries(columns.map(column => [
+          column, { type: 'literal', value: row[column as keyof typeof row] } as QueryBlockTerm,
+        ]))))
+        return
       }
-      // Shared bindings-table DOM primitive (diff-review r2 SUSPECT) — the
-      // SAME table structure `sh-sparql-table-view` builds; only the class
-      // hook (this host's own stylesheet target) is added here.
-      const table = buildBindingsTableElement(columns, rows)
-      table.className = 'query-block-host-table'
-      output.appendChild(table)
+      if (result.resultKind === 'bindings') renderTable(result.columns, result.rows)
     }
 
+    const renderCaption = (): void => {
+      if (!result || target.dataset.status === 'error') {
+        caption.textContent = ''
+        return
+      }
+      const stance = baseStance()
+      caption.textContent = stance === 'review'
+        ? `${queryBlockCaption(result, ranAt, undefined, request.attrs.query)} · ${result.queryKind.toUpperCase()} in ${result.durationMs} ms`
+        : queryBlockCaption(result, ranAt, undefined, request.attrs.query)
+    }
+    const captionTimer = setInterval(renderCaption, 30_000)
+    // Charts are laid out for the width they mount at: re-mount when the
+    // block's width changes (a rotated phone, a resized split pane).
+    let chartWidth = 0
+    let resizeTimer: ReturnType<typeof setTimeout> | null = null
+    const resizeObserver = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver((entries) => {
+      const width = Math.round(entries[0]?.contentRect.width ?? 0)
+      if (!width || Math.abs(width - chartWidth) < 4) return
+      const first = chartWidth === 0
+      chartWidth = width
+      if (first || output.dataset.visualizationMode !== 'vega') return
+      if (resizeTimer) clearTimeout(resizeTimer)
+      resizeTimer = setTimeout(() => renderOutput(), 150)
+    })
+    resizeObserver?.observe(output)
+
     const sync = (): void => {
+      styleWhenConnected()
+      const stance = baseStance()
+      const pinnedDraft = queryEditorOpen || chartEditorOpen
+      target.dataset.faceStance = stance === 'read' && pinnedDraft ? 'draft' : stance
+      target.dataset.collapsed = String(request.attrs.collapsed)
+      if (chromeOpen) target.dataset.chromeOpen = ''
+      else delete target.dataset.chromeOpen
+      affordance.setAttribute('aria-expanded', String(chromeOpen))
+
+      title.textContent = request.attrs.comment.trim()
       if (document.activeElement !== comment) comment.value = request.attrs.comment
       if (document.activeElement !== query) query.value = request.attrs.query
-      if (document.activeElement !== vegaSpec) vegaSpec.value = request.attrs.vegaLiteSpec
+      if (document.activeElement !== vegaSpec) vegaSpec.value = effectiveVegaSpec()
       if (result) {
         populateBuilderFields(result)
-        if (!vegaBuilder.contains(document.activeElement) && request.attrs.vegaLiteSpec.trim()) {
-          syncBuilderFromSpec(request.attrs.vegaLiteSpec)
+        if (!vegaBuilder.contains(document.activeElement) && effectiveVegaSpec().trim()) {
+          syncBuilderFromSpec(effectiveVegaSpec())
         }
       }
-      visualization.value = request.attrs.visualization
+      visualization.value = request.attrs.displayMode === 'auto' && result
+        ? chosenVisualization(request.attrs, result)
+        : request.attrs.visualization
       maxRows.value = String(request.attrs.maxRows)
       comment.readOnly = !request.editable
-      query.readOnly = !request.editable
+      query.readOnly = !request.editable || stance === 'review' && !queryEditorOpen
       vegaSpec.readOnly = !request.editable
       visualization.disabled = !request.editable
       maxRows.disabled = !request.editable
@@ -966,17 +1355,27 @@ export function makeQueryBlockRenderer(
       jsonToggle.disabled = !request.editable
       remove.hidden = !request.editable
       collapse.textContent = request.attrs.collapsed ? 'Expand' : 'Collapse'
-      query.hidden = request.attrs.collapsed
-      comment.hidden = request.attrs.collapsed
-      const showVega = !request.attrs.collapsed && (
-        request.attrs.visualization === 'vega' || (result ? automaticVisualization(result) === 'vega' : false)
-      )
-      vegaBuilder.hidden = !showVega
-      vegaSpec.hidden = !showVega || !rawVegaJsonVisible
+      collapse.setAttribute('aria-expanded', String(!request.attrs.collapsed))
+
+      editQuery.setAttribute('aria-label', request.editable ? 'Edit query' : 'Show query')
+      editQuery.setAttribute('aria-pressed', String(queryEditorOpen))
+      // review shows the query source; draft (pinned) edits it.
+      editor.hidden = request.attrs.collapsed || !(queryEditorOpen || stance === 'review')
+      commentLabel.hidden = !queryEditorOpen
+
+      const showsChart = result
+        ? chosenVisualization(request.attrs, result) === 'vega'
+        : request.attrs.visualization === 'vega'
+      editChart.hidden = !showsChart
+      editChart.setAttribute('aria-pressed', String(chartEditorOpen && showsChart))
+      vegaBuilder.hidden = request.attrs.collapsed || !showsChart || !chartEditorOpen
+      vegaSpec.hidden = vegaBuilder.hidden || !rawVegaJsonVisible
       jsonToggle.textContent = rawVegaJsonVisible ? 'Hide JSON' : 'Edit JSON'
       jsonToggle.setAttribute('aria-expanded', String(rawVegaJsonVisible))
+      vegaHint.textContent = valueFaceHints.length ? `Order: ${valueFaceHints.join('; ')}.` : ''
       output.hidden = request.attrs.collapsed
       renderOutput()
+      renderCaption()
     }
 
     const execute = async (): Promise<void> => {
@@ -986,23 +1385,32 @@ export function makeQueryBlockRenderer(
       run.disabled = true
       error.textContent = ''
       meta.textContent = 'Running…'
-      renderOutput()
+      if (!result) renderOutput()
       try {
-        result = await service.run(graphId ?? '', query.value, Number(maxRows.value))
+        const [next, nextDictionary] = await Promise.all([
+          runWithRetry(() => service.run(graphId ?? '', query.value, Number(maxRows.value))),
+          graphId && options.valueDictionary
+            ? options.valueDictionary.load(graphId).catch(() => EMPTY_VALUE_DICTIONARY)
+            : Promise.resolve(dictionary),
+        ])
         if (activeRun !== runId) return
+        result = next
+        dictionary = nextDictionary
+        ranAt = Date.now()
         target.dataset.status = 'done'
-        meta.textContent = `${result.queryKind.toUpperCase()} · ${result.durationMs}ms`
+        meta.textContent = `${result.queryKind.toUpperCase()} · ${result.durationMs} ms`
         populateBuilderFields(result)
+        autoVegaSpec = ''
         if (request.attrs.vegaLiteSpec.trim()) {
           syncBuilderFromSpec(request.attrs.vegaLiteSpec)
         } else if (request.attrs.displayMode === 'auto') {
           const generated = generateAutoQueryBlockVegaSpec(result)
           if (generated) {
-            vegaSpec.value = generated
+            autoVegaSpec = generated
             syncBuilderFromSpec(generated)
-            commitAttrs({ visualization: 'vega', vegaLiteSpec: generated })
           }
         }
+        // Only an edit the author ran is stored — never the open itself.
         if (query.value !== request.attrs.query || Number(maxRows.value) !== request.attrs.maxRows) {
           commitAttrs({ query: query.value, maxRows: Number(maxRows.value) })
         }
@@ -1019,10 +1427,16 @@ export function makeQueryBlockRenderer(
       }
     }
 
-    toolbar.addEventListener('mousedown', (event) => event.stopPropagation())
-    vegaBuilder.addEventListener('mousedown', (event) => event.stopPropagation())
-    comment.addEventListener('blur', () => commitAttrs({ comment: comment.value }))
-    query.addEventListener('blur', () => commitAttrs({ query: query.value }))
+    for (const surface of [toolbar, vegaBuilder, editor, bar]) {
+      surface.addEventListener('mousedown', (event) => event.stopPropagation())
+    }
+    comment.addEventListener('blur', () => {
+      if (comment.value !== request.attrs.comment) commitAttrs({ comment: comment.value })
+      title.textContent = comment.value.trim()
+    })
+    query.addEventListener('blur', () => {
+      if (query.value !== request.attrs.query) commitAttrs({ query: query.value })
+    })
     query.addEventListener('keydown', (event) => {
       if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
         event.preventDefault()
@@ -1030,7 +1444,7 @@ export function makeQueryBlockRenderer(
       }
     })
     const commitVegaSpec = (): void => {
-      if (vegaSpec.value !== request.attrs.vegaLiteSpec) {
+      if (vegaSpec.value !== effectiveVegaSpec()) {
         commitAttrs({ displayMode: 'manual', visualization: 'vega', vegaLiteSpec: vegaSpec.value })
         syncBuilderFromSpec(vegaSpec.value)
       }
@@ -1071,6 +1485,45 @@ export function makeQueryBlockRenderer(
       maxRows.value = String(value)
       commitAttrs({ maxRows: value })
     })
+    editQuery.addEventListener('click', () => {
+      queryEditorOpen = !queryEditorOpen
+      sync()
+      if (queryEditorOpen) query.focus()
+    })
+    editChart.addEventListener('click', () => {
+      chartEditorOpen = !chartEditorOpen
+      sync()
+    })
+    // Tapping anywhere outside the block closes the touch chrome. (Not
+    // focusout: the editor takes focus back after every tap inside a node view.)
+    const closeOnOutsidePointer = (event: Event): void => {
+      if (event.composedPath().includes(target)) return
+      setChromeOpen(false)
+    }
+    const setChromeOpen = (open: boolean): void => {
+      if (open === chromeOpen) return
+      chromeOpen = open
+      if (open) document.addEventListener('pointerdown', closeOnOutsidePointer, true)
+      else document.removeEventListener('pointerdown', closeOnOutsidePointer, true)
+      sync()
+    }
+    // A tap must not move focus: focusing the button scrolls the editor, the
+    // release lands on the text below, and the click never reaches the button
+    // (found at 390px, 2026-09-25). Keyboard activation is unaffected.
+    // It toggles on POINTERDOWN: the editor's own pointer handling re-targets
+    // the release of a tap near a block edge to the text beneath, so a click
+    // never reaches the button (found at 390px, 2026-09-25). Keyboard
+    // activation (a click with detail 0) still works.
+    affordance.addEventListener('mousedown', event => event.preventDefault())
+    affordance.addEventListener('pointerdown', (event) => {
+      if (event.button !== 0) return
+      event.preventDefault()
+      event.stopPropagation()
+      setChromeOpen(!chromeOpen)
+    })
+    affordance.addEventListener('click', (event) => {
+      if (event.detail === 0) setChromeOpen(!chromeOpen)
+    })
     run.addEventListener('click', () => void execute())
     collapse.addEventListener('click', () => {
       commitAttrs({ collapsed: !request.attrs.collapsed })
@@ -1092,6 +1545,10 @@ export function makeQueryBlockRenderer(
       },
       destroy() {
         runId += 1
+        clearInterval(captionTimer)
+        resizeObserver?.disconnect()
+        document.removeEventListener('pointerdown', closeOnOutsidePointer, true)
+        if (resizeTimer) clearTimeout(resizeTimer)
         clearRichVisualization()
         target.replaceChildren()
       },

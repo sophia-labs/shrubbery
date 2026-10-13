@@ -40,6 +40,8 @@ import {
   type WorkspaceConfig,
 } from '@shrubbery/nucleus'
 import type { GardendContract } from './gardend-contract.js'
+import { withLegacyDefaultInteractionEdges } from './legacy-default-interactions.js'
+import { withChoreographModesRegion } from './choreograph-region-compat.js'
 import { uxConfigGraphIri } from '@shrubbery/nucleus'
 import type {
   PollableStore,
@@ -47,6 +49,21 @@ import type {
   StoreStatus as CanonicalStoreStatus,
   StoreState,
 } from '@shrubbery/nucleus'
+
+/**
+ * The fallback shown when a graph has no :ux:config: GARDEN_DEFAULT narrowed
+ * to the Garden app alone. Dropping the app dimension also keeps the host-only
+ * Grapevine views from attaching, so an unconfigured graph shows Garden
+ * and nothing else. A graph's own saved config is unaffected.
+ */
+const { 'region-choreo-center': _choreoCenter, ...gardenOnlyRegions } = GARDEN_DEFAULT.regions
+const { 'dim-app': _appDimension, ...gardenOnlyDimensions } = GARDEN_DEFAULT.dimensions
+const { appRootRegions: _appRootRegions, ...gardenOnlyBase } = GARDEN_DEFAULT
+export const GARDEN_ONLY_DEFAULT: WorkspaceConfig = {
+  ...gardenOnlyBase,
+  regions: gardenOnlyRegions,
+  dimensions: gardenOnlyDimensions,
+}
 
 /** The config-loading extension shared by local gardend and hosted gateway shells. */
 export interface CellRestClient extends RestClient {
@@ -75,6 +92,8 @@ export interface CellConfigRead {
    * can surface an honest "default workspace" notice.
    */
   readonly defaulted: boolean
+  /** Exact pre-edge default received its six interaction edges in memory only. */
+  readonly interactionCompatibility?: 'legacy-default-v1'
   /** Authoritative triple count = N-Triples body line count (NOT the envelope quadCount). */
   readonly tripleCount: number
   /** The raw N-Triples body read from the cell (for display / debugging). */
@@ -266,14 +285,18 @@ export async function loadConfigFromCell(
     if (!isNoWorkspaceNodeError(e)) {
       throw new CellConfigContentError(e instanceof Error ? e.message : String(e))
     }
-    config = GARDEN_DEFAULT
+    config = GARDEN_ONLY_DEFAULT
     defaulted = true
   }
+  const compatibility = defaulted ? null : withLegacyDefaultInteractionEdges(config, triples)
+  if (compatibility) config = compatibility.config
+  config = withChoreographModesRegion(config)
   const verdict = validateConfig(config)
   if (!verdict.ok) throw new CellConfigContentError(`config rejected: ${verdict.error}`)
   return {
     config,
     defaulted,
+    ...(compatibility ? { interactionCompatibility: compatibility.interactionCompatibility } : {}),
     tripleCount: triples.length,
     nt,
     graphIri: uxConfigGraphIri(graphId),
@@ -357,44 +380,122 @@ export function createSessionStore<C extends CellContract>(opts: SessionStoreOpt
   let state: SessionStoreState = { status: 'idle', read: null, error: null }
   const subs = new Set<(s: SessionStoreState) => void>()
   let pollTimer: ReturnType<typeof setInterval> | null = null
+  type RefreshRequest = { readonly source: 'manual' | 'poll'; readonly previous: SessionStoreState }
+  let latestRefresh: RefreshRequest | null = null
+  const inFlight = new Set<RefreshRequest>()
+  let cacheMutation: Promise<void> = Promise.resolve()
 
+  /**
+   * Two states are the same ANSWER when they carry the same status, the same
+   * error, and the same config triples.
+   *
+   * Deliberately NOT a deep equality on the read: `CellConfigRead` carries
+   * `readAt: Date.now()`, so every poll produces an object that differs from
+   * the last one no matter what the cell said. A structural comparison can
+   * therefore never short-circuit, which is exactly how this went unnoticed —
+   * the guard you would reach for first cannot work here. `nt` is the
+   * authority's own N-Triples payload; if that string is unchanged the
+   * workspace is unchanged, whatever the clock says.
+   */
+  const sameAnswer = (a: SessionStoreState, b: SessionStoreState): boolean => (
+    a.status === b.status
+    && a.error === b.error
+    && a.read?.nt === b.read?.nt
+    && a.read?.activationSource === b.read?.activationSource
+    && a.read?.offlineError === b.read?.offlineError
+  )
+
+  /**
+   * Notify ONLY on a real change.
+   *
+   * This used to notify unconditionally, and `refresh()` calls it twice per
+   * tick against a 3s poll — so every subscriber rebuilt the workspace twice
+   * every three seconds, forever, whether or not anything had happened.
+   * Measured in the packaged app on a 1,137-document graph: the WebKit process
+   * at 48% CPU with WindowServer alongside it at 48% (continuous repaint, not
+   * merely computation), memory climbing, and a stack dominated by
+   * `IDBTransaction::dispatchEvent` from the per-tick cache write below.
+   *
+   * A poll that finds nothing must cost nothing.
+   */
   const set = (next: SessionStoreState): void => {
+    if (sameAnswer(state, next)) {
+      // Keep the freshest read (its readAt/timestamps are newer) but wake no
+      // one: the rendered answer is identical.
+      state = next
+      return
+    }
     state = next
     for (const cb of subs) cb(state)
   }
 
-  const refresh = async (): Promise<void> => {
+  // A started storage operation cannot be cancelled through this interface.
+  // Serialize mutations so a slow older put/delete cannot land after a newer
+  // successful write; skip queued mutations once their refresh is superseded.
+  const mutateCache = (isCurrent: () => boolean, mutation: () => Promise<void>): Promise<void> => {
+    const pending = cacheMutation.then(async () => {
+      if (isCurrent()) await mutation()
+    })
+    cacheMutation = pending.catch(() => {})
+    return pending
+  }
+
+  const refresh = async (source: 'manual' | 'poll' = 'manual'): Promise<void> => {
+    // Timers never multiply outstanding work. Explicit manual refresh still
+    // starts a new observation and supersedes earlier results for this user.
+    if (source === 'poll' && inFlight.size > 0) return
     const refreshUserId = contract.auth?.userId?.() ?? 'local-organism'
     const refreshEpoch = authEpoch
-    const isCurrentIdentity = (): boolean =>
-      refreshEpoch === authEpoch && refreshUserId === activationUserId
-    set({ status: 'loading', read: state.read, error: null })
+    const request: RefreshRequest = { source, previous: state }
+    latestRefresh = request
+    inFlight.add(request)
+    const isCurrentRefresh = (): boolean =>
+      latestRefresh === request && refreshEpoch === authEpoch && refreshUserId === activationUserId
+    const publish = (next: SessionStoreState): void => {
+      // Settle before notifying subscribers: stopping a poll from its ready
+      // notification must not restore the state from before that success.
+      inFlight.delete(request)
+      if (isCurrentRefresh()) set(next)
+    }
     try {
+      // A poll tick is background work: nobody is waiting on it, so it must not
+      // announce itself. A manual refresh still shows `loading`, because there a
+      // spinner is the honest answer to a request someone just made. With
+      // `set()` comparing answers, the `loading` hop would otherwise be the one
+      // change that is real on every single tick.
+      if (source !== 'poll') set({ status: 'loading', read: state.read, error: null })
       const read = await loadConfigFromCell(contract, graphId)
-      if (!isCurrentIdentity()) return
-      try {
-        await offlineStorage.put(refreshUserId, graphId, read)
-      } catch {
-        // Live authority remains usable if local persistence is unavailable.
+      if (!isCurrentRefresh()) return
+      // Only persist a config that actually differs. The cache is a copy of an
+      // answer, and rewriting an unchanged answer every 3s is the IndexedDB
+      // transaction churn the profiler found.
+      if (state.read?.nt !== read.nt) {
+        try {
+          await mutateCache(isCurrentRefresh, () => offlineStorage.put(refreshUserId, graphId, read))
+        } catch {
+          // Live authority remains usable if local persistence is unavailable.
+        }
       }
-      if (!isCurrentIdentity()) return
-      set({ status: 'ready', read, error: null })
+      publish({ status: 'ready', read, error: null })
     } catch (e) {
-      if (!isCurrentIdentity()) return
+      if (!isCurrentRefresh()) return
       const message = e instanceof Error ? e.message : String(e)
       // A malformed authoritative response must remain loud. Only transport
       // failure may activate a previously validated, user/graph-scoped read.
       if (!(e instanceof CellConfigContentError)) {
         try {
           const cached = await offlineStorage.get(refreshUserId, graphId)
-          if (!isCurrentIdentity()) return
+          if (!isCurrentRefresh()) return
           if (cached) {
+            const compatibility = withLegacyDefaultInteractionEdges(cached.config, parseNT(cached.nt))
             const verdict = validateConfig(cached.config)
             if (verdict.ok) {
-              set({
+              publish({
                 status: 'ready',
                 read: {
                   ...cached,
+                  ...(compatibility ?? {}),
+                  config: withChoreographModesRegion(compatibility?.config ?? cached.config),
                   activationSource: 'indexeddb',
                   offlineError: message,
                 },
@@ -402,15 +503,16 @@ export function createSessionStore<C extends CellContract>(opts: SessionStoreOpt
               })
               return
             }
-            await offlineStorage.delete(refreshUserId, graphId)
-            if (!isCurrentIdentity()) return
+            await mutateCache(isCurrentRefresh, () => offlineStorage.delete(refreshUserId, graphId))
+            if (!isCurrentRefresh()) return
           }
         } catch {
           // The original transport error remains the honest failure.
         }
       }
-      if (!isCurrentIdentity()) return
-      set({ status: 'error', read: state.read, error: message })
+      publish({ status: 'error', read: state.read, error: message })
+    } finally {
+      inFlight.delete(request)
     }
   }
 
@@ -419,6 +521,7 @@ export function createSessionStore<C extends CellContract>(opts: SessionStoreOpt
     if (nextUserId === activationUserId && contract.auth?.isAuthenticated?.()) return
     authEpoch += 1
     activationUserId = nextUserId
+    latestRefresh = null
     // Never leave the previous user's validated workspace visible or eligible
     // for a late in-flight refresh after an identity boundary.
     set({ status: 'idle', read: null, error: null })
@@ -429,11 +532,18 @@ export function createSessionStore<C extends CellContract>(opts: SessionStoreOpt
       clearInterval(pollTimer)
       pollTimer = null
     }
+    // Stop automatic publication as well as future ticks. Keep the last
+    // actual state, and leave an explicitly requested manual refresh alone.
+    if (latestRefresh?.source === 'poll' && inFlight.has(latestRefresh)) {
+      const previous = latestRefresh.previous
+      latestRefresh = null
+      set(previous)
+    }
   }
 
   const startPoll = (intervalMs: number): (() => void) => {
     stopPoll()
-    pollTimer = setInterval(() => void refresh(), intervalMs)
+    pollTimer = setInterval(() => void refresh('poll'), intervalMs)
     return stopPoll
   }
 

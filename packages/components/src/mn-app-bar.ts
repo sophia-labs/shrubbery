@@ -42,8 +42,10 @@
 import { LitElement, css, html, nothing, unsafeCSS, type TemplateResult } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 import { SkinAware } from './skin-aware.js'
+import { BEVELLED } from './bevelled-skins.js'
 import { icon, iconStyles, hasIcon } from './icons.js'
-import { chromeSkinMeta, type ChromeSkinId } from './chrome-skin.js'
+import { CHROME_PICKER_SKINS, type ChromeSkinId } from './chrome-skin.js'
+import './mn-skin-picker.js'
 
 /**
  * One breadcrumb in the trail. `id` is the SHELL's opaque handle (a route key, a
@@ -277,52 +279,52 @@ export class MnAppBar extends SkinAware(LitElement) {
       border-radius: var(--mn-radius-none, 0);
     }
 
-    :host([data-skin='98']) {
+    :host(${BEVELLED}) {
       padding-inline: 6px;
       gap: 8px;
       border: 2px solid var(--mn-98-face, #c0c0c0);
       border-bottom-color: var(--mn-98-dark, #000);
     }
-    :host([data-skin='98']) .masthead {
+    :host(${BEVELLED}) .masthead {
       padding: 1px 5px 1px 0;
       border-radius: 0;
     }
-    :host([data-skin='98']) .masthead:hover {
+    :host(${BEVELLED}) .masthead:hover {
       background: transparent;
     }
-    :host([data-skin='98']) .masthead-name {
+    :host(${BEVELLED}) .masthead-name {
       font-size: 13px;
       font-weight: 750;
       letter-spacing: 0;
       text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.55);
     }
-    :host([data-skin='98']) .masthead-badge {
+    :host(${BEVELLED}) .masthead-badge {
       color: var(--mn-top-bar-text, #fff);
       letter-spacing: 0;
     }
-    :host([data-skin='98']) .search {
+    :host(${BEVELLED}) .search {
       border: 0;
       border-radius: 0;
       background: var(--mn-color-surface-sunken, #fff);
       color: var(--mn-color-text-primary, #000);
       box-shadow: var(--mn-98-sunken);
     }
-    :host([data-skin='98']) .crumb:hover {
+    :host(${BEVELLED}) .crumb:hover {
       background: var(--mn-98-face, #c0c0c0);
       color: var(--mn-color-text-primary, #000);
       box-shadow: var(--mn-98-raised);
     }
-    :host([data-skin='98']) .action-btn {
+    :host(${BEVELLED}) .action-btn {
       background: var(--mn-98-face, #c0c0c0);
       color: var(--mn-color-text-primary, #000);
       box-shadow: var(--mn-98-raised);
     }
-    :host([data-skin='98']) .action-btn:hover {
+    :host(${BEVELLED}) .action-btn:hover {
       background: var(--mn-98-face, #c0c0c0);
       color: var(--mn-color-text-primary, #000);
     }
-    :host([data-skin='98']) .action-btn:active,
-    :host([data-skin='98']) .action-btn.active {
+    :host(${BEVELLED}) .action-btn:active,
+    :host(${BEVELLED}) .action-btn.active {
       background: var(--mn-98-face, #c0c0c0);
       color: var(--mn-color-text-primary, #000);
       box-shadow: var(--mn-98-sunken);
@@ -392,6 +394,9 @@ export class MnAppBar extends SkinAware(LitElement) {
   /** Current visual identity — CONTROLLED, never read from a store. */
   @property({ type: String, attribute: 'active-skin' }) activeSkin: ChromeSkinId = 'garden'
 
+  /** The skins the picker offers, in order; a shell with its own set passes it once. */
+  @property({ attribute: false }) skins: readonly ChromeSkinId[] = CHROME_PICKER_SKINS
+
   /** When false, the built-in theme/skin/settings actions are omitted (slot only). */
   @property({ type: Boolean, attribute: 'show-actions' }) showActions = true
 
@@ -430,8 +435,6 @@ export class MnAppBar extends SkinAware(LitElement) {
   }
 
   render() {
-    const skinMeta = chromeSkinMeta(this.activeSkin)
-    const skinActionLabel = `Visual style: ${skinMeta.label}. Switch visual style`
     const last = this.crumbs.length - 1
     return html`
       <div class="masthead" part="masthead" @click=${() => this._emit('mn-navigate-home')}>
@@ -489,16 +492,12 @@ export class MnAppBar extends SkinAware(LitElement) {
               >
                 ${icon(this.isDark ? 'moon' : 'sun')}
               </button>
-              <button
-                class="action-btn skin-action"
+              <mn-skin-picker
+                class="skin-action"
                 data-action="skin"
-                data-active-skin=${this.activeSkin}
-                aria-label=${skinActionLabel}
-                title=${skinActionLabel}
-                @click=${() => this._emit('mn-skin-toggle')}
-              >
-                ${icon(skinMeta.icon)}
-              </button>
+                .value=${this.activeSkin}
+                .skins=${this.skins}
+              ></mn-skin-picker>
               <button
                 class="action-btn"
                 aria-label="Settings"

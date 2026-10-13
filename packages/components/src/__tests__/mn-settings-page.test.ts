@@ -28,6 +28,26 @@ const sr = (el: MnSettingsPage) => el.shadowRoot!
 afterEach(() => document.body.replaceChildren())
 
 describe('mn-settings-page - controlled Garden settings page', () => {
+  it('renders a hosted Cognito account with a distinct selectable subject even without email', async () => {
+    const el = await mount(node => {
+      node.runtimeMode = 'hosted'
+      node.userName = 'Véra'
+      node.userUsername = 'vera'
+      node.userId = 'cognito-subject-1'
+      node.sections = [{ id: 'account', title: 'Account' }]
+    })
+    expect(sr(el).querySelector('.identity-kind')?.textContent).toBe('Hosted account')
+    expect(sr(el).querySelector('[data-identity="username"]')?.textContent).toBe('vera')
+    expect(sr(el).querySelector('[data-identity="id"]')?.textContent).toBe('cognito-subject-1')
+    expect(sr(el).textContent).not.toContain('On-device')
+    expect(sr(el).textContent).toContain('Cognito user ID')
+    el.userEmail = 'vera@example.test'
+    el.emailVerified = true
+    await el.updateComplete
+    expect(el.emailVerified).toBe(true)
+    expect(el.runtimeMode).toBe('hosted')
+    expect(sr(el).textContent).toContain('Verified')
+  })
   beforeAll(() => {
     expect(customElements.get('mn-settings-page')).toBeDefined()
   })
@@ -469,10 +489,11 @@ describe('mn-settings-page - controlled Garden settings page', () => {
     expect(sr(el).querySelector('[data-action-id="create-restore-point"]')).not.toBeNull()
   })
 
-  it('applies 98 and glass styling to the actual settings primitives and keeps mobile navigation horizontal', () => {
+  it('applies 98 (and Hotdog Stand, through the shared bevelled list) and glass styling to the actual settings primitives and keeps mobile navigation horizontal', () => {
     const styles = (MnSettingsPage.styles as unknown as { cssText: string }).cssText
-    expect(styles).toContain(":host([data-skin='98']) :is(\n      .panel,")
-    expect(styles).toContain(":host([data-skin='98']) .toggle")
+    const BEVELLED = ":is([data-skin='98'], [data-skin='hotdog-stand'])"
+    expect(styles).toContain(`:host(${BEVELLED}) :is(\n      .panel,`)
+    expect(styles).toContain(`:host(${BEVELLED}) .toggle`)
     expect(styles).toContain(":host([data-skin='glass']) :is(\n      .panel,")
     expect(styles).toContain(".capability-state")
     expect(styles).toContain('@media (max-width: 760px)')
@@ -480,5 +501,28 @@ describe('mn-settings-page - controlled Garden settings page', () => {
     expect(styles).toContain('.nav-group + .nav-group')
     expect(styles).not.toContain('.toggle-track')
     expect(styles).not.toContain('.metric-card')
+  })
+
+  it('at phone width the section strip holds its own visually hidden labels, so they cannot widen the page', () => {
+    // The browser witness (apps/organism credits-browser-harness: "no horizontal overflow", in every skin, in the house fonts and in a wider face)
+    // is the instrument; this pins the structure that makes it hold. The strip scrolls inside itself and is the containing block of the labels
+    // that are hidden at this width, which are anchored to its corner; the back button's hidden caption is anchored to the button.
+    const styles = (MnSettingsPage.styles as unknown as { cssText: string }).cssText
+    const phone = styles.slice(styles.indexOf('@media (max-width: 760px)'), styles.indexOf('@media (max-width: 480px)'))
+    const rule = (selector: string): string => {
+      const at = phone.search(new RegExp(`(^|\\n)\\s*${selector.replace(/[.]/g, '\\.')}\\s*\\{`))
+      expect(at, `${selector} has a rule in the phone block`).toBeGreaterThanOrEqual(0)
+      return phone.slice(at, phone.indexOf('}', at))
+    }
+    const nav = rule('.nav')
+    expect(nav).toMatch(/position:\s*relative/)
+    expect(nav).toMatch(/overflow-x:\s*auto/)
+    expect(nav).toMatch(/min-width:\s*0/)
+    const label = rule('.nav-label')
+    expect(label).toMatch(/position:\s*absolute/)
+    expect(label).toMatch(/top:\s*0/)
+    expect(label).toMatch(/left:\s*0/)
+    expect(rule('.back-button')).toMatch(/position:\s*relative/)
+    expect(rule('.back-button span')).toMatch(/left:\s*0/)
   })
 })

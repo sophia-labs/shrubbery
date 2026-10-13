@@ -639,6 +639,80 @@ export function sidebarFolderMoveExcludeIds(sections: readonly SidebarSection[],
   return [...exclude]
 }
 
+/**
+ * One tree (docs/plans/2026-10-08-one-tree): a folder holds anything. Every folder, whatever `section` it was born in, is
+ * placed once; documents and files sit in the folder their parent id names. No reader depends on a folder's section.
+ */
+export function sidebarOneTree(
+  docs: readonly SidebarDocument[],
+  artifacts: readonly SidebarArtifact[],
+  folders: readonly SidebarFolder[],
+  activeId: string | null,
+  expandedFolders: ReadonlySet<string> = new Set(),
+  activeArtifactId: string | null = null,
+): SidebarNode[] {
+  const folderNodeById = new Map<string, SidebarNodeDraft>()
+  const roots: SidebarNodeDraft[] = []
+
+  function pushChild(parentId: string | null, node: SidebarNodeDraft): void {
+    const parent = parentId ? folderNodeById.get(parentId) : undefined
+    if (parent && parent.id !== node.id) {
+      parent.children.push(node)
+      return
+    }
+    roots.push(node)
+  }
+
+  for (const folder of folders) {
+    folderNodeById.set(folder.id, {
+      id: folder.id, label: folder.label || 'Untitled Folder', kind: 'folder', icon: 'folder', parentId: folder.parentId,
+      section: folder.section, order: folder.order, children: [],
+    })
+  }
+  for (const folder of folders) pushChild(folder.parentId, folderNodeById.get(folder.id)!)
+
+  for (const doc of docs) {
+    pushChild(doc.parentId, {
+      id: doc.id, label: doc.label || 'Untitled', kind: 'document', icon: doc.readOnly ? 'book-open' : 'file-text', parentId: doc.parentId,
+      section: 'documents', order: doc.order,
+      ...(doc.createdAt === undefined ? {} : { createdAt: doc.createdAt }),
+      active: activeId === doc.id, selected: activeId === doc.id, readOnly: doc.readOnly, sourceFile: doc.sourceFile, children: [],
+    })
+  }
+  for (const artifact of artifacts) {
+    if (artifact.ingestedDocumentId) continue
+    pushChild(artifact.parentId, {
+      id: artifact.id, label: artifact.label || artifact.id, kind: 'artifact', icon: 'diamond', parentId: artifact.parentId,
+      section: 'artifacts', order: artifact.order, active: activeArtifactId === artifact.id, selected: activeArtifactId === artifact.id,
+      badge: artifactBadge(artifact), mimeType: artifact.mimeType, fileType: artifact.fileType ?? null, status: artifact.status,
+      ingestedDocumentId: artifact.ingestedDocumentId ?? null, children: [],
+    })
+  }
+
+  function finalize(nodes: SidebarNodeDraft[]): SidebarNode[] {
+    return sortTreeNodes(nodes).map((node): SidebarNode => {
+      if (node.kind === 'document') {
+        return { id: node.id, label: node.label, kind: 'document', icon: node.icon, parentId: node.parentId, section: node.section,
+          order: node.order, ...(node.createdAt === undefined ? {} : { createdAt: node.createdAt }), active: node.active,
+          selected: node.selected, readOnly: node.readOnly, sourceFile: node.sourceFile }
+      }
+      if (node.kind === 'artifact') {
+        return { id: node.id, label: node.label, kind: 'artifact', icon: node.icon, parentId: node.parentId, section: node.section,
+          order: node.order, active: node.active, selected: node.selected, badge: node.badge, mimeType: node.mimeType,
+          fileType: node.fileType, status: node.status, ingestedDocumentId: node.ingestedDocumentId }
+      }
+      const children = finalize([...node.children])
+      const activeInside = node.children.some((child) => draftContainsActive(child, activeId) || draftContainsActive(child, activeArtifactId))
+      return { id: node.id, label: node.label, kind: 'folder', icon: node.icon, parentId: node.parentId, section: node.section,
+        order: node.order, expanded: expandedFolders.has(node.id) || activeInside, children }
+    })
+  }
+  return finalize(roots)
+}
+
+/** The one tree's section id; the tree is not Documents plus Files, it is the place. */
+export const TREE_SECTION_ID = 'tree'
+
 export function sidebarSectionsFromDocuments(
   docs: readonly SidebarDocument[],
   activeId: string | null,
@@ -648,24 +722,15 @@ export function sidebarSectionsFromDocuments(
   artifacts: readonly SidebarArtifact[] = [],
   activeArtifactId: string | null = null,
 ): SidebarSection[] {
-  const nodes = sidebarDocumentTree(docs, folders, activeId, expandedFolders)
-  const artifactNodes = sidebarArtifactTree(artifacts, folders, activeArtifactId, expandedFolders)
+  const files = artifacts.filter((artifact) => !artifact.ingestedDocumentId)
   return [
     {
-      id: 'documents',
-      label: 'Documents',
-      icon: 'file-text',
-      nodes,
-      count: docs.length,
-      emptyLabel: 'No documents in this graph',
-    },
-    {
-      id: 'artifacts',
-      label: 'Artifacts',
-      icon: 'diamond',
-      nodes: artifactNodes,
-      count: artifacts.filter((artifact) => !artifact.ingestedDocumentId).length,
-      emptyLabel: 'No artifacts in this graph',
+      id: TREE_SECTION_ID,
+      label: 'Workspace',
+      icon: 'folder',
+      nodes: sidebarOneTree(docs, files, folders, activeId, expandedFolders, activeArtifactId),
+      count: docs.length + files.length,
+      emptyLabel: 'Nothing here yet',
     },
     sidebarSectionsFromTags(tags),
   ]

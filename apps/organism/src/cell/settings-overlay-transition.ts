@@ -10,10 +10,12 @@ import {
   detectOrganismAppRoute,
   type OrganismAppRouteMount,
 } from './app-routes.js'
+import { settingsReturnPath } from './settings-navigation.js'
 
 export interface SettingsOverlayHistory {
   readonly state: unknown
   pushState(data: unknown, unused: string, url?: string | URL | null): void
+  replaceState(data: unknown, unused: string, url?: string | URL | null): void
   back(): void
 }
 
@@ -53,6 +55,8 @@ interface ActiveSettingsOverlay {
   readonly background: BackgroundState
   readonly focusReturn: HTMLElement | null
   readonly title: string
+  readonly returnPath: string
+  readonly returnState: unknown
 }
 
 export interface SettingsOverlayTransition {
@@ -105,6 +109,15 @@ export function createSettingsOverlayTransition(
     }
   }
 
+  // Closing a modal is synchronous. It must not depend on history.back()
+  // producing a popstate (or finding a non-Settings entry in browser history).
+  const requestClose = (): void => {
+    const current = active
+    if (!current) return
+    options.history.replaceState(current.returnState, '', current.returnPath)
+    close()
+  }
+
   const open = (
     location: URL,
     openOptions: OpenSettingsOverlayOptions = {},
@@ -135,7 +148,7 @@ export function createSettingsOverlayTransition(
     options.host.setAttribute('aria-hidden', 'true')
     document.body.append(overlay)
 
-    const mount = options.mount(overlay, location, () => options.history.back())
+    const mount = options.mount(overlay, location, requestClose)
     if (!mount) {
       overlay.remove()
       restoreBackground(background)
@@ -149,6 +162,9 @@ export function createSettingsOverlayTransition(
       background,
       focusReturn: openOptions.focusReturn ?? null,
       title: document.title,
+      returnPath: settingsReturnPath(location),
+      returnState: Object.fromEntries(Object.entries(historyState(options.history.state))
+        .filter(([key]) => key !== 'organismOverlayRoute')),
     }
     document.body.setAttribute('data-organism-settings-open', '')
     document.title = 'Settings — Garden'
@@ -156,7 +172,7 @@ export function createSettingsOverlayTransition(
     overlay.addEventListener('keydown', (event) => {
       if (event.key !== 'Escape' || event.defaultPrevented) return
       event.preventDefault()
-      options.history.back()
+      requestClose()
     })
     queueMicrotask(() => {
       const page = overlay.querySelector<HTMLElement>('mn-settings-page')

@@ -185,6 +185,41 @@ function otherSeriesColor(mode: VegaThemeMode): string {
 }
 
 /**
+ * VALUE-FACE TONES — the one palette a value chip (a rung in a table cell) and
+ * a chart series colored by the same values share, so the census bar for
+ * "exact numerics" is the chip's color. Every hex is a validated house value
+ * (no new colors, chart color law intact):
+ *   - `order` tones walk the SEQUENTIAL ramp: the top of a kind's display
+ *     order (the strongest rung) takes the highest-magnitude step, the bottom
+ *     the lowest usable one. The two palest steps are skipped: they vanish on
+ *     the light surface. In dark mode the ramp re-anchors, so the strongest
+ *     value is the brightest (same rule as `sequentialRange`).
+ *   - `danger` is the warm end of the DIVERGING ramp (terracotta), for values
+ *     that sit off the ordered axis (a falsified claim);
+ *   - `warning` the diverging warm shoulder, `accent` categorical violet,
+ *     `muted` the "Other" fold gray.
+ * Value faces carry a tone NAME (nucleus `ValueTone`); only this function
+ * turns it into color.
+ */
+export type ValueToneSpec =
+  | { readonly kind: 'named'; readonly name: 'muted' | 'accent' | 'warning' | 'danger' }
+  | { readonly kind: 'order'; readonly index: number; readonly count: number }
+
+export function valueToneColor(tone: ValueToneSpec, mode: VegaThemeMode): string {
+  if (tone.kind === 'named') {
+    if (tone.name === 'danger') return DIVERGING_RANGE[mode][6]
+    if (tone.name === 'warning') return DIVERGING_RANGE[mode][5]
+    if (tone.name === 'accent') return CATEGORICAL_PALETTE[2][mode]
+    return otherSeriesColor(mode)
+  }
+  const ramp = sequentialRange(mode)
+  const top = ramp.length - 1
+  const bottom = 2
+  const magnitude = tone.count <= 1 ? 1 : 1 - tone.index / (tone.count - 1)
+  return ramp[Math.round(bottom + magnitude * (top - bottom))]
+}
+
+/**
  * Build the house Vega-Lite `config` object for `mode` — every color literal
  * above, mark specs per the dataviz skill's `marks-and-anatomy.md` (2px
  * lines, 4px rounded bar ends anchored to baseline, >=8px markers with a 2px

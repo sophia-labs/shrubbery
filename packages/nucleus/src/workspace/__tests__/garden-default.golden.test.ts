@@ -58,9 +58,9 @@ const GOLDEN: WorkspaceConfig = {
       dockState: null,
       docksPanel: [],
       id: 'region-choreo-center',
-      label: 'Choreograph Center (Studio)',
+      label: 'Choreograph Center (Modes)',
       order: 2,
-      renderedByComponent: 'wf-studio-shell',
+      renderedByComponent: 'choreo-modes-surface',
       resizable: true,
       sizeFraction: 0.8,
       splitOrientation: 'vertical',
@@ -229,6 +229,16 @@ const GOLDEN: WorkspaceConfig = {
           id: 'val-skin-glass',
           literalValue: 'glass',
         },
+        {
+          appliesAttribute: '[data-skin=mithras]',
+          id: 'val-skin-mithras',
+          literalValue: 'mithras',
+        },
+        {
+          appliesAttribute: '[data-skin=hotdog-stand]',
+          id: 'val-skin-hotdog-stand',
+          literalValue: 'hotdog-stand',
+        },
       ],
     },
     'dim-theme': {
@@ -258,7 +268,7 @@ const GOLDEN: WorkspaceConfig = {
   rootRegions: ['region-top-bar', 'region-left-rail', 'region-bottom-bar'],
 
   appRootRegions: {
-    choreograph: ['region-top-bar', 'region-choreo-center', 'region-bottom-bar'],
+    choreograph: ['region-top-bar', 'region-choreo-center'],
   },
 
   edges: [
@@ -420,11 +430,10 @@ describe('GARDEN_DEFAULT golden snapshot', () => {
       expect(Object.keys(GARDEN_DEFAULT.appRootRegions!)).toEqual(['choreograph'])
     })
 
-    it('choreograph set = [top-bar, choreo-center, bottom-bar] (shared chrome + own head)', () => {
+    it('choreograph set = [top-bar, choreo-center] (shared header + own head)', () => {
       expect(GARDEN_DEFAULT.appRootRegions!.choreograph).toEqual([
         'region-top-bar',
         'region-choreo-center',
-        'region-bottom-bar',
       ])
     })
 
@@ -436,8 +445,8 @@ describe('GARDEN_DEFAULT golden snapshot', () => {
       expect(r.sizeFraction! > 0 && r.sizeFraction! < 1).toBe(true)
     })
 
-    it('region-choreo-center resolves to the wf-studio-shell screen-router', () => {
-      expect(GARDEN_DEFAULT.regions['region-choreo-center'].renderedByComponent).toBe('wf-studio-shell')
+    it('region-choreo-center resolves to the Choreograph modes surface', () => {
+      expect(GARDEN_DEFAULT.regions['region-choreo-center'].renderedByComponent).toBe('choreo-modes-surface')
     })
   })
 

@@ -22,6 +22,7 @@ import {
 export {
   DEFAULT_FILE_PANE_GROUPING,
   DEFAULT_FILE_PANE_SORT,
+  filePaneLifecycle,
 } from '@shrubbery/nucleus'
 
 export type {
@@ -133,6 +134,23 @@ function cloneSection(section: FilePaneSection, nodes: readonly FilePaneNode[]):
   return { ...section, nodes }
 }
 
+/**
+ * The kind filter of the one tree. A folder stays when it was empty to begin with or when something it holds matches, so
+ * filtering never makes a place look like it has no structure; it only thins what the structure holds.
+ */
+export function kindFilterNodes(nodes: readonly FilePaneNode[], kind: 'all' | 'documents' | 'files'): FilePaneNode[] {
+  if (kind === 'all') return [...nodes]
+  const wanted = kind === 'documents' ? 'document' : 'artifact'
+  const out: FilePaneNode[] = []
+  for (const node of nodes) {
+    if (node.kind === 'folder') {
+      const children = kindFilterNodes(node.children ?? [], kind)
+      if (children.length > 0 || (node.children ?? []).length === 0) out.push({ ...node, children })
+    } else if ((node.kind ?? 'document') === wanted) out.push(node)
+  }
+  return out
+}
+
 /** Apply OG's separate-artifacts/show-folders controls to plain sections. */
 export function groupFilePaneSections(
   sections: readonly FilePaneSection[],
@@ -140,7 +158,10 @@ export function groupFilePaneSections(
 ): FilePaneSection[] {
   const source = sections.map(section => cloneSection(
     section,
-    grouping.showFolders ? [...(section.nodes ?? [])] : flattenFilePaneLeaves(section.nodes ?? []),
+    kindFilterNodes(
+      grouping.showFolders ? [...(section.nodes ?? [])] : flattenFilePaneLeaves(section.nodes ?? []),
+      grouping.kind ?? 'all',
+    ),
   ))
   if (grouping.separateArtifacts) return source
 

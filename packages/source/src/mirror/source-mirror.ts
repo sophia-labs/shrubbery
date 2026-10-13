@@ -19,6 +19,7 @@ import {
   type SourceFault,
   type SourceFaultCode,
 } from './source-fault.js'
+import { sha256Digest } from '@shrubbery/nucleus/web-crypto'
 
 export interface SourceManifestMember {
   readonly sourceKind: 'ydoc' | 'event-log' | 'current-state' | 'derived'
@@ -535,18 +536,8 @@ function decodeBase64(value: string): Uint8Array {
 }
 
 async function sha256(bytes: Uint8Array): Promise<string> {
-  const cryptoLike = (globalThis as {
-    crypto?: {
-      subtle?: {
-        digest(algorithm: string, data: ArrayBuffer): Promise<ArrayBuffer>
-      }
-    }
-  }).crypto
-  if (!cryptoLike?.subtle) {
-    throw new Error('SourceMirror: WebCrypto SHA-256 is unavailable')
-  }
   const exact = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer
-  const digest = new Uint8Array(await cryptoLike.subtle.digest('SHA-256', exact))
+  const digest = new Uint8Array(await sha256Digest(exact))
   return Array.from(digest, byte => byte.toString(16).padStart(2, '0')).join('')
 }
 

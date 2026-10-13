@@ -2,18 +2,32 @@
 
 This inventory covers the **production dependency closure of the pnpm workspace members that ship in the public export** — every `apps/*` and `packages/*` member except `@shrubbery/flow-app` (`apps/flow/` is permanently excluded from the export; see `EXPORT-MANIFEST.md`). It does **not** cover devDependencies (the tooling that builds and tests Shrubbery, never shipped) or `packages/atelier/fixtures/vrm/` (binary test fixtures, not an npm package). Satisfies the forward obligation in `NOTICE.md` to complete this review before a first tagged release.
 
-Generated an inventory of 499 unique third-party npm packages (537 package/version rows — a handful of packages resolve to more than one version across the closure) from `pnpm licenses list --json --prod --filter '!@shrubbery/flow-app'` via `scripts/gen-third-party-npm.mjs` — pnpm's own license checker, resolved from `pnpm-lock.yaml` and the local pnpm content-addressable store (no prior `pnpm install` required). Regenerate whenever `pnpm-lock.yaml` changes: `node scripts/gen-third-party-npm.mjs`.
+Generated an inventory of 585 unique third-party npm packages (620 package/version rows — a handful of packages resolve to more than one version across the closure) from `pnpm licenses list --json --prod --filter '!@shrubbery/flow-app'` via `scripts/gen-third-party-npm.mjs` — pnpm's own license checker, resolved from `pnpm-lock.yaml` and the local pnpm content-addressable store (no prior `pnpm install` required). Regenerate whenever `pnpm-lock.yaml` changes: `node scripts/gen-third-party-npm.mjs`.
 
 ## Flagged — missing or unusual license metadata
 
-7 package/version entries out of 537 need a maintainer's eyes before relying on the table below for compliance:
+14 package/version entries out of 620 need a maintainer's eyes before relying on the table below for compliance:
 
+- **`@codemirror/autocomplete`** `6.20.3` (reported license: `MIT`)
+  - no homepage/repository field in published package.json — source column falls back to the npm package page
+- **`@codemirror/language`** `6.12.4` (reported license: `MIT`)
+  - no homepage/repository field in published package.json — source column falls back to the npm package page
 - **`@excalidraw/laser-pointer`** `1.3.1` (reported license: `MIT`)
   - no homepage/repository field in published package.json — source column falls back to the npm package page
 - **`@excalidraw/mermaid-to-excalidraw`** `2.2.2` (reported license: `MIT`)
   - no homepage/repository field in published package.json — source column falls back to the npm package page
+- **`@lezer/lr`** `1.4.10` (reported license: `MIT`)
+  - no homepage/repository field in published package.json — source column falls back to the npm package page
+- **`@lezer/python`** `1.1.19` (reported license: `MIT`)
+  - no homepage/repository field in published package.json — source column falls back to the npm package page
+- **`@pierre/theming`** `1.0.0` (reported license: `apache-2.0`)
+  - no homepage/repository field in published package.json — source column falls back to the npm package page
+- **`@pierre/trees`** `1.0.0-beta.6` (reported license: `apache-2.0`)
+  - no homepage/repository field in published package.json — source column falls back to the npm package page
 - **`khroma`** `2.1.0` (reported license: `Unknown`)
   - no license field in published package.json (pnpm reports "Unknown")
+- **`pako`** `1.0.11` (reported license: `(MIT AND Zlib)`)
+  - conjunctive license expression ("(MIT AND Zlib)") — compliance with BOTH terms required, not a choice
 - **`pako`** `2.0.3` (reported license: `(MIT AND Zlib)`)
   - conjunctive license expression ("(MIT AND Zlib)") — compliance with BOTH terms required, not a choice
 - **`prosemirror-changeset`** `2.4.1` (reported license: `MIT`)
@@ -27,7 +41,6 @@ Generated an inventory of 499 unique third-party npm packages (537 package/versi
 |---|---|---|---|
 | `@antfu/install-pkg` | 1.1.0 | MIT | https://github.com/antfu/install-pkg#readme |
 | `@asamuzakjp/css-color` | 3.2.0 | MIT | https://github.com/asamuzaK/cssColor#readme |
-| `@babel/runtime` | 7.29.7 | MIT | https://babel.dev/docs/en/next/babel-runtime |
 | `@braintree/sanitize-url` | 6.0.2 | MIT | https://github.com/braintree/sanitize-url#readme |
 | `@braintree/sanitize-url` | 7.1.2 | MIT | https://github.com/braintree/sanitize-url#readme |
 | `@chevrotain/cst-dts-gen` | 11.0.3 | Apache-2.0 | https://github.com/Chevrotain/chevrotain#readme |
@@ -36,6 +49,15 @@ Generated an inventory of 499 unique third-party npm packages (537 package/versi
 | `@chevrotain/types` | 11.0.3 | Apache-2.0 | https://chevrotain.io/documentation/ |
 | `@chevrotain/types` | 11.1.2 | Apache-2.0 | https://chevrotain.io/documentation/ |
 | `@chevrotain/utils` | 11.0.3 | Apache-2.0 | https://github.com/Chevrotain/chevrotain#readme |
+| `@codemirror/autocomplete` | 6.20.3 | MIT | https://www.npmjs.com/package/@codemirror/autocomplete/v/6.20.3 |
+| `@codemirror/commands` | 6.8.1 | MIT | https://github.com/codemirror/commands#readme |
+| `@codemirror/lang-javascript` | 6.2.4 | MIT | https://github.com/codemirror/lang-javascript#readme |
+| `@codemirror/lang-python` | 6.2.1 | MIT | https://github.com/codemirror/lang-python#readme |
+| `@codemirror/language` | 6.12.4 | MIT | https://www.npmjs.com/package/@codemirror/language/v/6.12.4 |
+| `@codemirror/lint` | 6.9.0 | MIT | https://github.com/codemirror/lint#readme |
+| `@codemirror/search` | 6.5.11 | MIT | https://github.com/codemirror/search#readme |
+| `@codemirror/state` | 6.5.2 | MIT | https://github.com/codemirror/state#readme |
+| `@codemirror/view` | 6.38.1 | MIT | https://github.com/codemirror/view#readme |
 | `@csstools/color-helpers` | 5.1.0 | MIT-0 | https://github.com/csstools/postcss-plugins/tree/main/packages/color-helpers#readme |
 | `@csstools/css-calc` | 2.1.4 | MIT | https://github.com/csstools/postcss-plugins/tree/main/packages/css-calc#readme |
 | `@csstools/css-color-parser` | 3.1.0 | MIT | https://github.com/csstools/postcss-plugins/tree/main/packages/css-color-parser#readme |
@@ -45,9 +67,13 @@ Generated an inventory of 499 unique third-party npm packages (537 package/versi
 | `@digitalbazaar/http-client` | 4.3.0 | BSD-3-Clause | https://github.com/digitalbazaar/http-client |
 | `@esbuild/darwin-x64` | 0.21.5 | MIT | https://github.com/evanw/esbuild#readme |
 | `@esbuild/darwin-x64` | 0.28.1 | MIT | https://github.com/evanw/esbuild#readme |
-| `@excalidraw/excalidraw` | 0.18.1 | MIT | https://github.com/excalidraw/excalidraw/tree/master/packages/excalidraw |
+| `@excalidraw/common` | 0.18.0-4ce38fb | MIT | https://github.com/excalidraw/excalidraw#readme |
+| `@excalidraw/element` | 0.18.0-4ce38fb | MIT | https://github.com/excalidraw/excalidraw#readme |
+| `@excalidraw/excalidraw` | 0.18.0-4ce38fb | MIT | https://github.com/excalidraw/excalidraw/tree/master/packages/excalidraw |
+| `@excalidraw/fractional-indexing` | 0.18.0-4ce38fb | CC0-1.0 | https://github.com/rocicorp/fractional-indexing#readme |
 | `@excalidraw/laser-pointer` | 1.3.1 | MIT | https://www.npmjs.com/package/@excalidraw/laser-pointer/v/1.3.1 |
 | `@excalidraw/markdown-to-text` | 0.1.2 | MIT | https://github.com/danestves/markdown-to-text.git |
+| `@excalidraw/math` | 0.18.0-4ce38fb | MIT | https://github.com/excalidraw/excalidraw#readme |
 | `@excalidraw/mermaid-to-excalidraw` | 2.2.2 | MIT | https://www.npmjs.com/package/@excalidraw/mermaid-to-excalidraw/v/2.2.2 |
 | `@excalidraw/random-username` | 1.1.0 | MIT | https://github.com/excalidraw/random-username#readme |
 | `@floating-ui/core` | 1.7.5 | MIT | https://floating-ui.com |
@@ -61,14 +87,22 @@ Generated an inventory of 499 unique third-party npm packages (537 package/versi
 | `@fontsource-variable/source-sans-3` | 5.2.9 | OFL-1.1 | https://fontsource.org/fonts/source-sans-3 |
 | `@iconify/types` | 2.0.0 | MIT | https://github.com/iconify/iconify |
 | `@iconify/utils` | 3.1.4 | MIT | https://iconify.design/docs/libraries/utils/ |
+| `@lezer/common` | 1.5.2 | MIT | https://github.com/lezer-parser/common#readme |
+| `@lezer/highlight` | 1.2.3 | MIT | https://github.com/lezer-parser/highlight#readme |
+| `@lezer/javascript` | 1.5.4 | MIT | https://github.com/lezer-parser/javascript#readme |
+| `@lezer/lr` | 1.4.10 | MIT | https://www.npmjs.com/package/@lezer/lr/v/1.4.10 |
+| `@lezer/python` | 1.1.19 | MIT | https://www.npmjs.com/package/@lezer/python/v/1.1.19 |
 | `@lit-labs/ssr-dom-shim` | 1.6.0 | BSD-3-Clause | https://github.com/lit/lit/tree/main/packages/labs/ssr-dom-shim |
 | `@lit/react` | 1.0.8 | BSD-3-Clause | https://lit.dev/ |
 | `@lit/reactive-element` | 2.1.2 | BSD-3-Clause | https://lit.dev/ |
+| `@marijn/find-cluster-break` | 1.0.4 | MIT | https://code.haverbeke.berlin/marijn/find-cluster-break |
 | `@mermaid-js/parser` | 0.6.3 | MIT | https://github.com/mermaid-js/mermaid/tree/develop/packages/mermaid/parser/#readme |
 | `@mermaid-js/parser` | 1.2.0 | MIT | https://github.com/mermaid-js/mermaid/tree/develop/packages/mermaid/parser/#readme |
 | `@napi-rs/canvas` | 0.1.100 | MIT | https://github.com/Brooooooklyn/canvas#readme |
 | `@napi-rs/canvas-darwin-x64` | 0.1.100 | MIT | https://github.com/Brooooooklyn/canvas#readme |
 | `@oxc-project/types` | 0.133.0 | MIT | https://oxc.rs |
+| `@pierre/theming` | 1.0.0 | apache-2.0 | https://www.npmjs.com/package/@pierre/theming/v/1.0.0 |
+| `@pierre/trees` | 1.0.0-beta.6 | apache-2.0 | https://www.npmjs.com/package/@pierre/trees/v/1.0.0-beta.6 |
 | `@pixiv/three-vrm` | 3.5.4 | MIT | https://github.com/pixiv/three-vrm#readme |
 | `@pixiv/three-vrm-core` | 3.5.4 | MIT | https://github.com/pixiv/three-vrm#readme |
 | `@pixiv/three-vrm-materials-hdr-emissive-multiplier` | 3.5.4 | MIT | https://github.com/pixiv/three-vrm#readme |
@@ -83,41 +117,66 @@ Generated an inventory of 499 unique third-party npm packages (537 package/versi
 | `@pixiv/types-vrmc-springbone-1.0` | 3.5.4 | MIT | https://github.com/pixiv/three-vrm#readme |
 | `@pixiv/types-vrmc-springbone-extended-collider-1.0` | 3.5.4 | MIT | https://github.com/pixiv/three-vrm#readme |
 | `@pixiv/types-vrmc-vrm-1.0` | 3.5.4 | MIT | https://github.com/pixiv/three-vrm#readme |
-| `@radix-ui/primitive` | 1.0.0 | MIT | https://radix-ui.com/primitives |
-| `@radix-ui/primitive` | 1.1.1 | MIT | https://radix-ui.com/primitives |
-| `@radix-ui/react-arrow` | 1.1.2 | MIT | https://radix-ui.com/primitives |
-| `@radix-ui/react-collection` | 1.0.1 | MIT | https://radix-ui.com/primitives |
-| `@radix-ui/react-compose-refs` | 1.0.0 | MIT | https://radix-ui.com/primitives |
-| `@radix-ui/react-compose-refs` | 1.1.1 | MIT | https://radix-ui.com/primitives |
-| `@radix-ui/react-context` | 1.0.0 | MIT | https://radix-ui.com/primitives |
-| `@radix-ui/react-context` | 1.1.1 | MIT | https://radix-ui.com/primitives |
-| `@radix-ui/react-direction` | 1.0.0 | MIT | https://radix-ui.com/primitives |
-| `@radix-ui/react-dismissable-layer` | 1.1.5 | MIT | https://radix-ui.com/primitives |
-| `@radix-ui/react-focus-guards` | 1.1.1 | MIT | https://radix-ui.com/primitives |
-| `@radix-ui/react-focus-scope` | 1.1.2 | MIT | https://radix-ui.com/primitives |
-| `@radix-ui/react-id` | 1.0.0 | MIT | https://radix-ui.com/primitives |
-| `@radix-ui/react-id` | 1.1.0 | MIT | https://radix-ui.com/primitives |
-| `@radix-ui/react-popover` | 1.1.6 | MIT | https://radix-ui.com/primitives |
-| `@radix-ui/react-popper` | 1.2.2 | MIT | https://radix-ui.com/primitives |
-| `@radix-ui/react-portal` | 1.1.4 | MIT | https://radix-ui.com/primitives |
-| `@radix-ui/react-presence` | 1.0.0 | MIT | https://radix-ui.com/primitives |
-| `@radix-ui/react-presence` | 1.1.2 | MIT | https://radix-ui.com/primitives |
-| `@radix-ui/react-primitive` | 1.0.1 | MIT | https://radix-ui.com/primitives |
-| `@radix-ui/react-primitive` | 2.0.2 | MIT | https://radix-ui.com/primitives |
-| `@radix-ui/react-roving-focus` | 1.0.2 | MIT | https://radix-ui.com/primitives |
-| `@radix-ui/react-slot` | 1.0.1 | MIT | https://radix-ui.com/primitives |
-| `@radix-ui/react-slot` | 1.1.2 | MIT | https://radix-ui.com/primitives |
-| `@radix-ui/react-tabs` | 1.0.2 | MIT | https://radix-ui.com/primitives |
-| `@radix-ui/react-use-callback-ref` | 1.0.0 | MIT | https://radix-ui.com/primitives |
-| `@radix-ui/react-use-callback-ref` | 1.1.0 | MIT | https://radix-ui.com/primitives |
-| `@radix-ui/react-use-controllable-state` | 1.0.0 | MIT | https://radix-ui.com/primitives |
-| `@radix-ui/react-use-controllable-state` | 1.1.0 | MIT | https://radix-ui.com/primitives |
-| `@radix-ui/react-use-escape-keydown` | 1.1.0 | MIT | https://radix-ui.com/primitives |
-| `@radix-ui/react-use-layout-effect` | 1.0.0 | MIT | https://radix-ui.com/primitives |
-| `@radix-ui/react-use-layout-effect` | 1.1.0 | MIT | https://radix-ui.com/primitives |
-| `@radix-ui/react-use-rect` | 1.1.0 | MIT | https://radix-ui.com/primitives |
-| `@radix-ui/react-use-size` | 1.1.0 | MIT | https://radix-ui.com/primitives |
-| `@radix-ui/rect` | 1.1.0 | MIT | https://radix-ui.com/primitives |
+| `@radix-ui/number` | 1.1.1 | MIT | https://radix-ui.com/primitives |
+| `@radix-ui/primitive` | 1.1.3 | MIT | https://radix-ui.com/primitives |
+| `@radix-ui/react-accessible-icon` | 1.1.7 | MIT | https://radix-ui.com/primitives |
+| `@radix-ui/react-accordion` | 1.2.12 | MIT | https://radix-ui.com/primitives |
+| `@radix-ui/react-alert-dialog` | 1.1.15 | MIT | https://radix-ui.com/primitives |
+| `@radix-ui/react-arrow` | 1.1.7 | MIT | https://radix-ui.com/primitives |
+| `@radix-ui/react-aspect-ratio` | 1.1.7 | MIT | https://radix-ui.com/primitives |
+| `@radix-ui/react-avatar` | 1.1.10 | MIT | https://radix-ui.com/primitives |
+| `@radix-ui/react-checkbox` | 1.3.3 | MIT | https://radix-ui.com/primitives |
+| `@radix-ui/react-collapsible` | 1.1.12 | MIT | https://radix-ui.com/primitives |
+| `@radix-ui/react-collection` | 1.1.7 | MIT | https://radix-ui.com/primitives |
+| `@radix-ui/react-compose-refs` | 1.1.2 | MIT | https://radix-ui.com/primitives |
+| `@radix-ui/react-context` | 1.1.2 | MIT | https://radix-ui.com/primitives |
+| `@radix-ui/react-context-menu` | 2.2.16 | MIT | https://radix-ui.com/primitives |
+| `@radix-ui/react-dialog` | 1.1.15 | MIT | https://radix-ui.com/primitives |
+| `@radix-ui/react-direction` | 1.1.1 | MIT | https://radix-ui.com/primitives |
+| `@radix-ui/react-dismissable-layer` | 1.1.11 | MIT | https://radix-ui.com/primitives |
+| `@radix-ui/react-dropdown-menu` | 2.1.16 | MIT | https://radix-ui.com/primitives |
+| `@radix-ui/react-focus-guards` | 1.1.3 | MIT | https://radix-ui.com/primitives |
+| `@radix-ui/react-focus-scope` | 1.1.7 | MIT | https://radix-ui.com/primitives |
+| `@radix-ui/react-form` | 0.1.8 | MIT | https://radix-ui.com/primitives |
+| `@radix-ui/react-hover-card` | 1.1.15 | MIT | https://radix-ui.com/primitives |
+| `@radix-ui/react-id` | 1.1.1 | MIT | https://radix-ui.com/primitives |
+| `@radix-ui/react-label` | 2.1.7 | MIT | https://radix-ui.com/primitives |
+| `@radix-ui/react-menu` | 2.1.16 | MIT | https://radix-ui.com/primitives |
+| `@radix-ui/react-menubar` | 1.1.16 | MIT | https://radix-ui.com/primitives |
+| `@radix-ui/react-navigation-menu` | 1.2.14 | MIT | https://radix-ui.com/primitives |
+| `@radix-ui/react-one-time-password-field` | 0.1.8 | MIT | https://radix-ui.com/primitives |
+| `@radix-ui/react-password-toggle-field` | 0.1.3 | MIT | https://radix-ui.com/primitives |
+| `@radix-ui/react-popover` | 1.1.15 | MIT | https://radix-ui.com/primitives |
+| `@radix-ui/react-popper` | 1.2.8 | MIT | https://radix-ui.com/primitives |
+| `@radix-ui/react-portal` | 1.1.9 | MIT | https://radix-ui.com/primitives |
+| `@radix-ui/react-presence` | 1.1.5 | MIT | https://radix-ui.com/primitives |
+| `@radix-ui/react-primitive` | 2.1.3 | MIT | https://radix-ui.com/primitives |
+| `@radix-ui/react-progress` | 1.1.7 | MIT | https://radix-ui.com/primitives |
+| `@radix-ui/react-radio-group` | 1.3.8 | MIT | https://radix-ui.com/primitives |
+| `@radix-ui/react-roving-focus` | 1.1.11 | MIT | https://radix-ui.com/primitives |
+| `@radix-ui/react-scroll-area` | 1.2.10 | MIT | https://radix-ui.com/primitives |
+| `@radix-ui/react-select` | 2.2.6 | MIT | https://radix-ui.com/primitives |
+| `@radix-ui/react-separator` | 1.1.7 | MIT | https://radix-ui.com/primitives |
+| `@radix-ui/react-slider` | 1.3.6 | MIT | https://radix-ui.com/primitives |
+| `@radix-ui/react-slot` | 1.2.3 | MIT | https://radix-ui.com/primitives |
+| `@radix-ui/react-switch` | 1.2.6 | MIT | https://radix-ui.com/primitives |
+| `@radix-ui/react-tabs` | 1.1.13 | MIT | https://radix-ui.com/primitives |
+| `@radix-ui/react-toast` | 1.2.15 | MIT | https://radix-ui.com/primitives |
+| `@radix-ui/react-toggle` | 1.1.10 | MIT | https://radix-ui.com/primitives |
+| `@radix-ui/react-toggle-group` | 1.1.11 | MIT | https://radix-ui.com/primitives |
+| `@radix-ui/react-toolbar` | 1.1.11 | MIT | https://radix-ui.com/primitives |
+| `@radix-ui/react-tooltip` | 1.2.8 | MIT | https://radix-ui.com/primitives |
+| `@radix-ui/react-use-callback-ref` | 1.1.1 | MIT | https://radix-ui.com/primitives |
+| `@radix-ui/react-use-controllable-state` | 1.2.2 | MIT | https://radix-ui.com/primitives |
+| `@radix-ui/react-use-effect-event` | 0.0.2 | MIT | https://radix-ui.com/primitives |
+| `@radix-ui/react-use-escape-keydown` | 1.1.1 | MIT | https://radix-ui.com/primitives |
+| `@radix-ui/react-use-is-hydrated` | 0.1.0 | MIT | https://radix-ui.com/primitives |
+| `@radix-ui/react-use-layout-effect` | 1.1.1 | MIT | https://radix-ui.com/primitives |
+| `@radix-ui/react-use-previous` | 1.1.1 | MIT | https://radix-ui.com/primitives |
+| `@radix-ui/react-use-rect` | 1.1.1 | MIT | https://radix-ui.com/primitives |
+| `@radix-ui/react-use-size` | 1.1.1 | MIT | https://radix-ui.com/primitives |
+| `@radix-ui/react-visually-hidden` | 1.2.3 | MIT | https://radix-ui.com/primitives |
+| `@radix-ui/rect` | 1.1.1 | MIT | https://radix-ui.com/primitives |
 | `@rolldown/binding-darwin-x64` | 1.0.3 | MIT | https://rolldown.rs/ |
 | `@rolldown/pluginutils` | 1.0.1 | MIT | https://github.com/rolldown/plugins/tree/main/packages/pluginutils#readme |
 | `@rollup/rollup-darwin-x64` | 4.62.2 | MIT | https://rollupjs.org/ |
@@ -195,25 +254,32 @@ Generated an inventory of 499 unique third-party npm packages (537 package/versi
 | `@types/d3-zoom` | 3.0.8 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/d3-zoom |
 | `@types/estree` | 1.0.9 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/estree |
 | `@types/geojson` | 7946.0.16 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/geojson |
+| `@types/hast` | 3.0.5 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/hast |
 | `@types/node` | 22.19.21 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/node |
 | `@types/react` | 19.2.17 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/react |
 | `@types/react` | 19.2.18 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/react |
 | `@types/react-dom` | 19.2.3 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/react-dom |
 | `@types/trusted-types` | 2.0.7 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/trusted-types |
+| `@types/unist` | 3.0.3 | MIT | https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/unist |
 | `@upsetjs/venn.js` | 2.0.0 | MIT | https://github.com/upsetjs/venn.js |
+| `@xmldom/xmldom` | 0.8.15 | MIT | https://github.com/xmldom/xmldom |
+| `@xterm/addon-fit` | 0.10.0 | MIT | https://github.com/xtermjs/xterm.js/tree/master#readme |
+| `@xterm/xterm` | 5.5.0 | MIT | https://github.com/xtermjs/xterm.js#readme |
 | `abstract-leveldown` | 6.2.3 | MIT | https://github.com/Level/abstract-leveldown |
 | `abstract-leveldown` | 6.3.0 | MIT | https://github.com/Level/abstract-leveldown |
 | `agent-base` | 7.1.4 | MIT | https://github.com/TooTallNate/proxy-agents#readme |
 | `ansi-regex` | 6.2.2 | MIT | https://github.com/chalk/ansi-regex#readme |
 | `ansi-styles` | 6.2.3 | MIT | https://github.com/chalk/ansi-styles#readme |
 | `anymatch` | 3.1.3 | ISC | https://github.com/micromatch/anymatch |
+| `argparse` | 1.0.10 | MIT | https://github.com/nodeca/argparse#readme |
 | `aria-hidden` | 1.2.6 | MIT | https://github.com/theKashey/aria-hidden#readme |
 | `async-limiter` | 1.0.1 | MIT | https://github.com/strml/async-limiter#readme |
 | `base64-js` | 1.5.1 | MIT | https://github.com/beatgammit/base64-js |
 | `binary-extensions` | 2.3.0 | MIT | https://github.com/sindresorhus/binary-extensions#readme |
 | `bl` | 4.1.0 | MIT | https://github.com/rvagg/bl |
+| `bluebird` | 3.4.7 | MIT | https://github.com/petkaantonov/bluebird |
 | `braces` | 3.0.3 | MIT | https://github.com/micromatch/braces |
-| `browser-fs-access` | 0.29.1 | Apache-2.0 | https://github.com/GoogleChromeLabs/browser-fs-access#readme |
+| `browser-fs-access` | 0.38.0 | Apache-2.0 | https://github.com/GoogleChromeLabs/browser-fs-access#readme |
 | `buffer` | 5.7.1 | MIT | https://github.com/feross/buffer |
 | `canonicalize` | 2.1.0 | Apache-2.0 | https://github.com/erdtman/canonicalize#readme |
 | `canvas` | 3.2.3 | MIT | https://github.com/Automattic/node-canvas |
@@ -228,9 +294,11 @@ Generated an inventory of 499 unique third-party npm packages (537 package/versi
 | `commander` | 7.2.0 | MIT | https://github.com/tj/commander.js#readme |
 | `commander` | 8.3.0 | MIT | https://github.com/tj/commander.js#readme |
 | `composed-offset-position` | 0.0.6 | MIT | https://github.com/jcfranco/composed-offset-position#readme |
+| `core-util-is` | 1.0.3 | MIT | https://github.com/isaacs/core-util-is#readme |
 | `cose-base` | 1.0.3 | MIT | https://github.com/iVis-at-Bilkent/cose-base#readme |
 | `cose-base` | 2.2.0 | MIT | https://github.com/iVis-at-Bilkent/cose-base#readme |
 | `crc-32` | 0.3.0 | Apache-2.0 | https://github.com/SheetJS/js-crc32#readme |
+| `crelt` | 1.0.7 | MIT | https://code.haverbeke.berlin/marijn/crelt |
 | `cross-env` | 7.0.3 | MIT | https://github.com/kentcdodds/cross-env#readme |
 | `cross-spawn` | 7.0.6 | MIT | https://github.com/moxystudio/node-cross-spawn |
 | `cssstyle` | 4.6.0 | MIT | https://github.com/jsdom/cssstyle |
@@ -283,9 +351,13 @@ Generated an inventory of 499 unique third-party npm packages (537 package/versi
 | `deep-extend` | 0.6.0 | MIT | https://github.com/unclechu/node-deep-extend |
 | `deferred-leveldown` | 5.3.0 | MIT | https://github.com/Level/deferred-leveldown |
 | `delaunator` | 5.1.0 | ISC | https://github.com/mapbox/delaunator#readme |
+| `dequal` | 2.0.3 | MIT | https://github.com/lukeed/dequal#readme |
 | `detect-libc` | 2.1.2 | Apache-2.0 | https://github.com/lovell/detect-libc#readme |
 | `detect-node-es` | 1.1.0 | MIT | https://github.com/thekashey/detect-node |
+| `devlop` | 1.1.0 | MIT | https://github.com/wooorm/devlop#readme |
+| `dingbat-to-unicode` | 1.0.2 | BSD-2-Clause | https://github.com/mwilliamson/dingbat-to-unicode#readme |
 | `dompurify` | 3.4.11 | (MPL-2.0 OR Apache-2.0) | https://github.com/cure53/DOMPurify |
+| `duck` | 0.1.12 | BSD | https://github.com/mwilliamson/duck.js#readme |
 | `emoji-regex` | 10.6.0 | MIT | https://mths.be/emoji-regex |
 | `encoding-down` | 6.3.0 | MIT | https://github.com/Level/encoding-down |
 | `end-of-stream` | 1.4.5 | MIT | https://github.com/mafintosh/end-of-stream |
@@ -303,7 +375,6 @@ Generated an inventory of 499 unique third-party npm packages (537 package/versi
 | `fdir` | 6.5.0 | MIT | https://github.com/thecodrr/fdir#readme |
 | `fflate` | 0.8.3 | MIT | https://101arrowz.github.io/fflate |
 | `fill-range` | 7.1.1 | MIT | https://github.com/jonschlinkert/fill-range |
-| `fractional-indexing` | 3.2.0 | CC0-1.0 | https://github.com/rocicorp/fractional-indexing#readme |
 | `fs-constants` | 1.0.0 | MIT | https://github.com/mafintosh/fs-constants |
 | `fsevents` | 2.3.2 | MIT | https://github.com/fsevents/fsevents |
 | `fsevents` | 2.3.3 | MIT | https://github.com/fsevents/fsevents |
@@ -316,12 +387,14 @@ Generated an inventory of 499 unique third-party npm packages (537 package/versi
 | `glur` | 1.1.2 | MIT | https://github.com/andr83/glur/issues |
 | `hachure-fill` | 0.5.2 | MIT | https://github.com/pshihn/hachure-fill#readme |
 | `happy-dom` | 15.11.7 | MIT | https://github.com/capricorn86/happy-dom |
+| `highlight.js` | 11.11.2 | BSD-3-Clause | https://highlightjs.org/ |
 | `html-encoding-sniffer` | 4.0.0 | MIT | https://github.com/jsdom/html-encoding-sniffer#readme |
 | `http-proxy-agent` | 7.0.2 | MIT | https://github.com/TooTallNate/proxy-agents#readme |
 | `https-proxy-agent` | 7.0.6 | MIT | https://github.com/TooTallNate/proxy-agents#readme |
 | `iconv-lite` | 0.6.3 | MIT | https://github.com/ashtuchkin/iconv-lite |
 | `ieee754` | 1.2.1 | BSD-3-Clause | https://github.com/feross/ieee754#readme |
 | `image-blob-reduce` | 3.0.1 | MIT | https://github.com/nodeca/image-blob-reduce#readme |
+| `immediate` | 3.0.6 | MIT | https://github.com/calvinmetcalf/immediate#readme |
 | `immediate` | 3.3.0 | MIT | https://github.com/calvinmetcalf/immediate#readme |
 | `immutable` | 4.3.9 | MIT | https://immutable-js.com |
 | `import-meta-resolve` | 4.2.0 | MIT | https://github.com/wooorm/import-meta-resolve#readme |
@@ -334,6 +407,7 @@ Generated an inventory of 499 unique third-party npm packages (537 package/versi
 | `is-glob` | 4.0.3 | MIT | https://github.com/micromatch/is-glob |
 | `is-number` | 7.0.0 | MIT | https://github.com/jonschlinkert/is-number |
 | `is-potential-custom-element-name` | 1.0.1 | MIT | https://github.com/mathiasbynens/is-potential-custom-element-name |
+| `isarray` | 1.0.0 | MIT | https://github.com/juliangruber/isarray |
 | `isexe` | 2.0.0 | ISC | https://github.com/isaacs/isexe#readme |
 | `isomorphic.js` | 0.2.5 | MIT | https://github.com/dmonad/isomorphic.js#readme |
 | `jotai` | 2.11.0 | MIT | https://github.com/pmndrs/jotai |
@@ -341,6 +415,7 @@ Generated an inventory of 499 unique third-party npm packages (537 package/versi
 | `jsdom` | 26.1.0 | MIT | https://github.com/jsdom/jsdom#readme |
 | `json-stringify-pretty-compact` | 4.0.0 | MIT | https://github.com/lydell/json-stringify-pretty-compact#readme |
 | `jsonld` | 9.0.0 | BSD-3-Clause | https://github.com/digitalbazaar/jsonld.js |
+| `jszip` | 3.10.2 | (MIT OR GPL-3.0-or-later) | https://github.com/Stuk/jszip#readme |
 | `katex` | 0.16.47 | MIT | https://katex.org |
 | `khroma` | 2.1.0 | Unknown | https://github.com/fabiospampinato/khroma#readme |
 | `ky` | 1.14.3 | MIT | https://github.com/sindresorhus/ky#readme |
@@ -358,6 +433,7 @@ Generated an inventory of 499 unique third-party npm packages (537 package/versi
 | `leveldown` | 5.6.0 | MIT | https://github.com/Level/leveldown |
 | `levelup` | 4.4.0 | MIT | https://github.com/Level/levelup |
 | `lib0` | 0.2.117 | MIT | https://github.com/dmonad/lib0#readme |
+| `lie` | 3.3.0 | MIT | https://github.com/calvinmetcalf/lie#readme |
 | `lightningcss` | 1.32.0 | MPL-2.0 | https://github.com/parcel-bundler/lightningcss#readme |
 | `lightningcss-darwin-x64` | 1.32.0 | MPL-2.0 | https://github.com/parcel-bundler/lightningcss#readme |
 | `linkifyjs` | 4.3.3 | MIT | https://linkify.js.org |
@@ -368,10 +444,13 @@ Generated an inventory of 499 unique third-party npm packages (537 package/versi
 | `lodash-es` | 4.18.1 | MIT | https://lodash.com/custom-builds |
 | `lodash.debounce` | 4.0.8 | MIT | https://lodash.com/ |
 | `lodash.throttle` | 4.1.1 | MIT | https://lodash.com/ |
+| `lop` | 0.4.2 | BSD-2-Clause | https://github.com/mwilliamson/lop#readme |
+| `lowlight` | 3.3.0 | MIT | https://github.com/wooorm/lowlight#readme |
 | `lru-cache` | 10.4.3 | ISC | https://github.com/isaacs/node-lru-cache#readme |
 | `lru-cache` | 6.0.0 | ISC | https://github.com/isaacs/node-lru-cache#readme |
 | `ltgt` | 2.2.1 | MIT | https://github.com/dominictarr/ltgt |
 | `lucide` | 0.554.0 | ISC | https://lucide.dev |
+| `mammoth` | 1.12.3 | BSD-2-Clause | https://github.com/mwilliamson/mammoth.js#readme |
 | `marked` | 14.1.4 | MIT | https://marked.js.org |
 | `marked` | 16.4.2 | MIT | https://marked.js.org |
 | `mermaid` | 11.16.0 | MIT | https://github.com/mermaid-js/mermaid#readme |
@@ -392,13 +471,15 @@ Generated an inventory of 499 unique third-party npm packages (537 package/versi
 | `nwsapi` | 2.2.24 | MIT | https://javascript.nwbox.com/nwsapi/ |
 | `object-assign` | 4.1.1 | MIT | https://github.com/sindresorhus/object-assign#readme |
 | `once` | 1.4.0 | ISC | https://github.com/isaacs/once#readme |
-| `open-color` | 1.9.1 | MIT | https://github.com/yeun/open-color |
+| `option` | 0.2.4 | BSD-2-Clause | https://github.com/mwilliamson/node-options#readme |
 | `orderedmap` | 2.1.1 | MIT | https://github.com/marijnh/orderedmap#readme |
 | `oxigraph` | 0.5.9 | MIT OR Apache-2.0 | https://github.com/oxigraph/oxigraph/tree/main/js |
 | `package-manager-detector` | 1.7.0 | MIT | https://github.com/antfu-collective/package-manager-detector#readme |
+| `pako` | 1.0.11 | (MIT AND Zlib) | https://github.com/nodeca/pako#readme |
 | `pako` | 2.0.3 | (MIT AND Zlib) | https://github.com/nodeca/pako#readme |
 | `parse5` | 7.3.0 | MIT | https://parse5.js.org |
 | `path-data-parser` | 0.1.0 | MIT | https://github.com/pshihn/path-data-parser#readme |
+| `path-is-absolute` | 1.0.1 | MIT | https://github.com/sindresorhus/path-is-absolute#readme |
 | `path-key` | 3.1.1 | MIT | https://github.com/sindresorhus/path-key#readme |
 | `pdfjs-dist` | 5.7.284 | Apache-2.0 | https://mozilla.github.io/pdf.js/ |
 | `perfect-freehand` | 1.2.0 | MIT | https://github.com/steveruizok/perfect-freehand#readme |
@@ -415,7 +496,10 @@ Generated an inventory of 499 unique third-party npm packages (537 package/versi
 | `points-on-curve` | 1.0.1 | MIT | https://github.com/pshihn/bezier-points#readme |
 | `points-on-path` | 0.2.1 | MIT | https://github.com/pshihn/points-on-path#readme |
 | `postcss` | 8.5.15 | MIT | https://postcss.org/ |
+| `preact` | 11.0.0-beta.0 | MIT | https://preactjs.com |
+| `preact-render-to-string` | 6.6.5 | MIT | https://github.com/preactjs/preact-render-to-string |
 | `prebuild-install` | 7.1.3 | MIT | https://github.com/prebuild/prebuild-install |
+| `process-nextick-args` | 2.0.1 | MIT | https://github.com/calvinmetcalf/process-nextick-args |
 | `prosemirror-changeset` | 2.4.1 | MIT | https://github.com/prosemirror/prosemirror-changeset |
 | `prosemirror-commands` | 1.7.1 | MIT | https://github.com/prosemirror/prosemirror-commands#readme |
 | `prosemirror-dropcursor` | 1.8.2 | MIT | https://github.com/prosemirror/prosemirror-dropcursor#readme |
@@ -434,13 +518,17 @@ Generated an inventory of 499 unique third-party npm packages (537 package/versi
 | `punycode` | 2.3.1 | MIT | https://mths.be/punycode |
 | `pwacompat` | 2.0.17 | Apache-2.0 | https://github.com/GoogleChrome/pwacompat |
 | `qr-creator` | 1.0.0 | MIT | https://github.com/nimiq/qr-creator#readme |
+| `radix-ui` | 1.4.3 | MIT | https://radix-ui.com/primitives |
 | `rc` | 1.2.8 | (BSD-2-Clause OR MIT OR Apache-2.0) | https://github.com/dominictarr/rc#readme |
 | `rdf-canonize` | 5.0.0 | BSD-3-Clause | https://github.com/digitalbazaar/rdf-canonize |
 | `react` | 19.2.7 | MIT | https://react.dev/ |
+| `react` | 19.2.8 | MIT | https://react.dev/ |
 | `react-dom` | 19.2.7 | MIT | https://react.dev/ |
+| `react-dom` | 19.2.8 | MIT | https://react.dev/ |
 | `react-remove-scroll` | 2.7.2 | MIT | https://github.com/theKashey/react-remove-scroll#readme |
 | `react-remove-scroll-bar` | 2.3.8 | MIT | https://github.com/theKashey/react-remove-scroll-bar#readme |
 | `react-style-singleton` | 2.2.3 | MIT | https://github.com/theKashey/react-style-singleton#readme |
+| `readable-stream` | 2.3.8 | MIT | https://github.com/nodejs/readable-stream#readme |
 | `readable-stream` | 3.6.2 | MIT | https://github.com/nodejs/readable-stream#readme |
 | `readdirp` | 3.6.0 | MIT | https://github.com/paulmillr/readdirp |
 | `robust-predicates` | 3.0.3 | Unlicense | https://github.com/mourner/robust-predicates#readme |
@@ -451,6 +539,7 @@ Generated an inventory of 499 unique third-party npm packages (537 package/versi
 | `roughjs` | 4.6.6 | MIT | https://roughjs.com |
 | `rrweb-cssom` | 0.8.0 | MIT | https://github.com/rrweb-io/CSSOM#readme |
 | `rw` | 1.3.3 | BSD-3-Clause | https://github.com/mbostock/rw |
+| `safe-buffer` | 5.1.2 | MIT | https://github.com/feross/safe-buffer |
 | `safe-buffer` | 5.2.1 | MIT | https://github.com/feross/safe-buffer |
 | `safer-buffer` | 2.1.2 | MIT | https://github.com/ChALkeR/safer-buffer#readme |
 | `sass` | 1.51.0 | MIT | https://github.com/sass/dart-sass |
@@ -464,15 +553,19 @@ Generated an inventory of 499 unique third-party npm packages (537 package/versi
 | `simple-get` | 4.0.1 | MIT | https://github.com/feross/simple-get |
 | `sliced` | 1.0.1 | MIT | https://github.com/aheckmann/sliced#readme |
 | `source-map-js` | 1.2.1 | BSD-3-Clause | https://github.com/7rulnik/source-map-js |
+| `sprintf-js` | 1.0.3 | BSD-3-Clause | https://github.com/alexei/sprintf.js#readme |
+| `string_decoder` | 1.1.1 | MIT | https://github.com/nodejs/string_decoder |
 | `string_decoder` | 1.3.0 | MIT | https://github.com/nodejs/string_decoder |
 | `string-width` | 7.2.0 | MIT | https://github.com/sindresorhus/string-width#readme |
 | `strip-ansi` | 7.2.0 | MIT | https://github.com/chalk/strip-ansi#readme |
 | `strip-json-comments` | 2.0.1 | MIT | https://github.com/sindresorhus/strip-json-comments#readme |
+| `style-mod` | 4.1.4 | MIT | https://code.haverbeke.berlin/marijn/style-mod |
 | `stylis` | 4.4.0 | MIT | https://github.com/thysultan/stylis.js |
 | `symbol-tree` | 3.2.4 | MIT | https://github.com/jsdom/js-symbol-tree#symbol-tree |
 | `tar-fs` | 2.1.4 | MIT | https://github.com/mafintosh/tar-fs |
 | `tar-stream` | 2.2.0 | MIT | https://github.com/mafintosh/tar-stream |
 | `three` | 0.170.0 | MIT | https://threejs.org/ |
+| `tinycolor2` | 1.6.0 | MIT | https://github.com/bgrins/TinyColor#readme |
 | `tinyexec` | 1.2.4 | MIT | https://github.com/tinylibs/tinyexec#readme |
 | `tinyglobby` | 0.2.17 | MIT | https://superchupu.dev/tinyglobby |
 | `tldts` | 6.1.86 | MIT | https://github.com/remusao/tldts#readme |
@@ -486,6 +579,7 @@ Generated an inventory of 499 unique third-party npm packages (537 package/versi
 | `tsx` | 4.22.4 | MIT | https://tsx.hirok.io |
 | `tunnel-agent` | 0.6.0 | Apache-2.0 | https://github.com/mikeal/tunnel-agent#readme |
 | `tunnel-rat` | 0.1.2 | MIT | https://github.com/pmndrs/tunnel-rat#readme |
+| `underscore` | 1.13.8 | MIT | https://underscorejs.org |
 | `undici` | 6.27.0 | MIT | https://undici.nodejs.org |
 | `undici-types` | 6.21.0 | MIT | https://undici.nodejs.org |
 | `use-callback-ref` | 1.3.3 | MIT | https://github.com/theKashey/use-callback-ref#readme |
@@ -550,9 +644,12 @@ Generated an inventory of 499 unique third-party npm packages (537 package/versi
 | `wrappy` | 1.0.2 | ISC | https://github.com/npm/wrappy |
 | `ws` | 6.2.4 | MIT | https://github.com/websockets/ws |
 | `ws` | 8.21.0 | MIT | https://github.com/websockets/ws |
+| `xlsx` | 0.20.3 | Apache-2.0 | https://sheetjs.com/ |
 | `xml-name-validator` | 5.0.0 | Apache-2.0 | https://github.com/jsdom/xml-name-validator#readme |
+| `xmlbuilder` | 10.1.1 | MIT | http://github.com/oozcitak/xmlbuilder-js |
 | `xmlchars` | 2.2.0 | MIT | https://github.com/lddubeau/xmlchars#readme |
 | `xtend` | 4.0.2 | MIT | https://github.com/Raynos/xtend |
+| `y-codemirror.next` | 0.3.5 | MIT | https://github.com/yjs/y-codemirror.next#readme |
 | `y-leveldb` | 0.1.2 | MIT | https://yjs.dev |
 | `y-protocols` | 1.0.7 | MIT | https://github.com/yjs/y-protocols#readme |
 | `y-websocket` | 2.1.0 | MIT | https://github.com/yjs/y-websocket#readme |

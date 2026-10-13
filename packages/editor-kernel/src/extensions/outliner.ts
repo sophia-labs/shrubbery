@@ -30,6 +30,7 @@ import {
   findChildren,
   getIndent,
   getOutlinerBlocks,
+  getSubtreeRange,
   isCollapsed,
   planMoveDown,
   planMoveUp,
@@ -481,52 +482,82 @@ export const Outliner = Extension.create({
             const blocks = getOutlinerBlocks(doc)
             const decorations: Decoration[] = []
 
+            blocks.forEach((block, index) => {
+              const { hasChildren, expanded, label } = foldButtonState(blocks, index)
+              const id = block.node.attrs['data-block-id'] || String(block.pos)
+              decorations.push(Decoration.widget(block.pos + 1, view => {
+                const control = document.createElement('span')
+                control.className = 'outliner-control'
+                control.setAttribute('contenteditable', 'false')
+                control.setAttribute('role', 'group')
+                control.setAttribute('aria-label', 'Block controls')
+                if (!block.node.attrs['data-block-id']) control.dataset.outlinerPos = String(block.pos)
+                control.addEventListener('keydown', event => event.stopPropagation())
+                if (hasChildren) {
+                  const fold = document.createElement('button')
+                  fold.type = 'button'
+                  fold.className = 'outliner-fold-button'
+                  fold.setAttribute('aria-expanded', String(expanded))
+                  fold.setAttribute('aria-label', label)
+                  fold.title = label
+                  fold.setAttribute('contenteditable', 'false')
+                  fold.addEventListener('mousedown', event => event.preventDefault())
+                  fold.addEventListener('keydown', event => {
+                    if (!['Enter', ' ', 'Spacebar'].includes(event.key)) return
+                    event.preventDefault()
+                    event.stopPropagation()
+                    fold.click()
+                  })
+                  fold.addEventListener('click', event => {
+                    event.preventDefault()
+                    event.stopPropagation()
+                    const pos = block.node.attrs['data-block-id']
+                      ? getOutlinerBlocks(view.state.doc).find(b => b.node.attrs['data-block-id'] === id)?.pos
+                      : block.pos
+                    if (pos === undefined || !toggleFoldAt(view, pos)) return
+                    if (event.detail === 0) {
+                      refocusFoldButtonAt(view, pos)
+                      // Collaboration can replace the decoration once more as
+                      // the collapse/selection transaction settles.
+                      queueMicrotask(() => refocusFoldButtonAt(view, pos))
+                    }
+                  })
+                  control.append(fold)
+                }
+                const node = document.createElement('button')
+                node.type = 'button'
+                node.className = 'outliner-node-button block-drag-handle'
+                node.setAttribute('draggable', 'true')
+                node.setAttribute('contenteditable', 'false')
+                node.setAttribute('aria-label', 'Block actions; drag to move')
+                node.setAttribute('aria-haspopup', 'menu')
+                node.setAttribute('aria-expanded', 'false')
+                node.title = 'Block actions · drag to move · Shift-click to select a range'
+                node.addEventListener('keydown', event => {
+                  if (!['Enter', ' ', 'Spacebar'].includes(event.key)) return
+                  event.preventDefault()
+                  event.stopPropagation()
+                  node.click()
+                })
+                node.addEventListener('click', event => {
+                  if (event.shiftKey || event.metaKey || event.ctrlKey) return
+                  event.preventDefault()
+                  event.stopPropagation()
+                  node.dispatchEvent(new CustomEvent('mn-outliner-menu-request', {
+                    bubbles: true, composed: true, detail: { blockId: block.node.attrs['data-block-id'] ?? null, blockPos: block.pos },
+                  }))
+                })
+                control.append(node)
+                return control
+              }, { side: -2, key: `control-${id}-${hasChildren}-${expanded}`, ignoreSelection: true }))
+            })
+
             for (const decoration of computeOutlinerDecorations(blocks)) {
               decorations.push(
                 Decoration.node(decoration.from, decoration.to, {
                   class: `outliner-${decoration.kind}`,
                 }),
               )
-
-              if (decoration.kind === 'has-children') {
-                const index = blocks.findIndex((block) => block.pos === decoration.from)
-                if (index !== -1) {
-                  const blockPos = decoration.from
-                  const { expanded, label } = foldButtonState(blocks, index)
-                  decorations.push(
-                    Decoration.widget(
-                      decoration.from + 1,
-                      (view) => {
-                        const button = document.createElement('button')
-                        button.type = 'button'
-                        button.className = 'outliner-fold-button'
-                        button.setAttribute('contenteditable', 'false')
-                        button.setAttribute('aria-expanded', String(expanded))
-                        button.setAttribute('aria-label', label)
-                        button.title = label
-                        button.addEventListener('mousedown', (event) => event.preventDefault())
-                        const activate = (fromKeyboard: boolean) => {
-                          if (!toggleFoldAt(view, blockPos)) return
-                          if (fromKeyboard) refocusFoldButtonAt(view, blockPos)
-                        }
-                        button.addEventListener('keydown', (event) => {
-                          if (event.key !== 'Enter' && event.key !== ' ' && event.key !== 'Spacebar') return
-                          event.preventDefault()
-                          event.stopPropagation()
-                          activate(true)
-                        })
-                        button.addEventListener('click', (event) => {
-                          event.preventDefault()
-                          event.stopPropagation()
-                          activate(event.detail === 0)
-                        })
-                        return button
-                      },
-                      { side: -1, key: `fold-${blockPos}-${expanded}`, ignoreSelection: true },
-                    ),
-                  )
-                }
-              }
 
               if (decoration.kind === 'collapsed' && decoration.count && decoration.count > 0) {
                 const count = decoration.count
@@ -564,16 +595,21 @@ function toggleFoldAt(view: { state: EditorState; dispatch: (tr: Transaction) =>
   const index = blocks.findIndex((block) => block.pos === pos)
   if (index === -1 || !blockHasChildren(blocks, index)) return false
 
-  view.dispatch(
-    state.tr.setNodeMarkup(pos, null, {
+  const tr = state.tr.setNodeMarkup(pos, null, {
       ...node.attrs,
       collapsed: !isCollapsed(node),
-    }),
-  )
+    })
+  const subtree = getSubtreeRange(blocks, index)
+  if (!isCollapsed(node) && state.selection.to > blocks[index].end && state.selection.from < subtree.to) {
+    // A hidden descendant cannot remain the invisible typing target.
+    tr.setSelection(Selection.near(tr.doc.resolve(innerTextEnd(tr.doc, pos))))
+  }
+  view.dispatch(tr)
   return true
 }
 
-function refocusFoldButtonAt(view: { nodeDOM: (pos: number) => Node | null }, pos: number): void {
+function refocusFoldButtonAt(view: { nodeDOM: (pos: number) => Node | null; isDestroyed?: boolean }, pos: number): void {
+  if (view.isDestroyed) return
   const dom = view.nodeDOM(pos)
   const root = dom instanceof HTMLElement ? dom : (dom?.parentElement ?? null)
   root?.querySelector<HTMLElement>('.outliner-fold-button')?.focus()

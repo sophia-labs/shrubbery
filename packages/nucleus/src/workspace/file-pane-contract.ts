@@ -83,8 +83,41 @@ export interface FilePaneNode {
   readonly count?: number | null
   readonly mimeType?: string | null
   readonly fileType?: string | null
+  /**
+   * The node's LIFECYCLE state (`FILE_PANE_LIFECYCLES`), one word. Never copy:
+   * not "Saved in this browser", not "Sample metadata". Persistence belongs to
+   * the pane's status line, provenance to the margin. A quiet node ('ready', or
+   * no status) draws nothing; read it through `filePaneLifecycle`, which is the
+   * one place that decides what is worth drawing.
+   */
   readonly status?: string | null
   readonly ingestedDocumentId?: string | null
+}
+
+/** The lifecycle states a file node can be in. `ready` is the quiet default. */
+export const FILE_PANE_LIFECYCLES = ['ready', 'uploading', 'processing', 'unavailable', 'error'] as const
+export type FilePaneLifecycle = (typeof FILE_PANE_LIFECYCLES)[number]
+
+/**
+ * The lifecycle state a node asks to be drawn with, or null for the quiet
+ * default. A ready node is quiet. So is a status that is not a lifecycle word:
+ * a lifecycle state is ONE token, and a sentence is copy that a producer put in
+ * the wrong field (review G1: six file rows once read "SAVED IN THIS BROWSER"
+ * and nothing else). An unfamiliar single word still passes through, so a new
+ * lifecycle word from a producer is shown rather than lost.
+ */
+export function filePaneLifecycle(node: Pick<FilePaneNode, 'status'>): string | null {
+  const status = node.status?.trim()
+  if (!status || /\s/.test(status)) return null
+  const word = status.toLowerCase()
+  return word === 'ready' || word === 'idle' ? null : status
+}
+
+/** One action a section may carry beside its header (the Files section's "Open Files"). The host decides what it does. */
+export interface FilePaneSectionAction {
+  readonly id: string
+  readonly label: string
+  readonly icon?: string
 }
 
 export interface FilePaneSection {
@@ -95,6 +128,8 @@ export interface FilePaneSection {
   readonly count?: number | null
   readonly collapsed?: boolean
   readonly emptyLabel?: string
+  /** Optional; drawn as its own button beside the header and emitted as `mn-sidebar-section-action`. */
+  readonly action?: FilePaneSectionAction
 }
 
 export interface FilePaneSort {
@@ -103,9 +138,14 @@ export interface FilePaneSort {
   readonly foldersFirst?: boolean
 }
 
+/** One tree, one kind filter: everything in the place, only documents, or only files (uploaded artifacts). */
+export type FilePaneKindFilter = 'all' | 'documents' | 'files'
+
 export interface FilePaneGrouping {
   readonly separateArtifacts: boolean
   readonly showFolders: boolean
+  /** Absent means 'all'. */
+  readonly kind?: FilePaneKindFilter
 }
 
 export const DEFAULT_FILE_PANE_SORT: FilePaneSort = Object.freeze({
@@ -117,6 +157,7 @@ export const DEFAULT_FILE_PANE_SORT: FilePaneSort = Object.freeze({
 export const DEFAULT_FILE_PANE_GROUPING: FilePaneGrouping = Object.freeze({
   separateArtifacts: true,
   showFolders: true,
+  kind: 'all',
 })
 
 export interface FilePaneCapabilities {

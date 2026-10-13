@@ -33,9 +33,7 @@ export class MnMobileTabs extends LitElement {
       z-index: 100;
       background: var(--mn-bottom-bar-bg, var(--mn-color-surface-chrome, var(--mn-color-surface-base)));
       border: 0;
-      box-shadow:
-        inset 0 1px 0 var(--mn-bottom-bar-border, var(--mn-color-rule, var(--mn-color-border-default))),
-        0 -1px 5px rgba(30, 45, 36, 0.045);
+      box-shadow: inset 0 1px 0 var(--mn-bottom-bar-border, var(--mn-color-rule, var(--mn-color-border-default)));
       padding-bottom: var(--organism-safe-area-bottom, env(safe-area-inset-bottom, 0px));
     }
 
@@ -45,6 +43,9 @@ export class MnMobileTabs extends LitElement {
       max-width: 600px;
       height: var(--organism-mobile-navigation-height, 64px);
       margin: 0 auto;
+      padding: 7px 8px;
+      box-sizing: border-box;
+      gap: 4px;
     }
 
     .destination {
@@ -56,10 +57,11 @@ export class MnMobileTabs extends LitElement {
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      gap: 3px;
+      gap: 4px;
       background: transparent;
       border: none;
-      padding: 4px;
+      padding: 5px;
+      border-radius: 14px;
       cursor: pointer;
       color: var(--mn-bottom-bar-text-muted, var(--mn-color-text-muted));
       transition:
@@ -76,22 +78,11 @@ export class MnMobileTabs extends LitElement {
 
     .destination[data-active='true'] {
       color: var(--mn-color-text-accent);
+      background: var(--mn-color-surface-accent, #edf6ef);
     }
 
     .destination::before {
-      content: '';
-      position: absolute;
-      inset: 0 auto auto 50%;
-      width: 28px;
-      height: 2px;
-      border-radius: 0 0 2px 2px;
-      background: currentColor;
-      opacity: 0;
-      transform: translateX(-50%) scaleX(0.35);
-      transform-origin: center;
-      transition:
-        opacity var(--mn-transition-normal),
-        transform var(--mn-transition-normal);
+      display: none;
     }
 
     .destination[data-active='true']::before {
@@ -119,8 +110,8 @@ export class MnMobileTabs extends LitElement {
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
-      font-size: 0.6875rem;
-      font-weight: var(--mn-font-weight-medium);
+      font-size: 0.72rem;
+      font-weight: 650;
       letter-spacing: 0.02em;
       line-height: 1;
     }

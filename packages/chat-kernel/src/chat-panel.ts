@@ -55,19 +55,43 @@ import type {
   HojaEditor,
   HojaWikiLinkResolver,
 } from '@shrubbery/hoja'
-import { LitElement, css, html, nothing, type CSSResult, type PropertyValues, type TemplateResult } from 'lit'
+import { type CSSResult, css, html, LitElement, nothing, type PropertyValues, type TemplateResult } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 import { unsafeHTML } from 'lit/directives/unsafe-html.js'
 import { Marked } from 'marked'
 
 import { sanitizeHtml } from './sanitize.js'
 import type {
+  ChatAccessNote,
+  ChatAccountNote,
+  ChatComposerNotice,
   ChatMessage,
   ChatModelOption,
+  ChatSeam,
+  ChatSeamAction,
   MessagePart,
   SurfacePayload,
   ToolCall,
 } from './types.js'
+import {
+  type ChangeRemoval,
+  type ChangeSubject,
+  type ChangeVerb,
+  type TurnChange,
+  type TurnChanges,
+  turnChangesOf,
+} from './turn-changes.js'
+import {
+  filterVoices,
+  formatContextLength,
+  formatVoiceMultiple,
+  groupVoices,
+  type VoiceGroup,
+  voiceDisplayName,
+  voiceMarkText,
+  voicePriceSummary,
+  voiceToolsBadge,
+} from './voice-roster.js'
 
 // Shared stylesheet for light DOM (created once, adopted by the containing root).
 // PRESERVED verbatim from the original: a single shared CSSStyleSheet keyed off
@@ -184,39 +208,172 @@ const DEFAULT_EMPTY_STATE_SUGGESTIONS: ChatEmptySuggestion[] = [
   },
 ]
 
-// Provider detection for the Garden-style grouped model picker. This stays pure:
-// no pricing table, billing store, or provider runtime import enters the kernel.
-const PROVIDER_PATTERNS: Array<[RegExp, string]> = [
-  [/^deepseek-/, 'DeepSeek'],
-  [/^claude-/, 'Anthropic'],
-  [/^gpt-|^o1-|^o3-/, 'OpenAI'],
-  [/^gemini-|^alpha-/, 'Google'],
-  [/^kimi-/, 'Moonshot'],
-  [/^inkling/, 'Thinking Machines'],
-]
+/** Voice roster grouping, search and labels live in ./voice-roster.ts (pure, tested
+ * without a DOM). The picker below only renders what those helpers return. */
+/** The roster gets a search box once it is longer than this: a five-entry local
+ * roster stays as plain as it always was; a live catalogue is searchable. */
+const VOICE_SEARCH_THRESHOLD = 8
 
-const TOP_PROVIDERS = ['DeepSeek', 'Anthropic', 'OpenAI', 'Google', 'Moonshot', 'Thinking Machines']
+/** Presentation-only grouping: names are hints, never an authority decision. */
+type ToolActivityKind = 'bash' | 'garden' | 'kubernetes' | 'helm' | 'tool'
 
-const MODEL_DISPLAY_NAMES: Record<string, string> = {
-  'deepseek-v4-pro': 'DeepSeek V4 Pro',
-  'deepseek-v4-flash': 'DeepSeek V4 Flash',
-  'kimi-k2.5': 'Kimi K2.5 Thinking',
-  'kimi-k2-thinking': 'Kimi K2 Thinking',
-  'kimi-k2': 'Kimi K2',
-  inkling: 'Inkling',
+function toolActivityKind(tool: string): ToolActivityKind {
+  const name = tool.trim().toLowerCase()
+  if (/(^|[._:/-])(bash|shell|terminal)([._:/-]|$)/.test(name)) return 'bash'
+  if (/(^|[._:/-])(kubernetes|k8s)([._:/-]|$)/.test(name)) return 'kubernetes'
+  if (/(^|[._:/-])helm([._:/-]|$)/.test(name)) return 'helm'
+  if (
+    name.startsWith('mnemosyne')
+    || name.startsWith('garden')
+    || /(^|[._:/-])(document|blocks?|wires?|geist|recall|remember|music|sing|care|workspace)([._:/-]|$)/.test(name)
+  ) return 'garden'
+  return 'tool'
 }
 
-interface ModelGroup {
-  provider: string
-  models: ChatModelOption[]
-}
-
-function modelProvider(modelId: string): string {
-  const lower = modelId.toLowerCase()
-  for (const [pattern, provider] of PROVIDER_PATTERNS) {
-    if (pattern.test(lower)) return provider
+function toolActivityKindLabel(kind: ToolActivityKind): string {
+  switch (kind) {
+    case 'bash': return 'Bash'
+    case 'garden': return 'Garden'
+    case 'kubernetes': return 'Kubernetes'
+    case 'helm': return 'Helm'
+    default: return 'Tool'
   }
-  return 'Other'
+}
+
+function asToolRecord(value: unknown): Record<string, unknown> | null {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null
+}
+
+function parsedToolValue(value: unknown): unknown {
+  if (typeof value !== 'string') return value
+  const trimmed = value.trim()
+  if (!((trimmed.startsWith('{') && trimmed.endsWith('}')) || (trimmed.startsWith('[') && trimmed.endsWith(']')))) return value
+  try { return JSON.parse(trimmed) } catch { return value }
+}
+
+function hasDisclosedValue(value: unknown, depth = 0): boolean {
+  if (depth > 6 || value === null || value === undefined || value === false) return false
+  if (typeof value === 'string') return Boolean(value.trim())
+  if (typeof value === 'number') return Number.isFinite(value)
+  if (value === true) return true
+  if (Array.isArray(value)) return value.some(item => hasDisclosedValue(item, depth + 1))
+  const record = asToolRecord(value)
+  return record !== null && Object.values(record).some(item => hasDisclosedValue(item, depth + 1))
+}
+
+/** Searches disclosed result/receipt data only; it never interprets a request as evidence. */
+function toolValueHasDisclosure(value: unknown, names: ReadonlySet<string>, depth = 0): boolean {
+  if (depth > 6) return false
+  if (Array.isArray(value)) return value.some(item => toolValueHasDisclosure(item, names, depth + 1))
+  const record = asToolRecord(value)
+  if (!record) return false
+  return Object.entries(record).some(([key, nested]) => (
+    (names.has(key.toLowerCase()) && hasDisclosedValue(nested))
+    || toolValueHasDisclosure(nested, names, depth + 1)
+  ))
+}
+
+function toolValueHasField(
+  value: unknown,
+  names: ReadonlySet<string>,
+  predicate: (field: unknown) => boolean,
+  depth = 0,
+): boolean {
+  if (depth > 6) return false
+  if (Array.isArray(value)) return value.some(item => toolValueHasField(item, names, predicate, depth + 1))
+  const record = asToolRecord(value)
+  if (!record) return false
+  return Object.entries(record).some(([key, nested]) => (
+    (names.has(key.toLowerCase()) && predicate(nested))
+    || toolValueHasField(nested, names, predicate, depth + 1)
+  ))
+}
+
+function isTrue(value: unknown): boolean {
+  return value === true
+}
+
+function isNonEmptyCollection(value: unknown): boolean {
+  return Array.isArray(value) && value.length > 0
+}
+
+function isPositiveCount(value: unknown): boolean {
+  return (typeof value === 'number' && Number.isFinite(value) && value > 0)
+    || (typeof value === 'string' && Number.isFinite(Number(value)) && Number(value) > 0)
+}
+
+function isNonEmptyContinuation(value: unknown): boolean {
+  return typeof value === 'string' && Boolean(value.trim())
+}
+
+function toolTestimonyLabels(tool: ToolCall): string[] {
+  const values = [parsedToolValue(tool.output), tool.metadata]
+  const has = (keys: string[]) => values.some(value => toolValueHasDisclosure(value, new Set(keys)))
+  const hasField = (keys: string[], predicate: (field: unknown) => boolean) => (
+    values.some(value => toolValueHasField(value, new Set(keys), predicate))
+  )
+  const labels: string[] = []
+  if (
+    hasField(['redacted'], isTrue)
+    || hasField(['redactions', 'withheld', 'withheldfields', 'redactedfields'], isNonEmptyCollection)
+    || hasField(['redactioncount', 'withheldcount', 'redactedcount'], isPositiveCount)
+  ) labels.push('redacted')
+  if (
+    hasField(['truncated', 'partial'], isTrue)
+    || hasField(['nextcursor', 'continuation'], isNonEmptyContinuation)
+  ) labels.push('truncated')
+  if (has(['provenance', 'receipt', 'observedat', 'observationtime', 'resultdigest', 'digest', 'resourceversion', 'revision'])) labels.push('provenance')
+  return labels
+}
+
+const VERB_LABELS: Readonly<Record<ChangeVerb, string>> = {
+  created: 'created',
+  edited: 'edited',
+  'text-removed': 'text removed',
+  commented: 'commented',
+  'comment-removed': 'comment removed',
+  moved: 'moved',
+  renamed: 'renamed',
+  linked: 'linked',
+  valued: 'valued',
+  restored: 'restored',
+  deleted: 'deleted',
+}
+
+function verbLabel(verb: ChangeVerb): string {
+  return VERB_LABELS[verb] ?? verb
+}
+
+/** What a change is called when nobody named it. */
+function subjectNoun(subject: ChangeSubject): string {
+  switch (subject) {
+    case 'artifact': return 'an artifact'
+    case 'folder': return 'a folder'
+    case 'wire': return 'a wire'
+    default: return 'a document'
+  }
+}
+
+/**
+ * The way back, or that there is none. Vera, 2026-10-06: deleting a whole document is a true delete, its
+ * history goes with it (the chat's reply says so too); a wire is deleted as a person deletes it (no note).
+ */
+function removalNote(removal: ChangeRemoval): string | null {
+  switch (removal) {
+    case 'document': return 'Deleted with its history: it cannot be brought back from History.'
+    case 'folder': return 'Deleted. A folder keeps no history.'
+    case 'wire': return null
+    case 'text': return 'The earlier text is in History.'
+    case 'comment': return 'The earlier version is in History.'
+  }
+}
+
+/** HTML is previewed live; so is an artifact whose type nobody said (the host reads it and can tell). */
+function previewableMediaType(mediaType: string | null | undefined): boolean {
+  if (!mediaType) return true
+  return mediaType.split(';', 1)[0]!.trim().toLowerCase() === 'text/html'
 }
 
 /** A `light` | `dark` | `auto` theme. `auto` resolves via matchMedia at render
@@ -291,6 +448,26 @@ export type SurfaceActionIntent = {
   blockId?: string | null
 }
 
+/**
+ * A link in the "Changed in this turn" strip was chosen. The kernel emits it; the host routes it,
+ * always in the chat's own graph (the chat's writes never leave it). There is deliberately no undo
+ * intent: History is the way back (Vera, 2026-10-05: history only, no pretend-atomic undo).
+ */
+export type ChatChangeIntent =
+  | { type: 'open-document'; documentId: string; blockId?: string }
+  /** `before`: when the turn began (ms), so History can stand at the version before it. */
+  | { type: 'open-history'; documentId: string; before?: number }
+  | { type: 'open-artifact'; artifactId: string; revisions?: true }
+
+/** What the host is asked to preview live under a reply: an artifact the reply was the last to change. */
+export type ChatArtifactPreviewRequest = {
+  artifactId: string
+  messageId: string
+  /** What the conversation said its media type is; null when no call said (the host reads it and knows). */
+  mediaType: string | null
+  title: string | null
+}
+
 /** A code-block copy request. The kernel renders the control + transient copied
  * state; the host owns the clipboard write. */
 export type CodeCopyIntent = {
@@ -328,6 +505,16 @@ export interface ChatKernelOptions {
    * kernel RENDERS it but NEVER parses it — neither for credit logic NOR for the
    * read-only decision (that is now the host-surfaced `readOnly` boolean below). */
   error?: string | null
+  /** Which message-level buttons the host can honour. A half-wired button is a
+   * bug, so the host names the ones that work and the panel draws only those.
+   * Absent means every button the panel has always drawn. */
+  messageActions?: readonly MessageActionKind[]
+  /** Which header buttons the host can honour; the same rule. Absent means all. */
+  headerActions?: readonly HeaderActionKind[]
+  /** A finished conversation shown alone: no chrome, no composer, no per-message
+   * clock (the host annotates each message with what it actually knows), no
+   * scroll-to-the-end, and no control that reaches outside the transcript. */
+  transcriptOnly?: boolean
   /** Available models for the selector. */
   models?: ChatModelOption[]
   /** Currently-selected model id. */
@@ -415,6 +602,38 @@ export interface ChatKernelOptions {
   onContinuityAction?: (action: ChatContinuityAction) => void | Promise<void>
   /** Intent: the user picked a different model. */
   onModelChange?: (modelId: string) => void
+  /** Host-projected account line near the voice picker (the credit balance, for
+   * example). The kernel renders it and never computes, formats or gates on it. */
+  accountNote?: ChatAccountNote | null
+  /** Host-projected notice above the composer (a refusal for credit, the size limit).
+   * It gates nothing: sending is governed only by `sendDisabled`. */
+  composerNotice?: ChatComposerNotice | null
+  /** Intent: the composer notice's action was chosen. */
+  onComposerNoticeAction?: (id: string) => void
+  /** Intent: the balance line's action was chosen ("Add credits"). The button appears
+   * only when this is set: the kernel does not know what the action does. */
+  onAccountAction?: (id: string) => void
+  /** Host-worded line at the foot of the voice picker saying what its prices are and how
+   * they are charged. Absent: the bare caption ("US dollars per million tokens"). */
+  voiceFootnote?: string | null
+  /** Present when this conversation picked up an earlier one: the messages flagged
+   * `origin: 'window'` are exactly what was sent, and this words the lines around
+   * them (the count above, the seam below). */
+  seam?: ChatSeam | null
+  /** Intent: something on the seam was chosen (opening the original). */
+  onSeamAction?: (action: ChatSeamAction) => void
+  /** What the chat may do here (change, or only read), in the host's words. Absent: nothing said. */
+  accessNote?: ChatAccessNote | null
+  /** Intent: a link in a reply's "Changed in this turn" strip. Links are drawn only where the host listens. */
+  onChangeAction?: (intent: ChatChangeIntent) => void
+  /**
+   * The host's live preview of an artifact a reply changed (an `<mn-artifact-view>`, scripts off). Called
+   * for HTML artifacts (or ones whose type no call said) under the reply that last changed each. Absent:
+   * the artifact is listed in the strip, and nothing is framed.
+   */
+  renderArtifactPreview?: (request: ChatArtifactPreviewRequest) => unknown
+  /** A name for a changed thing the turn did not name (the host knows its documents' titles). */
+  changeTitle?: (subject: ChangeSubject, id: string) => string | null
 }
 
 @customElement('sh-chat-panel')
@@ -450,6 +669,9 @@ export class ShChatPanel extends LitElement {
   @property({ attribute: false }) promptCards: readonly ChatPromptCard[] = []
   @property({ type: Boolean }) sendDisabled = false
   @property({ type: Boolean }) readOnly = false
+  @property({ attribute: false }) messageActions?: readonly MessageActionKind[]
+  @property({ attribute: false }) headerActions?: readonly HeaderActionKind[]
+  @property({ type: Boolean }) transcriptOnly = false
   @property({ type: String }) theme: ChatTheme = 'auto'
   @property({ type: String, reflect: true }) presentation: ChatPresentation = 'rail'
 
@@ -476,6 +698,26 @@ export class ShChatPanel extends LitElement {
   @property({ attribute: false }) onSessionAction?: (action: ChatSessionAction) => void | Promise<void>
   @property({ attribute: false }) onContinuityAction?: (action: ChatContinuityAction) => void | Promise<void>
   @property({ attribute: false }) onModelChange?: (modelId: string) => void
+  @property({ attribute: false }) accountNote: ChatAccountNote | null = null
+  @property({ attribute: false }) composerNotice: ChatComposerNotice | null = null
+  @property({ attribute: false }) onComposerNoticeAction?: (id: string) => void
+  @property({ attribute: false }) onAccountAction?: (id: string) => void
+  @property({ attribute: false }) voiceFootnote: string | null = null
+  @property({ attribute: false }) seam: ChatSeam | null = null
+  @property({ attribute: false }) onSeamAction?: (action: ChatSeamAction) => void
+  @property({ attribute: false }) accessNote: ChatAccessNote | null = null
+  @property({ attribute: false }) onChangeAction?: (intent: ChatChangeIntent) => void
+  @property({ attribute: false }) renderArtifactPreview?: (request: ChatArtifactPreviewRequest) => unknown
+  @property({ attribute: false }) changeTitle?: (subject: ChangeSubject, id: string) => string | null
+
+  /** What each reply changed, read once per tool-call list (a new list is a new reading). */
+  private readonly turnChangesCache = new WeakMap<readonly ToolCall[], TurnChanges>()
+  /** Which reply last changed each artifact, and the media type the conversation gave it. */
+  private artifactIndex: {
+    readonly messages: ChatMessage[]
+    readonly owner: ReadonlyMap<string, string>
+    readonly mediaType: ReadonlyMap<string, string>
+  } | null = null
 
   // ─────────────────────────────────────────────────────────────────────────
   // PURE LOCAL UI STATE (expansion toggles etc. — no store, no persistence)
@@ -489,6 +731,9 @@ export class ShChatPanel extends LitElement {
   @property({ attribute: false }) private modelPickerOpen = false
   @property({ attribute: false }) private headerMenuOpen = false
   @property({ attribute: false }) private hoveredProvider: string | null = null
+  @property({ attribute: false }) private voiceQuery = ''
+  /** A premium voice the person has picked and not yet confirmed. */
+  @property({ attribute: false }) private pendingPremium: string | null = null
   @property({ attribute: false }) private autoScroll = true
   @property({ attribute: false }) private hasNewMessages = false
   @property({ attribute: false }) private streamingElapsed = 0
@@ -503,6 +748,8 @@ export class ShChatPanel extends LitElement {
   private streamingTimerId: ReturnType<typeof setInterval> | null = null
   private streamingStartTime: number | null = null
   private lastObservedScrollTop = 0
+  /** The pin we just made moved the scroll position; the scroll event that is coming is ours, not the person's. */
+  private expectingOwnScroll = false
   private skinObserver: MutationObserver | null = null
   private readonly modelOverlayId = `chat-model-${++chatPanelInstance}`
   private modelOverlayAnnounced = false
@@ -525,7 +772,8 @@ export class ShChatPanel extends LitElement {
     if (event.key !== 'Escape') return
     let handled = false
     if (this.modelPickerOpen) {
-      this.closeModelPicker(true)
+      // A question left open is answered first: Escape says no to it, and only then to the picker.
+      if (!this.declinePremium()) this.closeModelPicker(true)
       handled = true
     }
     if (this.contextMenu) {
@@ -612,9 +860,20 @@ export class ShChatPanel extends LitElement {
 
   willUpdate(changed: Map<string, unknown>): void {
     if (changed.has('theme')) this.applyTheme()
+    // The list can change under an open question (a fresh catalogue, a voice the host has since
+    // marked unavailable). A question about a voice that is gone, cannot be picked, or is no
+    // longer premium is let go: nothing dead is left on screen, and the next Escape closes the
+    // picker instead of answering a question nobody can see.
+    if (this.pendingPremium !== null && (changed.has('models') || changed.has('pendingPremium'))) {
+      const raised = this.models.find((model) => model.id === this.pendingPremium)
+      if (!raised || raised.disabled === true || raised.premium !== true) this.pendingPremium = null
+    }
   }
 
   override updated(changed: PropertyValues<this>): void {
+    // A finished conversation reads from the top: nothing scrolls it to the end,
+    // and there is no new message to announce.
+    if (this.transcriptOnly) return
     if (changed.has('messages')) {
       // A streaming assistant edits the final message in place semantically: the
       // array identity changes, but its length does not. Treat every post-mount
@@ -626,6 +885,7 @@ export class ShChatPanel extends LitElement {
       if (this.autoScroll) {
         this.scrollToBottom()
         this.hasNewMessages = false
+        this.pinAgainAfterLayout()
       }
     }
 
@@ -709,9 +969,26 @@ export class ShChatPanel extends LitElement {
     return this.streamingElapsed >= 3 ? `Thinking... (${this.streamingElapsed}s)` : 'Thinking...'
   }
 
+  /**
+   * The reply's words are all here and only the end of the turn is awaited: the last
+   * thing on screen is this conversation's own assistant message, finished, and no
+   * message is being sent. (While a message is being sent the last thing on screen
+   * is still the previous answer, and that is not this turn's reply.)
+   */
+  private replyIsIn(): boolean {
+    if (this.sendState === 'saving') return false
+    const last = this.messages[this.messages.length - 1]
+    return last?.role === 'assistant'
+      && last.origin !== 'window'
+      && !last.isStreaming
+      && last.content.trim().length > 0
+  }
+
   private streamingHint(): string {
     const streamingMsg = [...this.messages].reverse().find((msg) => msg.role === 'assistant' && msg.isStreaming)
-    if (!streamingMsg) return this.thinkingLabel()
+    // Once the reply text is complete, "Thinking... (4s)" would be a lie: the model
+    // has finished; what is awaited is the close of the turn.
+    if (!streamingMsg) return this.replyIsIn() ? 'Finishing...' : this.thinkingLabel()
 
     const runningTool = streamingMsg.toolCalls.find((tool) => tool.status === 'pending' || tool.status === 'running')
     if (runningTool) return `Running ${runningTool.tool}...`
@@ -743,6 +1020,23 @@ export class ShChatPanel extends LitElement {
     const next = new Set(this.expandedReasoningIds)
     next.has(id) ? next.delete(id) : next.add(id)
     this.expandedReasoningIds = next
+  }
+
+  /** A role="button" that is not a native button answers Enter and Space as a button does. */
+  private pressOnKey(event: KeyboardEvent, activate: () => void): void {
+    if (event.repeat || (event.key !== 'Enter' && event.key !== ' ')) return
+    event.preventDefault()
+    activate()
+  }
+
+  /** Whether the host named this message button among the ones it can honour. */
+  private messageActionAllowed(action: MessageActionKind): boolean {
+    return this.messageActions === undefined || this.messageActions.includes(action)
+  }
+
+  /** Whether the host named this header button among the ones it can honour. */
+  private headerActionAllowed(action: HeaderActionKind): boolean {
+    return this.headerActions === undefined || this.headerActions.includes(action)
   }
 
   private setDraft(
@@ -834,10 +1128,29 @@ export class ShChatPanel extends LitElement {
   private openMessageContextMenu(e: MouseEvent, msg: ChatMessage): void {
     const selection = this.ownerDocument.getSelection?.()
     if (selection && selection.toString().length > 0) return
-    if (!this.onMessageAction && !this.onCodeCopy) return
+    const choices = this.contextMenuChoices(msg)
+    // Nothing the host can honour means no menu, and the browser's own stays.
+    if (!choices.copy && !choices.code && !choices.save && !choices.regenerate) return
     e.preventDefault()
     e.stopPropagation()
     this.contextMenu = { messageId: msg.id, x: e.clientX, y: e.clientY }
+  }
+
+  /** Which groups of the right-click menu exist for this message: what the host can
+   * honour, and what the message itself offers. */
+  private contextMenuChoices(msg: ChatMessage): { copy: boolean; code: boolean; save: boolean; regenerate: boolean } {
+    const hasMessageAction = Boolean(this.onMessageAction)
+    return {
+      copy: hasMessageAction && this.messageActionAllowed('copy'),
+      code: Boolean(this.onCodeCopy) && this.firstCodeBlock(msg.content) !== null,
+      save: hasMessageAction && this.messageActionAllowed('save-garden'),
+      // A message carried read-only in the continuation window is never regenerated.
+      regenerate:
+        hasMessageAction &&
+        msg.role === 'assistant' &&
+        !this.isWindowMessage(msg) &&
+        this.messageActionAllowed('regenerate'),
+    }
   }
 
   private closeContextMenu(): void {
@@ -866,7 +1179,21 @@ export class ShChatPanel extends LitElement {
     this.autoScroll = false
   }
 
+  /**
+   * The pin made in `updated()` measures the room as it is at that instant, and the room changes again before it settles:
+   * a composer that grows once its editor is up, a row of chrome that comes and goes (a continued conversation opened on a
+   * phone was left 57 px short of its end, the line under the seam out of sight). Pin once more when the layout has settled;
+   * a person who has scrolled away in the meantime is not followed.
+   */
+  private pinAgainAfterLayout(): void {
+    if (typeof requestAnimationFrame === 'undefined') return
+    requestAnimationFrame(() => {
+      if (this.isConnected && this.autoScroll) this.scrollToBottom()
+    })
+  }
+
   private scrollToBottom(force = false, smooth = false): void {
+    if (this.transcriptOnly) return
     const area = this.messagesContainer()
     if (!area) return
     const atBottom = this.isNearBottom(area)
@@ -875,7 +1202,10 @@ export class ShChatPanel extends LitElement {
     if (smooth && typeof area.scrollTo === 'function') {
       area.scrollTo({ top: area.scrollHeight, behavior: 'smooth' })
     } else {
+      const before = area.scrollTop
       area.scrollTop = area.scrollHeight
+      // The browser tells us of a scroll we made in a scroll event; that event is not the person's doing.
+      if (area.scrollTop !== before) this.expectingOwnScroll = true
     }
     this.lastObservedScrollTop = area.scrollTop
     if (force) {
@@ -888,6 +1218,13 @@ export class ShChatPanel extends LitElement {
     const area = this.messagesContainer()
     if (!area) return
     const scrollTop = area.scrollTop
+    if (this.expectingOwnScroll) {
+      // Our own pin, announced after the room changed under it: reading "not at the bottom" off it would
+      // unpin a conversation the person never left.
+      this.expectingOwnScroll = false
+      this.lastObservedScrollTop = scrollTop
+      return
+    }
     const movedUp = scrollTop < this.lastObservedScrollTop - 0.5
     const atBottom = this.isNearBottom(area)
     // The 50px threshold is useful when a user scrolls back DOWN: it avoids a
@@ -1053,6 +1390,7 @@ export class ShChatPanel extends LitElement {
 
   private renderToolCall(tool: ToolCall): TemplateResult | typeof nothing {
     if (
+      !this.transcriptOnly &&
       (tool.tool === 'surface' || tool.tool === 'mnemosyne_surface') &&
       tool.status === 'completed' &&
       tool.output
@@ -1062,22 +1400,32 @@ export class ShChatPanel extends LitElement {
 
     const isExpanded = this.isToolExpanded(tool.id)
     const isError = tool.status === 'error'
+    const kind = toolActivityKind(tool.tool)
+    const testimony = toolTestimonyLabels(tool)
 
     return html`
-      <div class="tool-call ${isExpanded ? 'expanded' : ''} ${isError ? 'error' : ''}">
+      <div class="tool-call ${isExpanded ? 'expanded' : ''} ${isError ? 'error' : ''}" data-activity-kind=${kind}>
         <div
           class="tool-call-header"
           role="button"
           tabindex="0"
+          aria-expanded=${isExpanded ? 'true' : 'false'}
           @click=${() => this.toggleTool(tool.id)}
+          @keydown=${(event: KeyboardEvent) => this.pressOnKey(event, () => this.toggleTool(tool.id))}
           title="${isExpanded ? 'Collapse' : 'Expand'} details"
         >
           <div class="tool-info">
             <span class="tool-toggle">▸</span>
+            <span class="tool-kind">${toolActivityKindLabel(kind)}</span>
             <span class="tool-call-name">${tool.tool}</span>
           </div>
           ${this.renderToolBadge(tool.status)}
         </div>
+        ${testimony.length
+          ? html`<div class="tool-testimony" aria-label="Tool result testimony">
+              ${testimony.map((label) => html`<span class="tool-testimony-label" data-testimony=${label}>${label}</span>`)}
+            </div>`
+          : nothing}
         ${isError && tool.output
           ? html`<div class="tool-call-error">${tool.output}</div>`
           : nothing}
@@ -1086,11 +1434,22 @@ export class ShChatPanel extends LitElement {
               <div class="tool-call-details">
                 ${this.renderToolDataBlock('Input', tool.input)}
                 ${this.renderToolDataBlock(isError ? 'Error' : 'Output', tool.output)}
+                ${this.renderOutputNotRetained(tool)}
+                ${this.renderToolDataBlock('Testimony', tool.metadata)}
               </div>
             `
           : nothing}
       </div>
     `
+  }
+
+  /** A finished conversation says so when a call kept no output. A live call that
+   * has not returned yet has no output either, and that is not "not retained". */
+  private renderOutputNotRetained(tool: ToolCall): TemplateResult | typeof nothing {
+    if (!this.transcriptOnly) return nothing
+    if (tool.output !== null && tool.output !== undefined) return nothing
+    if (tool.status !== 'completed' && tool.status !== 'error') return nothing
+    return html`<div class="tool-data-block"><p class="tool-output-missing">Output not retained.</p></div>`
   }
 
   /** The status badge — the 4 states the R5 real-DOM test asserts. */
@@ -1150,7 +1509,14 @@ export class ShChatPanel extends LitElement {
     const isExpanded = this.isToolExpanded(tool.id)
     return html`
       <div class="tool-call ${isExpanded ? 'expanded' : ''}">
-        <div class="tool-call-header" role="button" tabindex="0" @click=${() => this.toggleTool(tool.id)}>
+        <div
+          class="tool-call-header"
+          role="button"
+          tabindex="0"
+          aria-expanded=${isExpanded ? 'true' : 'false'}
+          @click=${() => this.toggleTool(tool.id)}
+          @keydown=${(event: KeyboardEvent) => this.pressOnKey(event, () => this.toggleTool(tool.id))}
+        >
           <div class="tool-info">
             <span class="tool-toggle">▸</span>
             <span class="tool-call-name">${tool.tool}</span>
@@ -1233,7 +1599,9 @@ export class ShChatPanel extends LitElement {
             class="reasoning-header"
             role="button"
             tabindex="0"
+            aria-expanded=${isExpanded ? 'true' : 'false'}
             @click=${() => this.toggleReasoning(msg.id)}
+            @keydown=${(event: KeyboardEvent) => this.pressOnKey(event, () => this.toggleReasoning(msg.id))}
             title="${isExpanded ? 'Collapse' : 'Expand'} thinking"
           >
             <span class="reasoning-toggle">▸</span>
@@ -1252,10 +1620,38 @@ export class ShChatPanel extends LitElement {
     return tool ? html`<div class="tool-calls" role="list">${this.renderToolCall(tool)}</div>` : nothing
   }
 
+  /** A message from an earlier conversation, carried read-only in the window. */
+  private isWindowMessage(msg: ChatMessage): boolean {
+    return msg.origin === 'window'
+  }
+
+  private formatWindowTime(ts: number): string {
+    if (!(ts > 0)) return ''
+    try {
+      return new Date(ts).toLocaleString([], {
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+    } catch {
+      return ''
+    }
+  }
+
   private renderMessage(msg: ChatMessage): TemplateResult {
     const showTyping = msg.isStreaming && !msg.content
     const bubbleClasses = `message-bubble ${msg.isStreaming ? 'streaming' : ''}`
     const annotation = this.formatModelAnnotation?.(msg) ?? null
+    const isWindow = this.isWindowMessage(msg)
+    // Nobody pretends to be anybody: an earlier assistant is named as such, and
+    // the voice mark beside it says only what the record says.
+    const author = msg.role === 'user'
+      ? 'You'
+      : isWindow
+        ? 'Earlier assistant'
+        : this.assistantLabel
+    const time = isWindow ? this.formatWindowTime(msg.createdAt) : this.formatTime(msg.createdAt)
 
     // NOTE: return the parts array DIRECTLY (not wrapped in a bare html`${array}`
     // template) — a template whose sole content is a single array binding
@@ -1281,12 +1677,14 @@ export class ShChatPanel extends LitElement {
 
     return html`
       <article
-        class="message ${msg.role}"
-        aria-label="${msg.role === 'user' ? 'Your message' : `${this.assistantLabel} message`}"
+        class="message ${msg.role} ${isWindow ? 'window' : ''}"
+        data-message-id=${msg.id}
+        data-origin=${isWindow ? 'window' : nothing}
+        aria-label="${msg.role === 'user' ? 'Your message' : isWindow ? 'Earlier assistant message' : `${this.assistantLabel} message`}"
         @contextmenu=${(e: MouseEvent) => this.openMessageContextMenu(e, msg)}
       >
         <div class="message-byline" aria-hidden="true">
-          <span class="message-author">${msg.role === 'user' ? 'You' : this.assistantLabel}</span>
+          <span class="message-author">${author}</span>
           <span class="message-byline-rule"></span>
         </div>
         <div class="${bubbleClasses}">
@@ -1296,49 +1694,255 @@ export class ShChatPanel extends LitElement {
             : nothing}
           ${msg.error ? html`<div class="message-error" role="alert">${msg.error}</div>` : nothing}
         </div>
+        ${this.renderTurnChanges(msg, isWindow)}
+        ${this.renderTurnPreviews(msg, isWindow)}
         <div class="message-meta">
-          <span class="message-time">${this.formatTime(msg.createdAt)}</span>
-          ${annotation ? html`<span class="message-annotation">${annotation}</span>` : nothing}
-          ${msg.role === 'assistant' && msg.content
-            ? html`
-                <div class="message-actions">
-                  <button
-                    class="message-action-btn"
-                    @click=${() => {
-                      void this.handleMessageAction(msg.id, 'read')
-                    }}
-                    aria-label="Read aloud"
-                    title="Read aloud"
-                  >
-                    🔊
-                  </button>
-                  <button
-                    class="message-action-btn ${this.copiedMessageId === msg.id ? 'copied' : ''}"
-                    @click=${() => {
-                      void this.handleMessageAction(msg.id, 'copy')
-                    }}
-                    aria-label="${this.copiedMessageId === msg.id ? 'Copied' : 'Copy message'}"
-                    title="${this.copiedMessageId === msg.id ? 'Copied!' : 'Copy message'}"
-                  >
-                    ${this.copiedMessageId === msg.id
-                      ? html`✓<span class="copy-toast">Copied to clipboard</span>`
-                      : '⧉'}
-                  </button>
-                  <button
-                    class="message-action-btn"
-                    @click=${() => {
-                      void this.handleMessageAction(msg.id, 'regenerate')
-                    }}
-                    aria-label="Regenerate"
-                    title="Regenerate"
-                  >
-                    ↻
-                  </button>
-                </div>
-              `
+          ${this.transcriptOnly || !time ? nothing : html`<span class="message-time">${time}</span>`}
+          ${msg.role === 'assistant' && msg.voice
+            ? html`<span
+                class="message-voice"
+                data-voice-basis=${msg.voice.basis}
+                title=${msg.voice.id ?? 'The source did not record which model answered.'}
+              >${voiceMarkText(msg.voice)}</span>`
             : nothing}
+          ${annotation ? html`<span class="message-annotation">${annotation}</span>` : nothing}
+          ${this.renderMessageActions(msg, isWindow)}
         </div>
       </article>
+    `
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // CHANGED IN THIS TURN (the empowered workspace chat, design §10)
+  // ─────────────────────────────────────────────────────────────────────────
+
+  private turnChanges(msg: ChatMessage): TurnChanges {
+    const known = this.turnChangesCache.get(msg.toolCalls)
+    if (known) return known
+    const read = turnChangesOf(msg.toolCalls)
+    this.turnChangesCache.set(msg.toolCalls, read)
+    return read
+  }
+
+  /** Which reply last changed each artifact (only it carries the live preview) and each one's media type. */
+  private artifactsOfConversation(): NonNullable<ShChatPanel['artifactIndex']> {
+    if (this.artifactIndex?.messages === this.messages) return this.artifactIndex
+    const owner = new Map<string, string>()
+    const mediaType = new Map<string, string>()
+    for (const message of this.messages) {
+      if (message.role !== 'assistant' || this.isWindowMessage(message) || message.toolCalls.length === 0) continue
+      for (const change of this.turnChanges(message).changes) {
+        if (change.subject !== 'artifact' || !change.id) continue
+        owner.set(change.id, message.id)
+        if (change.mediaType && !mediaType.has(change.id)) mediaType.set(change.id, change.mediaType)
+      }
+    }
+    this.artifactIndex = { messages: this.messages, owner, mediaType }
+    return this.artifactIndex
+  }
+
+  /** When the turn behind a reply began: the person's message before it. */
+  private turnStartedAt(msg: ChatMessage): number | null {
+    const index = this.messages.indexOf(msg)
+    for (let back = index - 1; back >= 0; back -= 1) {
+      const earlier = this.messages[back]
+      if (earlier.role === 'user') return earlier.createdAt > 0 ? earlier.createdAt : null
+    }
+    return null
+  }
+
+  /**
+   * The strip under a reply that wrote: one row per thing changed, with the way back (History, or an
+   * artifact's revisions) and no undo button. A whole-document delete, a folder and a wire are shown
+   * apart, as gone. The live preview of an HTML artifact follows, from the host, under the reply that
+   * last changed it. Not drawn for a finished conversation shown alone or a carried window.
+   */
+  private renderTurnChanges(msg: ChatMessage, isWindow: boolean): TemplateResult | typeof nothing {
+    if (this.transcriptOnly || isWindow || msg.role !== 'assistant' || msg.toolCalls.length === 0) return nothing
+    const { changes, refused } = this.turnChanges(msg)
+    if (changes.length === 0 && refused === 0) return nothing
+    const before = this.turnStartedAt(msg)
+    return html`
+      <section
+        class="turn-changes"
+        aria-label=${changes.length > 0 ? 'Changed in this turn' : 'Nothing changed in this turn'}
+        data-pending=${changes.some(change => change.pending) ? 'true' : 'false'}
+      >
+        <div class="turn-changes-title">${changes.length > 0 ? 'Changed in this turn' : 'Nothing changed in this turn'}</div>
+        ${changes.length > 0
+          ? html`<ul class="turn-change-list">${changes.map(change => this.renderTurnChange(change, before))}</ul>`
+          : nothing}
+        ${refused > 0
+          ? html`<p class="turn-changes-refused" role="note">${refused === 1
+            ? '1 change was refused, so it changed nothing.'
+            : `${refused} changes were refused, so they changed nothing.`}</p>`
+          : nothing}
+      </section>
+    `
+  }
+
+  /** The live previews under a reply: each HTML artifact it was the last to change, from the host. */
+  private renderTurnPreviews(msg: ChatMessage, isWindow: boolean): TemplateResult | typeof nothing {
+    const render = this.renderArtifactPreview
+    if (!render || this.transcriptOnly || isWindow || msg.role !== 'assistant' || msg.toolCalls.length === 0) return nothing
+    const artifacts = this.artifactsOfConversation()
+    const previews = this.turnChanges(msg).changes.filter(change => change.subject === 'artifact' && change.id
+      && !change.removal
+      && artifacts.owner.get(change.id) === msg.id
+      && previewableMediaType(artifacts.mediaType.get(change.id) ?? change.mediaType))
+    if (previews.length === 0) return nothing
+    return html`<div class="turn-artifact-previews">${previews.map(change => this.renderArtifactPreviewFrame(render, {
+      artifactId: change.id!,
+      messageId: msg.id,
+      mediaType: artifacts.mediaType.get(change.id!) ?? change.mediaType,
+      title: change.title,
+    }))}</div>`
+  }
+
+  /** One live preview: the host's element, in a frame of the chat's own. A host that throws frames nothing. */
+  private renderArtifactPreviewFrame(
+    render: (request: ChatArtifactPreviewRequest) => unknown,
+    request: ChatArtifactPreviewRequest,
+  ): TemplateResult | typeof nothing {
+    let preview: unknown
+    try {
+      preview = render(request)
+    } catch {
+      return nothing
+    }
+    if (preview === null || preview === undefined || preview === nothing) return nothing
+    return html`<div class="turn-artifact-preview" data-artifact-id=${request.artifactId}>${preview}</div>`
+  }
+
+  private renderTurnChange(change: TurnChange, before: number | null): TemplateResult {
+    const named = change.title
+      ?? (change.id ? this.safeChangeTitle(change.subject, change.id) : null)
+      ?? change.id
+    const name = named ?? subjectNoun(change.subject)
+    // Shown apart: what is gone with no History to bring it back. A wire is deleted as a person deletes it
+    // (Vera, 2026-10-06): an ordinary row, listed by its id.
+    const gone = change.removal === 'document' || change.removal === 'folder'
+    const listening = this.onChangeAction !== undefined
+    const opens = listening && change.id !== null && !gone && (change.subject === 'document' || change.subject === 'artifact')
+    const id = change.id
+    return html`
+      <li
+        class="turn-change ${gone ? 'removed' : ''}"
+        data-change-subject=${change.subject}
+        data-change-id=${id ?? nothing}
+        data-removal=${change.removal ?? nothing}
+        data-pending=${change.pending ? 'true' : 'false'}
+      >
+        <span class="turn-change-verbs">${change.verbs.map(verb => verbLabel(verb)).join(' · ')}</span>
+        ${opens
+          ? html`<button
+              class="turn-change-open"
+              type="button"
+              title=${`Open ${name}`}
+              @click=${() => this.changeAction(change.subject === 'artifact'
+                ? { type: 'open-artifact', artifactId: id! }
+                : { type: 'open-document', documentId: id!, ...(change.blockId ? { blockId: change.blockId } : {}) })}
+            >${name}</button>`
+          : html`<span class="turn-change-name">${name}</span>`}
+        ${change.pending ? html`<span class="turn-change-pending" aria-label="still changing">…</span>` : nothing}
+        ${opens
+          ? html`<button
+              class="turn-change-history"
+              type="button"
+              title=${change.subject === 'artifact' ? 'Open this artifact\'s revisions' : 'Open this document\'s History, at the version before this turn'}
+              @click=${() => this.changeAction(change.subject === 'artifact'
+                ? { type: 'open-artifact', artifactId: id!, revisions: true }
+                : { type: 'open-history', documentId: id!, ...(before !== null ? { before } : {}) })}
+            >${change.subject === 'artifact' ? 'Revisions' : 'History'}</button>`
+          : nothing}
+        ${change.removal && removalNote(change.removal)
+          ? html`<span class="turn-change-note">${removalNote(change.removal)}</span>`
+          : nothing}
+      </li>
+    `
+  }
+
+  private safeChangeTitle(subject: ChangeSubject, id: string): string | null {
+    try {
+      const title = this.changeTitle?.(subject, id)
+      return typeof title === 'string' && title.trim() ? title.trim() : null
+    } catch {
+      return null
+    }
+  }
+
+  private changeAction(intent: ChatChangeIntent): void {
+    this.onChangeAction?.(intent)
+  }
+
+  /** What the chat may do here, in the host's words, above the composer. */
+  private renderAccessNote(): TemplateResult | typeof nothing {
+    const note = this.accessNote
+    if (!note || !note.label) return nothing
+    return html`
+      <div class="chat-access" data-access=${note.mode} role="note">
+        <span class="chat-access-label">${note.label}</span>
+        ${note.detail ? html`<span class="chat-access-detail">${note.detail}</span>` : nothing}
+      </div>
+    `
+  }
+
+  /** The strip under an assistant turn. Only the buttons the host can honour are drawn;
+   * with none allowed there is no strip at all. A message carried read-only in the
+   * continuation window keeps Copy and loses the two actions that would act on it. */
+  private renderMessageActions(msg: ChatMessage, readOnlyWindow: boolean): TemplateResult | typeof nothing {
+    if (msg.role !== 'assistant' || !msg.content) return nothing
+    const read = !readOnlyWindow && this.messageActionAllowed('read')
+    const copy = this.messageActionAllowed('copy')
+    const regenerate = !readOnlyWindow && this.messageActionAllowed('regenerate')
+    if (!read && !copy && !regenerate) return nothing
+    return html`
+      <div class="message-actions">
+        ${read
+          ? html`
+              <button
+                class="message-action-btn"
+                @click=${() => {
+                  void this.handleMessageAction(msg.id, 'read')
+                }}
+                aria-label="Read aloud"
+                title="Read aloud"
+              >
+                🔊
+              </button>
+            `
+          : nothing}
+        ${copy
+          ? html`
+              <button
+                class="message-action-btn ${this.copiedMessageId === msg.id ? 'copied' : ''}"
+                @click=${() => {
+                  void this.handleMessageAction(msg.id, 'copy')
+                }}
+                aria-label="${this.copiedMessageId === msg.id ? 'Copied' : 'Copy message'}"
+                title="${this.copiedMessageId === msg.id ? 'Copied!' : 'Copy message'}"
+              >
+                ${this.copiedMessageId === msg.id
+                  ? html`✓<span class="copy-toast">Copied to clipboard</span>`
+                  : '⧉'}
+              </button>
+            `
+          : nothing}
+        ${regenerate
+          ? html`
+              <button
+                class="message-action-btn"
+                @click=${() => {
+                  void this.handleMessageAction(msg.id, 'regenerate')
+                }}
+                aria-label="Regenerate"
+                title="Regenerate"
+              >
+                ↻
+              </button>
+            `
+          : nothing}
+      </div>
     `
   }
 
@@ -1347,7 +1951,9 @@ export class ShChatPanel extends LitElement {
     if (!context) return nothing
     const msg = this.messages.find((m) => m.id === context.messageId)
     if (!msg) return nothing
-    const hasCode = this.firstCodeBlock(msg.content) !== null
+    const choices = this.contextMenuChoices(msg)
+    // A divider only ever separates two groups that both exist.
+    const divider = html`<div class="chat-menu-divider" role="separator"></div>`
 
     return html`
       <div
@@ -1356,7 +1962,7 @@ export class ShChatPanel extends LitElement {
         style="left:${context.x}px;top:${context.y}px"
         @click=${(e: Event) => e.stopPropagation()}
       >
-        ${this.onMessageAction
+        ${choices.copy
           ? html`
               <button class="chat-menu-item" role="menuitem" @click=${() => this.selectContextMenuItem(msg, 'copy')}>
                 <span class="chat-menu-icon">⧉</span>
@@ -1372,7 +1978,7 @@ export class ShChatPanel extends LitElement {
               </button>
             `
           : nothing}
-        ${hasCode && this.onCodeCopy
+        ${choices.code
           ? html`
               <button
                 class="chat-menu-item"
@@ -1384,9 +1990,9 @@ export class ShChatPanel extends LitElement {
               </button>
             `
           : nothing}
-        ${this.onMessageAction
+        ${choices.save && (choices.copy || choices.code) ? divider : nothing}
+        ${choices.save
           ? html`
-              <div class="chat-menu-divider" role="separator"></div>
               <button
                 class="chat-menu-item"
                 role="menuitem"
@@ -1397,9 +2003,9 @@ export class ShChatPanel extends LitElement {
               </button>
             `
           : nothing}
-        ${this.onMessageAction && msg.role === 'assistant'
+        ${choices.regenerate && (choices.copy || choices.code || choices.save) ? divider : nothing}
+        ${choices.regenerate
           ? html`
-              <div class="chat-menu-divider" role="separator"></div>
               <button
                 class="chat-menu-item"
                 role="menuitem"
@@ -1417,6 +2023,8 @@ export class ShChatPanel extends LitElement {
   private displaySessionTitle(): string {
     const title = this.sessionTitle?.trim()
     if (!title || title === 'New chat' || title.startsWith('New session - ')) return 'New chat'
+    // The label the shell gave a first chat before chats were titled. It names nothing.
+    if (title.toLowerCase() === 'organism-chat') return 'Untitled chat'
     return title
   }
 
@@ -1449,43 +2057,44 @@ export class ShChatPanel extends LitElement {
   }
 
   private isModelLocked(): boolean {
-    return this.messages.length > 0
+    // A voice is chosen before a conversation begins. It is fixed once anything
+    // has been said in THIS conversation (window messages were said elsewhere and
+    // do not count), and for a conversation that picked up an earlier one, whose
+    // voice was chosen at the seam.
+    return this.seam != null || this.messages.some((message) => message.origin !== 'window')
   }
 
   private modelLabel(model: ChatModelOption | undefined): string {
-    if (!model) return this.currentModel || 'Select model'
-    return MODEL_DISPLAY_NAMES[model.id] ?? model.label
+    if (!model) return this.currentModel || 'Choose a voice'
+    return voiceDisplayName(model)
   }
 
   private currentModelLabel(): string {
     return this.modelLabel(this.models.find((model) => model.id === this.currentModel))
   }
 
-  private modelGroups(): ModelGroup[] {
-    const grouped = new Map<string, ChatModelOption[]>()
-    for (const model of this.models) {
-      const provider = modelProvider(model.id)
-      const key = TOP_PROVIDERS.includes(provider) ? provider : 'Other'
-      const list = grouped.get(key) ?? []
-      list.push(model)
-      grouped.set(key, list)
-    }
+  /** A live catalogue is searchable; a short local roster stays plain. */
+  private searchableVoices(): boolean {
+    return this.models.length > VOICE_SEARCH_THRESHOLD
+  }
 
-    return Array.from(grouped.entries())
-      .sort(([a], [b]) => {
-        if (a === 'Other') return 1
-        if (b === 'Other') return -1
-        const ai = TOP_PROVIDERS.indexOf(a)
-        const bi = TOP_PROVIDERS.indexOf(b)
-        if (ai !== -1 && bi !== -1) return ai - bi
-        if (ai !== -1) return -1
-        if (bi !== -1) return 1
-        return a.localeCompare(b)
-      })
-      .map(([provider, models]) => ({
-        provider,
-        models: models.slice().sort((a, b) => this.modelLabel(a).localeCompare(this.modelLabel(b))),
-      }))
+  /** The active search query, or '' when the roster is too short to search. */
+  private activeVoiceQuery(): string {
+    return this.searchableVoices() ? this.voiceQuery.trim() : ''
+  }
+
+  /** House entries are pinned above the browse columns, not repeated inside them. */
+  private pinnedVoices(query: string): ChatModelOption[] {
+    const pinned = this.models.filter((model) => model.house)
+    return query ? filterVoices(pinned, query) : pinned
+  }
+
+  private modelGroups(): VoiceGroup[] {
+    return groupVoices(this.models.filter((model) => !model.house))
+  }
+
+  private voiceSearchGroups(query: string): VoiceGroup[] {
+    return groupVoices(filterVoices(this.models.filter((model) => !model.house), query))
   }
 
   private isCompactViewport(): boolean {
@@ -1519,19 +2128,33 @@ export class ShChatPanel extends LitElement {
     }
     const groups = this.modelGroups()
     this.hoveredProvider = this.activeModelProvider(groups)
+    this.voiceQuery = ''
+    this.pendingPremium = null
     this.modelPickerOpen = true
     if (this.isCompactViewport()) this.announceModelModal(true)
     void this.updateComplete.then(() => {
+      // A long roster is for typing; on a phone the keyboard would cover the sheet,
+      // so there focus stays on the provider list.
+      if (this.searchableVoices() && !this.isCompactViewport()) {
+        const search = this.querySelector<HTMLInputElement>('.model-picker-search-input')
+        if (search) {
+          search.focus()
+          return
+        }
+      }
       const currentProvider = this.activeModelProvider()
       const provider = Array.from(this.querySelectorAll<HTMLButtonElement>('[data-model-provider]'))
         .find(button => button.dataset.modelProvider === currentProvider)
-      provider?.focus()
+      const first = provider ?? this.querySelector<HTMLButtonElement>('[data-model-id]:not(:disabled)')
+      first?.focus()
     })
   }
 
   private closeModelPicker(returnFocus = false): void {
     if (!this.modelPickerOpen) return
     this.modelPickerOpen = false
+    this.voiceQuery = ''
+    this.pendingPremium = null
     if (this.modelOverlayAnnounced) this.announceModelModal(false)
     if (returnFocus) {
       void this.updateComplete.then(() => {
@@ -1545,7 +2168,7 @@ export class ShChatPanel extends LitElement {
     if (event.key === 'Escape') {
       event.preventDefault()
       event.stopPropagation()
-      this.closeModelPicker(true)
+      if (!this.declinePremium()) this.closeModelPicker(true)
       return
     }
     if (!this.modelPickerOpen) {
@@ -1558,7 +2181,9 @@ export class ShChatPanel extends LitElement {
 
     if (event.key === 'Tab' && this.isCompactViewport()) {
       const focusable = Array.from(
-        this.querySelectorAll<HTMLButtonElement>('.model-picker button:not(:disabled)'),
+        this.querySelectorAll<HTMLElement>(
+          '.model-picker button:not(:disabled), .model-picker input:not(:disabled)',
+        ),
       )
       if (focusable.length === 0) return
       const first = focusable[0]
@@ -1574,7 +2199,17 @@ export class ShChatPanel extends LitElement {
     }
 
     const providers = Array.from(this.querySelectorAll<HTMLButtonElement>('[data-model-provider]'))
-    const models = Array.from(this.querySelectorAll<HTMLButtonElement>('[data-model-id]'))
+    const models = Array.from(this.querySelectorAll<HTMLButtonElement>('[data-model-id]:not(:disabled)'))
+
+    // In the search box, ArrowDown steps into the results; everything else types.
+    if (target.classList.contains('model-picker-search-input')) {
+      if (event.key === 'ArrowDown') {
+        event.preventDefault()
+        models[0]?.focus()
+      }
+      return
+    }
+
     const inProviders = providers.includes(target as HTMLButtonElement)
     const group = inProviders ? providers : models
     const index = group.indexOf(target as HTMLButtonElement)
@@ -1586,13 +2221,23 @@ export class ShChatPanel extends LitElement {
       return
     }
     if (event.key === 'ArrowLeft' && !inProviders && index >= 0) {
-      event.preventDefault()
       const provider = providers.find(button => button.dataset.modelProvider === this.activeModelProvider())
-      provider?.focus()
+      if (provider) {
+        event.preventDefault()
+        provider.focus()
+      }
       return
     }
     if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp' && event.key !== 'Home' && event.key !== 'End') return
     if (group.length === 0 || index < 0) return
+    if (event.key === 'ArrowUp' && !inProviders && index === 0) {
+      const search = this.querySelector<HTMLInputElement>('.model-picker-search-input')
+      if (search) {
+        event.preventDefault()
+        search.focus()
+        return
+      }
+    }
     event.preventDefault()
     const next = event.key === 'Home'
       ? 0
@@ -1604,16 +2249,238 @@ export class ShChatPanel extends LitElement {
 
   private selectModel(modelId: string): void {
     if (this.isModelLocked()) return
+    const model = this.models.find((candidate) => candidate.id === modelId)
+    if (model?.disabled === true) return
+    // A premium voice costs noticeably more than House: ask once, in words, before the
+    // choice is made. The voice already in use is not asked about again. Only the
+    // question's own button answers it: a second click on the row asks again.
+    if (model?.premium === true && modelId !== this.currentModel) {
+      this.pendingPremium = modelId
+      void this.updateComplete.then(() => {
+        this.querySelector<HTMLButtonElement>('[data-voice-confirm-accept]')?.focus()
+      })
+      return
+    }
+    this.chooseModel(modelId)
+  }
+
+  /** The choice itself, made: the host is told, and the picker closes. */
+  private chooseModel(modelId: string): void {
+    if (this.isModelLocked()) return
+    if (this.models.find((candidate) => candidate.id === modelId)?.disabled === true) return
+    this.pendingPremium = null
     this.onModelChange?.(modelId)
     this.closeModelPicker(true)
   }
 
+  /**
+   * Say no to the open premium question. True when there was one to say no to. Focus goes back
+   * to the row that raised it (where the person was), and only failing that, when that row is not
+   * on screen any more, to the voice in use, then to the first row.
+   */
+  private declinePremium(): boolean {
+    const raised = this.pendingPremium
+    if (raised === null) return false
+    this.pendingPremium = null
+    void this.updateComplete.then(() => {
+      const rows = Array.from(this.querySelectorAll<HTMLButtonElement>('.model-picker [data-model-id]'))
+      const row = rows.find((candidate) => candidate.dataset.modelId === raised && !candidate.disabled)
+        ?? this.querySelector<HTMLButtonElement>('.model-picker-model.selected')
+        ?? this.querySelector<HTMLButtonElement>('.model-picker-model')
+      row?.focus()
+    })
+    return true
+  }
+
+  /** The one question before a premium voice: what it costs, in the host's words. */
+  private renderPremiumConfirm(): TemplateResult | typeof nothing {
+    const id = this.pendingPremium
+    const model = id === null ? undefined : this.models.find((candidate) => candidate.id === id)
+    // A voice that cannot be picked has no question: an answer that does nothing is not offered.
+    if (!model || model.disabled === true) return nothing
+    const name = this.modelLabel(model)
+    // Focus lands on the answer, and Enter is the whole gesture: so the price is what BOTH answers
+    // are described by, and a screen reader says it before the person can accept it.
+    const noteId = `${this.modelOverlayId}-confirm-note`
+    return html`
+      <div class="model-picker-confirm" data-voice-confirm role="group" aria-label="Confirm ${name}">
+        <span class="model-picker-confirm-copy">
+          <strong>${name}</strong>
+          <span id=${noteId} data-voice-confirm-note>${model.premiumNote ?? 'A short reply in this voice costs noticeably more than House.'}</span>
+        </span>
+        <span class="model-picker-confirm-actions">
+          <button
+            class="model-picker-confirm-accept"
+            type="button"
+            data-voice-confirm-accept
+            aria-describedby=${noteId}
+            @click=${() => this.chooseModel(model.id)}
+          >Use ${name}</button>
+          <button
+            class="model-picker-confirm-cancel"
+            type="button"
+            data-voice-confirm-cancel
+            aria-describedby=${noteId}
+            @click=${() => { this.declinePremium() }}
+          >Cancel</button>
+        </span>
+      </div>
+    `
+  }
+
+  /** One voice: its name, an honest note, and the facts a person weighs: price per
+   * million tokens in and out, context length, and whether it can use tools. A
+   * legacy `{ id, label }` entry renders as just its name. */
+  private renderVoiceOption(model: ChatModelOption): TemplateResult {
+    const selected = model.id === this.currentModel
+    const price = voicePriceSummary(model)
+    const context = formatContextLength(model.contextLength)
+    const tools = voiceToolsBadge(model)
+    // House is the measure: it never says how many times itself it costs.
+    const multiple = model.house ? null : formatVoiceMultiple(model.multipleOfHouse)
+    return html`
+      <button
+        class="model-picker-model ${selected ? 'selected' : ''} ${model.house ? 'house' : ''}"
+        data-model-id=${model.id}
+        role="option"
+        aria-selected="${selected ? 'true' : 'false'}"
+        ?disabled=${model.disabled === true}
+        title=${model.disabledReason ?? nothing}
+        @click=${() => this.selectModel(model.id)}
+      >
+        <span class="model-picker-model-name">${this.modelLabel(model)}</span>
+        ${model.note ? html`<span class="model-picker-model-note">${model.note}</span>` : nothing}
+        ${price || context || tools || multiple || model.premium
+          ? html`<span class="model-picker-model-meta">
+              ${price ? html`<span class="voice-price" title=${price.label}>${price.text}</span>` : nothing}
+              ${multiple ? html`<span class="voice-multiple" title="What a short reply costs, compared with the House default">${multiple}</span>` : nothing}
+              ${context ? html`<span class="voice-context" title="${context} tokens of context">${context} ctx</span>` : nothing}
+              ${tools ? html`<span class="voice-badge ${tools === 'tools' ? 'tools' : 'no-tools'}">${tools}</span>` : nothing}
+              ${model.premium ? html`<span class="voice-badge premium" title="A premium voice: it is confirmed once before it is chosen">premium</span>` : nothing}
+            </span>`
+          : nothing}
+      </button>
+    `
+  }
+
+  private renderVoiceSearch(): TemplateResult | typeof nothing {
+    if (!this.searchableVoices()) return nothing
+    return html`
+      <div class="model-picker-search">
+        <input
+          class="model-picker-search-input"
+          type="search"
+          placeholder="Search ${this.models.length} voices"
+          aria-label="Search voices"
+          autocomplete="off"
+          spellcheck="false"
+          .value=${this.voiceQuery}
+          @input=${(event: Event) => {
+            this.voiceQuery = (event.target as HTMLInputElement).value
+          }}
+        />
+      </div>
+    `
+  }
+
+  private renderPinnedVoices(pinned: readonly ChatModelOption[]): TemplateResult | typeof nothing {
+    if (pinned.length === 0) return nothing
+    return html`
+      <div class="model-picker-pinned" role="listbox" aria-label="House default">
+        <span class="model-picker-group-label" role="presentation">House default</span>
+        ${pinned.map((model) => this.renderVoiceOption(model))}
+      </div>
+    `
+  }
+
+  private renderVoiceFoot(): TemplateResult | typeof nothing {
+    const priced = this.models.some(
+      (model) => model.priceInPerMTok !== undefined || model.priceOutPerMTok !== undefined,
+    )
+    const note = this.accountNote
+    if (!priced && !note) return nothing
+    return html`
+      <div class="model-picker-foot">
+        ${priced ? html`<span class="model-picker-foot-caption">${this.voiceFootnote || 'US dollars per million tokens'}</span>` : nothing}
+        ${note
+          ? html`<span class="model-picker-foot-account" title=${note.hint ?? nothing}>${[note.label, note.value].filter(Boolean).join(' ')}</span>`
+          : nothing}
+      </div>
+    `
+  }
+
+  private renderVoiceBrowse(groups: readonly VoiceGroup[], activeProvider: string | null): TemplateResult {
+    const activeModels = groups.find((group) => group.provider === activeProvider)?.models ?? []
+    return html`
+      <div class="model-picker-body">
+        <div class="model-picker-providers" role="group" aria-label="Model providers">
+          ${groups.map((group) => {
+            const hasSelection = group.models.some((model) => model.id === this.currentModel)
+            const isActive = group.provider === activeProvider
+            return html`
+              <button
+                class="model-picker-provider ${isActive ? 'active' : ''} ${hasSelection ? 'has-selection' : ''}"
+                data-model-provider=${group.provider}
+                data-count=${String(group.models.length)}
+                aria-label="${group.provider} models${hasSelection ? ' (current)' : ''}"
+                aria-pressed="${isActive ? 'true' : 'false'}"
+                @mouseenter=${() => {
+                  this.hoveredProvider = group.provider
+                }}
+                @focus=${() => {
+                  this.hoveredProvider = group.provider
+                }}
+                @click=${() => {
+                  this.hoveredProvider = group.provider
+                }}
+              >
+                ${group.provider}
+              </button>
+            `
+          })}
+        </div>
+        <div class="model-picker-models" role="listbox" aria-label="Models">
+          ${activeModels.map((model) => this.renderVoiceOption(model))}
+        </div>
+      </div>
+    `
+  }
+
+  /** Search results are one list, grouped by maker, across the whole catalogue. */
+  private renderVoiceResults(
+    query: string,
+    groups: readonly VoiceGroup[],
+    pinnedCount: number,
+  ): TemplateResult | typeof nothing {
+    if (groups.length === 0) {
+      // A House match is already showing above; only a true miss says so.
+      return pinnedCount > 0
+        ? nothing
+        : html`
+            <div class="model-picker-body search">
+              <div class="model-picker-empty" role="status">No voices match “${query}”.</div>
+            </div>
+          `
+    }
+    return html`
+      <div class="model-picker-body search">
+        <div class="model-picker-models" role="listbox" aria-label="Matching voices">
+          ${groups.map((group) => html`
+            <div class="model-picker-result-group" role="group" aria-label=${group.provider}>
+              <span class="model-picker-group-label" role="presentation">${group.provider}</span>
+              ${group.models.map((model) => this.renderVoiceOption(model))}
+            </div>
+          `)}
+        </div>
+      </div>
+    `
+  }
+
   private renderModelSelector(): TemplateResult | typeof nothing {
     if (this.models.length === 0) return nothing
-    const groups = this.modelGroups()
-    const activeProvider = this.activeModelProvider(groups)
-    const activeModels = groups.find((group) => group.provider === activeProvider)?.models ?? []
     const locked = this.isModelLocked()
+    const query = this.activeVoiceQuery()
+    const pinned = this.pinnedVoices(query)
     return html`
       <div
         class="model-dropdown model-selector ${this.modelPickerOpen ? 'open' : ''}"
@@ -1622,11 +2489,11 @@ export class ShChatPanel extends LitElement {
         <button
           class="model-selector-trigger ${locked ? 'locked' : ''}"
           @click=${() => this.openModelPicker()}
-          aria-label="Model: ${this.currentModelLabel()}"
+          aria-label="Voice: ${this.currentModelLabel()}"
           aria-haspopup="dialog"
           aria-expanded="${this.modelPickerOpen ? 'true' : 'false'}"
           ?disabled=${locked}
-          title="${locked ? 'Model is locked after the first message' : 'Select model'}"
+          title="${locked ? 'The voice is fixed once a conversation begins' : 'Choose a voice'}"
         >
           <span class="model-name">${this.currentModelLabel()}</span>
           ${locked
@@ -1644,65 +2511,55 @@ export class ShChatPanel extends LitElement {
                 class="model-picker model-picker-sheet"
                 role="dialog"
                 aria-modal=${this.isCompactViewport() ? 'true' : 'false'}
-                aria-label="Choose a model"
+                aria-label="Choose a voice"
               >
                 <div class="model-picker-head">
-                  <strong>Choose a model</strong>
+                  <strong>Choose a voice</strong>
                   <button
                     class="model-picker-close"
                     type="button"
-                    aria-label="Close model picker"
+                    aria-label="Close voice picker"
                     @click=${() => this.closeModelPicker(true)}
                   >
                     ×
                   </button>
                 </div>
-                <div class="model-picker-body">
-                  <div class="model-picker-providers" role="group" aria-label="Model providers">
-                    ${groups.map((group) => {
-                      const hasSelection = group.models.some((model) => model.id === this.currentModel)
-                      const isActive = group.provider === activeProvider
-                      return html`
-                        <button
-                          class="model-picker-provider ${isActive ? 'active' : ''} ${hasSelection ? 'has-selection' : ''}"
-                          data-model-provider=${group.provider}
-                          aria-label="${group.provider} models${hasSelection ? ' (current)' : ''}"
-                          aria-pressed="${isActive ? 'true' : 'false'}"
-                          @mouseenter=${() => {
-                            this.hoveredProvider = group.provider
-                          }}
-                          @focus=${() => {
-                            this.hoveredProvider = group.provider
-                          }}
-                          @click=${() => {
-                            this.hoveredProvider = group.provider
-                          }}
-                        >
-                          ${group.provider}
-                        </button>
-                      `
-                    })}
-                  </div>
-                  <div class="model-picker-models" role="listbox" aria-label="Models">
-                    ${activeModels.map(
-                      (model) => html`
-                        <button
-                          class="model-picker-model ${model.id === this.currentModel ? 'selected' : ''}"
-                          data-model-id=${model.id}
-                          role="option"
-                          aria-selected="${model.id === this.currentModel ? 'true' : 'false'}"
-                          @click=${() => this.selectModel(model.id)}
-                        >
-                          <span class="model-picker-model-name">${this.modelLabel(model)}</span>
-                        </button>
-                      `,
-                    )}
-                  </div>
-                </div>
+                ${this.renderPremiumConfirm()}
+                ${this.renderVoiceSearch()}
+                ${this.renderPinnedVoices(pinned)}
+                ${query
+                  ? this.renderVoiceResults(query, this.voiceSearchGroups(query), pinned.length)
+                  : this.renderVoiceBrowse(this.modelGroups(), this.activeModelProvider())}
+                ${this.renderVoiceFoot()}
               </div>
             `
           : nothing}
       </div>
+    `
+  }
+
+  /** The host's account line (the credit balance) beside the picker. */
+  private renderAccountNote(): TemplateResult | typeof nothing {
+    const note = this.accountNote
+    if (!note) return nothing
+    const action = note.action
+    return html`
+      <span
+        class="account-note ${note.tone ?? ''}"
+        data-account-note
+        title=${note.hint ?? nothing}
+      >
+        ${note.label ? html`<span class="account-note-label">${note.label}</span>` : nothing}
+        ${note.value ? html`<span class="account-note-value">${note.value}</span>` : nothing}
+        ${action && this.onAccountAction
+          ? html`<button
+              class="account-note-action"
+              type="button"
+              data-account-action=${action.id}
+              @click=${() => this.onAccountAction?.(action.id)}
+            >${action.label}</button>`
+          : nothing}
+      </span>
     `
   }
 
@@ -1758,17 +2615,31 @@ export class ShChatPanel extends LitElement {
       ? 'Return conversation to sidebar'
       : 'Expand conversation'
     const presentationSymbol = this.presentation === 'fullscreen' ? '↙' : '⇱'
+    // The buttons the host can honour, in their fixed order. The wide row and the
+    // compact menu draw the same list, so neither can offer what the other hides.
+    const entries: Array<{
+      action: HeaderActionKind
+      label: string
+      symbol: string
+      options: { disabled?: boolean; danger?: boolean }
+    }> = []
+    if (this.headerActionAllowed('save-garden')) {
+      entries.push({ action: 'save-garden', label: 'Save chat to Garden', symbol: '▣', options: { disabled: this.messages.length === 0 } })
+    }
+    if (this.headerActionAllowed('refresh')) {
+      entries.push({ action: 'refresh', label: 'Refresh messages', symbol: '↻', options: {} })
+    }
+    if (this.streaming && this.headerActionAllowed('stop')) {
+      entries.push({ action: 'stop', label: 'Stop generating', symbol: '■', options: { danger: true } })
+    }
+    if (this.headerActionAllowed(presentationAction)) {
+      entries.push({ action: presentationAction, label: presentationLabel, symbol: presentationSymbol, options: {} })
+    }
+    if (entries.length === 0) return nothing
     return html`
       <div class="header-right">
         <div class="header-actions-wide">
-          ${this.renderHeaderActionButton('save-garden', 'Save chat to Garden', '▣', {
-            disabled: this.messages.length === 0,
-          })}
-          ${this.renderHeaderActionButton('refresh', 'Refresh messages', '↻')}
-          ${this.streaming
-            ? this.renderHeaderActionButton('stop', 'Stop generating', '■', { danger: true })
-            : nothing}
-          ${this.renderHeaderActionButton(presentationAction, presentationLabel, presentationSymbol)}
+          ${entries.map(entry => this.renderHeaderActionButton(entry.action, entry.label, entry.symbol, entry.options))}
         </div>
         <div class="compact-header-actions">
           <button
@@ -1784,20 +2655,7 @@ export class ShChatPanel extends LitElement {
           ${this.headerMenuOpen
             ? html`
                 <div class="header-actions-menu" role="menu" aria-label="Chat actions">
-                  ${this.renderHeaderActionButton('save-garden', 'Save chat to Garden', '▣', {
-                    compact: true,
-                    disabled: this.messages.length === 0,
-                  })}
-                  ${this.renderHeaderActionButton('refresh', 'Refresh messages', '↻', { compact: true })}
-                  ${this.streaming
-                    ? this.renderHeaderActionButton('stop', 'Stop generating', '■', {
-                        compact: true,
-                        danger: true,
-                      })
-                    : nothing}
-                  ${this.renderHeaderActionButton(presentationAction, presentationLabel, presentationSymbol, {
-                    compact: true,
-                  })}
+                  ${entries.map(entry => this.renderHeaderActionButton(entry.action, entry.label, entry.symbol, { ...entry.options, compact: true }))}
                 </div>
               `
             : nothing}
@@ -2140,6 +2998,50 @@ export class ShChatPanel extends LitElement {
     `
   }
 
+  /** The slot above the composer (a refusal for credit, the size limit, the heads-up that
+   * credits are starting). It renders what the host projects and gates nothing itself. A
+   * control is drawn only where the host listens: a button that goes nowhere is dead UI. */
+  private renderComposerNotice(): TemplateResult | typeof nothing {
+    const notice = this.composerNotice
+    if (!notice) return nothing
+    const listening = this.onComposerNoticeAction !== undefined
+    const action = listening ? notice.action : undefined
+    const dismiss = listening ? notice.dismiss : undefined
+    return html`
+      <div
+        class="composer-notice ${notice.tone}"
+        data-notice-id=${notice.id}
+        role=${notice.tone === 'blocked' ? 'alert' : 'status'}
+      >
+        <span class="composer-notice-copy">
+          <strong>${notice.title}</strong>
+          ${notice.body ? html`<span>${notice.body}</span>` : nothing}
+          ${notice.detail ? html`<span class="composer-notice-detail">${notice.detail}</span>` : nothing}
+        </span>
+        ${action || dismiss
+          ? html`<span class="composer-notice-actions">
+              ${action
+                ? html`<button
+                    class="banner-action"
+                    type="button"
+                    @click=${() => this.onComposerNoticeAction?.(action.id)}
+                  >${action.label}</button>`
+                : nothing}
+              ${dismiss
+                ? html`<button
+                    class="banner-action banner-dismiss"
+                    type="button"
+                    data-notice-dismiss
+                    aria-label=${`${dismiss.label}: ${notice.title}`}
+                    @click=${() => this.onComposerNoticeAction?.(dismiss.id)}
+                  >${dismiss.label}</button>`
+                : nothing}
+            </span>`
+          : nothing}
+      </div>
+    `
+  }
+
   private renderSendContinuity(): TemplateResult | typeof nothing {
     if (this.sendState === 'ready') return nothing
     const unsettled = this.sendState === 'error' || this.sendState === 'uncertain'
@@ -2174,8 +3076,80 @@ export class ShChatPanel extends LitElement {
               </button>
             `
           : nothing}
+        ${unsettled && this.onSessionAction
+          ? html`
+              <button
+                class="send-retry send-new-chat"
+                type="button"
+                title="Leave this conversation and start a fresh one"
+                @click=${() => this.sessionAction({ type: 'new' })}
+              >
+                New chat
+              </button>
+            `
+          : nothing}
       </div>
     `
+  }
+
+  private formatSeamDate(iso: string): string {
+    const date = new Date(iso)
+    if (Number.isNaN(date.getTime())) return ''
+    try {
+      return date.toLocaleDateString([], { year: 'numeric', month: 'short', day: 'numeric' })
+    } catch {
+      return ''
+    }
+  }
+
+  /** "{n} earlier messages not included · open the original": what the window
+   * left out, said once, above the window. */
+  private renderWindowNote(seam: ChatSeam): TemplateResult {
+    const omitted = Math.max(0, Math.trunc(seam.omittedCount))
+    const said = omitted === 0
+      ? 'The whole conversation is included'
+      : omitted === 1
+        ? '1 earlier message not included'
+        : `${omitted.toLocaleString()} earlier messages not included`
+    return html`
+      <div class="window-note" role="note" data-window-omitted=${String(omitted)}>
+        <span>${said}</span>
+        ${this.onSeamAction
+          ? html`<span aria-hidden="true">·</span>
+            <button
+              class="window-open-original"
+              type="button"
+              @click=${() => this.onSeamAction?.({ type: 'open-original' })}
+            >open the original</button>`
+          : nothing}
+      </div>
+    `
+  }
+
+  /** The seam: where the earlier conversation ends and this one begins, dated and
+   * naming the voice that picked it up, with the one line about where it went. */
+  private renderSeam(seam: ChatSeam): TemplateResult {
+    const date = this.formatSeamDate(seam.pickedUpAt)
+    const line = `— ${date ? `${date} · ` : ''}picked up with ${seam.voiceLabel} —`
+    return html`
+      <div class="seam" data-seam>
+        <span class="seam-line">${line}</span>
+        ${seam.providerNotice
+          ? html`<span class="seam-notice" role="note">${seam.providerNotice}</span>`
+          : nothing}
+      </div>
+    `
+  }
+
+  private renderSeamedConversation(seam: ChatSeam): TemplateResult[] {
+    const carried = this.messages.filter((message) => this.isWindowMessage(message))
+    const spoken = this.messages.filter((message) => !this.isWindowMessage(message))
+    return [
+      this.renderWindowNote(seam),
+      ...carried.map((message) => this.renderMessage(message)),
+      this.renderSeam(seam),
+      ...spoken.map((message) => this.renderMessage(message)),
+    ]
   }
 
   private renderConversationBody(): TemplateResult | TemplateResult[] {
@@ -2186,6 +3160,7 @@ export class ShChatPanel extends LitElement {
         </div>
       `
     }
+    if (this.seam) return this.renderSeamedConversation(this.seam)
     return this.messages.length === 0
       ? this.renderEmptyState()
       : this.messages.map((msg) => this.renderMessage(msg))
@@ -2195,7 +3170,23 @@ export class ShChatPanel extends LitElement {
   // ROOT RENDER
   // ─────────────────────────────────────────────────────────────────────────
 
+  /** A finished conversation shown alone (see `transcriptOnly`): the transcript and
+   * nothing else. No chrome, no composer, no banner, no scroll-to-the-end. */
+  private renderTranscriptOnly(): TemplateResult {
+    return html`
+      <div class="messages-wrapper" data-chat-viewport data-transcript-only @click=${() => this.closeContextMenu()}>
+        <div class="messages-container" data-chat-transcript role="region" tabindex="0" aria-label="Conversation">
+          ${this.messages.length === 0
+            ? html`<p class="transcript-empty">This conversation has no messages to show.</p>`
+            : this.messages.map((msg) => this.renderMessage(msg))}
+        </div>
+        ${this.renderMessageContextMenu()}
+      </div>
+    `
+  }
+
   render(): TemplateResult {
+    if (this.transcriptOnly) return this.renderTranscriptOnly()
     const isReadOnly = this.readOnly
     // Send-gating: the kernel only knows draft-empty + streaming + the HOST's
     // sendDisabled + explicit continuity postures. It NEVER computes credit,
@@ -2226,7 +3217,7 @@ export class ShChatPanel extends LitElement {
         </div>
 
         <div class="header">
-          <div class="header-left">${this.renderModelSelector()}</div>
+          <div class="header-left">${this.renderModelSelector()}${this.renderAccountNote()}</div>
           <div class="header-status" role="status">
             ${this.streaming ? html`<span class="status-streaming">${this.streamingHint()}</span>` : nothing}
           </div>
@@ -2271,9 +3262,11 @@ export class ShChatPanel extends LitElement {
       </div>
 
       <div class="composer" data-chat-footer role="group" aria-label="Chat composer">
+        ${this.renderComposerNotice()}
         ${this.renderPromptCards()}
         ${this.renderComposerControls()}
         ${this.renderSendContinuity()}
+        ${this.renderAccessNote()}
         <div class="composer-heading">
           <span class="composer-label">Write to ${this.assistantLabel}</span>
           <span class="composer-hint">${this.composerGuidanceText()}</span>
@@ -2635,8 +3628,12 @@ export class ShChatPanel extends LitElement {
     sh-chat-panel .model-picker-body {
       display: grid;
       grid-template-columns: 132px minmax(180px, 1fr);
-      grid-template-rows: minmax(0, 280px);
+      grid-template-rows: minmax(0, 340px);
       min-height: 0;
+    }
+
+    sh-chat-panel .model-picker-body.search {
+      grid-template-columns: minmax(0, 1fr);
     }
 
     sh-chat-panel .model-picker-close {
@@ -2689,7 +3686,10 @@ export class ShChatPanel extends LitElement {
 
     sh-chat-panel .model-picker-model {
       display: flex;
-      align-items: center;
+      flex-direction: column;
+      align-items: flex-start;
+      justify-content: center;
+      gap: 2px;
       width: 100%;
       min-height: 34px;
       padding: 8px 14px;
@@ -3196,8 +4196,10 @@ export class ShChatPanel extends LitElement {
        figures makes it recede and stop jittering as the minute ticks over. */
     sh-chat-panel .message-meta {
       display: flex;
+      flex-wrap: wrap;
       align-items: center;
-      gap: 8px;
+      column-gap: 8px;
+      row-gap: 2px;
       width: min(100%, 42rem);
       padding-left: 16px;
       font-family: var(--mn-font-utility, var(--mn-font-sans, system-ui, sans-serif));
@@ -3205,6 +4207,11 @@ export class ShChatPanel extends LitElement {
       font-variant-numeric: tabular-nums;
       color: var(--mn-color-text-tertiary, #9b9b9b);
       box-sizing: border-box;
+    }
+
+    /* The line wraps between its pieces, never inside one ("11:10 PM" over two lines reads as two things). */
+    sh-chat-panel .message-meta > :is(.message-time, .message-voice, .message-annotation) {
+      white-space: nowrap;
     }
 
     sh-chat-panel .message.user .message-meta {
@@ -3407,6 +4414,7 @@ export class ShChatPanel extends LitElement {
       display: flex;
       align-items: center;
       gap: 6px;
+      min-width: 0;
     }
 
     sh-chat-panel .tool-toggle {
@@ -3421,8 +4429,49 @@ export class ShChatPanel extends LitElement {
     }
 
     sh-chat-panel .tool-call-name {
+      overflow: hidden;
       font-size: 13px;
       font-family: var(--mn-font-mono, ui-monospace, monospace);
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    sh-chat-panel .tool-kind,
+    sh-chat-panel .tool-testimony-label {
+      display: inline-flex;
+      align-items: center;
+      min-height: 18px;
+      padding: 0 5px;
+      border-radius: 999px;
+      font-size: 10px;
+      font-weight: 750;
+      letter-spacing: .02em;
+      white-space: nowrap;
+    }
+
+    sh-chat-panel .tool-kind {
+      color: var(--mn-color-text-secondary, #6b6b6b);
+      background: var(--mn-color-surface-subtle, #f8f8f8);
+    }
+
+    sh-chat-panel .tool-call[data-activity-kind='bash'] .tool-kind {
+      color: #7c3f00;
+      background: #fff4dd;
+    }
+
+    sh-chat-panel .tool-call[data-activity-kind='garden'] .tool-kind {
+      color: #166534;
+      background: #eaf8ef;
+    }
+
+    sh-chat-panel .tool-call[data-activity-kind='kubernetes'] .tool-kind {
+      color: #1d4ed8;
+      background: #eff6ff;
+    }
+
+    sh-chat-panel .tool-call[data-activity-kind='helm'] .tool-kind {
+      color: #7e22ce;
+      background: #faf5ff;
     }
 
     sh-chat-panel .tool-status-icon {
@@ -3461,6 +4510,52 @@ export class ShChatPanel extends LitElement {
       border-top: 1px solid var(--mn-color-border, #e5e5e5);
     }
 
+    sh-chat-panel .tool-testimony {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 5px;
+      padding: 0 10px 7px 32px;
+    }
+
+    sh-chat-panel .tool-testimony-label {
+      border: 1px solid var(--mn-color-border, #e5e5e5);
+      color: var(--mn-color-text-secondary, #6b6b6b);
+      background: var(--mn-color-surface-subtle, #f8f8f8);
+    }
+
+    sh-chat-panel .tool-testimony-label[data-testimony='redacted'] {
+      color: #9a3412;
+      border-color: #fed7aa;
+      background: #fff7ed;
+    }
+
+    sh-chat-panel .tool-testimony-label[data-testimony='truncated'] {
+      color: #92400e;
+      border-color: #fde68a;
+      background: #fffbeb;
+    }
+
+    sh-chat-panel .tool-testimony-label[data-testimony='provenance'] {
+      color: #1d4ed8;
+      border-color: #bfdbfe;
+      background: #eff6ff;
+    }
+
+    sh-chat-panel .tool-document-link {
+      margin-left: auto;
+      padding: 0;
+      border: 0;
+      color: var(--mn-color-accent, #2563eb);
+      background: transparent;
+      cursor: pointer;
+      font: 650 11px/1.4 var(--mn-font-chrome, system-ui, sans-serif);
+    }
+
+    sh-chat-panel .tool-document-link:hover {
+      text-decoration: underline;
+    }
+
     sh-chat-panel .tool-data-block {
       border-top: 1px solid var(--mn-color-border, #e5e5e5);
       padding: 8px 10px;
@@ -3489,6 +4584,29 @@ export class ShChatPanel extends LitElement {
       font-size: 11px;
       line-height: 1.45;
       white-space: pre-wrap;
+    }
+
+    /* A finished conversation that kept no output for a call says so, quietly. */
+    sh-chat-panel .tool-output-missing {
+      margin: 0;
+      color: var(--mn-color-text-secondary, #6b6b6b);
+      font-size: 11px;
+      font-style: italic;
+    }
+
+    sh-chat-panel .transcript-empty {
+      margin: 24px auto;
+      max-width: 28rem;
+      color: var(--mn-color-text-secondary, #6b6b6b);
+      font-size: 0.9rem;
+      line-height: 1.5;
+      text-align: center;
+    }
+
+    /* The transcript scrolls, so a keyboard has to be able to reach it. */
+    sh-chat-panel [data-transcript-only] .messages-container:focus-visible {
+      outline: 2px solid var(--mn-focus-ring-color, #376d57);
+      outline-offset: -2px;
     }
 
     sh-chat-panel .tool-call.error {
@@ -3547,7 +4665,7 @@ export class ShChatPanel extends LitElement {
     /* MESSAGE CONTEXT MENU */
     sh-chat-panel .chat-message-menu {
       position: fixed;
-      z-index: 1000;
+      z-index: var(--mn-z-dropdown, 1000);
       min-width: 190px;
       padding: 4px;
       border: 1px solid var(--mn-color-border, #e5e5e5);
@@ -3933,7 +5051,7 @@ export class ShChatPanel extends LitElement {
       left: 50%;
       bottom: 100px;
       transform: translateX(-50%);
-      z-index: 1000;
+      z-index: var(--mn-z-toast, 1600);
       padding: 6px 12px;
       border-radius: 6px;
       background: var(--mn-color-text-primary, #1a1a1a);
@@ -4243,6 +5361,10 @@ export class ShChatPanel extends LitElement {
        and focus; reserve footer space without overlaying its rich controls. */
     sh-chat-panel hoja-editor[posture='composer'] .hoja-editor__footer {
       padding-inline-end: 6rem;
+    }
+
+    sh-chat-panel hoja-editor[posture='composer'] .hoja-editor__key-hint {
+      display: none;
     }
 
     sh-chat-panel .clear-button {
@@ -4728,6 +5850,47 @@ export class ShChatPanel extends LitElement {
       color: var(--mn-color-danger, #ef4444);
     }
 
+    /* Garden conversation starters are compact actions in the desktop pane. */
+    @media (min-width: 601px) {
+    sh-chat-panel:is(:not([data-skin]), [data-skin='garden']) .empty-state {
+      gap: 8px;
+      padding-top: clamp(36px, 9vh, 76px);
+    }
+    sh-chat-panel:is(:not([data-skin]), [data-skin='garden']) .empty-icon {
+      width: 56px;
+      height: 56px;
+      border: 1px solid var(--mn-garden-card-edge, var(--mn-color-border-subtle, #d8ded9));
+      border-radius: 18px;
+      background: var(--mn-color-surface-accent, #edf6ef);
+      color: var(--mn-color-text-accent, #376d57);
+      opacity: 1;
+    }
+    sh-chat-panel:is(:not([data-skin]), [data-skin='garden']) .empty-suggestions {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      max-width: 400px;
+      margin-top: 16px;
+      padding-top: 0;
+      border-top: 0;
+    }
+    sh-chat-panel:is(:not([data-skin]), [data-skin='garden']) .suggestion-btn {
+      min-height: 62px;
+      justify-content: flex-start;
+      padding: 9px 12px;
+      border: 1px solid var(--mn-garden-card-edge, var(--mn-color-border-subtle, #d8ded9));
+      border-radius: 13px;
+      background: var(--mn-color-surface-raised, #fff);
+      box-shadow: var(--mn-garden-card-shadow, none);
+      color: var(--mn-color-text-secondary, #58665c);
+      font: 13px/1.35 var(--mn-font-sans, system-ui, sans-serif);
+      text-align: left;
+    }
+    sh-chat-panel:is(:not([data-skin]), [data-skin='garden']) .suggestion-icon {
+      color: var(--mn-color-text-accent, #376d57);
+    }
+    }
+
     /* Medium remains touch-capable even while it keeps the desktop chrome. */
     @media (max-width: 1024px) {
       sh-chat-panel :is(.connection-banner.continuity .banner-action, .send-retry) {
@@ -4910,7 +6073,7 @@ export class ShChatPanel extends LitElement {
       sh-chat-panel .model-picker-backdrop {
         position: fixed;
         inset: 0;
-        z-index: 1090;
+        z-index: var(--mn-z-dropdown-backdrop, 900);
         display: block;
         background: rgba(0, 0, 0, 0.34);
       }
@@ -4918,7 +6081,7 @@ export class ShChatPanel extends LitElement {
       sh-chat-panel .model-picker {
         position: fixed;
         inset: auto 8px max(8px, var(--mn-viewport-inset-bottom, env(safe-area-inset-bottom))) 8px;
-        z-index: 1100;
+        z-index: var(--mn-z-dropdown, 1000);
         width: auto;
         min-width: 0;
         max-height: min(72dvh, 560px);
@@ -5240,6 +6403,85 @@ export class ShChatPanel extends LitElement {
         width: var(--sh-chat-compact-target);
         height: var(--sh-chat-compact-target);
       }
+
+      /* Compact conversation: one calm identity row, then session controls. */
+      sh-chat-panel .chat-chrome {
+        grid-template-columns: minmax(0, 1fr) auto;
+        grid-template-areas:
+          'identity actions'
+          'model slots';
+        gap: 3px 8px;
+        padding: max(8px, env(safe-area-inset-top)) 12px 9px;
+        background: var(--mn-color-surface-chrome, #f5f3ed);
+      }
+      sh-chat-panel .super-bar-identity {
+        min-height: 42px;
+        padding-inline: 4px;
+      }
+      sh-chat-panel .super-bar-icon { font-size: 17px; color: var(--mn-color-text-accent, #376d57); }
+      sh-chat-panel .super-bar-sophia { font-size: 17px; letter-spacing: -0.025em; text-transform: none; }
+      sh-chat-panel .super-bar-sep { display: none; }
+      sh-chat-panel .super-bar-chat-title {
+        padding-left: 8px;
+        border-left: 1px solid var(--mn-color-border-subtle, #d8ded9);
+        font-size: 12px;
+      }
+      sh-chat-panel .header-status { display: none; }
+      sh-chat-panel .model-selector-trigger {
+        min-height: 36px;
+        border-radius: 12px;
+        background: var(--mn-color-surface-raised, #fff);
+      }
+      sh-chat-panel .slot-indicator {
+        width: 36px;
+        height: 36px;
+        border-radius: 11px;
+      }
+      sh-chat-panel .messages-container { padding: 18px 16px 24px; }
+      sh-chat-panel .empty-state {
+        gap: 7px;
+        padding: clamp(16px, 4vh, 32px) 4px 14px;
+      }
+      sh-chat-panel .empty-icon {
+        width: 56px;
+        height: 56px;
+        margin-bottom: 5px;
+        border: 1px solid var(--mn-garden-card-edge, var(--mn-color-border-subtle, #d8ded9));
+        border-radius: 18px;
+        background: var(--mn-color-surface-accent, #edf6ef);
+        opacity: 1;
+      }
+      sh-chat-panel .empty-eyebrow { font-size: 10px; }
+      sh-chat-panel .empty-title { font-size: clamp(25px, 7vw, 31px); letter-spacing: -0.04em; }
+      sh-chat-panel .empty-description { max-width: 31ch; font-size: 14px; line-height: 1.45; }
+      sh-chat-panel .empty-suggestions {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+        max-width: 100%;
+        margin-top: 15px;
+        padding-top: 0;
+        border-top: 0;
+      }
+      sh-chat-panel .suggestion-btn {
+        min-height: 64px;
+        align-items: flex-start;
+        padding: 9px 14px;
+        border: 1px solid var(--mn-garden-card-edge, var(--mn-color-border-subtle, #d8ded9));
+        border-radius: 14px;
+        background: var(--mn-color-surface-raised, #fff);
+        box-shadow: var(--mn-garden-card-shadow, none);
+        font: 13px/1.35 var(--mn-font-sans, system-ui, sans-serif);
+      }
+      sh-chat-panel .suggestion-icon { color: var(--mn-color-text-accent, #376d57); }
+      sh-chat-panel .composer {
+        padding: 11px 12px calc(11px + var(--mn-viewport-inset-bottom, env(safe-area-inset-bottom)));
+        border-top-color: var(--mn-color-border-subtle, #d8ded9);
+        background: var(--mn-color-surface-chrome, #f5f3ed);
+      }
+      sh-chat-panel .composer-heading { margin-bottom: 8px; }
+      sh-chat-panel .composer-label { font-size: 14px; }
+      sh-chat-panel .composer-hint { display: none; }
     }
 
     @media (prefers-reduced-motion: reduce) {
@@ -5256,40 +6498,40 @@ export class ShChatPanel extends LitElement {
     /* Skin material roles. These live after the light/dark rules so the 98 and
        Glass token sets can carry every small chat corner through one inherited
        seam, even when this panel is mounted inside <sh-chat-host>'s shadow root. */
-    sh-chat-panel:is([data-skin='98'], [data-skin='glass']) {
+    sh-chat-panel:is([data-skin='98'], [data-skin='glass'], [data-skin='hotdog-stand']) {
       scrollbar-color: var(--mn-scrollbar-thumb-solid, auto) var(--mn-scrollbar-track, transparent);
     }
-    sh-chat-panel:is([data-skin='98'], [data-skin='glass']) .super-bar {
+    sh-chat-panel:is([data-skin='98'], [data-skin='glass'], [data-skin='hotdog-stand']) .super-bar {
       background: var(--mn-chat-superbar-bg, color-mix(in srgb, var(--mn-color-surface-chrome, #f3f4f6) 52%, transparent));
       color: var(--mn-chat-superbar-text, var(--mn-color-text-primary));
       box-shadow: var(--mn-shadow-chrome, none);
       backdrop-filter: var(--mn-window-backdrop-filter, none);
     }
-    sh-chat-panel:is([data-skin='98'], [data-skin='glass']) .super-bar-sophia {
+    sh-chat-panel:is([data-skin='98'], [data-skin='glass'], [data-skin='hotdog-stand']) .super-bar-sophia {
       color: var(--mn-chat-superbar-text, var(--mn-color-text-primary));
     }
-    sh-chat-panel:is([data-skin='98'], [data-skin='glass']) .super-bar-icon,
-    sh-chat-panel:is([data-skin='98'], [data-skin='glass']) .super-bar-sep,
-    sh-chat-panel:is([data-skin='98'], [data-skin='glass']) .super-bar-chat-title {
+    sh-chat-panel:is([data-skin='98'], [data-skin='glass'], [data-skin='hotdog-stand']) .super-bar-icon,
+    sh-chat-panel:is([data-skin='98'], [data-skin='glass'], [data-skin='hotdog-stand']) .super-bar-sep,
+    sh-chat-panel:is([data-skin='98'], [data-skin='glass'], [data-skin='hotdog-stand']) .super-bar-chat-title {
       color: var(--mn-chat-superbar-text-muted, var(--mn-color-text-secondary));
     }
-    sh-chat-panel:is([data-skin='98'], [data-skin='glass']) .header {
+    sh-chat-panel:is([data-skin='98'], [data-skin='glass'], [data-skin='hotdog-stand']) .header {
       background: var(--mn-chat-header-bg, color-mix(in srgb, var(--mn-color-surface-panel, #fff) 82%, transparent));
       backdrop-filter: var(--mn-window-backdrop-filter, none);
     }
-    sh-chat-panel:is([data-skin='98'], [data-skin='glass']) .messages-container {
+    sh-chat-panel:is([data-skin='98'], [data-skin='glass'], [data-skin='hotdog-stand']) .messages-container {
       background: var(--mn-chat-transcript-bg, var(--mn-color-surface-base, #fff));
     }
-    sh-chat-panel:is([data-skin='98'], [data-skin='glass']) .message.assistant .message-bubble {
+    sh-chat-panel:is([data-skin='98'], [data-skin='glass'], [data-skin='hotdog-stand']) .message.assistant .message-bubble {
       background: var(--mn-chat-assistant-bg, var(--mn-color-surface-subtle, #f5f5f5));
       box-shadow: var(--mn-shadow-card, none);
       backdrop-filter: var(--mn-window-backdrop-filter, none);
     }
-    sh-chat-panel:is([data-skin='98'], [data-skin='glass']) .message.user .message-bubble {
+    sh-chat-panel:is([data-skin='98'], [data-skin='glass'], [data-skin='hotdog-stand']) .message.user .message-bubble {
       background: var(--mn-chat-user-bg, var(--mn-color-accent, #2563eb));
       box-shadow: var(--mn-shadow-primary, none);
     }
-    sh-chat-panel:is([data-skin='98'], [data-skin='glass']) :is(
+    sh-chat-panel:is([data-skin='98'], [data-skin='glass'], [data-skin='hotdog-stand']) :is(
       .slot-indicator,
       .icon-button,
       .model-selector-trigger,
@@ -5305,7 +6547,7 @@ export class ShChatPanel extends LitElement {
       border: var(--mn-chat-control-border, revert-layer);
       border-radius: var(--mn-radius-control, 6px);
     }
-    sh-chat-panel:is([data-skin='98'], [data-skin='glass']) :is(
+    sh-chat-panel:is([data-skin='98'], [data-skin='glass'], [data-skin='hotdog-stand']) :is(
       .slot-indicator,
       .icon-button,
       .model-selector-trigger,
@@ -5319,7 +6561,7 @@ export class ShChatPanel extends LitElement {
       background: var(--mn-chat-control-bg, revert-layer);
       box-shadow: var(--mn-chat-control-shadow, revert-layer);
     }
-    sh-chat-panel:is([data-skin='98'], [data-skin='glass']) :is(
+    sh-chat-panel:is([data-skin='98'], [data-skin='glass'], [data-skin='hotdog-stand']) :is(
       .slot-indicator,
       .icon-button,
       .model-selector-trigger,
@@ -5333,7 +6575,7 @@ export class ShChatPanel extends LitElement {
       background: var(--mn-control-background-active, revert-layer);
       box-shadow: var(--mn-control-shadow-active, revert-layer);
     }
-    sh-chat-panel:is([data-skin='98'], [data-skin='glass']) :is(
+    sh-chat-panel:is([data-skin='98'], [data-skin='glass'], [data-skin='hotdog-stand']) :is(
       .model-picker,
       .chat-message-menu,
       .prompt-card,
@@ -5344,37 +6586,676 @@ export class ShChatPanel extends LitElement {
       border-radius: var(--mn-radius-surface, 8px);
       backdrop-filter: var(--mn-window-backdrop-filter, none);
     }
-    sh-chat-panel:is([data-skin='98'], [data-skin='glass']) :is(.model-picker, .chat-message-menu) {
+    sh-chat-panel:is([data-skin='98'], [data-skin='glass'], [data-skin='hotdog-stand']) :is(.model-picker, .chat-message-menu) {
       background: var(--mn-color-surface-elevated);
       box-shadow: var(--mn-shadow-popover);
     }
-    sh-chat-panel:is([data-skin='98'], [data-skin='glass']) :is(.prompt-card, .tool-call, .surface-action, .composer-control-group) {
+    sh-chat-panel:is([data-skin='98'], [data-skin='glass'], [data-skin='hotdog-stand']) :is(.prompt-card, .tool-call, .surface-action, .composer-control-group) {
       background: var(--mn-color-surface-raised);
       box-shadow: var(--mn-shadow-card, none);
     }
-    sh-chat-panel:is([data-skin='98'], [data-skin='glass']) .composer {
+    sh-chat-panel:is([data-skin='98'], [data-skin='glass'], [data-skin='hotdog-stand']) .composer {
       background: var(--mn-chat-header-bg, var(--mn-color-surface-panel));
       backdrop-filter: var(--mn-window-backdrop-filter, none);
     }
-    sh-chat-panel:is([data-skin='98'], [data-skin='glass']) hoja-editor[posture='composer'] .hoja-editor__frame,
-    sh-chat-panel:is([data-skin='98'], [data-skin='glass']) .prompt-freeform-input,
-    sh-chat-panel:is([data-skin='98'], [data-skin='glass']) .prompt-option-preview,
-    sh-chat-panel:is([data-skin='98'], [data-skin='glass']) .transcript-json {
+    sh-chat-panel:is([data-skin='98'], [data-skin='glass'], [data-skin='hotdog-stand']) hoja-editor[posture='composer'] .hoja-editor__frame,
+    sh-chat-panel:is([data-skin='98'], [data-skin='glass'], [data-skin='hotdog-stand']) .prompt-freeform-input,
+    sh-chat-panel:is([data-skin='98'], [data-skin='glass'], [data-skin='hotdog-stand']) .prompt-option-preview,
+    sh-chat-panel:is([data-skin='98'], [data-skin='glass'], [data-skin='hotdog-stand']) .transcript-json {
       box-shadow: var(--mn-control-shadow-active, none);
     }
-    sh-chat-panel:is([data-skin='98'], [data-skin='glass']) :is(.messages-container, .model-picker-providers, .model-picker-models, .history-list)::-webkit-scrollbar {
+    sh-chat-panel:is([data-skin='98'], [data-skin='glass'], [data-skin='hotdog-stand']) :is(.messages-container, .model-picker-providers, .model-picker-models, .history-list)::-webkit-scrollbar {
       width: 13px;
       height: 13px;
     }
-    sh-chat-panel:is([data-skin='98'], [data-skin='glass']) :is(.messages-container, .model-picker-providers, .model-picker-models, .history-list)::-webkit-scrollbar-track {
+    sh-chat-panel:is([data-skin='98'], [data-skin='glass'], [data-skin='hotdog-stand']) :is(.messages-container, .model-picker-providers, .model-picker-models, .history-list)::-webkit-scrollbar-track {
       background: var(--mn-scrollbar-track, transparent);
     }
-    sh-chat-panel:is([data-skin='98'], [data-skin='glass']) :is(.messages-container, .model-picker-providers, .model-picker-models, .history-list)::-webkit-scrollbar-thumb {
+    sh-chat-panel:is([data-skin='98'], [data-skin='glass'], [data-skin='hotdog-stand']) :is(.messages-container, .model-picker-providers, .model-picker-models, .history-list)::-webkit-scrollbar-thumb {
       border: 2px solid transparent;
       border-radius: var(--mn-radius-control, 8px);
       background: var(--mn-scrollbar-thumb, var(--mn-color-border-strong));
       background-clip: padding-box;
       box-shadow: var(--mn-control-shadow, none);
+    }
+
+    /* VOICE PICKER — a searchable catalogue with the House default pinned and the
+       facts a person weighs (price, context, tools) on every entry. */
+    sh-chat-panel .header-left {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 4px 8px;
+      min-width: 0;
+    }
+
+    sh-chat-panel .model-picker-search {
+      flex: 0 0 auto;
+      padding: 8px 10px;
+      border-bottom: 1px solid var(--mn-color-border, #e5e5e5);
+    }
+
+    sh-chat-panel .model-picker-search-input {
+      width: 100%;
+      box-sizing: border-box;
+      min-height: 32px;
+      padding: 6px 10px;
+      border: 1px solid var(--mn-color-border, #e5e5e5);
+      border-radius: var(--mn-radius-control, 6px);
+      background: var(--mn-color-surface-base, #fff);
+      color: var(--mn-color-text-primary, #1a1a1a);
+      font: 13px/1.3 var(--mn-font-sans, system-ui, sans-serif);
+    }
+
+    sh-chat-panel .model-picker-search-input:focus-visible {
+      outline: 2px solid var(--mn-color-accent, #2563eb);
+      outline-offset: -1px;
+    }
+
+    sh-chat-panel .model-picker-pinned {
+      display: flex;
+      flex: 0 0 auto;
+      flex-direction: column;
+      padding: 4px 0 6px;
+      border-bottom: 1px solid var(--mn-color-border, #e5e5e5);
+      background: color-mix(in srgb, var(--mn-color-accent, #587a69) 7%, var(--mn-color-surface-raised, #f5f5f5));
+    }
+
+    sh-chat-panel .model-picker-group-label {
+      display: block;
+      padding: 8px 14px 2px;
+      color: var(--mn-color-text-tertiary, #7e7a72);
+      font: 650 10px/1.2 var(--mn-font-utility, var(--mn-font-sans, system-ui, sans-serif));
+      letter-spacing: 0.09em;
+      text-transform: uppercase;
+    }
+
+    sh-chat-panel .model-picker-model-note {
+      color: var(--mn-color-text-secondary, #6b6b6b);
+      font-size: 11px;
+      font-weight: 400;
+    }
+
+    sh-chat-panel .model-picker-model-meta {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 2px 8px;
+      color: var(--mn-color-text-secondary, #6b6b6b);
+      font: 400 11px/1.4 var(--mn-font-utility, var(--mn-font-sans, system-ui, sans-serif));
+      font-variant-numeric: tabular-nums;
+    }
+
+    sh-chat-panel .model-picker-model.selected .model-picker-model-meta,
+    sh-chat-panel .model-picker-model.selected .model-picker-model-note {
+      color: inherit;
+      opacity: 0.85;
+    }
+
+    sh-chat-panel .voice-badge {
+      padding: 0 6px;
+      border: 1px solid color-mix(in srgb, currentColor 32%, transparent);
+      border-radius: 999px;
+      font-size: 10px;
+      line-height: 16px;
+      letter-spacing: 0.02em;
+    }
+
+    sh-chat-panel .voice-badge.no-tools {
+      color: var(--mn-color-text-tertiary, #9b9b9b);
+    }
+
+    sh-chat-panel .voice-badge.premium {
+      color: var(--mn-color-warning-text, #92400e);
+    }
+
+    /* The multiple of House: a quiet fact beside the price, not a verdict. */
+    sh-chat-panel .voice-multiple {
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+
+    /* The one question before a premium voice. It sits above the list, where a scroll
+       cannot hide it. */
+    sh-chat-panel .model-picker-confirm {
+      display: flex;
+      flex: 0 0 auto;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px 12px;
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--mn-color-border, #e5e5e5);
+      background: var(--mn-color-warning-surface, #fffbeb);
+      color: var(--mn-color-warning-strong, #92400e);
+      font: 12px/1.4 var(--mn-font-sans, system-ui, sans-serif);
+    }
+
+    sh-chat-panel .model-picker-confirm-copy {
+      display: flex;
+      min-width: 0;
+      flex: 1 1 180px;
+      flex-direction: column;
+      gap: 1px;
+    }
+
+    sh-chat-panel .model-picker-confirm-copy strong {
+      font-weight: var(--mn-font-weight-semibold, 600);
+    }
+
+    sh-chat-panel .model-picker-confirm-actions {
+      display: inline-flex;
+      gap: 6px;
+    }
+
+    sh-chat-panel .model-picker-confirm-actions button {
+      min-height: 30px;
+      padding: 4px 10px;
+      border: 1px solid color-mix(in srgb, currentColor 45%, transparent);
+      border-radius: var(--mn-radius-control, 6px);
+      background: transparent;
+      color: inherit;
+      cursor: pointer;
+      font: inherit;
+    }
+
+    sh-chat-panel .model-picker-confirm-actions .model-picker-confirm-accept {
+      background: color-mix(in srgb, currentColor 12%, transparent);
+      font-weight: var(--mn-font-weight-semibold, 600);
+    }
+
+    sh-chat-panel .model-picker-confirm-actions button:focus-visible {
+      outline: 2px solid var(--mn-color-accent, #2563eb);
+      outline-offset: 1px;
+    }
+
+    sh-chat-panel .model-picker-model:disabled {
+      cursor: not-allowed;
+      opacity: 0.5;
+    }
+
+    /* The count rides in CSS so a provider button's text stays just its name. */
+    sh-chat-panel .model-picker-provider::after {
+      margin-left: 6px;
+      color: var(--mn-color-text-tertiary, #9b9b9b);
+      content: attr(data-count);
+      font-size: 10px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    sh-chat-panel .model-picker-empty {
+      padding: 16px 14px;
+      color: var(--mn-color-text-secondary, #6b6b6b);
+      font: 13px/1.4 var(--mn-font-sans, system-ui, sans-serif);
+    }
+
+    sh-chat-panel .model-picker-foot {
+      display: flex;
+      flex: 0 0 auto;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 6px 12px;
+      border-top: 1px solid var(--mn-color-border, #e5e5e5);
+      color: var(--mn-color-text-tertiary, #7e7a72);
+      font: 11px/1.3 var(--mn-font-utility, var(--mn-font-sans, system-ui, sans-serif));
+    }
+
+    sh-chat-panel .account-note {
+      display: inline-flex;
+      flex: 0 0 auto;
+      align-items: baseline;
+      gap: 5px;
+      padding: 3px 8px;
+      border: 1px solid var(--mn-color-border, #e5e5e5);
+      border-radius: 999px;
+      color: var(--mn-color-text-secondary, #6b6b6b);
+      font: 11px/1.3 var(--mn-font-utility, var(--mn-font-sans, system-ui, sans-serif));
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+
+    sh-chat-panel .account-note.low {
+      color: var(--mn-color-warning-text, #92400e);
+      border-color: color-mix(in srgb, currentColor 40%, transparent);
+    }
+
+    sh-chat-panel .account-note.out {
+      color: var(--mn-color-danger, #b91c1c);
+      border-color: color-mix(in srgb, currentColor 40%, transparent);
+    }
+
+    sh-chat-panel .account-note-value {
+      color: var(--mn-color-text-primary, #1a1a1a);
+      font-weight: 650;
+    }
+
+    sh-chat-panel .account-note-action {
+      padding: 0 2px;
+      border: 0;
+      background: transparent;
+      color: inherit;
+      cursor: pointer;
+      font: inherit;
+      font-weight: 650;
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+
+    sh-chat-panel .account-note-action:focus-visible {
+      outline: 2px solid var(--mn-color-accent, #2563eb);
+      outline-offset: 2px;
+    }
+
+    /* The line beside a reply (its cost): quiet, so it is read only by the person who looks. */
+    sh-chat-panel .message-annotation {
+      color: var(--mn-color-text-tertiary, #9b9b9b);
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* VOICE MARKS + THE SEAM — the window is what was sent, read-only, in the
+       voice the record names; the seam is where this conversation begins. */
+    sh-chat-panel .message-voice {
+      color: var(--mn-color-text-tertiary, #9b9b9b);
+    }
+
+    sh-chat-panel .message-voice[data-voice-basis='unrecorded'] {
+      font-style: italic;
+    }
+
+    sh-chat-panel .window-note {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 4px 8px;
+      color: var(--mn-color-text-tertiary, #7e7a72);
+      font: 12px/1.4 var(--mn-font-utility, var(--mn-font-sans, system-ui, sans-serif));
+    }
+
+    sh-chat-panel .window-open-original {
+      min-height: 24px;
+      padding: 2px 4px;
+      border: 0;
+      background: transparent;
+      color: var(--mn-color-text-accent, var(--mn-color-accent, #2563eb));
+      cursor: pointer;
+      font: inherit;
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+
+    sh-chat-panel .window-open-original:focus-visible {
+      outline: 2px solid var(--mn-color-accent, #2563eb);
+      outline-offset: 2px;
+    }
+
+    sh-chat-panel .seam {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      margin: 4px 0 2px;
+      padding: 10px 0;
+      border-top: 1px solid var(--mn-color-border, #e5e5e5);
+      border-bottom: 1px solid var(--mn-color-border, #e5e5e5);
+      color: var(--mn-color-text-secondary, #6b6b6b);
+      font: 12px/1.4 var(--mn-font-utility, var(--mn-font-sans, system-ui, sans-serif));
+      text-align: center;
+    }
+
+    sh-chat-panel .seam-line {
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0.02em;
+    }
+
+    sh-chat-panel .seam-notice {
+      max-width: 34rem;
+      color: var(--mn-color-text-tertiary, #7e7a72);
+      font-size: 11px;
+    }
+
+    /* Window messages are quiet: no accent dot, no filled bubble. */
+    sh-chat-panel .message.assistant.window .message-author::before {
+      display: none;
+    }
+
+    sh-chat-panel .message.assistant.window .message-bubble {
+      border-left-color: var(--mn-color-border-strong, #cfcfcf);
+    }
+
+    sh-chat-panel .message.user.window .message-bubble {
+      border: 1px solid var(--mn-color-border, #e5e5e5);
+      background: var(--mn-color-surface-raised, #f5f5f5);
+      color: var(--mn-color-text-primary, #1a1a1a);
+      box-shadow: none;
+    }
+
+    /* THE COMPOSER NOTICE (a refusal for credit, the size limit). */
+    sh-chat-panel .composer-notice {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 8px;
+      padding: 8px 12px;
+      border: 1px solid var(--mn-color-border, #e5e5e5);
+      border-radius: var(--mn-radius-surface, 10px);
+      background: var(--mn-color-surface-sunken, #f8fafc);
+      color: var(--mn-color-text-secondary, #4b5563);
+      font-size: 13px;
+    }
+
+    sh-chat-panel .composer-notice.warning {
+      background: var(--mn-color-warning-surface, #fffbeb);
+      color: var(--mn-color-warning-strong, #92400e);
+    }
+
+    sh-chat-panel .composer-notice.blocked {
+      background: var(--mn-color-danger-surface, #fff1f2);
+      color: var(--mn-color-danger, #b91c1c);
+    }
+
+    sh-chat-panel .composer-notice-copy {
+      display: flex;
+      min-width: 0;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    sh-chat-panel .composer-notice-copy strong {
+      color: currentColor;
+      font-weight: var(--mn-font-weight-semibold, 600);
+    }
+
+    sh-chat-panel .composer-notice-detail {
+      font-size: 12px;
+      font-variant-numeric: tabular-nums;
+      opacity: 0.85;
+    }
+
+    /* The notice's controls: its action, and the one that puts it away. */
+    sh-chat-panel .composer-notice-actions {
+      display: flex;
+      flex: 0 0 auto;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+    }
+
+    sh-chat-panel[data-theme='dark'] .model-picker-search-input {
+      border-color: var(--mn-color-border-default, #333);
+      background: var(--mn-color-surface-overlay, #1f1f1f);
+      color: var(--mn-color-text-primary, #e8e8e8);
+    }
+
+    sh-chat-panel[data-theme='dark'] .model-picker-pinned {
+      background: color-mix(in srgb, var(--mn-color-accent, #7fa995) 10%, var(--mn-color-surface-elevated, #242424));
+    }
+
+    sh-chat-panel[data-theme='dark'] :is(.model-picker-search, .model-picker-pinned, .model-picker-foot, .account-note, .seam) {
+      border-color: var(--mn-color-border-default, #333);
+    }
+
+    sh-chat-panel[data-theme='dark'] .account-note-value {
+      color: var(--mn-color-text-primary, #e8e8e8);
+    }
+
+    sh-chat-panel[data-theme='dark'] .message.user.window .message-bubble {
+      border-color: var(--mn-color-border-default, #333);
+      background: var(--mn-color-surface-raised, #242424);
+      color: var(--mn-color-text-primary, #e8e8e8);
+    }
+
+    sh-chat-panel[data-theme='dark'] .composer-notice {
+      border-color: var(--mn-color-border-default, #333);
+      background: var(--mn-color-surface-raised, #242424);
+    }
+
+    /* Phone: the search box and the account chip are touch-sized, the notice
+       stacks, and the account chip yields width to the picker. */
+    @media (max-width: 600px) {
+      sh-chat-panel .header-left {
+        gap: 6px;
+      }
+
+      sh-chat-panel .header-left .model-dropdown {
+        flex: 1 1 0;
+        width: auto;
+        min-width: 0;
+      }
+
+      sh-chat-panel .model-picker-search {
+        padding: 8px;
+      }
+
+      sh-chat-panel .model-picker-search-input {
+        min-height: var(--sh-chat-compact-target);
+        font-size: 16px;
+      }
+
+      sh-chat-panel .model-picker-pinned {
+        flex: 0 0 auto;
+      }
+
+      sh-chat-panel .model-picker-body.search {
+        display: flex;
+        flex-direction: column;
+      }
+
+      sh-chat-panel .model-picker-group-label {
+        padding: 10px 12px 2px;
+      }
+
+      sh-chat-panel .model-picker-model-meta {
+        font-size: 12px;
+      }
+
+      sh-chat-panel .account-note {
+        min-height: 32px;
+        align-items: center;
+      }
+
+      /* The balance line's button is a touch target, but the chip it sits in keeps its height:
+         the hit area reaches past the chip's edge instead of making the chip a slab. */
+      sh-chat-panel .account-note-action {
+        min-height: var(--sh-chat-compact-target);
+        margin-block: calc((32px - var(--sh-chat-compact-target)) / 2);
+        padding-inline: 6px;
+      }
+
+      /* The premium question's two answers: the same target, side by side or stacked. */
+      sh-chat-panel .model-picker-confirm-actions button {
+        min-height: var(--sh-chat-compact-target);
+        padding-inline: 14px;
+      }
+
+      sh-chat-panel .composer-notice {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      sh-chat-panel .window-open-original {
+        min-height: var(--sh-chat-compact-target);
+        padding-inline: 8px;
+      }
+
+      sh-chat-panel :is(.turn-change-open, .turn-change-history) {
+        min-height: var(--sh-chat-compact-target);
+      }
+
+      /* The composer's room is the phone's scarcest: the access line keeps its one sentence. */
+      sh-chat-panel .chat-access-detail {
+        display: none;
+      }
+    }
+
+    /* WHAT THE CHAT MAY DO HERE: one quiet line above the composer, in the host's words. */
+    sh-chat-panel .chat-access {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: 2px 8px;
+      margin: 0 2px 7px;
+      color: var(--mn-color-text-secondary, #5f5b54);
+      font: 12px/1.4 var(--mn-font-chrome, system-ui, sans-serif);
+    }
+
+    sh-chat-panel .chat-access::before {
+      content: '';
+      flex: 0 0 auto;
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      align-self: center;
+      background: var(--mn-color-accent, #2d6a4f);
+    }
+
+    sh-chat-panel .chat-access[data-access='read']::before {
+      background: transparent;
+      box-shadow: inset 0 0 0 1.5px var(--mn-color-text-tertiary, #817d75);
+    }
+
+    sh-chat-panel .chat-access-label {
+      color: var(--mn-color-text-primary, #282622);
+      font-weight: 600;
+    }
+
+    sh-chat-panel .chat-access-detail {
+      color: var(--mn-color-text-tertiary, #817d75);
+    }
+
+    /* CHANGED IN THIS TURN: what a reply changed, and the way back (History), never an undo button. */
+    sh-chat-panel .turn-changes {
+      box-sizing: border-box;
+      max-width: 100%;
+      margin: 6px 0 2px;
+      padding: 8px 10px;
+      border: 1px solid var(--mn-color-border, #e5e5e5);
+      border-radius: var(--mn-radius-surface, 10px);
+      background: var(--mn-color-surface-subtle, #f8f7f4);
+      font: 12px/1.45 var(--mn-font-chrome, system-ui, sans-serif);
+    }
+
+    sh-chat-panel .turn-changes-title {
+      margin-bottom: 4px;
+      color: var(--mn-color-text-tertiary, #817d75);
+      font-size: 11px;
+      font-weight: 650;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    sh-chat-panel .turn-change-list {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    sh-chat-panel .turn-change {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      gap: 2px 8px;
+      min-width: 0;
+    }
+
+    sh-chat-panel .turn-change-verbs {
+      flex: 0 0 auto;
+      color: var(--mn-color-text-secondary, #5f5b54);
+    }
+
+    sh-chat-panel :is(.turn-change-name, .turn-change-open) {
+      min-width: 0;
+      overflow: hidden;
+      color: var(--mn-color-text-primary, #282622);
+      font-weight: 600;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    sh-chat-panel :is(.turn-change-open, .turn-change-history) {
+      max-width: 100%;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      cursor: pointer;
+      font: inherit;
+      text-align: left;
+    }
+
+    sh-chat-panel .turn-change-open {
+      flex: 0 1 auto;
+      text-decoration: underline;
+      text-decoration-color: color-mix(in srgb, currentColor 35%, transparent);
+      text-underline-offset: 2px;
+    }
+
+    sh-chat-panel .turn-change-history {
+      flex: 0 0 auto;
+      color: var(--mn-color-accent, #2d6a4f);
+      font-weight: 600;
+    }
+
+    sh-chat-panel :is(.turn-change-open, .turn-change-history):hover {
+      text-decoration-color: currentColor;
+    }
+
+    sh-chat-panel :is(.turn-change-open, .turn-change-history):focus-visible {
+      outline: 2px solid var(--mn-focus-ring-color, #376d57);
+      outline-offset: 2px;
+      border-radius: 3px;
+    }
+
+    sh-chat-panel .turn-change-note {
+      flex: 1 1 100%;
+      color: var(--mn-color-text-tertiary, #817d75);
+    }
+
+    /* Gone for good (a whole document with its history, a folder, a wire): shown apart. */
+    sh-chat-panel .turn-change.removed :is(.turn-change-verbs, .turn-change-note) {
+      color: var(--mn-color-text-danger, var(--mn-color-danger, #9f3535));
+    }
+
+    sh-chat-panel .turn-change.removed .turn-change-name {
+      color: var(--mn-color-text-secondary, #5f5b54);
+      text-decoration: line-through;
+    }
+
+    sh-chat-panel .turn-change-pending {
+      color: var(--mn-color-text-tertiary, #817d75);
+    }
+
+    sh-chat-panel .turn-changes-refused {
+      margin: 4px 0 0;
+      color: var(--mn-color-text-secondary, #5f5b54);
+    }
+
+    /* A written HTML artifact, live (scripts off): the host's <mn-artifact-view>, framed under the reply. */
+    sh-chat-panel .turn-artifact-preview {
+      box-sizing: border-box;
+      height: clamp(220px, 42vh, 380px);
+      max-width: 100%;
+      margin: 6px 0 2px;
+      overflow: hidden;
+      border: 1px solid var(--mn-color-border, #e5e5e5);
+      border-radius: var(--mn-radius-surface, 10px);
+      background: var(--mn-color-surface-base, #fff);
+    }
+
+    sh-chat-panel[data-theme='dark'] .turn-changes {
+      border-color: var(--mn-color-border-default, #333);
+      background: var(--mn-color-surface-raised, #242424);
+    }
+
+    sh-chat-panel:is([data-skin='98'], [data-skin='glass'], [data-skin='hotdog-stand']) :is(.turn-changes, .turn-artifact-preview) {
+      border-radius: var(--mn-radius-surface, 8px);
+      background: var(--mn-color-surface-raised);
+      box-shadow: var(--mn-shadow-card, none);
     }
   `
 }

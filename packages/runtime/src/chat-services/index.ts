@@ -14,10 +14,13 @@
  */
 
 export {
+  ChatBillingFailure,
   ChatServiceFailure,
   asChatServiceFailure,
 } from './chat-service.js'
 export type {
+  ChatBillingDetail,
+  ChatBillingKind,
   ChatService,
   ChatFailurePhase,
   ChatFailureRecovery,
@@ -39,6 +42,7 @@ export {
 export {
   makeHostedChatService,
   parseSse,
+  purgeHostedChatWindows,
   type HostedChatServiceOptions,
 } from './hosted-chat-service.js'
 
@@ -64,3 +68,127 @@ export {
   type ChatProjection,
   type ChatProjectionSource,
 } from './assemble.js'
+
+// Sobremesa: a voice that can be chosen, a conversation that can be picked up, the
+// credit line beside the picker, and the one conversation home. Every capability is
+// optional on ChatService and absent on the local service.
+export { NO_CAPABILITIES } from './chat-service.js'
+export type {
+  ChatBalance,
+  ChatCapabilities,
+  ContinueIntent,
+  ConversationLineage,
+  ConversationSummary,
+} from './chat-service.js'
+export {
+  ContinuationError,
+  DEFAULT_WINDOW_LIMITS,
+  familyOf,
+  matchSourceVoice,
+  providerNoticeFor,
+  readContinuationPlan,
+  recordedVoiceOf,
+  seamVoiceLabel,
+  seedPayloadFor,
+  serializedBytes,
+  sourceVoiceMark,
+  windowToChatMessages,
+} from './continuation.js'
+export type {
+  ContinuationChoice,
+  ContinuationErrorCode,
+  ContinuationPlan,
+  ContinuationWindow,
+  ReadPlanOptions,
+  SeedPayload,
+  SeedReceipt,
+  SourceVoice,
+  SourceVoiceMatch,
+  WindowLimits,
+  WindowMessage,
+} from './continuation.js'
+
+// Credits in the chat: the words and the arithmetic (pure), for a shell that needs the
+// same figures the chat shows (the amount to preselect in Settings, Billing, say).
+export {
+  ADD_CREDITS_ACTION,
+  CREDITS_NOTICE_DETAILS_ACTION,
+  CREDITS_NOTICE_DISMISS_ACTION,
+  CREDITS_NOTICE_ID,
+  LOW_BALANCE_MICRO_USD,
+  MIN_ADMIT_FLOOR_MICRO_USD,
+  NEW_CHAT_ACTION,
+  PREMIUM_SHORT_TURN_MICRO_USD,
+  SERVICE_FEE_PERCENT,
+  accountNoteFor,
+  annotateVoices,
+  billingFailureMessage,
+  billingNotice,
+  budgetNotice,
+  costAnnotation,
+  creditsNoticeFor,
+  formatCost,
+  formatCredit,
+  minAdmitMicroUsd,
+  multipleOfHouse,
+  priceFootnote,
+  shortTurnMicroUsd,
+} from './chat-billing.js'
+export type { BalanceReading, ChatCreditsNoticeSource, ChatCreditsNoticeView } from './chat-billing.js'
+
+// What the backend says about the credits regime on its balance answer (the fee, the gate's mode, the
+// day credits start): pure, for the chat and for a shell's Billing alike.
+export {
+  feePercentOf,
+  formatFeePercent,
+  parseCreditsFacts,
+  parseCreditsStartDate,
+  type CreditsFacts,
+  type CreditsGateMode,
+} from './credits-facts.js'
+
+// The one conversation home: live + imported conversations in one list, the imported
+// reader (an archived conversation read a page at a time), and the copy a person can
+// keep (Save to Garden, Download as Markdown). Sobremesa; all pure, none touches the DOM.
+export {
+  createConversationHomeController,
+  type ConversationFamily,
+  type ConversationHomeController,
+  type ConversationHomeState,
+  type ConversationHomeView,
+  type ImportedLoad,
+  type LiveLoad,
+  type LoadPhase,
+} from './conversation-home-controller.js'
+export {
+  DEFAULT_MAX_EXPORT_MESSAGES,
+  createImportedReader,
+  type ContinueConversationIntent,
+  type ImportedReader,
+  type ImportedReaderHeader,
+  type ImportedReaderState,
+  type LoadAllOptions,
+  type LoadAllResult,
+} from './imported-reader.js'
+export {
+  MARKDOWN_MIME_TYPE,
+  buildMarkdownFile,
+  importedExportSource,
+  liveExportSource,
+  type CollectedConversation,
+  type ConversationExportSource,
+  type ExportContext,
+  type MarkdownFile,
+} from './conversation-export.js'
+export {
+  SAVE_TO_GARDEN_INTRO,
+  createSaveFlow,
+  saveToGardenCopy,
+  type SaveFlow,
+  type SaveFlowState,
+  type SavePhase,
+  type SaveTarget,
+  type SaveToGardenPort,
+  type SaveToGardenRequest,
+  type SaveToGardenResult,
+} from './save-flow.js'

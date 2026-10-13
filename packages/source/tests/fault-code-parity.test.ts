@@ -43,6 +43,7 @@ import { SOURCE_FAULT_CODES } from '../src/mirror/source-fault.js'
 const HERE = dirname(fileURLToPath(import.meta.url))
 
 const GARDEN_APP_ERROR_CODES_CANDIDATES: readonly string[] = [
+  ...(process.env.GARDEN_SOURCE_ROOT ? [resolve(process.env.GARDEN_SOURCE_ROOT, 'src-tauri/src/app_error_codes.rs')] : []),
   // Sibling-repo checkout: shrubbery/packages/source/tests/ → ../../../garden/...
   resolve(HERE, '../../../garden/src-tauri/src/app_error_codes.rs'),
   '/Users/vera/dev/sophia/garden/src-tauri/src/app_error_codes.rs',
@@ -108,7 +109,10 @@ const SHARED_WITH_GARDEN = [
 const gardenPath = findExisting(GARDEN_APP_ERROR_CODES_CANDIDATES)
 const gatewayPath = findExisting(GATEWAY_FAULT_CODES_CANDIDATES)
 
-if (gardenPath !== null && gatewayPath !== null) {
+// Garden/client parity remains meaningful when a deployed gateway generation
+// forwards upstream MCP envelopes but has no historical fault_codes.rs file.
+// Only the gateway-originated-code census is unavailable in that case.
+if (gardenPath !== null) {
   // Re-check immediately before reading, not just at module load: this
   // module-scope `if` runs once at collection time, but the two files live
   // in worktrees under ACTIVE concurrent WIP (the out-of-band Slice-0
@@ -117,19 +121,20 @@ if (gardenPath !== null && gatewayPath !== null) {
   // re-verifies existence right at read time and degrades to a named skip
   // rather than a crash if the file vanished in that window.
   describe('fault-code-parity — Garden × gateway × client (master §2.2, gate G-R5)', () => {
-    const stillPresent = existsSync(gardenPath) && existsSync(gatewayPath)
+    const stillPresent = existsSync(gardenPath)
+    const gatewayPresent = gatewayPath !== null && existsSync(gatewayPath)
 
-    it.skipIf(!stillPresent)('Garden originates exactly 14 codes, all snake_case', () => {
+    it.skipIf(!stillPresent)('Garden originates exactly 15 codes, all snake_case', () => {
       const gardenAll = readRustAllArray(gardenPath)
-      expect(gardenAll).toHaveLength(14)
+      expect(gardenAll).toHaveLength(15)
       for (const code of gardenAll) expect(code).toMatch(/^[a-z][a-z0-9_]*$/)
       expect(new Set(gardenAll).size).toBe(gardenAll.length) // no duplicates
     })
 
-    it.skipIf(!stillPresent)(
+    it.skipIf(!gatewayPresent)(
       'the gateway originates exactly 7 codes: the 3 gateway-only plus the 4 shared with Garden',
       () => {
-        const gatewayAll = readRustAllArray(gatewayPath)
+        const gatewayAll = readRustAllArray(gatewayPath!)
         expect(gatewayAll).toHaveLength(7)
         expect(new Set(gatewayAll)).toEqual(new Set([...GATEWAY_ONLY, ...SHARED_WITH_GARDEN]))
       },
@@ -141,13 +146,13 @@ if (gardenPath !== null && gatewayPath !== null) {
     })
 
     it.skipIf(!stillPresent)(
-      'the client union is exactly Garden ∪ the 3 gateway-only codes — 17 total, each shared spelling counted once',
+      'the client union is exactly Garden ∪ the 3 gateway-only codes — 18 total, each shared spelling counted once',
       () => {
         const gardenAll = readRustAllArray(gardenPath)
         expect(new Set(gardenAll)).toEqual(
           new Set(SOURCE_FAULT_CODES.filter(code => !(GATEWAY_ONLY as readonly string[]).includes(code))),
         )
-        expect(SOURCE_FAULT_CODES).toHaveLength(17)
+        expect(SOURCE_FAULT_CODES).toHaveLength(18)
         expect(new Set(SOURCE_FAULT_CODES)).toEqual(new Set([...gardenAll, ...GATEWAY_ONLY]))
       },
     )

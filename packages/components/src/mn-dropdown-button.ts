@@ -83,7 +83,9 @@ export class MnDropdownButton extends SkinAware(LitElement) {
       cursor: pointer;
       font: inherit;
       font-size: var(--mn-text-sm, 13px);
-      line-height: 1;
+      /* Not 1: a one-em line box clips descenders, and .item-label's
+         overflow:hidden (for the ellipsis) makes the clip a hard cut. */
+      line-height: 1.45;
       outline: none;
       white-space: nowrap;
       transition:
@@ -195,11 +197,13 @@ export class MnDropdownButton extends SkinAware(LitElement) {
       box-sizing: border-box;
       overflow: hidden;
       padding: var(--mn-space-1, 4px);
-      border: 1px solid var(--mn-color-border-default, #d1d5db);
+      border: 1px solid var(--mn-material-popover-edge, var(--mn-color-border-default, #d1d5db));
       border-radius: var(--mn-radius-lg, 8px);
-      background: var(--mn-color-surface-raised, #fff);
+      background: var(--mn-material-popover-bg, var(--mn-color-surface-raised, #fff));
       color: var(--mn-color-text-primary, #111827);
-      box-shadow: var(--mn-shadow-lg, 0 18px 40px rgba(15, 23, 42, 0.16));
+      box-shadow: var(--mn-material-popover-shadow, var(--mn-shadow-lg, 0 18px 40px rgba(15, 23, 42, 0.16)));
+      backdrop-filter: var(--mn-material-popover-filter, var(--mn-window-backdrop-filter, none));
+      -webkit-backdrop-filter: var(--mn-material-popover-filter, var(--mn-window-backdrop-filter, none));
       transform-origin: top left;
     }
 
@@ -315,6 +319,10 @@ export class MnDropdownButton extends SkinAware(LitElement) {
 
   @property({ type: String }) label = ''
   @property({ type: String, attribute: 'icon-name' }) iconName: string | undefined
+  /** Accessible name (and tooltip) for a trigger that has no visible label, e.g. an icon-only one. */
+  @property({ type: String, attribute: 'trigger-label' }) triggerLabel: string | undefined
+  /** Accessible name of the menu itself; defaults to the visible label, else "Menu". */
+  @property({ type: String, attribute: 'menu-label' }) menuLabel: string | undefined
   @property({ type: Array }) entries: readonly MnDropdownEntry[] = []
   @property({ type: String, attribute: 'selected-id' }) selectedId: string | undefined
   @property({ type: String }) variant: MnDropdownVariant = 'default'
@@ -471,6 +479,9 @@ export class MnDropdownButton extends SkinAware(LitElement) {
 
   private selectItem(item: MenuItemEntry, modifiers: MenuSelectModifiers): void {
     if (item.disabled) return
+    // Finish the menu's own focus handoff before the consumer acts. An editor
+    // may deliberately focus its saved caret in response to mn-select.
+    this.closeMenu({ restoreFocus: true })
     this.dispatchEvent(
       new CustomEvent<MenuSelectDetail>('mn-select', {
         detail: { id: item.id, item, modifiers },
@@ -478,7 +489,6 @@ export class MnDropdownButton extends SkinAware(LitElement) {
         composed: true,
       }),
     )
-    this.closeMenu({ restoreFocus: true })
   }
 
   private handleItemClick(event: MouseEvent, item: MenuItemEntry): void {
@@ -568,9 +578,12 @@ export class MnDropdownButton extends SkinAware(LitElement) {
     return html`
       <button
         class=${classMap(triggerClasses)}
+        part="trigger"
         type="button"
         ?disabled=${this.disabled}
         aria-haspopup="menu"
+        aria-label=${this.triggerLabel ?? nothing}
+        title=${this.triggerLabel ?? nothing}
         aria-expanded=${String(this.open)}
         @click=${this.toggleMenu}
         @keydown=${this.handleTriggerKeyDown}
@@ -583,7 +596,7 @@ export class MnDropdownButton extends SkinAware(LitElement) {
       </button>
 
       <div class="menu-popover" popover="manual" aria-hidden=${String(!this.open)}>
-        <div class="menu-panel" role="menu" aria-label=${this.label || 'Menu'}>
+        <div class="menu-panel" part="panel" role="menu" aria-label=${this.menuLabel ?? (this.label || 'Menu')}>
           ${this.entries.map((entry, index) => this.renderEntry(entry, index))}
         </div>
       </div>

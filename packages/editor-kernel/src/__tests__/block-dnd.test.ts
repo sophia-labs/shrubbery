@@ -295,7 +295,7 @@ describe('BlockDnd DOM affordances from Garden PR #4', () => {
     expect(handles).toHaveLength(2)
     expect(handles[0].getAttribute('draggable')).toBe('true')
     expect(handles[0].getAttribute('contenteditable')).toBe('false')
-    expect(handles[0].getAttribute('aria-label')).toBe('Drag to move block')
+    expect(handles[0].getAttribute('aria-label')).toBe('Block actions; drag to move')
   })
 
   it('renders the drop indicator as a dedicated widget, not a block pseudo-element', () => {

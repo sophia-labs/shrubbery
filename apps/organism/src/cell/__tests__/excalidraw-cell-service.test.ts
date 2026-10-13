@@ -15,7 +15,7 @@ import { buildSceneLinkRecord } from '../excalidraw-scene-links.js'
 
 const supports = `${MNEMO_NS}supports`
 
-function fakeContract(query: (graphId: string, sparql: string) => Promise<unknown> = async () => ({ rows: [] })) {
+function fakeContract(query: (graphId: string, sparql: string) => Promise<unknown> = async () => ({ rows: [] }), mode: 'local' | 'hosted' = 'hosted') {
   return {
     auth: {
       token: () => 'scene-token',
@@ -25,8 +25,8 @@ function fakeContract(query: (graphId: string, sparql: string) => Promise<unknow
       onChange: () => () => {},
     },
     runtime: {
-      mode: () => 'hosted' as const,
-      isGateway: () => true,
+      mode: () => mode,
+      isGateway: () => mode === 'hosted',
       graphBaseUrl: (graphId: string) => `https://gateway.test/g/${graphId}`,
     },
     rest: { graphs: async () => [], query, update: async () => {} },
@@ -90,13 +90,13 @@ function makeOptions(contract: ExcalidrawCellContract, fetchMock: typeof fetch, 
 }
 
 describe('Organism Excalidraw cell service', () => {
-  it('loads and saves real artifact revisions through the graph cell with auth', async () => {
+  it.each(['local', 'hosted'] as const)('loads and saves %s artifact revisions through the graph cell with auth', async mode => {
     const scene = JSON.stringify({ type: 'excalidraw', version: 2, elements: [] })
     const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
       if (init?.method === 'POST') return new Response('{}', { status: 201 })
       return new Response(scene, { headers: { 'content-type': 'application/vnd.excalidraw+json' } })
     })
-    const options = makeOptions(fakeContract(), fetchMock)
+    const options = makeOptions(fakeContract(undefined, mode), fetchMock)
 
     const bytes = await options.artifacts.load({ graphId: 'graph-a', artifactId: 'scene-a', signal: new AbortController().signal })
     expect(new TextDecoder().decode(bytes as Uint8Array)).toBe(scene)
@@ -114,8 +114,12 @@ describe('Organism Excalidraw cell service', () => {
 
     expect(String(fetchMock.mock.calls[0]?.[0])).toBe('https://gateway.test/g/graph-a/artifacts/graph-a/scene-a/download')
     expect(fetchMock.mock.calls[0]?.[1]?.headers).toMatchObject({
-      Authorization: 'Bearer scene-token', 'X-User-ID': 'scene-user',
+      Authorization: 'Bearer scene-token',
     })
+    for (const [, init] of fetchMock.mock.calls) {
+      expect(new Headers(init?.headers).get('Authorization')).toBe('Bearer scene-token')
+      expect(new Headers(init?.headers).get('X-User-ID')).toBe(mode === 'local' ? 'scene-user' : null)
+    }
     expect(String(fetchMock.mock.calls[1]?.[0])).toBe('https://gateway.test/g/graph-a/artifacts/graph-a/scene-a/revisions')
     expect(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body))).toEqual({
       dataBase64: bytesToBase64(new TextEncoder().encode(scene)),

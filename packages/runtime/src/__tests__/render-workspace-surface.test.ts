@@ -76,6 +76,82 @@ describe('renderWorkspace Surface production path', () => {
     expect(close.calls).toEqual([{ paneId: 'center-secondary', reason: 'pane-command' }])
   })
 
+  it('renders the pane-header table of contents on the SURFACE path, where production actually mounts', async () => {
+    // REGRESSION: this feature shipped in July into sh-center-panes' own pane
+    // header — a component production stopped mounting (asserted null in the
+    // first test above), so it never once appeared on screen while its own
+    // isolated tests passed. It belongs to the surface header or nowhere.
+    const toggle = recorder<{ paneId: string }>()
+    const navigate = recorder<{ paneId: string; blockId: string }>()
+    const base = centerOptions(50)
+    const primaryId = base.projection.panes.find(p => p.position === 'primary')!.id
+
+    const container = renderWorkspace(GARDEN_DEFAULT, {
+      surface: true,
+      centerPanes: {
+        ...base,
+        paneHeadings: new Map([[primaryId, [
+          { id: 'block-h1', level: 1, text: 'Intro' },
+          { id: 'block-h2', level: 2, text: 'Details' },
+        ]]]),
+        tocOpenPaneId: null,
+        onTocToggle: toggle.fn,
+        onTocNavigate: navigate.fn,
+      },
+    })
+    await workspaceSurfaceReady(container)
+
+    const header = container.querySelector<HTMLElement>('.surface-pane-header')!
+    const trigger = header.querySelector<HTMLButtonElement>('.toc-btn')!
+    expect(trigger).not.toBeNull()
+    expect(trigger.textContent).toContain('Intro')
+    expect(trigger.getAttribute('aria-expanded')).toBe('false')
+    // Closed: the panel is not in the DOM at all.
+    expect(container.querySelector('.toc-dropdown')).toBeNull()
+
+    trigger.click()
+    expect(toggle.calls).toEqual([{ paneId: primaryId }])
+  })
+
+  it('opens the table of contents into the native top layer and reports navigation', async () => {
+    const navigate = recorder<{ paneId: string; blockId: string }>()
+    const base = centerOptions(50)
+    const primaryId = base.projection.panes.find(p => p.position === 'primary')!.id
+
+    const container = renderWorkspace(GARDEN_DEFAULT, {
+      surface: true,
+      centerPanes: {
+        ...base,
+        paneHeadings: new Map([[primaryId, [
+          { id: 'block-h1', level: 1, text: 'Intro' },
+          { id: 'block-h2', level: 2, text: 'Details' },
+        ]]]),
+        tocOpenPaneId: primaryId,
+        onTocNavigate: navigate.fn,
+      },
+    })
+    await workspaceSurfaceReady(container)
+
+    const dropdown = container.querySelector<HTMLElement>('.toc-dropdown')!
+    // The pane stage sets overflow:hidden — an in-flow panel is clipped at the
+    // pane edge, so the list has to be a top-layer surface.
+    expect(dropdown.getAttribute('popover')).toBe('manual')
+    const items = Array.from(dropdown.querySelectorAll<HTMLButtonElement>('.toc-item'))
+    expect(items.map(item => item.textContent)).toEqual(['Intro', 'Details'])
+
+    items[1]!.click()
+    expect(navigate.calls).toEqual([{ paneId: primaryId, blockId: 'block-h2' }])
+  })
+
+  it('shows no trigger for a pane with no headings', async () => {
+    const container = renderWorkspace(GARDEN_DEFAULT, {
+      surface: true,
+      centerPanes: { ...centerOptions(50), paneHeadings: new Map() },
+    })
+    await workspaceSurfaceReady(container)
+    expect(container.querySelector('.toc-btn')).toBeNull()
+  })
+
   it('reconciles ratio changes by stable leaf id without remounting pane content', async () => {
     const container = document.createElement('div')
     document.body.appendChild(container)
@@ -273,8 +349,8 @@ describe('renderWorkspace Surface production path', () => {
       role: 'left' as const,
       splitId: 'workspace-spine:region-left-rail',
       splitWidth: 1_000,
-      nextBasisPoints: 3_200,
-      expectedWidth: 320,
+      nextBasisPoints: 3_000,
+      expectedWidth: 300,
     },
     {
       role: 'right' as const,
@@ -327,7 +403,7 @@ describe('renderWorkspace Surface production path', () => {
     })
   })
 
-  it('persists the nested right width after the left divider changes its containing box', async () => {
+  it('keeps the right width independent when the left divider changes its containing box', async () => {
     const onReposition = recorder<{ role: string; width: number; position: number; size: number }>()
     const container = renderWorkspace(GARDEN_DEFAULT, {
       surface: true,
@@ -337,7 +413,7 @@ describe('renderWorkspace Surface production path', () => {
     await workspaceSurfaceReady(container)
     const surface = container.querySelector<WorkspaceSurfaceElement>('sh-workspace-surface')!
     const model = surface.model!
-    const built = model.build(1_000, 700)
+    const built = model.build(1_400, 700)
     const leftSplit = built.document.nodes['workspace-spine:region-left-rail']
     if (!leftSplit || leftSplit.kind !== 'split') throw new Error('left Surface split is missing')
 
@@ -357,18 +433,21 @@ describe('renderWorkspace Surface production path', () => {
       split: { ...leftSplit, startBasisPoints: 3_200 },
       source: 'pointer',
       phase: 'commit',
-      splitBox: { left: 0, top: 0, width: 1_000, height: 700 },
+      splitBox: { left: 0, top: 0, width: 1_400, height: 700 },
     }, built.metadata)
 
     await Promise.resolve()
     await workspaceSurfaceReady(container)
     await Promise.resolve()
-    expect(onReposition.calls.at(-1)).toEqual({
-      role: 'right',
-      width: 394,
-      position: (394 / 760) * 100,
-      size: 760,
-    })
+    expect(onReposition.calls.map(call => call.role)).toEqual(['left'])
+    const rebuilt = model.build(1_400, 700)
+    const left = rebuilt.document.nodes['workspace-spine:region-left-rail']
+    const right = rebuilt.document.nodes['workspace-spine:region-center']
+    if (left.kind !== 'split' || right.kind !== 'split') throw new Error('Expected panel splits')
+    const available = 1400 * (1 - left.startBasisPoints / 10000)
+    expect(available * (1 - right.startBasisPoints / 10000)).toBeCloseTo(420, 0)
+    const policy = model.dividerPolicy?.(leftSplit, { left: 0, top: 0, width: 1100, height: 700 }, built.metadata)
+    expect(policy?.maxBasisPoints).toBeLessThanOrEqual(2530)
   })
 
   it('replaces a pane-home face with its editor face when a secondary document opens', async () => {

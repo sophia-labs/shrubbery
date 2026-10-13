@@ -24,31 +24,31 @@
   --mn-color-surface-sunken:   #131512;
   --mn-color-surface-hover:    rgba(225, 235, 226, 0.055);
   --mn-color-surface-active:   rgba(225, 235, 226, 0.10);
-  --mn-color-surface-accent:   rgba(114, 160, 135, 0.14);
-  --mn-color-surface-accent-subtle: rgba(114, 160, 135, 0.09);
-  --mn-color-surface-accent-strong: rgba(114, 160, 135, 0.22);
+  --mn-color-surface-accent:   rgba(109, 162, 124, 0.14);
+  --mn-color-surface-accent-subtle: rgba(109, 162, 124, 0.09);
+  --mn-color-surface-accent-strong: rgba(109, 162, 124, 0.22);
   --mn-color-backdrop: rgba(3, 5, 3, 0.62);
   --mn-atmosphere:
-    radial-gradient(circle at 55% -16%, rgba(79, 134, 107, 0.14), transparent 40%),
+    radial-gradient(circle at 55% -16%, rgba(74, 136, 96, 0.14), transparent 40%),
     linear-gradient(135deg, rgba(255, 255, 255, 0.015), transparent 36%);
 
   /* ── Text (dark) ──────────────────────────────────────────────────────── */
   --mn-color-text-primary:       #e6e8e2;
   --mn-color-text-secondary:     #b7bbb1;
-  --mn-color-text-tertiary:      #8f968a;
-  --mn-color-text-muted:         #7f877b;
+  --mn-color-text-tertiary:      #a0a69a;  /* was #8f968a */
+  --mn-color-text-muted:         #979e92;  /* was #7f877b: 3.84:1 on raised */
   --mn-color-text-inverse:       #171a16;
   /* Light-mode link roles resolve to indigo-800/950 — nearly invisible on the
      dark canvas. Dark theme lifts them to the light end of the same indigo
      ramp so a link still reads as a link, not as body text. */
   --mn-color-text-link:          var(--mn-ref-indigo-300);
   --mn-color-text-link-hover:    var(--mn-ref-indigo-200);
-  --mn-color-text-accent:        #99bea9;
-  --mn-color-text-accent-strong: #bfd8c9;
+  --mn-color-text-accent:        #96c0a0;
+  --mn-color-text-accent-strong: #bcdac3;
   --mn-color-text-on-accent:     #141613;
   --mn-color-text-title:         #f1f3ed;
-  --mn-color-text-quiet:         #8f968a;
-  --mn-color-text-danger:        #f43f5e;
+  --mn-color-text-quiet:         #a0a69a;
+  --mn-color-text-danger:        #fb7185;  /* was #f43f5e: 3.88:1 on raised */
   --mn-color-text-warning:       #d97706;
   --mn-color-text-success:       #469c70;
 
@@ -56,21 +56,21 @@
   --mn-color-border-subtle:  rgba(222, 230, 220, 0.085);
   --mn-color-border-default: #30362e;
   --mn-color-border-strong:  #464d43;
-  --mn-color-border-accent:  #72a087;
-  --mn-color-border-focus:   #99bea9;
-  --mn-color-rule:           rgba(191, 216, 201, 0.12);
-  --mn-color-rule-strong:    rgba(191, 216, 201, 0.22);
+  --mn-color-border-accent:  #6da27c;
+  --mn-color-border-focus:   #96c0a0;
+  --mn-color-rule:           rgba(188, 218, 195, 0.12);
+  --mn-color-rule-strong:    rgba(188, 218, 195, 0.22);
 
   /* ── Accent solids (dark) ─────────────────────────────────────────────── */
-  --mn-color-accent:        #72a087;
-  --mn-color-accent-hover:  #99bea9;
-  --mn-color-accent-active: #4f866b;
+  --mn-color-accent:        #6da27c;
+  --mn-color-accent-hover:  #96c0a0;
+  --mn-color-accent-active: #4a8860;
 
   /* ── Interactive washes (dark) ────────────────────────────────────────── */
   --mn-color-interactive-hover: rgba(255, 255, 255, 0.05);  /* neutral in dark */
 
   /* ── Focus (dark) ─────────────────────────────────────────────────────── */
-  --mn-focus-ring-color: #99bea9;
+  --mn-focus-ring-color: #96c0a0;
 
   /* ── Status quads (dark) ──────────────────────────────────────────────── */
   --mn-color-danger:          #f43f5e;
@@ -130,10 +130,10 @@
   --mn-stance-contested-wash: var(--mn-ref-status-critical-wash-dark);
 
   /* ── Top bar (dark) — Garden fern masthead steps 800/700/100/300 ───────── */
-  --mn-top-bar-bg:         linear-gradient(102deg, #213f34 0%, #294b3c 54%, #223d33 100%);
-  --mn-top-bar-border:     rgba(153, 190, 169, 0.24);
-  --mn-top-bar-text:       #dcebe2;
-  --mn-top-bar-text-muted: #99bea9;
+  --mn-top-bar-bg:         linear-gradient(102deg, #21402d 0%, #274c36 54%, #223e2d 100%);
+  --mn-top-bar-border:     rgba(150, 192, 160, 0.24);
+  --mn-top-bar-text:       #dbecde;
+  --mn-top-bar-text-muted: #96c0a0;
 
   /* ── Bottom bar (dark) ────────────────────────────────────────────────── */
   --mn-bottom-bar-bg:     #20231d;
@@ -145,5 +145,5 @@
   --mn-shadow-lg: 0 24px 64px rgba(0, 0, 0, 0.42), 0 7px 22px rgba(0, 0, 0, 0.24);
   --mn-shadow-xl: 0 34px 88px rgba(0, 0, 0, 0.54), 0 10px 30px rgba(0, 0, 0, 0.28);
   --mn-shadow-chrome: 0 1px 0 rgba(255, 255, 255, 0.035), 0 2px 7px rgba(0, 0, 0, 0.18);
-  --mn-shadow-primary: 0 12px 32px rgba(var(--mn-color-accent-ch), 0.18);
+  --mn-shadow-primary: 0 12px 32px rgb(var(--mn-color-accent-ch) / 0.18);
 }

@@ -5,7 +5,6 @@ export interface OrganismDeploymentEnvironment {
   readonly VITE_COGNITO_REGION?: string
   readonly VITE_COGNITO_CLIENT_ID?: string
   readonly VITE_COGNITO_USER_POOL_ID?: string
-  readonly VITE_CHAT_API_BASE_URL?: string
   /** Non-secret subject used only with the Vite server-side service proxy. */
   readonly VITE_CLOUD2_SERVICE_PROXY_SUBJECT?: string
 }
@@ -22,7 +21,6 @@ export interface HostedDeploymentConfig {
     readonly clientId: string
     readonly userPoolId?: string
   }
-  readonly chatApiBaseUrl: string | null
   readonly devServiceProxySubject?: string
 }
 
@@ -50,7 +48,6 @@ export function resolveOrganismDeploymentConfig(
     )
   }
   const userPoolId = trimmed(environment.VITE_COGNITO_USER_POOL_ID)
-  const chatApiBaseUrl = trimmed(environment.VITE_CHAT_API_BASE_URL).replace(/\/+$/, '')
   const devServiceProxySubject = trimmed(environment.VITE_CLOUD2_SERVICE_PROXY_SUBJECT)
   return {
     mode: 'hosted',
@@ -60,7 +57,6 @@ export function resolveOrganismDeploymentConfig(
       clientId,
       ...(userPoolId ? { userPoolId } : {}),
     },
-    chatApiBaseUrl: chatApiBaseUrl || null,
     ...(devServiceProxySubject ? { devServiceProxySubject } : {}),
   }
 }

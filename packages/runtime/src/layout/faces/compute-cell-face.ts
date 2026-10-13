@@ -166,7 +166,11 @@ export function computeCellFromResult(result: QueryBlockResult, cellIri: string)
 }
 
 function constraints(): LeafConstraints {
-  return { minWidth: 320, minHeight: 180, overflow: 'clip' }
+  // A notebook can share a narrow mobile allocation with another face.
+  // Its content already wraps/scrolls internally: a hard 320px grid-cell
+  // floor only makes it wider than the grid's hidden-overflow viewport.
+  // A standalone leaf also needs a real scroll owner for long outputs.
+  return { minWidth: 0, minHeight: 180, overflow: 'scroll' }
 }
 
 function params(descriptor: ViewDescriptor): ComputeCellParams {

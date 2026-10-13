@@ -1,4 +1,5 @@
 import { dirname, resolve } from 'node:path'
+import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vite'
 import { dynamicCellProxy } from '../../scripts/vite-cell-proxy.js'
@@ -49,10 +50,36 @@ if (cloud2ProxyEnabled && Object.values(cloud2ProxyValues).some(value => !value)
   )
 }
 
+/**
+ * How long the dev proxy waits on the cell before calling it unreachable.
+ *
+ * The plugin's 2s default is sized for the small cells the harnesses spawn. A
+ * real graph is not small: `default_x1` holds ~1.27M triples, and a
+ * `sparql_query` over it routinely outruns two seconds -- whereupon the proxy
+ * answers 503 `cell_proxy_unavailable` and the sidebar reports the cell as "not
+ * accepting connections yet". The cell was answering fine; the proxy stopped
+ * listening. Raise it when pointing the dev server at a real profile.
+ */
+const CELL_PROXY_TIMEOUT_MS = Number(process.env.SHRUBBERY_CELL_PROXY_TIMEOUT_MS ?? 2_000)
+
 export default defineConfig({
   root: '.',
   plugins: [
-    dynamicCellProxy({ manifestPath: LOOPBACK_FILE, websocket: true }),
+    dynamicCellProxy({
+      manifestPath: LOOPBACK_FILE,
+      websocket: true,
+      upstreamTimeoutMs: CELL_PROXY_TIMEOUT_MS,
+    }),
+    ...(process.env.DEVELOPMENT_WORKSPACE_URL ? [dynamicCellProxy({
+      manifestPath: `${LOOPBACK_FILE}.development-service`,
+      mountPath: '/development',
+      // Kernel execution can exceed the cell proxy's normal two-second read bound.
+      upstreamTimeoutMs: 120_000,
+      fallback: () => {
+        const manifest = JSON.parse(readFileSync(LOOPBACK_FILE, 'utf8')) as { token: string }
+        return { apiUrl: process.env.DEVELOPMENT_WORKSPACE_URL!, token: manifest.token }
+      },
+    })] : []),
     ...(cloud2ProxyEnabled ? [cloud2ServiceProxy({ ...cloud2ProxyValues, websocket: true })] : []),
     seeleCompileRoute(),
   ],

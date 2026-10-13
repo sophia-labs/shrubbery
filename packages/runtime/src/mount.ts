@@ -57,6 +57,8 @@ import './editor-host.js'
 const HOST_KEY = 'sh-editor-host'
 
 export interface EditorHostMountOptions {
+  /** Retain the live editor across app switches while its layout anchor is absent. */
+  readonly parked?: boolean
   /** Stable block id to restore into the outliner-zoom plugin after mount. */
   readonly initialZoomBlockId?: string | null
   /** Transient block focus request after navigation; token distinguishes repeats. */
@@ -118,7 +120,6 @@ export function renderCenterSlotAnchor(regionId: string): TemplateResult {
   return html`<div
     class="panel center"
     style="position: relative;"
-    role="main"
     id="mn-main-editor"
     data-center-slot
     data-region=${regionId}
@@ -151,6 +152,7 @@ export function mountEditorHost(
     html`<sh-editor-host
       id="mn-editor-host"
       class="editor-host-singleton"
+      ?hidden=${options.parked ?? false}
       aria-owns="mn-main-editor"
       .binding=${binding}
       .kernelOptions=${kernelOptions ?? null}

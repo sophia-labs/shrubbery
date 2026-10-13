@@ -52,6 +52,8 @@ export interface MnWorkspaceSummary {
   readonly title: string
   readonly role: MnWorkspaceRole
   readonly cellState: MnWorkspaceCellState
+  /** A retained local creation, not a confirmed hosted ACL or cell. */
+  readonly localCreation?: { readonly status: 'pending' | 'conflict'; readonly error?: string }
   /** Account-local recency used by entry surfaces; never inferred by Shrubbery. */
   readonly lastOpenedAt?: number | null
   /** A quiet catalog testimony supplied by the account/ACL authority. */
@@ -132,6 +134,7 @@ export function workspaceActionCapability(
   workspace: MnWorkspaceSummary,
   action: MnWorkspaceManagementAction,
 ): MnWorkspaceActionCapability {
+  if (workspace.localCreation) return UNAVAILABLE
   if (workspace.capabilities !== undefined) {
     return workspace.capabilities[action] ?? UNAVAILABLE
   }

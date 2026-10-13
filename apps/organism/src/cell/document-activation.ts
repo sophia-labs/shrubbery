@@ -1025,6 +1025,14 @@ export class DocumentActivationManager {
         const probe = new Y.Doc()
         try {
           Y.applyUpdate(probe, remote.update)
+          if (this.fetchSnapshot && !remote.incarnation) {
+            // A fence-aware prefetch cannot establish reusable cache authority
+            // without an incarnation. Leave a fresh open empty so it can take
+            // the existing online-only room path; never promote these bytes
+            // into cached state that visible activation must quarantine.
+            // The legacy fetchUpdate-only contract remains unchanged.
+            return { status: 'miss' } as const
+          }
           const normalizedUpdate = Y.encodeStateAsUpdate(probe)
           const record = this.record(
             normalized,

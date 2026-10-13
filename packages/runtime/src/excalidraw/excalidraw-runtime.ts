@@ -312,7 +312,7 @@ type CanvasEventDetail = {
 type ExcalidrawComponentProps = {
   readonly key: string
   readonly initialData: ExcalidrawInitialData
-  readonly excalidrawAPI: (api: ExcalidrawApi) => void
+  readonly onInitialize: (api: ExcalidrawApi) => void
   readonly onChange: (elements: readonly unknown[], appState: Record<string, unknown>, files: unknown) => void
   readonly onLinkOpen: (element: unknown, event: unknown) => void
 }
@@ -657,7 +657,7 @@ class ExcalidrawRuntimeController implements ExcalidrawRuntimeHandle {
       const props: ExcalidrawComponentProps = {
         key: `${this.options.scope.graphId}/${this.options.scope.artifactId}/${++this.renderGeneration}`,
         initialData,
-        excalidrawAPI: (api) => this.claimApi(api, generation),
+        onInitialize: (api) => this.claimApi(api, generation),
         onChange: (elements, appState, files) => this.sceneChanged(elements, appState, files, generation),
         onLinkOpen: (element, event) => this.linkOpened(element, event),
       }

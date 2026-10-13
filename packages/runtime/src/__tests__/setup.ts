@@ -11,6 +11,20 @@ import { afterEach } from 'vitest'
 ;(globalThis as { litIssuedWarnings?: Set<string> }).litIssuedWarnings ??= new Set()
 ;(globalThis as { litIssuedWarnings?: Set<string> }).litIssuedWarnings!.add('dev-mode')
 
+// happy-dom 15 walks an unrelated focused shadow tree all the way to Document
+// and dereferences its nonexistent .host. Browsers return null for that case.
+// Keep its normal focus implementation and correct only the disjoint-root case;
+// real focus/selection acceptance runs independently in Chromium.
+const activeElement = Object.getOwnPropertyDescriptor(ShadowRoot.prototype, 'activeElement')!
+Object.defineProperty(ShadowRoot.prototype, 'activeElement', {
+  ...activeElement,
+  get(this: ShadowRoot) {
+    const active = this.ownerDocument.activeElement
+    if (active && !this.host.contains(active) && !active.contains(this.host)) return null
+    return activeElement.get!.call(this)
+  },
+})
+
 afterEach(() => {
   document.body.innerHTML = ''
   document.head.innerHTML = ''

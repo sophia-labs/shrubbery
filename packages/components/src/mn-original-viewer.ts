@@ -9,7 +9,7 @@
  * selection.
  */
 
-import { LitElement, css, html, nothing, unsafeCSS, type TemplateResult } from 'lit'
+import { LitElement, css, html, nothing, unsafeCSS, type PropertyValues, type TemplateResult } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 import { repeat } from 'lit/directives/repeat.js'
 import { SkinAware } from './skin-aware.js'
@@ -26,6 +26,13 @@ export interface MnOriginalViewerPage {
   readonly height?: number | null
   readonly imageUrl?: string | null
   readonly label?: string | null
+  readonly rectangles?: readonly { left: number; top: number; width: number; height: number }[]
+}
+
+export interface MnOriginalViewerSourceMapping {
+  readonly status: 'mapped' | 'edited' | 'unmapped' | 'invalid' | 'unsupported' | 'source-mismatch'
+  readonly message: string
+  readonly pages: readonly number[]
 }
 
 export interface MnOriginalViewerChapter {
@@ -181,7 +188,13 @@ export class MnOriginalViewer extends SkinAware(LitElement) {
       opacity: 0.48;
     }
 
+    :host([bare]) .toolbar,
+    :host([bare]) .pdf-navigation,
+    :host([bare]) .source-mapping,
+    :host([bare]) .annotation-rail { display: none; }
+
     .stage {
+      container-type: inline-size;
       position: relative;
       display: flex;
       flex: 1 1 auto;
@@ -269,6 +282,38 @@ export class MnOriginalViewer extends SkinAware(LitElement) {
       margin: 0;
     }
 
+    .pdf-canvas { position: relative; }
+    .pdf-region {
+      position: absolute;
+      pointer-events: none;
+      background: rgba(255, 196, 48, 0.28);
+      outline: 1px solid rgba(166, 100, 0, 0.55);
+      border-radius: 2px;
+    }
+    .pdf-navigation, .source-mapping {
+      display: flex;
+      flex: 0 0 auto;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      border-bottom: 1px solid var(--mn-color-border-subtle, #e5e7eb);
+      font-size: var(--mn-text-xs, 12px);
+      overflow-wrap: anywhere;
+    }
+    .pdf-navigation label { display: inline-flex; align-items: center; gap: 6px; }
+    .pdf-navigation input { width: 5.5em; }
+    .pdf-navigation input, .source-mapping select {
+      box-sizing: border-box;
+      max-width: 100%;
+      min-height: 30px;
+      border: 1px solid var(--mn-color-border-subtle, #d1d5db);
+      border-radius: var(--mn-radius-control, 6px);
+      background: var(--mn-color-surface-base, #fff);
+      color: inherit;
+      font: inherit;
+    }
+
     .pdf-image,
     .pdf-placeholder {
       display: block;
@@ -285,6 +330,10 @@ export class MnOriginalViewer extends SkinAware(LitElement) {
       place-items: center;
       color: var(--mn-color-text-tertiary, #6b7280);
     }
+
+    /* Intrinsic width/height reserve layout; responsive width must scale both
+       axes, including the overlay's containing box, not retain pixel height. */
+    .pdf-image { height: auto; }
 
     .pdf-page-label {
       margin: 8px 0 0;
@@ -457,6 +506,12 @@ export class MnOriginalViewer extends SkinAware(LitElement) {
       box-sizing: border-box;
     }
 
+    /* A narrow stage reads as one column: the page takes the whole width, with no frame around it. */
+    @container (max-width: 520px) {
+      .pdf-pages { padding: 8px 0 16px; gap: 8px; }
+      .pdf-image, .pdf-placeholder { border-left: 0; border-right: 0; }
+    }
+
     @media (max-width: 760px) {
       .toolbar {
         align-items: flex-start;
@@ -505,9 +560,17 @@ export class MnOriginalViewer extends SkinAware(LitElement) {
   @property({ type: String }) text = ''
   @property({ type: String }) error = ''
   @property({ type: String }) selectedChapterId = ''
+  /**
+   * The viewer as a page inside a host that owns the chrome (the Files pane): no toolbar, page navigation, source
+   * mapping or annotation rail of its own. The host draws one row of actions, and notes belong to its margin.
+   */
+  @property({ type: Boolean, reflect: true }) bare = false
   @property({ type: Boolean }) downloadable = false
   @property({ type: Boolean }) externalOpenable = false
   @property({ attribute: false }) pages: readonly MnOriginalViewerPage[] = []
+  @property({ type: Number }) pageCount = 0
+  @property({ type: Number }) selectedPageNumber = 1
+  @property({ attribute: false }) sourceMapping: MnOriginalViewerSourceMapping | null = null
   @property({ attribute: false }) chapters: readonly MnOriginalViewerChapter[] = []
   @property({ attribute: false }) annotations: readonly MnOriginalViewerAnnotation[] = []
 
@@ -548,6 +611,21 @@ export class MnOriginalViewer extends SkinAware(LitElement) {
       annotationId: annotation.id,
       annotation,
     })
+  }
+
+  private _selectPage(pageNumber: number): void {
+    if (!Number.isSafeInteger(pageNumber) || pageNumber < 1 || pageNumber > this.pageCount) return
+    this._emit('mn-original-viewer-page-select', { ...this._detail(), pageNumber })
+  }
+
+  protected updated(changed: PropertyValues<this>): void {
+    if (!changed.has('pages')) return
+    const reader = this.renderRoot.querySelector<HTMLElement>('.pdf-reader')
+    const region = reader?.querySelector<HTMLElement>('.pdf-region')
+    if (reader && region) {
+      const offset = region.getBoundingClientRect().top - reader.getBoundingClientRect().top
+      reader.scrollTop += offset - Math.max(24, reader.clientHeight / 3)
+    }
   }
 
   private _kind(): MnOriginalViewerKind {
@@ -606,7 +684,15 @@ export class MnOriginalViewer extends SkinAware(LitElement) {
           ${repeat(this.pages, (page) => page.pageNumber, (page) => html`
             <figure class="pdf-page">
               ${page.imageUrl
-                ? html`<img class="pdf-image" src=${page.imageUrl} alt=${page.label || `Page ${page.pageNumber}`} />`
+                ? html`<div class="pdf-canvas">
+                    <img class="pdf-image" src=${page.imageUrl} width=${page.width ?? nothing} height=${page.height ?? nothing} alt=${page.label || `Original PDF page ${page.pageNumber}. Switch to text view to read extracted text.`} />
+                    ${(page.rectangles ?? []).filter(rect =>
+                      [rect.left, rect.top, rect.width, rect.height].every(Number.isFinite)
+                      && rect.left >= 0 && rect.top >= 0 && rect.width > 0 && rect.height > 0
+                      && rect.left + rect.width <= 100.0001 && rect.top + rect.height <= 100.0001,
+                    ).map(rect => html`<span class="pdf-region" aria-hidden="true"
+                      style=${`left:${rect.left}%;top:${rect.top}%;width:${rect.width}%;height:${rect.height}%;`}></span>`)}
+                  </div>`
                 : html`
                     <div
                       class="pdf-placeholder"
@@ -727,7 +813,7 @@ export class MnOriginalViewer extends SkinAware(LitElement) {
   render(): TemplateResult {
     return html`
       <section class="root" role="region" aria-label="Original file viewer">
-        <header class="toolbar">
+        <header class="toolbar" ?hidden=${this.bare}>
           ${icon('file-text', { size: 18 })}
           <span class="title-wrap">
             <span class="title">${this._heading()}</span>
@@ -742,6 +828,23 @@ export class MnOriginalViewer extends SkinAware(LitElement) {
             </button>
           </span>
         </header>
+        ${this.pageCount > 0 ? html`
+          <nav class="pdf-navigation" aria-label="Original PDF pages">
+            <button type="button" aria-label="Previous PDF page" ?disabled=${this.selectedPageNumber <= 1 || this.status === 'loading'} @click=${() => this._selectPage(this.selectedPageNumber - 1)}>Previous</button>
+            <label>Page <input type="number" min="1" max=${this.pageCount} .value=${String(this.selectedPageNumber)} aria-label="PDF page number"
+              @change=${(event: Event) => this._selectPage(Number((event.target as HTMLInputElement).value))} /> of ${this.pageCount}</label>
+            <button type="button" aria-label="Next PDF page" ?disabled=${this.selectedPageNumber >= this.pageCount || this.status === 'loading'} @click=${() => this._selectPage(this.selectedPageNumber + 1)}>Next</button>
+          </nav>` : nothing}
+        ${this.sourceMapping ? html`
+          <div class="source-mapping" data-mapping-status=${this.sourceMapping.status} role="status">
+            <span>${this.sourceMapping.message}</span>
+            ${this.sourceMapping.pages.length > 0 ? html`
+              <select aria-label="Go to source region page" .value=${this.sourceMapping.pages.includes(this.selectedPageNumber) ? String(this.selectedPageNumber) : ''}
+                @change=${(event: Event) => this._selectPage(Number((event.target as HTMLSelectElement).value))}>
+                <option value="" disabled>Go to source region</option>
+                ${this.sourceMapping.pages.map(page => html`<option value=${page}>Source page ${page}</option>`)}
+              </select>` : nothing}
+          </div>` : nothing}
         <div class="stage">
           <main class="viewer">${this._renderBody()}</main>
           ${this._renderAnnotations()}

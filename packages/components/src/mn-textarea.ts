@@ -8,6 +8,7 @@ import { customElement, property, query, state } from 'lit/decorators.js'
 import { classMap } from 'lit/directives/class-map.js'
 import { ifDefined } from 'lit/directives/if-defined.js'
 import { SkinAware } from './skin-aware.js'
+import { BEVELLED } from './bevelled-skins.js'
 import { icon, iconStyles } from './icons.js'
 
 export type MnTextareaResize = 'none' | 'vertical' | 'horizontal' | 'both'
@@ -152,13 +153,13 @@ export class MnTextarea extends SkinAware(LitElement) {
       color: var(--mn-color-danger, #b91c1c);
     }
 
-    :host([data-skin='98']) .wrap {
+    :host(${BEVELLED}) .wrap {
       border: 0;
       border-radius: 0;
       background: var(--mn-color-surface-sunken);
       box-shadow: var(--mn-98-sunken);
     }
-    :host([data-skin='98']) .wrap.focused:not(.error-state) {
+    :host(${BEVELLED}) .wrap.focused:not(.error-state) {
       box-shadow: var(--mn-98-sunken), var(--mn-focus-ring);
     }
     :host([data-skin='glass']) .wrap {

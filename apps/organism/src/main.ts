@@ -32,8 +32,8 @@
 import '@shrubbery/tokens/tokens.css'
 import {
   applySkinTheme,
+  effectiveTheme,
   isVisualIdentitySkin,
-  nextVisualIdentitySkin,
   type Skin,
   type Theme,
   type VisualIdentitySkin,
@@ -85,6 +85,14 @@ import type {
 // The PURE config.edges → MnRelation[] projection the dev edge overlay renders.
 // Same source the interpreter installs behavior from — imported here, mounted below.
 import { configEdgesToRelations } from './edge-overlay.js'
+import { ensureActiveChatSession } from './cell/active-chat-session.js'
+import { chatContextRefs, makeChatArtifactPreviewPort, snapshotBefore, workspaceRoleOf } from './cell/chat-workspace.js'
+import {
+  callToolFromToolsCall,
+  saveConversationToGarden,
+  saveTargetsOf,
+  type SaveConversationMcp,
+} from './cell/save-conversation.js'
 
 // 2) The real render host + the editor-seam wiring (assemble services, build the kernel
 //    options, the reactive editor-host binding, and the shipped wikilink picker glue).
@@ -107,6 +115,7 @@ import {
   makeGrowTurnDriver,
   EDITOR_STRUCTURE_CHANGE_EVENT,
   EDITOR_HEADING_IN_VIEW_EVENT,
+  type LiveHeadingOutlineEntry,
   SALIENCE_RATE_REQUEST_EVENT,
   type SalienceRateRequestDetail,
   OPEN_DOCUMENT_EVENT,
@@ -151,8 +160,15 @@ import {
   type PickerEditorHandle,
   type ChatService,
   type ChatHeaderActionDetail,
+  type ChatHostCredits,
+  type ChatChangeIntent,
+  type ChatHostWorkspace,
   type ChatPresentation,
   type ChatSurfaceActionIntent,
+  type ConversationHomePorts,
+  type SaveTarget,
+  type SaveToGardenRequest,
+  type SaveToGardenResult,
   type HojaWikiLinkResolver,
   type CitationPickerItem,
   type CitationPickerService,
@@ -264,7 +280,7 @@ import {
 } from '@shrubbery/runtime'
 import {
   CommandRegistryImpl,
-  DEFAULT_RIGHT_PANEL,
+  DEFAULT_RIGHT_PANEL as SHELL_DEFAULT_RIGHT_PANEL,
   NULL_EDITOR_SCOPE,
   getWirePredicateLabel,
   rightPanelModeFromPanels,
@@ -289,12 +305,16 @@ import {
   type StoreState,
   type AppId,
   type BlockScore,
+  showPopover,
+  hidePopover,
+  positionPopover,
 } from '@shrubbery/nucleus'
 
 // 3) The real nucleus: literals + RDF codec + serializer.
 import {
   GARDEN_DEFAULT,
   GARDEN_VARIANT,
+  deriveAppTabs,
   parseNT,
   parseTriplesToConfig,
   serializeConfigToTriples,
@@ -305,6 +325,7 @@ import {
 // 4) The REAL committed seed .nt (the body the Rust ux_seed.rs inserts into a
 //    cell's :ux:config graph), imported as a raw string by Vite.
 import SEED_NT from '@shrubbery/nucleus/seed/garden-default.ux.nt?raw'
+import { randomUUID } from '@shrubbery/nucleus/web-crypto'
 
 // 5) SHELL-SIDE: the gardend-backed contract + the session-store factory.
 import { dispatchCenterPaneIntentChange } from './cell/center-pane-intent.js'
@@ -314,6 +335,8 @@ import {
 } from './cell/gardend-contract.js'
 import type { DocumentActivationManager } from './cell/document-activation.js'
 import { EditorRoomPool, type EditorRoomLease } from './cell/editor-room-pool.js'
+import { ArtifactLivePreview, watchArtifactWorkspace } from './cell/artifact-live-preview.js'
+import { CustomCssController, showCustomCssMenu } from './cell/custom-css.js'
 import {
   addGraphPanelDocumentNode,
   addGraphPanelEdge,
@@ -324,6 +347,15 @@ import {
 } from './cell/graph-panel-projection.js'
 import { bootstrapTauriLocalCell } from './cell/tauri-local-bootstrap.js'
 import {
+  acceptPastedSelfHostKey,
+  activeSelfHostSession,
+  bootstrapSelfHostCell,
+  isPermissionRefusal,
+  renderSelfHostKeyScreen,
+  selfHostBuild,
+  selfHostTransport,
+} from './cell/self-host.js'
+import {
   createSessionStore,
   loadConfigFromCell,
   workspaceConfigStore,
@@ -333,7 +365,6 @@ import {
 } from './cell/session-store.js'
 import {
   clearCellErrorPanel,
-  makeDefaultWorkspaceNotice,
   renderCellErrorPanel,
 } from './cell/default-workspace-ui.js'
 import { WorkspaceFragmentsController } from './cell/workspace-fragments.js'
@@ -344,7 +375,10 @@ import {
   sourceStatusModel,
 } from './cell/source-status.js'
 import { createObservatoryFreshnessAttachment } from './cell/observatory-freshness-attachment.js'
+import { RoomMirror, createRoomMirrorStamp, mcpRoomMirrorDumper } from './cell/room-mirror.js'
+import type { QueryBlockService } from '@shrubbery/runtime'
 import { createShellNamedQueryRegistry } from './harness/shell-named-query-registry.js'
+import { isEmbeddableFocusIri } from '@shrubbery/runtime/layout'
 import { SYNC_QUERY } from './harness/source-sync-query-catalog.js'
 import {
   contestedSelectionFrom,
@@ -378,11 +412,19 @@ import {
   LEFT_PANEL_SNAP,
   PANEL_SNAP_THRESHOLD_PX,
   RIGHT_PANEL_SNAP,
+  defaultPanelLayoutForApp,
+  panelLayoutStorageKey,
   readPanelLayoutState,
   writePanelLayoutState,
   type OrganismPanelLayoutState,
 } from './cell/panel-layout-state.js'
 import { FilePaneController } from './cell/file-pane-controller.js'
+import { FilesClient } from './cell/files-contract.js'
+import { FilesShell, INFO_SHORTCUT } from './cell/files-shell.js'
+import { mountPlaceNotice, type PlaceNotice } from './cell/place-notice.js'
+import { filesMenuPresenter } from './cell/files-menu.js'
+import { PHONE_BREAKPOINT_QUERY } from './cell/phone-breakpoint.js'
+import { FILES_SECTION_ACTION, FilesDiscovery, filesSidebarSections, parseEvidenceLink } from './cell/files-route.js'
 import {
   handleLandmarkCycleShortcut,
   handleRegistryDocumentShortcut,
@@ -467,7 +509,25 @@ import {
   settingsReturnPath,
 } from './cell/settings-navigation.js'
 import { createSettingsOverlayTransition } from './cell/settings-overlay-transition.js'
-import { ChoreographStudioService } from './cell/choreograph-studio-service.js'
+import { connectChatCredits } from './cell/chat-credits.js'
+import { createCreditsNoticeSource } from './cell/credits-notice.js'
+import { hostedSignUpLocation, safeAuthReturnUrl } from './cell/auth-navigation.js'
+import { resolveHostedEntry, type HostedEntry } from './cell/hosted-entry-route.js'
+import {
+  confirmedStarterPreference,
+  readCapturedHostedDirectory,
+  startHostedStarter,
+  type HostedStarterStartup,
+  type StarterStartupPreference,
+} from './cell/new-user-starter-startup.js'
+import { makeStarterStartupNotice } from './cell/new-user-starter-notice.js'
+import { redeemShareLinkFromLocation, showShareLinkLanding } from './cell/share-link-redemption.js'
+import { withNotebookWorkspaceShell } from './cell/notebook-workspace-shell.js'
+import { withGrapevineWorkspace } from './cell/grapevine-workspace.js'
+import { choreographRouteAppLinks, suiteAppLinks } from './cell/hoja-suite.js'
+import { flowAppEnabled, withFlowWorkspace } from './cell/flow-workspace.js'
+import { acceptsGrapevineNavigation } from './cell/grapevine-feature.js'
+import type { MnGrapevinePane } from './cell/grapevine-pane.js'
 import { mountPublicShellRoute } from './cell/public-shell.js'
 import {
   installOrganismWireMode,
@@ -482,9 +542,11 @@ import {
   saveBlob,
   type DocumentExportDialogController,
 } from './cell/document-transfer.js'
+import { documentUploadSummary } from './cell/document-upload-summary.js'
 import {
   cellRequestHeaders,
   fetchArtifactBlob,
+  fetchArtifactText,
   fetchArtifactRevisionBlob,
   fetchArtifactRevisionList,
   fetchDocumentSnapshotJson,
@@ -496,6 +558,7 @@ import {
   pickImageFile,
   postArtifactRevision,
   restoreArtifactRevision,
+  restoreArtifactTextRevision,
   uploadImageForEditor,
   type HostedDocumentSnapshotEntry,
   type HostedDocumentSnapshotListResponse,
@@ -524,7 +587,12 @@ import {
   type HostedGatewayContract,
 } from './cell/hosted-gateway-contract.js'
 import { createDevServiceProxyAuthStorage } from './cell/dev-service-proxy-auth.js'
-import type { GatewayGraphInfo } from './cell/gateway-transport.js'
+import {
+  confirmHostedWorkspaceCreation,
+  mergeHostedWorkspaceCreations,
+  prepareHostedWorkspace,
+  type HostedWorkspaceInfo,
+} from './cell/hosted-workspace-creation.js'
 import { HomeActivityStore, type HomeDocumentSource } from './cell/home-activity.js'
 import {
   OpenRouterImageGenerationService,
@@ -533,7 +601,6 @@ import {
 import { generateArtifactImage } from './cell/image-generation-flow.js'
 import {
   resolveOrganismDeploymentConfig,
-  selectHostedGraphId,
   type HostedDeploymentConfig,
 } from './cell/deployment-config.js'
 import {
@@ -551,6 +618,7 @@ import {
   persistAppearancePreferences,
   readAppearancePreferences,
   resolveThemePreference,
+  readRightPanelOnLaunchPreference,
 } from './cell/settings-service.js'
 import { createOrganismMobileShellFeature } from './cell/mobile-shell-controller.js'
 import {
@@ -594,7 +662,10 @@ type OrganismSessionStore = SessionStore<OrganismCellContract>
 // (`sync.conflicts-open`/`sync.conflict-candidates`, §2.7) — the contested
 // wayfinding surface resolves its table through this SAME sealed registry,
 // not a second one.
-setWorkspaceNamedQueryRegistry(createShellNamedQueryRegistry())
+// el Despacho W1: the SAME sealed registry also answers "does this named
+// query carry {{focus}}?" for the fragments controller's focus binding.
+const shellNamedQueryRegistry = createShellNamedQueryRegistry()
+setWorkspaceNamedQueryRegistry(shellNamedQueryRegistry)
 
 const shellFeatureHost = createOrganismShellFeatureHost<OrganismCellContract>()
 const visualViewportFrameController = new OrganismVisualViewportFrameController()
@@ -602,12 +673,20 @@ const mobileShellFeatureHost = createShellFeatureHost<OrganismCellContract>([
   createOrganismMobileShellFeature<OrganismCellContract>(),
 ])
 
-const deploymentConfig = resolveOrganismDeploymentConfig({
+/**
+ * The self-host build (`VITE_SHRUBBERY_SELF_HOST=1`, `pnpm build:selfhost`): this bundle served by the
+ * person's own gardend at `/`, same origin, with no gateway, no Cognito and no Choreograph (so no chat).
+ * Decided at build time; the hosted build never asks for `/self-host.json`. See cell/self-host.ts.
+ */
+const SELF_HOST = selfHostBuild(import.meta.env)
+/** Garden opens the right rail on Chat; a self-host has no chat yet, so it opens on Comments. */
+const DEFAULT_RIGHT_PANEL: PanelId = SELF_HOST ? 'comments' : SHELL_DEFAULT_RIGHT_PANEL
+
+const deploymentConfig = resolveOrganismDeploymentConfig(SELF_HOST ? {} : {
   VITE_GATEWAY_BASE_URL: import.meta.env.VITE_GATEWAY_BASE_URL,
   VITE_COGNITO_REGION: import.meta.env.VITE_COGNITO_REGION,
   VITE_COGNITO_CLIENT_ID: import.meta.env.VITE_COGNITO_CLIENT_ID,
   VITE_COGNITO_USER_POOL_ID: import.meta.env.VITE_COGNITO_USER_POOL_ID,
-  VITE_CHAT_API_BASE_URL: import.meta.env.VITE_CHAT_API_BASE_URL,
   VITE_CLOUD2_SERVICE_PROXY_SUBJECT: import.meta.env.DEV
     ? import.meta.env.VITE_CLOUD2_SERVICE_PROXY_SUBJECT
     : undefined,
@@ -615,11 +694,14 @@ const deploymentConfig = resolveOrganismDeploymentConfig({
 let deploymentContract: OrganismCellContract | null = null
 let hostedGatewayContract: HostedGatewayContract | null = null
 let hostedAuthSession: CognitoAuthSession | null = null
+let hostedStarterStartup: HostedStarterStartup | null = null
+let hostedStarterRunId = 0
 let hostedEvidenceService: ReturnType<typeof createHostedEvidenceService> | null = null
 let stopHostedAuthRefresh: (() => void) | null = null
-let hostedGraphs: readonly GatewayGraphInfo[] = []
+let hostedGraphs: readonly HostedWorkspaceInfo[] = []
 let hostedGraphsStatus: 'idle' | 'loading' | 'ready' | 'error' = 'idle'
 let hostedGraphsError = ''
+let hostedDirectoryReadId = 0
 let hostedWorkspaceBusyId = ''
 
 // 6) SHELL-SIDE: the live Emporium vocab-catalogue store + the DOM views built
@@ -703,6 +785,24 @@ document.body.appendChild(exportDialogEl)
 document.body.appendChild(inputDialogEl)
 document.body.appendChild(confirmationDialogEl)
 document.body.appendChild(folderPickerDialogEl)
+// Files (see the Files block above renderConfig): declared here, before any render can reach them.
+const filesDiscovery = new FilesDiscovery(() => rerenderCurrentSource())
+const filesMenuEl = document.createElement('mn-context-menu') as MnContextMenu
+document.body.appendChild(filesMenuEl)
+const showFilesMenu = filesMenuPresenter(filesMenuEl)
+// Files is hidden on phones in this release (Vera, 2026-10-06): the shell's own phone breakpoint decides.
+const filesPhoneMedia = typeof window.matchMedia === 'function' ? window.matchMedia(PHONE_BREAKPOINT_QUERY) : null
+filesPhoneMedia?.addEventListener('change', () => rerenderCurrentSource())
+let filesClient: FilesClient | null = null
+let filesClientContract: OrganismCellContract | null = null
+let filesShell: FilesShell | null = null
+/** The right panel Show info replaced, given back when it closes; the tree keys of the node menu that is open (for Show info on several). */
+let infoRestorePanel: RightPanelMode | null = null
+let sidebarMenuKeys: string[] = []
+/** The way back to the place a document was opened from, and the sentences for verbs the cell cannot do yet. */
+let placeNotice: PlaceNotice | null = null
+let placeReturn: { readonly folderId: string | null; readonly label: string } | null = null
+function placeNoticeLazy(): PlaceNotice { return placeNotice ??= mountPlaceNotice(document.body) }
 document.body.appendChild(shortcutsDialogEl)
 const emporiumControls = document.getElementById('emporium-controls') as HTMLDivElement
 const emporiumRefreshBtn = document.getElementById('emporium-refresh-btn') as HTMLButtonElement
@@ -717,10 +817,17 @@ const PRESETS: Record<string, () => string> = {
   SEED_NT: () => SEED_NT,
 }
 
-// The once-per-graph "default workspace" notice (chrome over read.defaulted —
-// see default-workspace-ui.ts). Lives outside the render host so workspace
-// re-renders never clobber it.
-const defaultWorkspaceNotice = makeDefaultWorkspaceNotice(document)
+// Independent body-owned status, never a graph-selection or retry action.
+const starterStartupNotice = makeStarterStartupNotice(document, () => window.location.assign('/home'))
+function stopHostedStarterStartup(): void {
+  hostedStarterRunId += 1
+  hostedStarterStartup?.cancel()
+  hostedStarterStartup = null
+  starterStartupNotice.destroy()
+}
+window.addEventListener('pagehide', stopHostedStarterStartup)
+window.addEventListener('popstate', stopHostedStarterStartup)
+window.addEventListener('hashchange', stopHostedStarterStartup)
 
 // ── Status reporting ──────────────────────────────────────────────────────────
 function ok(msg: string): void {
@@ -891,7 +998,8 @@ interface FolderPickOptions {
 function pickSidebarFolder(opts: FolderPickOptions): Promise<string | null | undefined> {
   folderPickerDialogEl.title = opts.title
   folderPickerDialogEl.currentParentId = opts.currentParentId
-  folderPickerDialogEl.section = opts.section
+  // One tree: a folder holds anything, so every folder is a destination.
+  folderPickerDialogEl.section = 'tree'
   folderPickerDialogEl.excludeIds = [...(opts.excludeIds ?? [])]
   folderPickerDialogEl.folders = sidebarFolderOptionsFromSections(currentSidebarSections) as MnFolderPickerOption[]
 
@@ -949,7 +1057,9 @@ let currentPinnedWireNodes: PinnedWireNode[] = []
 let currentPinnedWireBlocks: PinnedWireBlock[] = []
 type LeftPanelMode = 'files' | 'graph' | 'outline'
 
-const VALID_RIGHT_PANEL_IDS = new Set<PanelId>(['chat', 'comments', 'wires', 'inspector', 'graph'])
+const VALID_RIGHT_PANEL_IDS = new Set<PanelId>(
+  SELF_HOST ? ['comments', 'wires', 'inspector', 'graph'] : ['chat', 'comments', 'wires', 'inspector', 'graph'],
+)
 const panelLayoutStorage = browserSessionStorage()
 const filePaneController = new FilePaneController(panelLayoutStorage)
 const centerPanesSessionRepository = new CenterPanesSessionRepository(panelLayoutStorage)
@@ -970,12 +1080,32 @@ let currentGraphPanelViewMode: GraphPanelViewMode =
 // reload same as everything else in this module.
 let graphNodeHistory: string[] = []
 let graphNodeHistoryIndex = -1
-let currentPanelLayout: OrganismPanelLayoutState = readPanelLayoutState(panelLayoutStorage)
+let currentPanelLayout: OrganismPanelLayoutState = readPanelLayoutState(
+  panelLayoutStorage,
+  panelLayoutStorageKey(currentApp),
+  defaultPanelLayoutForApp(currentApp),
+)
 const initialRightPanel = readRightPanelFromUrl()
 let preExpandRightPanel: RightPanelMode = initialRightPanel
+/**
+ * The right rail's launch state, which is a real preference and not a default.
+ *
+ * `panelLayoutStorage` is SESSION storage, so the rail's collapsed state dies
+ * with the window: every launch restores `DEFAULT_PANEL_LAYOUT`, and anyone who
+ * does not want the rail open has to close it again every single time. The
+ * settings toggle answers the one question the session state cannot survive to
+ * answer.
+ *
+ * An explicit `?r=` in the URL still wins. A link that asks for the inspector
+ * is a request about THIS navigation, and a launch preference has no business
+ * overruling it.
+ */
+const rightPanelOnLaunch = readRightPanelOnLaunchPreference(settingsStorage())
 let currentRightPanel: RightPanelMode = currentPanelLayout.rightCollapsed || currentPanelLayout.leftExpanded
   ? 'none'
-  : initialRightPanel
+  : !rightPanelOnLaunch && !rightPanelRequestedInUrl()
+    ? 'none'
+    : initialRightPanel
 let currentLeftPanelMode: LeftPanelMode = 'files'
 let currentSidebarSections: readonly SidebarSection[] = []
 let currentSidebarStatus: 'idle' | 'loading' | 'ready' | 'error' = 'idle'
@@ -1188,6 +1318,8 @@ type CurrentArtifactSurface = {
   readonly ingestedDocumentId: string | null
   readonly status: 'idle' | 'loading' | 'ready' | 'error'
   readonly previewUrl: string | null
+  readonly previewHtml?: string | null
+  readonly previewIdentity?: string | null
   readonly error?: string
   readonly editorOpen: boolean
   readonly editorPrompt: string
@@ -1204,6 +1336,7 @@ let currentArtifactSurface: CurrentArtifactSurface | null = null
 let latestArtifactPreviewRequest = 0
 let latestArtifactHistoryRequest = 0
 let currentArtifactPreviewObjectUrl: string | null = null
+let currentArtifactHtmlPreview: ArtifactLivePreview | null = null
 let currentArtifactHistoryObjectUrls = new Map<string, string>()
 const artifactImageGenerator = new OpenRouterImageGenerationService({
   keys: new TauriImageProviderKeySource(),
@@ -1390,6 +1523,16 @@ function normalizeRightPanels(values: readonly unknown[]): PanelId[] {
   return next
 }
 
+/** Whether this navigation named the right panel itself, rather than defaulting. */
+function rightPanelRequestedInUrl(): boolean {
+  try {
+    const raw = new URLSearchParams(window.location.search).get('r')
+    return raw !== null && raw.trim().length > 0
+  } catch {
+    return false
+  }
+}
+
 function readRightPanelFromUrl(): RightPanelMode {
   try {
     const raw = new URLSearchParams(window.location.search).get('r')
@@ -1426,7 +1569,23 @@ function describeRightPanel(): string {
 
 function updatePanelLayout(patch: Partial<OrganismPanelLayoutState>): void {
   currentPanelLayout = { ...currentPanelLayout, ...patch }
-  writePanelLayoutState(panelLayoutStorage, currentPanelLayout)
+  writePanelLayoutState(panelLayoutStorage, currentPanelLayout, panelLayoutStorageKey(currentApp))
+}
+
+/**
+ * Switches the active app AND reloads panel layout from THAT app's own
+ * storage key. Without this, `currentPanelLayout` stayed whatever the
+ * previously active app had loaded (usually Garden's), so opening another app
+ * rendered its split at Garden's saved/default pixel widths
+ * instead of that app's own `sizeFraction` proportions.
+ */
+function switchCurrentApp(nextApp: AppId | undefined): void {
+  currentApp = nextApp
+  currentPanelLayout = readPanelLayoutState(
+    panelLayoutStorage,
+    panelLayoutStorageKey(nextApp),
+    defaultPanelLayoutForApp(nextApp),
+  )
 }
 
 function handlePanelReposition(detail: WorkspacePanelRepositionDetail): void {
@@ -1501,6 +1660,7 @@ function transitionRightPanel(panel: RightPanelMode, reflectUrl = true): void {
 }
 
 function setRightPanel(panel: RightPanelMode, origin: string): void {
+  if (SELF_HOST && panel === 'chat') return
   // The graph is one persistent Class-C surface. Moving it into the right rail
   // first returns the left rail to Files so we never stamp two graph anchors or
   // destroy/recreate the WebGL owner.
@@ -1968,6 +2128,8 @@ function releaseArtifactHistoryObjectUrls(): void {
 }
 
 function clearArtifactSurfaceState(): void {
+  currentArtifactHtmlPreview?.dispose()
+  currentArtifactHtmlPreview = null
   artifactImageGenerationAbort?.abort()
   artifactImageGenerationAbort = null
   teardownExcalidrawRuntime()
@@ -2039,6 +2201,38 @@ function refreshArtifactPreview(detail?: ArtifactViewIntentDetail): void {
   const surface = currentArtifactSurface
   if (!surface) return
   if (detail && (detail.graphId !== surface.graphId || detail.artifactId !== surface.artifactId)) return
+
+  if (artifactSurfaceKind(surface) === 'html') {
+    if (currentArtifactHtmlPreview) { currentArtifactHtmlPreview.refresh(); return }
+    if (!store || sourceSelect.value !== 'CELL_LIVE') {
+      currentArtifactSurface = { ...surface, status: 'error', error: 'Open a live cell source to read HTML artifacts.' }
+      rerenderCurrentSource()
+      return
+    }
+    const activeStore = store
+    const preview = new ArtifactLivePreview({
+      read: signal => fetchArtifactText(activeStore.contract, surface.graphId, surface.artifactId, signal),
+      watch: (invalidate, unavailable) => watchArtifactWorkspace(
+        activeStore.contract, roomPoolFor(activeStore.contract.crdt), surface.graphId, surface.artifactId, invalidate, unavailable,
+      ),
+      onChange: state => {
+        if (currentArtifactHtmlPreview !== preview || store !== activeStore
+          || currentArtifactSurface?.graphId !== surface.graphId
+          || currentArtifactSurface?.artifactId !== surface.artifactId) return
+        // A future text editor must opt in to accepting remote content; never
+        // overwrite an existing local editor draft as a side effect of refresh.
+        if (currentArtifactSurface.editorOpen) return
+        currentArtifactSurface = { ...currentArtifactSurface, status: state.status,
+          previewHtml: state.snapshot?.text ?? null,
+          previewIdentity: state.snapshot ? `${state.snapshot.graphIncarnation}:${state.snapshot.contentHashSha256}` : null,
+          error: state.error }
+        rerenderCurrentSource()
+      },
+    })
+    currentArtifactHtmlPreview = preview
+    preview.start()
+    return
+  }
 
   const requestId = ++latestArtifactPreviewRequest
   releaseArtifactPreviewObjectUrl()
@@ -2477,6 +2671,17 @@ function handleArtifactHistoryClose(detail: ArtifactViewIntentDetail): void {
 async function handleArtifactHistoryRestore(detail: ArtifactHistoryRevisionDetail): Promise<void> {
   const surface = currentArtifactSurface
   if (!surface || detail.graphId !== surface.graphId || detail.artifactId !== surface.artifactId) return
+  const intendedStore = store
+  const htmlController = currentArtifactHtmlPreview
+  const htmlSnapshot = htmlController?.snapshot().snapshot
+  const isHtml = surface.mimeType?.split(';', 1)[0]?.trim().toLowerCase() === 'text/html'
+  const stillOwnsHtml = (): boolean => !isHtml || (currentArtifactHtmlPreview === htmlController
+    && currentArtifactHtmlPreview?.snapshot().snapshot?.graphIncarnation === htmlSnapshot?.graphIncarnation)
+  if (isHtml && (!htmlSnapshot || htmlSnapshot.graphId !== detail.graphId || htmlSnapshot.artifactId !== detail.artifactId)) {
+    currentArtifactSurface = { ...surface, historyStatus: 'error', historyError: 'Read the current HTML artifact before restoring a revision.' }
+    rerenderCurrentSource()
+    return
+  }
   const revision = surface.historyRevisions.find((item) => item.revisionId === detail.revisionId)
   const label = revision?.label || revision?.filename || detail.revisionId
   const confirmed = await confirmAction({
@@ -2489,6 +2694,7 @@ async function handleArtifactHistoryRestore(detail: ArtifactHistoryRevisionDetai
 
   const latest = currentArtifactSurface
   if (!latest || latest.graphId !== detail.graphId || latest.artifactId !== detail.artifactId) return
+  if (store !== intendedStore || !stillOwnsHtml()) return
   const activeStore = liveSidebarMutationStore('restore artifact revision')
   if (!activeStore) return
   currentArtifactSurface = {
@@ -2500,9 +2706,14 @@ async function handleArtifactHistoryRestore(detail: ArtifactHistoryRevisionDetai
   rerenderCurrentSource()
 
   try {
-    await restoreArtifactRevision(activeStore.contract, detail.graphId, detail.artifactId, detail.revisionId)
+    if (isHtml && htmlSnapshot) {
+      await restoreArtifactTextRevision(activeStore.contract, htmlSnapshot, detail.revisionId, randomUUID())
+    } else {
+      await restoreArtifactRevision(activeStore.contract, detail.graphId, detail.artifactId, detail.revisionId)
+    }
     if (
       store !== activeStore ||
+      !stillOwnsHtml() ||
       currentArtifactSurface?.graphId !== detail.graphId ||
       currentArtifactSurface?.artifactId !== detail.artifactId
     ) {
@@ -2516,6 +2727,7 @@ async function handleArtifactHistoryRestore(detail: ArtifactHistoryRevisionDetai
   } catch (e) {
     if (
       store !== activeStore ||
+      !stillOwnsHtml() ||
       currentArtifactSurface?.graphId !== detail.graphId ||
       currentArtifactSurface?.artifactId !== detail.artifactId
     ) {
@@ -2606,7 +2818,8 @@ function refreshDocHistoryDiff(): void {
     })
 }
 
-function loadDocHistorySurface(graphId: string, documentId: string): void {
+/** Load a document's History; with `standBefore` (ms), the older side stands at the version before then. */
+function loadDocHistorySurface(graphId: string, documentId: string, standBefore?: number): void {
   if (!store || sourceSelect.value !== 'CELL_LIVE') {
     currentDocHistorySurface = {
       graphId,
@@ -2664,7 +2877,8 @@ function loadDocHistorySurface(graphId: string, documentId: string): void {
       const snapshots = (list.snapshots ?? [])
         .map((entry) => normalizeDocumentSnapshot(entry, graphId, documentId))
         .filter((snapshot): snapshot is DocHistorySnapshot => snapshot !== null)
-      const olderId = snapshots[0]?.id ?? ''
+      // A chat change link stands at the version before its turn (no undo button: History is the way back).
+      const olderId = snapshotBefore(snapshots, standBefore) ?? snapshots[0]?.id ?? ''
       currentDocHistorySurface = {
         graphId,
         documentId,
@@ -2712,16 +2926,16 @@ function loadDocHistorySurface(graphId: string, documentId: string): void {
     })
 }
 
-function openDocHistory(documentId = openDocId, origin = 'document history'): void {
+function openDocHistory(documentId = openDocId, origin = 'document history', standBefore?: number): void {
   if (!documentId) {
     err('open a document before opening version history.')
     return
   }
   if (documentId !== openDocId) {
-    void openCellDocument(documentId).then(() => loadDocHistorySurface(currentGraphId, documentId))
+    void openCellDocument(documentId).then(() => loadDocHistorySurface(currentGraphId, documentId, standBefore))
     return
   }
-  loadDocHistorySurface(currentGraphId, documentId)
+  loadDocHistorySurface(currentGraphId, documentId, standBefore)
   ok(`${origin} -> opened version history for ${documentId}`)
 }
 
@@ -3659,18 +3873,17 @@ async function runDocumentImport(
     if (store !== activeStore || currentGraphId !== graphId || sourceSelect.value !== 'CELL_LIVE') return
     await refreshAfterSidebarMutation(activeStore, graphId)
     if (result.cancelled) {
-      ok(`document import cancelled (${result.succeeded.length} completed)`)
+      ok(documentUploadSummary(result))
       return
     }
     if (result.failed.length > 0) {
-      const details = result.failed.map(item => `${item.file.name}: ${item.error.message}`).join('\n')
-      err(`imported ${result.succeeded.length}, failed ${result.failed.length}${result.skipped.length ? `, skipped ${result.skipped.length}` : ''}:\n${details}`)
+      err(documentUploadSummary(result))
       return
     }
     if (result.succeeded.length === 1) {
       await openCellDocument(result.succeeded[0].documentId)
     }
-    ok(`imported ${result.succeeded.length} document${result.succeeded.length === 1 ? '' : 's'}${result.skipped.length ? ` (skipped ${result.skipped.length} system files)` : ''}`)
+    ok(documentUploadSummary(result))
   } catch (e) {
     if (e instanceof Error && e.name === 'AbortError') {
       ok('document import cancelled')
@@ -4009,6 +4222,12 @@ function handleSidebarNodeOpen(detail: SidebarNodeDetail): void {
     handleTagIntent(name, 'sidebar tag')
     return
   }
+  if (detail.node.kind === 'folder' && filesVisible()) {
+    // Opening a folder opens the place, whatever was born in it (one tree); the tree shows where you are (expanded, not toggled shut).
+    setSidebarFolderExpanded(detail.id, true)
+    openFilesRoute({ folderId: detail.id })
+    return
+  }
   if (detail.node.kind === 'folder') {
     // Retained mechanics: the folder EXPANSION toggle and the sidebar's own
     // highlight-reflection id (currentSidebarSelectedId feeds sidebar.selectedId —
@@ -4036,6 +4255,9 @@ function handleSidebarNodeOpen(detail: SidebarNodeDetail): void {
     return
   }
   if (detail.node.kind === 'artifact') {
+    // A file opens in the Files pane by its type (PDF original viewer, image preview, else download) when the cell
+    // serves Files; Zotero items and cells older than the contract keep the artifact view.
+    if (!detail.id.startsWith('zot-') && filesVisible() && openFilesRoute({ artifactId: detail.id })) return
     openArtifactFromSidebar(detail.id, detail.node)
     return
   }
@@ -4056,6 +4278,7 @@ function handleSidebarNodeOpen(detail: SidebarNodeDetail): void {
     return
   }
   currentSidebarSelectedId = null
+  placeReturn = null
   // A click is stronger than hover/focus. Promote the same delayed intent
   // before navigation reaches the asynchronous render/provider boundary.
   prepareDocumentIntent(currentGraphId, detail.id, 'intent')
@@ -4172,6 +4395,20 @@ function handleSidebarNodeDrop(detail: SidebarNodeDropDetail): void {
   if (!mutation) return
   const { source, parentId, order } = mutation
 
+  // One tree: a drag may carry a file or cross kinds. The Files commands move files and say, in words, what an older cell cannot do yet.
+  const kind = source.kind === 'artifact' ? 'artifact' : source.kind === 'document' ? 'document' : 'folder'
+  const shell = filesShell?.visible() ? filesShell : null
+  if (shell && kind !== 'folder') {
+    const refusal = shell.explainMove(kind, source.id, parentId)
+    if (refusal) { placeNoticeLazy().say(refusal, 'error'); err(refusal); return }
+  }
+  if (source.kind === 'artifact') {
+    if (!shell) return
+    void shell.moveInto([{ kind: 'artifact', id: source.id }], parentId).then(result => {
+      if (result.message) placeNoticeLazy().say(result.message, result.ok ? 'info' : 'error')
+    })
+    return
+  }
   if (source.kind === 'folder') {
     void moveFolderFromSidebar(source.id, source.label, parentId, order)
   } else {
@@ -4261,6 +4498,8 @@ function handleSidebarAction(detail: SidebarActionDetail): void {
       } else {
         void refreshSidebarSections()
       }
+      // A cell that could not be asked whether it serves Files is asked again on an explicit refresh.
+      if (filesClient && filesDiscovery.state(filesClient, currentGraphId).status === 'error') filesDiscovery.invalidate()
       return
     case 'node-menu':
       showSidebarNodeMenu(detail)
@@ -4411,7 +4650,8 @@ function selectedSection(selection: SelectedObject | null): 'documents' | 'artif
 }
 
 function isDocumentSectionFolder(selection: SelectedObject | null): boolean {
-  return selection?.kind === 'folder' && selectedSection(selection) === 'documents'
+  // One tree: when the cell lets a folder hold anything, every folder takes a new document.
+  return selection?.kind === 'folder' && (selectedSection(selection) === 'documents' || filesShell?.anyFolder() === true)
 }
 
 function selectedArtifactId(selection: SelectedObject | null): string | null {
@@ -4426,6 +4666,8 @@ function selectedArtifactTitle(selection: SelectedObject | null, fallback: strin
 
 function showSidebarNodeMenu(detail: SidebarActionDetail): void {
   const selection = selectionForSidebarNode(detail)
+  sidebarMenuKeys = (detail.nodes ?? (detail.node ? [detail.node] : [])).flatMap(node =>
+    node.kind === 'folder' || node.kind === 'document' || node.kind === 'artifact' ? [`${node.kind}:${node.id}`] : [])
   const ctx = buildCommandContext({
     selection,
     origin: detail.nodeId ? `sidebar node menu: ${detail.nodeId}` : 'sidebar node menu',
@@ -4443,7 +4685,7 @@ function showSidebarNodeMenu(detail: SidebarActionDetail): void {
       x: typeof detail.clientX === 'number' ? detail.clientX : 240,
       y: typeof detail.clientY === 'number' ? detail.clientY : 96,
     },
-    'top-right',
+    'top-left',
   )
 }
 
@@ -4515,7 +4757,7 @@ const RIGHT_PANEL_COMMAND_SPECS = [
 }>
 
 shellCommandRegistry.register(
-  RIGHT_PANEL_COMMAND_SPECS.map(({ panel, label, icon, shortcut, keywords }) => ({
+  RIGHT_PANEL_COMMAND_SPECS.filter(spec => !(SELF_HOST && spec.panel === 'chat')).map(({ panel, label, icon, shortcut, keywords }) => ({
     id: `panel.toggle.${panel}`,
     label,
     category: 'View',
@@ -4531,6 +4773,46 @@ shellCommandRegistry.register(
     },
   })),
 )
+
+shellCommandRegistry.register([
+  {
+    id: 'files.open',
+    label: 'Open Files',
+    category: 'View',
+    icon: 'folder',
+    keywords: ['files', 'upload', 'pdf', 'images', 'folder', 'attachments'],
+    surfaces: ['palette'] as const,
+    when: () => filesVisible(),
+    run: () => { openFilesRoute({ folderId: null }) },
+  },
+  {
+    id: 'files.open-folder',
+    label: 'Open in Files',
+    category: 'View',
+    icon: 'folder',
+    keywords: ['files', 'folder'],
+    surfaces: ['context'] as const,
+    appliesTo: (selection) => selection?.kind === 'folder',
+    when: () => filesVisible(),
+    run: (ctx: CommandContext) => {
+      const folderId = selectedFolderId(ctx.selection)
+      if (folderId) openFilesRoute({ folderId })
+    },
+  },
+  {
+    id: 'files.open-trash',
+    label: 'Open Trash',
+    category: 'View',
+    icon: 'trash',
+    keywords: ['trash', 'restore', 'deleted', 'bin'],
+    surfaces: ['palette'] as const,
+    when: () => filesVisible(),
+    run: () => {
+      if (!openFilesRoute({ folderId: null })) return
+      void filesShell?.openTrash()
+    },
+  },
+])
 
 shellCommandRegistry.register([
   {
@@ -4711,7 +4993,32 @@ shellCommandRegistry.register([
     label: 'Open Folder',
     category: 'Folder',
     icon: 'folder',
-    keywords: ['open', 'folder', 'expand'],
+    keywords: ['open', 'folder', 'place'],
+    surfaces: ['context'] as const,
+    appliesTo: (selection) => selection?.kind === 'folder',
+    run: (ctx: CommandContext) => {
+      const folderId = selectedFolderId(ctx.selection)
+      if (!folderId) return
+      // Open Folder opens the place, wherever the folder was born. A cell without Files has only the tree, so there it expands.
+      if (filesVisible()) {
+        setSidebarFolderExpanded(folderId, true)
+        openFilesRoute({ folderId })
+        ok(`${commandOrigin(ctx, 'command: folder.open')} -> opened place ${folderId}`)
+        return
+      }
+      setSidebarFolderExpanded(folderId, true)
+      currentSidebarSelectedId = folderId
+      currentInspectorSelection = ctx.selection
+      rerenderCurrentSource()
+      ok(`${commandOrigin(ctx, 'command: folder.open')} -> opened ${folderId}`)
+    },
+  },
+  {
+    id: 'folder.expand',
+    label: 'Expand',
+    category: 'Folder',
+    icon: 'chevron-down',
+    keywords: ['expand', 'folder', 'tree'],
     surfaces: ['context'] as const,
     appliesTo: (selection) => selection?.kind === 'folder',
     run: (ctx: CommandContext) => {
@@ -4721,7 +5028,7 @@ shellCommandRegistry.register([
       currentSidebarSelectedId = folderId
       currentInspectorSelection = ctx.selection
       rerenderCurrentSource()
-      ok(`${commandOrigin(ctx, 'command: folder.open')} -> opened ${folderId}`)
+      ok(`${commandOrigin(ctx, 'command: folder.expand')} -> expanded ${folderId}`)
     },
   },
   {
@@ -4882,6 +5189,24 @@ shellCommandRegistry.register([
         selectedArtifactTitle(ctx.selection, artifactId),
         selectedParentId(ctx.selection),
       )
+    },
+  },
+  {
+    id: 'files.show-info',
+    label: 'Show info',
+    category: 'Files',
+    icon: 'info',
+    shortcut: INFO_SHORTCUT,
+    keywords: ['info', 'get info', 'metadata', 'details', 'properties'],
+    surfaces: ['context'] as const,
+    appliesTo: (selection) => selection?.kind === 'document' || selection?.kind === 'folder' || selection?.kind === 'artifact',
+    run: (ctx: CommandContext) => {
+      const own = ctx.selection?.kind === 'document' ? `document:${selectedDocumentId(ctx.selection)}`
+        : ctx.selection?.kind === 'folder' ? `folder:${selectedFolderId(ctx.selection)}` : `artifact:${selectedArtifactId(ctx.selection)}`
+      // A node menu on a multi-selection shows info for all of it; the command context names only the node under the pointer.
+      const keys = sidebarMenuKeys.includes(own) ? sidebarMenuKeys : [own]
+      const shell = bindFilesShell()
+      if (shell) shell.showInfo(keys)
     },
   },
   {
@@ -5176,21 +5501,28 @@ function showShortcutsDialog(): void {
   shortcutsDialogEl.show()
 }
 
-function isTextEntryTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false
-  if (target.isContentEditable) return true
-  const tag = target.tagName.toLowerCase()
-  return tag === 'input' || tag === 'textarea' || tag === 'select'
-}
-
+/**
+ * Cmd/Ctrl+/ and nothing else, which is what cloud-1 binds. The reason is not
+ * tidiness.
+ *
+ * A bare `?` used to open this dialog too, guarded by a check that the event
+ * target was not a text field. That guard could never fire for the editor. The
+ * listener below is on `document`, the editor lives inside `sh-editor-host`'s
+ * shadow root, and an event crossing a shadow boundary is RETARGETED: by the
+ * time it reaches `document`, `event.target` is the host element -- not
+ * contenteditable, not an input -- so the guard said "not text" and the handler
+ * ate the keystroke. Typing a question mark into a document was impossible; it
+ * opened the help screen instead.
+ *
+ * `event.composedPath()[0]` sees through the boundary and would have been the
+ * repair if the shortcut were wanted. It isn't: cloud-1 never bound `?`, a bare
+ * printable character is a poor global accelerator in an app that is mostly a
+ * text editor, and the accelerator that works from anywhere already exists. So
+ * this deletes the binding rather than patching its guard.
+ */
 function shouldOpenShortcutsDialog(event: KeyboardEvent): boolean {
   if (event.defaultPrevented) return false
-  const key = event.key
-  if ((event.metaKey || event.ctrlKey) && key === '/') return true
-  if (key === '?' && !event.metaKey && !event.ctrlKey && !event.altKey && !isTextEntryTarget(event.target)) {
-    return true
-  }
-  return false
+  return (event.metaKey || event.ctrlKey) && event.key === '/'
 }
 
 document.addEventListener('keydown', (event) => {
@@ -5271,11 +5603,75 @@ function handleOutlineCommand(detail: OutlinePanelCommandDetail): void {
   currentLiveEditor()?.runOutlinerCommand(detail.command)
 }
 
+// ── Pane-header mini table of contents ───────────────────────────────────────
+// The face renders; the host owns which popup is open and where the headings
+// come from, exactly like outlinePanel above.
+let currentTocOpenPaneId: CenterPaneId | null = null
+
+function centerPaneHeadings(): ReadonlyMap<CenterPaneId, readonly LiveHeadingOutlineEntry[]> {
+  const byPane = new Map<CenterPaneId, readonly LiveHeadingOutlineEntry[]>()
+  for (const pane of centerPanesController.projection.panes) {
+    const headings = editorHostElementForPane(pane.id)?.liveEditor?.getHeadings() ?? []
+    if (headings.length > 0) byPane.set(pane.id, headings)
+  }
+  return byPane
+}
+
+function handleTocToggle(detail: { readonly paneId: CenterPaneId }): void {
+  currentTocOpenPaneId = currentTocOpenPaneId === detail.paneId ? null : detail.paneId
+  rerenderCurrentSource()
+  syncTocPopover()
+}
+
+function handleTocNavigate(detail: { readonly paneId: CenterPaneId; readonly blockId: string }): void {
+  editorHostElementForPane(detail.paneId)?.liveEditor?.focusBlock(detail.blockId)
+  currentTocOpenPaneId = null
+  rerenderCurrentSource()
+  syncTocPopover()
+}
+
+/**
+ * Promote the open dropdown into the native top layer and anchor it. The pane
+ * stage sets `overflow: hidden`, so an in-flow panel is clipped at the pane
+ * edge; the surface faces are plain render functions with no component
+ * lifecycle, so promotion happens here after the host re-renders.
+ */
+function syncTocPopover(): void {
+  requestAnimationFrame(() => {
+    for (const wrap of hostEl.querySelectorAll<HTMLElement>('[data-toc-wrap]')) {
+      const panel = wrap.querySelector<HTMLElement>('.toc-dropdown')
+      const trigger = wrap.querySelector<HTMLElement>('.toc-btn')
+      if (!panel) continue
+      if (wrap.dataset.tocWrap === currentTocOpenPaneId && trigger) {
+        showPopover(panel)
+        positionPopover(trigger, panel, { placement: 'bottom', gap: 4 })
+      } else {
+        hidePopover(panel)
+      }
+    }
+  })
+}
+
+// Outside pointerdown dismisses the popup, matching every other menu here.
+document.addEventListener('pointerdown', (event: PointerEvent) => {
+  if (currentTocOpenPaneId === null) return
+  const insideToc = event.composedPath().some(
+    node => node instanceof Element && node.hasAttribute('data-toc-wrap'),
+  )
+  if (insideToc) return
+  currentTocOpenPaneId = null
+  rerenderCurrentSource()
+  syncTocPopover()
+})
+
 let graphProjectionRenderTimer: ReturnType<typeof setTimeout> | null = null
 document.addEventListener(EDITOR_STRUCTURE_CHANGE_EVENT, ((event: CustomEvent<EditorStructureChangeDetail>) => {
   const graphWantsRefresh = currentGraphPanelViewMode === 'document' && currentRightPanel === 'graph'
   const outlineWantsRefresh = currentLeftPanelMode === 'outline'
-  if (!graphWantsRefresh && !outlineWantsRefresh) return
+  // The pane-header TOC trigger appears/disappears with the heading set, so a
+  // structural edit has to reach the header too — not just the outline panel.
+  const tocWantsRefresh = event.detail?.reason !== 'selection'
+  if (!graphWantsRefresh && !outlineWantsRefresh && !tocWantsRefresh) return
   if (graphProjectionRenderTimer) clearTimeout(graphProjectionRenderTimer)
   graphProjectionRenderTimer = setTimeout(() => {
     graphProjectionRenderTimer = null
@@ -6568,7 +6964,7 @@ function ensureEdgeOverlayHost(): MnRelations {
   const host = document.createElement('div')
   host.setAttribute('data-edge-overlay', '')
   host.style.cssText =
-    'position:fixed;right:12px;bottom:12px;z-index:2147483000;max-width:320px;'
+    'position:fixed;right:12px;bottom:12px;z-index:var(--mn-z-toast, 1600);max-width:320px;'
     + 'padding:10px 12px;border-radius:8px;background:var(--mn-color-surface-raised,#fff);'
     + 'border:1px solid var(--mn-color-border-default,#e5e7eb);box-shadow:0 4px 16px rgba(0,0,0,0.18);'
     + 'font:11px/1.4 system-ui,sans-serif'
@@ -6608,6 +7004,7 @@ let workspacePostRenderEpoch = 0
  */
 const workspaceFragments = new WorkspaceFragmentsController({
   requestRender: () => rerenderCurrentSource(),
+  namedQueryUsesFocus: (name) => shellNamedQueryRegistry.usesFocus(name),
   onPersistError: (error, declaration) => {
     // The optimistic in-memory layout is NOT reverted (durability, not the
     // swap, is what a failed write loses) — but the failure is never silent.
@@ -6651,8 +7048,124 @@ function currentObjectService(contract: OrganismCellContract): ReturnType<typeof
   return objectServiceFor.service
 }
 
+/**
+ * el Despacho S0 (plans/2026-09-15-despacho-first-principles.md §3.2, §6 S0):
+ * the ROOM MIRROR. The four projection-sized named graphs a room needs are
+ * `rdf_dump`ed into the bundled Oxigraph and served through the SAME
+ * `session.queryService` seam the source mirror uses, so a chapter reads
+ * locally instead of paying ~0.7–1.0 s of fixed gateway→cell latency per face
+ * query (measured 2026-09-15). One mirror per contract, like
+ * `objectServiceFor`; `?roomMirror=off` keeps the remote path, for
+ * measurement and as an escape hatch. The write path is untouched:
+ * `wrapVerbPort` only re-dumps the graph a word targeted, BEFORE the result
+ * returns to the executor, so the chapter's re-read sees the Rendición.
+ *
+ * Render discipline: the mirror publishes on every state change INCLUDING
+ * per-query stats. Only a CONTENT change (`epoch`) or a status change
+ * re-renders the workspace (coalesced to one frame); stats alone refresh the
+ * stamp element in place — a render that ran queries that re-rendered would
+ * otherwise loop.
+ */
+const roomMirrorEnabled = (() => {
+  try { return new URL(window.location.href).searchParams.get('roomMirror') !== 'off' } catch { return true }
+})()
+const roomMirrorStamp = createRoomMirrorStamp(hostEl)
+// The stamp is a diagnostic readout (mirror freshness, quad counts, read
+// routing); like the #status strip it shows only under `?debug`.
+const roomMirrorStampShown = new URLSearchParams(window.location.search).has('debug')
+let roomMirrorFor: {
+  readonly contract: OrganismCellContract
+  readonly mirror: RoomMirror
+  readonly verbPorts: Map<string, ReturnType<RoomMirror['wrapVerbPort']>>
+  lastSeen: string
+  renderQueued: boolean
+} | null = null
+
+function currentRoomMirror(contract: OrganismCellContract): RoomMirror {
+  if (roomMirrorFor?.contract !== contract) {
+    roomMirrorFor?.mirror.closeAll()
+    const holder: NonNullable<typeof roomMirrorFor> = {
+      contract,
+      verbPorts: new Map(),
+      lastSeen: '',
+      renderQueued: false,
+      mirror: new RoomMirror({
+        dumper: mcpRoomMirrorDumper(contract.rawMcp),
+        liveRest: contract.rest,
+        userId: () => contract.auth.userId() || 'anonymous',
+        onChange: (changedGraphId, state) => {
+          if (roomMirrorFor !== holder || store?.contract !== contract || changedGraphId !== currentGraphId) return
+          roomMirrorStamp.sync(roomMirrorStampShown ? state : null, () => { void holder.mirror.sync(currentGraphId) })
+          const seen = `${state.status}${state.epoch}`
+          if (seen === holder.lastSeen || holder.renderQueued) return
+          holder.lastSeen = seen
+          holder.renderQueued = true
+          requestAnimationFrame(() => {
+            holder.renderQueued = false
+            if (roomMirrorFor === holder && store?.contract === contract) rerenderCurrentSource()
+          })
+        },
+      }),
+    }
+    roomMirrorFor = holder
+    if (import.meta.env.DEV) (window as unknown as { __roomMirror?: RoomMirror }).__roomMirror = holder.mirror
+  }
+  return roomMirrorFor.mirror
+}
+
+function currentRoomVerbPort(contract: OrganismCellContract, graphId: string): ReturnType<RoomMirror['wrapVerbPort']> {
+  const mirror = currentRoomMirror(contract)
+  const holder = roomMirrorFor!
+  let port = holder.verbPorts.get(graphId)
+  if (!port) {
+    port = mirror.wrapVerbPort(contract.rawMcp, graphId)
+    holder.verbPorts.set(graphId, port)
+  }
+  return port
+}
+
+/**
+ * DEV-ONLY instrument (the S0 proof reads it as `window.__queryStats`): every
+ * face query's duration and completion time, per lane ('room' = the mirror's
+ * service, 'remote' = the source mirror's / live path). Memoized per
+ * underlying service so the fragments controller's identity comparison still
+ * sees one object per service. Compiled out of production builds.
+ */
+interface QueryLaneStats { count: number; totalMs: number; maxMs: number; firstStartMs: number; lastEndMs: number }
+const queryLaneStats: Record<string, QueryLaneStats> = {}
+const instrumentedQueryServices = new WeakMap<QueryBlockService, QueryBlockService>()
+function instrumentQueryService(service: QueryBlockService, lane: 'room' | 'remote'): QueryBlockService {
+  if (!import.meta.env.DEV) return service
+  const existing = instrumentedQueryServices.get(service)
+  if (existing) return existing
+  const stats = (queryLaneStats[lane] ??= { count: 0, totalMs: 0, maxMs: 0, firstStartMs: 0, lastEndMs: 0 })
+  const wrapped: QueryBlockService = {
+    async run(graphId, sparql, maxRows) {
+      const started = performance.now()
+      if (!stats.firstStartMs) stats.firstStartMs = started
+      try {
+        return await service.run(graphId, sparql, maxRows)
+      } finally {
+        const ms = performance.now() - started
+        stats.count += 1
+        stats.totalMs += ms
+        if (ms > stats.maxMs) stats.maxMs = ms
+        stats.lastEndMs = performance.now()
+      }
+    },
+  }
+  instrumentedQueryServices.set(service, wrapped)
+  ;(window as unknown as { __queryStats?: typeof queryLaneStats }).__queryStats = queryLaneStats
+  return wrapped
+}
+
 function currentFragmentOptions(config: WorkspaceConfig): WorkspaceFragmentsOptions | null {
   const activeStore = store
+  const room = activeStore && sourceSelect.value === 'CELL_LIVE' && roomMirrorEnabled
+    ? currentRoomMirror(activeStore.contract)
+    : null
+  if (room) void room.ensureOpen(currentGraphId)
+  const roomService = room?.queryService(currentGraphId) ?? null
   const session = activeStore && sourceSelect.value === 'CELL_LIVE'
     ? {
         rest: activeStore.contract.rest,
@@ -6662,11 +7175,27 @@ function currentFragmentOptions(config: WorkspaceConfig): WorkspaceFragmentsOpti
         // polls are free while any graph-authored source/config triple causes
         // its fragment to be reloaded and revalidated.
         configRevision: activeStore.getState().read?.nt,
-        queryService: activeStore.contract.sourceMirror.surfaceQueryService(currentGraphId),
+        // The room mirror when it is ready for this graph; otherwise the
+        // source mirror's service, exactly as before S0.
+        queryService: roomService
+          ? instrumentQueryService(roomService, 'room')
+          : instrumentQueryService(activeStore.contract.sourceMirror.surfaceQueryService(currentGraphId), 'remote'),
         objectService: currentObjectService(activeStore.contract),
         ...(hostedEvidenceService ? { evidenceService: hostedEvidenceService } : {}),
+        // el Despacho W1 (plans/2026-09-15-despacho-design.md §7): the bead
+        // under the cursor (`?focus=<iri>`), the tool port a word travels
+        // through — the UNWRAPPED authority path, as `card.object` uses, so
+        // the cloud2 proxy carries it on behalf of the viewer — and the
+        // viewer's identity as the witness of that word.
+        focus: currentFocus(),
+        verbPort: room ? currentRoomVerbPort(activeStore.contract, currentGraphId) : activeStore.contract.rawMcp,
+        witness: activeStore.contract.auth.userId() || null,
       }
     : null
+  roomMirrorStamp.sync(
+    room && roomMirrorStampShown ? room.state(currentGraphId) : null,
+    room ? () => { void room.sync(currentGraphId) } : null,
+  )
   // Unawaited, before the fragment load kicks off below — the confession
   // paints before the panes.
   observatoryFreshnessAttachment.sync(config, session)
@@ -6849,7 +7378,12 @@ function beginResolution(
 
 function handleResolutionMenuSelect(menu: ActiveResolutionMenu, id: string): void {
   if (id === 'copy-key') {
-    void navigator.clipboard?.writeText(menu.objectKey).then(
+    // navigator.clipboard exists only in secure contexts (HTTPS, localhost); a plain-HTTP LAN page has none.
+    if (!navigator.clipboard?.writeText) {
+      err('SourceMirror: copying needs the clipboard, which this browser offers only over HTTPS or on localhost')
+      return
+    }
+    void navigator.clipboard.writeText(menu.objectKey).then(
       () => ok('copied the object key'),
       () => err('SourceMirror: could not copy the object key to the clipboard'),
     )
@@ -6919,6 +7453,137 @@ hostEl.addEventListener(OBJECT_INTENT_EVENT, ((event: CustomEvent<ObjectIntentDe
   // the time this event fires (WS1 C-D21); no host action is required.
 }) as EventListener)
 
+let pendingGrapevineAgentNavigation: unknown = null
+
+// ── Files (CONTRACT-files v1, the cell's Files contract) ─────────────────────────────────────────
+// The Files pane is a center route over the cell's Files contract: the left tree is the sidebar's artifacts section
+// (called Files when the cell serves it), the center is the folder canvas or the list or the opened file, the right
+// panel is the inspector. It exists only for a cell that advertises `files` version 1 (`FilesDiscovery`); every way in
+// (the section's Open Files action, an artifacts folder or file in the tree, the palette) is absent otherwise. Edits
+// are mediated commands through the contract; nothing here parses a file.
+// (The Files state is declared beside the other menus near the top, so no early render meets it uninitialised.)
+
+/** The OS file picker for the Files menu's "Upload files…": any type, several at once. */
+function pickFilesForUpload(): Promise<readonly File[] | null> {
+  return new Promise(resolve => {
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.multiple = true
+    input.addEventListener('change', () => resolve(Array.from(input.files ?? [])), { once: true })
+    input.addEventListener('cancel', () => resolve(null), { once: true })
+    input.click()
+  })
+}
+
+/** The Files shell for the live store, bound to the current graph; null off CELL_LIVE. */
+function currentFilesShell(): FilesShell | null {
+  if (!store || sourceSelect.value !== 'CELL_LIVE') {
+    filesShell?.leave()
+    return null
+  }
+  const contract = store.contract
+  if (!filesShell || !filesClient || filesClientContract !== contract) {
+    filesShell?.dispose()
+    filesClientContract = contract
+    filesClient = new FilesClient(contract, contract.mcp)
+    filesShell = new FilesShell({
+      client: filesClient,
+      refresh: async () => {
+        await refreshSidebarSections()
+        // The commands read the tree from the binding: give them the refreshed sections now, not at the next frame.
+        bindFilesShell()
+      },
+      onChange: () => rerenderCurrentSource(),
+      onInfo: open => {
+        // Show info replaces the right pane: make room for it (the inspector, even from a collapsed pane), and give the pane back on close.
+        if (open) {
+          if (infoRestorePanel === null && currentRightPanel !== 'inspector') { infoRestorePanel = currentRightPanel; transitionRightPanel('inspector') }
+        } else if (infoRestorePanel !== null) {
+          const back = infoRestorePanel
+          infoRestorePanel = null
+          transitionRightPanel(back)
+        }
+      },
+      menu: showFilesMenu,
+      canvasCommand: command => {
+        const canvas = hostEl.querySelector('mn-files-canvas') as (HTMLElement & { command?: (c: typeof command) => void }) | null
+        canvas?.command?.(command)
+      },
+      pickFiles: pickFilesForUpload,
+      openDocument: (documentId, place) => {
+        placeReturn = place
+        currentSidebarSelectedId = null
+        prepareDocumentIntent(currentGraphId, documentId, 'intent')
+        sidebarOpenEmitter.emit({ documentId })
+      },
+    })
+  }
+  return filesShell
+}
+
+/** Bind the shell to what the shell knows now: the cell's advert, the graph's owner and role, the sidebar's tree. */
+function bindFilesShell(): FilesShell | null {
+  const shell = currentFilesShell()
+  if (!shell || !filesClient) return null
+  const discovery = filesDiscovery.state(filesClient, currentGraphId)
+  const hosted = deploymentConfig.mode === 'hosted'
+  const graph = hosted ? hostedGraphs.find(row => row.graphId === currentGraphId) : null
+  // Folder-view records are keyed by the graph's directory owner: the owner the gateway route names, else the
+  // directory's, else (a directory without owners) the signed-in person, so positions always save. Local: one owner.
+  const owner = hosted ? routedGraphOwner(currentGraphId) ?? graph?.owner?.trim() ?? hostedAuthSession?.userId() ?? 'unknown-owner' : 'local'
+  const ready = discovery.status === 'ready' ? discovery : null
+  shell.bind({
+    graphId: currentGraphId,
+    ownerId: owner,
+    graphIncarnation: ready?.graphIncarnation ?? '',
+    writable: hosted ? graph?.role === 'owner' || graph?.role === 'editor' : true,
+    advert: ready?.advert ?? null,
+    sections: currentSidebarSections,
+    phone: filesPhoneMedia?.matches === true,
+  })
+  // A deep link to an assertion (`#evidence=<claim id>`) opens the file in the reader at that assertion, once.
+  const link = parseEvidenceLink(window.location)
+  if (link && shell.visible() && handledEvidenceLink !== window.location.hash) {
+    handledEvidenceLink = window.location.hash
+    shell.openEvidence(link.artifactId, link.id)
+  }
+  return shell
+}
+let handledEvidenceLink = ''
+
+/** The owner a hosted graph's gateway route names (`/o/{owner}/g/{graph}`), when it names one. */
+function routedGraphOwner(graphId: string): string | null {
+  try {
+    const base = store?.contract.runtime.graphBaseUrl(graphId) ?? ''
+    const match = /\/o\/([^/]+)\/g\//.exec(new URL(base, window.location.href).pathname)
+    return match ? decodeURIComponent(match[1]!) : null
+  } catch { return null }
+}
+
+function filesVisible(): boolean {
+  return bindFilesShell()?.visible() === true
+}
+
+/** Enter the Files pane (at a folder, or revealing a file); every other center route steps aside. */
+function openFilesRoute(target: { readonly folderId?: string | null; readonly artifactId?: string }): boolean {
+  const shell = bindFilesShell()
+  if (!shell?.visible()) return false
+  if (openDocId) closeOpenDocumentSurface(openDocId)
+  clearTagLensState()
+  clearZoteroSourceState()
+  clearArtifactSurfaceState()
+  clearDocHistoryState()
+  currentContestedSurface = null
+  currentParkedWorkRoute = null
+  placeReturn = null
+  if (target.artifactId) shell.openFile(target.artifactId)
+  else shell.openFolder(target.folderId ?? null)
+  currentSidebarSelectedId = target.artifactId ?? target.folderId ?? null
+  rerenderCurrentSource()
+  ok(`files: ${target.artifactId ? `file ${target.artifactId}` : `folder ${target.folderId ?? '(top)'}`}`)
+  return true
+}
+
 /** Render a config into the host and return a one-line provenance summary. */
 function renderConfig(config: WorkspaceConfig, app: string | undefined): string {
   const claim = ensureEditorClaim()
@@ -6933,9 +7598,33 @@ function renderConfig(config: WorkspaceConfig, app: string | undefined): string 
   const dailyNotes = sourceSelect.value === 'CELL_LIVE' ? dailyNoteRenderState() : null
   const mobileHome = sourceSelect.value === 'CELL_LIVE' ? currentHomeOptions() : null
   const home = dailyNotes?.showHomeRow ? mobileHome : null
-  const fragments = currentFragmentOptions(config)
   const contested = currentContestedOptions()
   const parkedWork = currentParkedWorkOptions()
+  // The Files route yields to every other explicit center route, and stays closed once another took over.
+  const filesShellNow = bindFilesShell()
+  const filesBlocked = Boolean(openDocId || centerPanesVisible || tagLens || zoteroSource
+    || artifactSurface || docHistorySurface || contested || parkedWork)
+  if (filesBlocked) filesShellNow?.leave()
+  const files = !filesBlocked && (app === undefined || app === 'garden') ? filesShellNow?.options() ?? null : null
+  const filesInspector = files ? filesShellNow?.inspector() ?? null : null
+  // A document opened out of the place offers the way back, to the same folder with its face, camera and selection kept.
+  placeNoticeLazy().back(openDocId && placeReturn && !files && filesShellNow?.visible()
+    ? { label: placeReturn.label, onBack: () => { const target = placeReturn; if (target) openFilesRoute({ folderId: target.folderId }) } }
+    : null)
+  // Preserve the saved notebook fragment on arrival; an explicit shell route
+  // uses the ordinary editor center for this view, without writing UX state.
+  config = withNotebookWorkspaceShell(config, {
+    preferHostRoute: Boolean(openDocId || centerPanesVisible || tagLens || zoteroSource
+      || artifactSurface || docHistorySurface || contested || parkedWork || files),
+  })
+  // Grapevine (Sophia Chat) needs the hosted gateway: it does not join a self-host's picker.
+  if (!SELF_HOST) {
+    config = withGrapevineWorkspace(config)
+  }
+  // AFTER Grapevine: they attach only to a config that already declared
+  // an app dimension, and must not appear because Flow added one.
+  config = withFlowWorkspace(config, flowAppEnabled(import.meta.env))
+  const fragments = currentFragmentOptions(config)
   const shellContext = currentShellContext()
   const filePaneState = filePaneController.snapshot(currentGraphId)
   const filePaneLive = sourceSelect.value === 'CELL_LIVE' && store !== null
@@ -6944,11 +7633,14 @@ function renderConfig(config: WorkspaceConfig, app: string | undefined): string 
     ...(fragments ? { fragments } : {}),
     ...(contested ? { contested } : {}),
     ...(parkedWork ? { parkedWork } : {}),
+    ...(files ? { files } : {}),
     leftCollapsed: currentPanelLayout.leftCollapsed,
     rightCollapsed: currentPanelLayout.rightCollapsed || currentRightPanel === 'none',
     panelLayout: {
-      leftWidth: currentPanelLayout.leftPanelWidth,
-      rightWidth: currentPanelLayout.rightPanelWidth,
+      // `null` = this app has no saved pixel override yet, so `undefined` lets
+      // the runtime fall through to the region's own `sizeFraction` instead of Garden's pixel geometry.
+      leftWidth: currentPanelLayout.leftPanelWidth ?? undefined,
+      rightWidth: currentPanelLayout.rightPanelWidth ?? undefined,
       leftExpanded: currentPanelLayout.leftExpanded,
       leftSnap: LEFT_PANEL_SNAP,
       rightSnap: RIGHT_PANEL_SNAP,
@@ -6960,9 +7652,20 @@ function renderConfig(config: WorkspaceConfig, app: string | undefined): string 
     },
     chrome: {
       activeApp: app ?? 'garden',
+      // Suite links, gated per feature ('hoja-v2', 'choreograph' — operator
+      // only) and pointed at this workspace; none for everyone else, whose
+      // picker then lists the config's own apps (Garden alone by default).
+      appLinks: suiteAppLinks({
+        deploymentMode: deploymentConfig.mode,
+        userId: hostedAuthSession?.userId() ?? null,
+        env: import.meta.env,
+        dev: import.meta.env.DEV,
+        graphId: sourceSelect.value === 'CELL_LIVE' ? currentGraphId : null,
+        shellApps: deriveAppTabs(config),
+      }),
       leftPanelMode: currentLeftPanelMode,
       rightPanel: currentRightPanel,
-      isDark: currentTheme === 'dark',
+      isDark: effectiveTheme(appliedSkin(), currentTheme) === 'dark',
       activeSkin: currentSkin,
       // The honest mirror state's bottom-bar projection (master §3 Slice 4).
       // Off CELL_LIVE there is no mirror at all — `null` keeps the legacy
@@ -6977,6 +7680,7 @@ function renderConfig(config: WorkspaceConfig, app: string | undefined): string 
         onReset: () => resetQuickClip(),
         onOpenChange: (open: boolean) => handleQuickClipOpenChange(open),
       },
+      ...(SELF_HOST ? { chatAvailable: false, ...selfHostWorkspaceChrome() } : {}),
       ...(deploymentConfig.mode === 'hosted' ? {
         workspaces: workspaceSummaries(),
         workspaceStatus: hostedGraphsStatus,
@@ -6990,7 +7694,7 @@ function renderConfig(config: WorkspaceConfig, app: string | undefined): string 
       } : {}),
     },
     sidebar: {
-      sections: currentSidebarSections,
+      sections: filesSidebarSections(currentSidebarSections, filesShellNow?.visible() === true),
       searchQuery: currentSidebarSearchQuery,
       activeId: openDocId,
       selectedId: currentSidebarSelectedId ?? openDocId,
@@ -7050,6 +7754,9 @@ function renderConfig(config: WorkspaceConfig, app: string | undefined): string 
       onAction: handleSidebarAction,
       onFileDrop: (files: FileList) => { void handleSidebarFileDrop(files) },
       onOperationRecovery: detail => { void recoverMobileFileOperation(detail) },
+      onSectionAction: ({ sectionId, actionId }) => {
+        if (sectionId === 'artifacts' && actionId === FILES_SECTION_ACTION) openFilesRoute({ folderId: null })
+      },
     },
     ...(dailyNotes ? { dailyNotes } : {}),
     ...(home ? { home } : {}),
@@ -7064,8 +7771,14 @@ function renderConfig(config: WorkspaceConfig, app: string | undefined): string 
       onDelete: handleCommentDelete,
     },
     inspector: {
-      model: projectInspectorModel(inspectorInput),
-      actions: projectInspectorActions(inspectorInput),
+      info: filesShellNow?.infoOpen ? {
+        model: filesShellNow.infoModel(),
+        onClose: () => filesShellNow.closeInfo(),
+        onRename: detail => { void filesShellNow.infoRename(detail.name) },
+        onAction: detail => { void filesShellNow.infoAction(detail.action) },
+      } : null,
+      model: filesInspector ?? projectInspectorModel(inspectorInput),
+      actions: filesInspector ? [] : projectInspectorActions(inspectorInput),
       onClose: () => setRightPanel('none', 'inspector close'),
       onAction: handleInspectorAction,
       onRelationOpen: handleInspectorRelationOpen,
@@ -7158,6 +7871,9 @@ function renderConfig(config: WorkspaceConfig, app: string | undefined): string 
             artifactStatus: artifactSurface.artifactStatus,
             ingestedDocumentId: artifactSurface.ingestedDocumentId,
             previewUrl: artifactSurface.previewUrl,
+            previewHtml: artifactSurface.previewHtml,
+            previewIdentity: artifactSurface.previewIdentity,
+            allowHtmlScripts: false,
             status: artifactSurface.status,
             error: artifactSurface.error ?? null,
             onRefresh: refreshArtifactPreview,
@@ -7206,6 +7922,10 @@ function renderConfig(config: WorkspaceConfig, app: string | undefined): string 
           centerPanes: {
             projection: centerPanesController.projection,
             editorHosts: paneEditorHosts,
+            paneHeadings: centerPaneHeadings(),
+            tocOpenPaneId: currentTocOpenPaneId,
+            onTocToggle: handleTocToggle,
+            onTocNavigate: handleTocNavigate,
             onOpen: handleCenterPaneOpen,
             onFocus: handleCenterPaneFocus,
             onClose: handleCenterPaneClose,
@@ -7235,6 +7955,11 @@ function renderConfig(config: WorkspaceConfig, app: string | undefined): string 
             composerReferenceResolver: resolveChatWikiLinks,
             onSurfaceAction: handleChatSurfaceAction,
             onHeaderAction: handleChatHeaderAction,
+            conversationHome: chatConversationHome,
+            workspace: chatWorkspace,
+            // Credits are a hosted account's: a local workspace has no ledger and no Billing to go to,
+            // so it gets neither the balance line nor a button that goes nowhere.
+            ...(deploymentConfig.mode === 'hosted' ? { credits: chatCredits } : {}),
           },
         }
       : {}),
@@ -7277,6 +8002,14 @@ function renderConfig(config: WorkspaceConfig, app: string | undefined): string 
     labelInertPlaceholders()
     reflectChromeState()
     shellFeatureHost.afterWorkspaceRender(shellContext, workspaceSnapshot)
+    if (pendingGrapevineAgentNavigation) {
+      const request = pendingGrapevineAgentNavigation
+      pendingGrapevineAgentNavigation = null
+      const current = currentShellContext()
+      if (current.app === 'grapevine' && acceptsGrapevineNavigation(current.contract, current.graphId, request)) {
+        hostEl.querySelector<MnGrapevinePane>('mn-grapevine-pane')?.onAgentRequest?.(request.agentRef)
+      }
+    }
     mobileShellFeatureHost.afterWorkspaceRender(shellContext, workspaceSnapshot)
     visualViewportFrameController.refresh()
   })
@@ -7336,6 +8069,7 @@ function rerenderCurrentSource(): void {
 // The proxy injects the bearer + targets the random loopback port SERVER-SIDE,
 // so the token/port NEVER appear in browser JS. We pass NO token here.
 let store: OrganismSessionStore | null = null
+let customCssController: CustomCssController | null = null
 let configStore: ShrubberyStore<WorkspaceConfig> | null = null
 let stopPoll: (() => void) | null = null
 let stopStoreSubscription: (() => void) | null = null
@@ -7940,6 +8674,13 @@ function buildCellStore(graphId: string): OrganismSessionStore {
 }
 
 function createLocalGardendContract(): OrganismCellContract {
+  const selfHost = activeSelfHostSession()
+  if (selfHost) {
+    return createGardendContract({
+      transport: selfHostTransport(selfHost.origin, selfHost.token),
+      userId: selfHost.userId,
+    })
+  }
   return createGardendContract({
     transport: {
       mcpUrl: '/cell/mcp',
@@ -8031,6 +8772,19 @@ function browserLocalStorage(): Storage | null {
   }
 }
 
+/**
+ * Settings live in localStorage, unlike the panel layout beside them, which is
+ * deliberately session-scoped. Reading the wrong one here would make the launch
+ * preference forget itself exactly as often as the thing it exists to fix.
+ */
+function settingsStorage(): Storage | null {
+  try {
+    return typeof globalThis.localStorage === 'object' ? globalThis.localStorage : null
+  } catch {
+    return null
+  }
+}
+
 function browserSessionStorage(): Storage | null {
   try {
     return window.sessionStorage
@@ -8041,9 +8795,6 @@ function browserSessionStorage(): Storage | null {
 
 function buildShellChatService(contract: OrganismCellContract): ChatService {
   if (deploymentConfig.mode === 'hosted') {
-    if (!deploymentConfig.chatApiBaseUrl) {
-      throw new Error('Hosted chat requires VITE_CHAT_API_BASE_URL.')
-    }
     return assembleChatServices(contract, getScope, 'hosted', {
       // The conversation belongs to the workspace, not to the open document:
       // getScope().graphId is null in 'home' mode, and a session created with no
@@ -8052,8 +8803,12 @@ function buildShellChatService(contract: OrganismCellContract): ChatService {
       // in silence). currentGraphId is the workspace the shell is actually in.
       graphId: () => currentGraphId,
       hosted: {
-        baseUrl: deploymentConfig.chatApiBaseUrl,
         storage: browserLocalStorage(),
+        gatewayBaseUrl: deploymentConfig.gatewayBaseUrl,
+        // The empowered chat: what the person has open travels with every turn, and their role on the
+        // workspace says what the chat may do here (the gateway's graph list).
+        contextRefs: () => currentChatContextRefs(),
+        role: () => workspaceRoleOf(hostedGraphs, currentGraphId),
       },
     })
   }
@@ -8067,17 +8822,13 @@ function buildShellChatService(contract: OrganismCellContract): ChatService {
 }
 
 function ensureChatClaim(): ChatClaim | null {
-  if (!store) {
+  // A self-host has no Choreograph yet, so no chat (and no voices or credits with it).
+  if (!store || SELF_HOST) {
     teardownChatClaim()
     return null
   }
-  // Chat is an optional hosted service. A graph-authored workspace (including
-  // an agent notebook) must still render when no chat endpoint was deployed or
-  // intentionally supplied to a local cloud-2 display session.
-  if (deploymentConfig.mode === 'hosted' && !deploymentConfig.chatApiBaseUrl) {
-    teardownChatClaim()
-    return null
-  }
+  // Hosted chat shares the authenticated graph-gateway contract already used
+  // by the rest of the workspace; it has no separately optional origin.
   const key = `cell:${currentGraphId}`
   if (chatClaim?.key === key) return chatClaim
 
@@ -8086,10 +8837,10 @@ function ensureChatClaim(): ChatClaim | null {
   const service = buildShellChatService(contract)
   const claim: ChatClaim = { key, service, sessionId: null }
   chatClaim = claim
-  void service.createSession({ title: 'organism-chat', graphId: currentGraphId }).then(
-    (session) => {
+  void ensureActiveChatSession(service, { title: 'organism-chat', graphId: currentGraphId }).then(
+    (sessionId) => {
       if (chatClaim !== claim) return
-      claim.sessionId = session.id
+      claim.sessionId = sessionId
       if (store) renderCellState(store.getState(), configStore?.get())
     },
     (e) => {
@@ -8111,6 +8862,13 @@ function renderCellState(
   state: SessionStoreState,
   configState: StoreState<WorkspaceConfig> = configStore?.get() ?? { status: state.status, read: null, error: state.error },
 ): void {
+  // A failed/refreshing data read must not freeze already-rendered controls.
+  // Reuse only this session's last real config; never invent one on cold failure.
+  if (state.status !== 'ready' && state.read && configState.read) {
+    try { renderConfig(configState.read, currentApp) } catch (error) {
+      err(`retained workspace render error: ${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
   if (state.status === 'loading') {
     ok('reading :ux:config from the live gardend cell…')
     return
@@ -8126,9 +8884,9 @@ function renderCellState(
     // Paint the honest error panel instead — but never clobber a LIVE
     // workspace over a transient refresh failure (state.read present).
     if (!state.read) {
-      defaultWorkspaceNotice.sync(false, currentGraphId)
       renderCellErrorPanel(hostEl, state.error ?? 'unknown error', {
         onRetry: () => void store?.refresh(),
+        ...(deploymentConfig.mode === 'hosted' ? { onBack: () => window.location.assign('/') } : {}),
       })
     }
     return
@@ -8152,7 +8910,6 @@ function renderCellState(
         ? '\n(default workspace — this graph has no :ux:config yet; nothing persisted)'
         : ''
       ok(`${authority}\nfrom ${read.graphIri}\n${summary}${provenance}`)
-      defaultWorkspaceNotice.sync(read.defaulted, currentGraphId)
     } catch (e) {
       err(`render error (live config):\n${e instanceof Error ? e.message : String(e)}`)
     }
@@ -8171,6 +8928,8 @@ function renderCellState(
  * false` here.
  */
 function startCellMode(): void {
+  customCssController?.dispose()
+  customCssController = null
   const graphId = cellGraphId.value.trim() || 'organism-dev'
   const restoreMuxSession = store === null || centerPanesSessionGraphId !== graphId
   // Every call replaces the store, including manual refresh of the same
@@ -8180,6 +8939,10 @@ function startCellMode(): void {
     stopPoll = null
   }
   store?.stopPoll()
+  // The artifact lifetime is bound to the concrete contract, not just graphId.
+  // A same-graph store refresh must retire its old reader and workspace lease.
+  currentArtifactHtmlPreview?.dispose()
+  currentArtifactHtmlPreview = null
   // A graph (re)build invalidates any open editor claim (different cell/graph).
   if (graphId !== currentGraphId) {
     store?.contract.documentActivation.cancelPreparation()
@@ -8246,9 +9009,17 @@ function startCellMode(): void {
   stopStoreSubscription = null
   stopSourceMirrorSubscription?.()
   stopSourceMirrorSubscription = null
+  // el Despacho S0: the outgoing session's room mirror stops polling; its
+  // storage stays for the next visit. The next session builds its own.
+  roomMirrorFor?.mirror.closeAll()
+  roomMirrorFor = null
   const nextStore = buildCellStore(graphId)
   const nextConfigStore = workspaceConfigStore(nextStore)
   store = nextStore
+  customCssController = new CustomCssController(nextStore.contract, graphId, roomPoolFor(nextStore.contract.crdt))
+  if (currentArtifactSurface && artifactSurfaceKind(currentArtifactSurface) === 'html') {
+    refreshArtifactPreview({ graphId, artifactId: currentArtifactSurface.artifactId })
+  }
   prepareBootDocument(nextStore.contract, graphId)
   configStore = nextConfigStore
   stopStoreSubscription = nextStore.subscribe((state) => {
@@ -8552,6 +9323,166 @@ function handleChatSurfaceAction(action: ChatSurfaceActionIntent): void {
   })
 }
 
+/**
+ * What the chat history drawer needs from the shell (Sobremesa). One stable object, so
+ * the host is not asked to re-bind it on every render.
+ *
+ * Save to Garden: the drawer asks WHERE (the workspaces the person can write to) and then
+ * hands over the text of the copy; this file makes the write, over the raw MCP, and only
+ * calls it saved when Garden acknowledged it.
+ *
+ * NOT provided here: `onContinue`. "Continue with..." draws only when the shell can
+ * really continue an imported conversation (the voice/continue seam); with no way to do it,
+ * nothing pretends to. Wire it by adding `onContinue: intent => ...` to this object.
+ */
+const chatConversationHome: ConversationHomePorts = {
+  saveToGarden: {
+    targets: () => chatSaveTargets(),
+    save: request => saveChatConversation(request),
+    open: ({ workspaceId, documentId }) => {
+      void openDocumentFromShell({ graphId: workspaceId, documentId })
+    },
+  },
+}
+
+/**
+ * What a hosted account's chat is allowed to do about credits (the credits release): show the balance
+ * line, offer "Add credits" (which the shell answers, `connectChatCredits`, below the Settings gear
+ * handler, by opening Settings, Billing), and show the heads-up that credits are starting. The heads-up's
+ * date and fee are what the backend says on the balance the chat reads (`creditsStartDate`, `feeBps`:
+ * none until the backend names a date), so nothing is rebuilt at the flip; the build only carries the
+ * contact line. Whoever put it away is remembered per person. One stable object, like `chatConversationHome`.
+ */
+const chatCredits: ChatHostCredits = {
+  showBalance: true,
+  canAddCredits: true,
+  notice: createCreditsNoticeSource({ userId: () => hostedAuthSession?.userId() ?? '' }),
+}
+
+/**
+ * What the shell lets the workspace chat do with what a turn changed (the empowered-chat release): open a
+ * changed document at its block, its History standing at the version before the turn, an artifact and its
+ * revisions, always in the chat's own graph; name what a turn did not; preview a written HTML artifact
+ * live (the center pane's own read and room watch, scripts off). One stable object, like `chatCredits`.
+ */
+const chatWorkspace: ChatHostWorkspace = {
+  onChangeAction: intent => handleChatChangeAction(intent),
+  changeTitle: (_subject, id) => sidebarNodeById(id)?.label ?? null,
+  artifactPreview: makeChatArtifactPreviewPort({
+    graphId: () => currentGraphId,
+    read: (artifactId, signal) => {
+      const activeStore = store
+      if (!activeStore || sourceSelect.value !== 'CELL_LIVE') {
+        return Promise.reject(new Error('Open a live cell source to preview HTML artifacts.'))
+      }
+      return fetchArtifactText(activeStore.contract, currentGraphId, artifactId, signal)
+    },
+    watch: (artifactId, invalidate, unavailable) => {
+      const activeStore = store
+      if (!activeStore) {
+        unavailable('Live updates unavailable: no workspace is open.')
+        return () => undefined
+      }
+      return watchArtifactWorkspace(
+        activeStore.contract, roomPoolFor(activeStore.contract.crdt), currentGraphId, artifactId, invalidate, unavailable,
+      )
+    },
+    knownMimeType: artifactId => sidebarNodeById(artifactId)?.mimeType ?? null,
+    download: artifactId => downloadArtifactFromChat(artifactId),
+  }),
+}
+
+/** A "Changed in this turn" link: the document (at its block), its History before the turn, the artifact, its revisions. */
+function handleChatChangeAction(intent: ChatChangeIntent): void {
+  switch (intent.type) {
+    case 'open-document':
+      void openDocumentFromShell({
+        graphId: currentGraphId,
+        documentId: intent.documentId,
+        ...(intent.blockId ? { blockId: intent.blockId } : {}),
+      })
+      return
+    case 'open-history':
+      openDocHistory(intent.documentId, 'chat: changed in this turn', intent.before)
+      return
+    case 'open-artifact':
+      openArtifactFromSidebar(intent.artifactId, sidebarNodeById(intent.artifactId))
+      if (intent.revisions) handleArtifactHistoryOpen({ graphId: currentGraphId, artifactId: intent.artifactId })
+      return
+  }
+}
+
+/** What the person has open, for the chat's `contextRefs` ("this document" is the first). */
+function currentChatContextRefs(): string[] {
+  const state = centerPanesController.state
+  const panes = [state.primary, ...(state.secondary ? [state.secondary] : [])]
+  const openDocumentIds = panes.flatMap(pane =>
+    pane.current.kind === 'document' && pane.current.graphId === currentGraphId ? [pane.current.documentId] : [])
+  let activeBlockId: string | null = null
+  try {
+    activeBlockId = activeEditorHostElement()?.liveEditor?.getActiveBlockId() ?? null
+  } catch {
+    activeBlockId = null
+  }
+  return chatContextRefs({
+    activeDocumentId: currentArtifactSurface ? null : openDocId,
+    activeBlockId,
+    openDocumentIds,
+    artifactId: currentArtifactSurface?.artifactId ?? null,
+  })
+}
+
+/** The chat preview's download: the artifact's bytes, named as the sidebar names it. */
+function downloadArtifactFromChat(artifactId: string): void {
+  const activeStore = store
+  if (!activeStore || sourceSelect.value !== 'CELL_LIVE') {
+    err('open a CELL_LIVE source first (no cell store).')
+    return
+  }
+  const name = sidebarNodeById(artifactId)?.label || artifactId
+  void fetchArtifactBlob(activeStore.contract, currentGraphId, artifactId)
+    .then((blob) => {
+      const url = URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = name
+      anchor.style.display = 'none'
+      document.body.appendChild(anchor)
+      anchor.click()
+      anchor.remove()
+      window.setTimeout(() => URL.revokeObjectURL(url), 0)
+      ok(`downloaded artifact "${name}"`)
+    })
+    .catch((e) => {
+      err(`artifact download error:\n${e instanceof Error ? e.message : String(e)}`)
+    })
+}
+
+/** The workspaces the person can write to, read fresh: a stale list could offer one they lost. */
+async function chatSaveTargets(): Promise<readonly SaveTarget[]> {
+  const activeStore = store
+  if (!activeStore) throw new Error('Open a workspace first.')
+  if (deploymentConfig.mode === 'hosted' && hostedGatewayContract) {
+    return saveTargetsOf(await refreshHostedGraphs(false))
+  }
+  return saveTargetsOf(localGardenHomeWorkspaces(await activeStore.contract.rest.graphs(), {}))
+}
+
+async function saveChatConversation(request: SaveToGardenRequest): Promise<SaveToGardenResult> {
+  const activeStore = store
+  if (!activeStore) throw new Error('Open a workspace first.')
+  // Hosted: the raw gateway client, so a save while offline fails honestly instead of being parked.
+  const mcp: SaveConversationMcp = deploymentConfig.mode === 'hosted' && hostedGatewayContract
+    ? hostedGatewayContract.rawMcp
+    : callToolFromToolsCall(activeStore.contract.mcp)
+  const { documentIds } = await saveConversationToGarden(mcp, {
+    workspaceId: request.workspaceId,
+    title: request.title,
+    markdown: request.markdown,
+  })
+  return { workspaceId: request.workspaceId, workspaceTitle: request.workspaceTitle, documentIds }
+}
+
 /** The compatibility `popout` intent now projects the one live conversation
  * full-screen. Its inverse returns that exact host/panel to the rail. */
 function handleChatHeaderAction(detail: ChatHeaderActionDetail): void {
@@ -8592,6 +9523,8 @@ async function firstDocumentId(s: OrganismSessionStore, graphId: string): Promis
 }
 
 function stopCellMode(): void {
+  customCssController?.dispose()
+  customCssController = null
   resetQuickClip(true, false)
   cellControls.hidden = true
   if (stopPoll) {
@@ -8661,10 +9594,15 @@ function stopCellMode(): void {
 let emporium: EmporiumStore | null = null
 let emporiumView: { kind: 'catalogue' } | { kind: 'pack'; name: string } = { kind: 'catalogue' }
 
+/** Where the cell's REST routes are: the dev server's `/cell` proxy, or the root of a self-host's own gardend. */
+function cellRestBase(): string {
+  return SELF_HOST ? window.location.origin : '/cell'
+}
+
 function buildEmporiumStore(): EmporiumStore {
   // baseUrl '/cell' → the Vite proxy reaches the cell's REST routes incl.
   // /emporium; token deliberately omitted (the proxy injects it server-side).
-  return createEmporiumStore({ transport: { baseUrl: '/cell' } })
+  return createEmporiumStore({ transport: { baseUrl: cellRestBase() } })
 }
 
 function renderEmporiumState(state: EmporiumStoreState): void {
@@ -8821,7 +9759,12 @@ window.addEventListener('popstate', () => {
   applyZoomBlockIdToLiveHost(currentZoomBlockId)
 })
 
+window.addEventListener('focus', () => currentArtifactHtmlPreview?.refresh())
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') currentArtifactHtmlPreview?.refresh()
+})
 window.addEventListener('online', () => {
+  currentArtifactHtmlPreview?.refresh()
   const activeStore = store
   if (!activeStore || sourceSelect.value !== 'CELL_LIVE') return
   // Connectivity is merely a delivery opportunity: local acceptance never
@@ -8978,8 +9921,8 @@ const initialAppearance = readAppearancePreferences(appearanceStorage())
  * `VisualIdentitySkin` — the global chrome cycle is garden/emporium/98/glass,
  * and research/greenhouse sit outside it the same way. So this overrides the
  * APPLIED skin without touching `currentSkin`, which remains the picker's own
- * value: widening the cycle to force this would put Observatory in everyone's
- * skin toggle as a side effect of a routing decision.
+ * value: widening the skin set to force this would put Observatory in everyone's
+ * skin picker as a side effect of a routing decision.
  *
  * Starting state only. Nothing is written to storage, and picking a skin here
  * still wins for the session.
@@ -8997,12 +9940,14 @@ let currentTheme: Theme = resolveThemePreference(initialAppearance.theme)
 
 /** Reflect the current pair onto the live <mn-top-bar> toggle props (if present). */
 function reflectChromeState(): void {
-  const bar = hostEl.querySelector('mn-top-bar') as
-    | (HTMLElement & { isDark?: boolean; activeSkin?: Skin })
-    | null
-  if (!bar) return
-  bar.isDark = currentTheme === 'dark'
-  bar.activeSkin = currentSkin
+  // Every Sophia top bar on the page: the workspace's (or a route's) and the
+  // mobile header's mirror of it.
+  const bars = document.querySelectorAll<HTMLElement & { isDark?: boolean; activeSkin?: Skin }>('mn-top-bar')
+  for (const bar of bars) {
+    // A light-only skin (Mithras) renders light whatever the preference says.
+    bar.isDark = effectiveTheme(appliedSkin(), currentTheme) === 'dark'
+    bar.activeSkin = currentSkin
+  }
 }
 
 /** Apply the current pair to <html> and reflect it onto the chrome. */
@@ -9041,11 +9986,13 @@ hostEl.addEventListener('mn-theme-toggle', () => {
   applyCurrent()
   ok(`chrome event: mn-theme-toggle → theme=${currentTheme} (applied via @shrubbery/tokens)`)
 })
-hostEl.addEventListener('mn-skin-toggle', () => {
-  currentSkin = nextVisualIdentitySkin(currentSkin)
+hostEl.addEventListener('mn-skin-select', (event) => {
+  const chosen = (event as CustomEvent<{ skin?: unknown }>).detail?.skin
+  if (!isVisualIdentitySkin(chosen)) return
+  currentSkin = chosen
   persistAppearancePreferences(appearanceStorage(), { skin: currentSkin })
   applyCurrent()
-  ok(`chrome event: mn-skin-toggle → skin=${currentSkin} (applied via @shrubbery/tokens)`)
+  ok(`chrome event: mn-skin-select → skin=${currentSkin} (applied via @shrubbery/tokens)`)
 })
 hostEl.addEventListener('mn-app-change', ((event: CustomEvent<{ app?: unknown }>) => {
   const app = event.detail?.app
@@ -9053,10 +10000,19 @@ hostEl.addEventListener('mn-app-change', ((event: CustomEvent<{ app?: unknown }>
   // ACTIVE config declared, not a closed 'garden'|'choreograph' pair, so the
   // shell no longer validates against that hardcoded union.
   if (typeof app !== 'string' || app.length === 0) return
-  currentApp = app
+  switchCurrentApp(app)
   rerenderCurrentSource()
   ok(`chrome event: mn-app-change → app=${app}`)
 }) as EventListener)
+// Explicit Agent → configured conversation navigation; never sends or launches.
+document.addEventListener('mn-grapevine-open', ((event: CustomEvent<unknown>) => {
+  const context = currentShellContext()
+  if (!acceptsGrapevineNavigation(context.contract, currentGraphId, event.detail)) return
+  pendingGrapevineAgentNavigation = event.detail
+  switchCurrentApp('grapevine')
+  rerenderCurrentSource()
+}) as EventListener)
+document.documentElement.dataset.grapevineNavigation = 'v1'
 hostEl.addEventListener('mn-left-mode-change', ((event: CustomEvent<{ mode?: unknown }>) => {
   const mode = event.detail?.mode
   if (!isLeftPanelMode(mode) || mode === currentLeftPanelMode) return
@@ -9103,10 +10059,14 @@ hostEl.addEventListener('mn-open-shortcuts', () => {
   showShortcutsDialog()
 })
 hostEl.addEventListener('mn-navigate-home', () => {
+  filesShell?.leave()
   if (openDocId) closeOpenDocumentSurface(openDocId)
   clearTagLensState()
   clearZoteroSourceState()
   clearArtifactSurfaceState()
+  clearDocHistoryState()
+  currentContestedSurface = null
+  currentParkedWorkRoute = null
   currentSidebarSelectedId = null
   currentInspectorSelection = {
     kind: 'graph',
@@ -9127,6 +10087,12 @@ function canOpenSettingsInPlace(): boolean {
   return route === undefined || route === 'home'
 }
 
+/** Settings over the live workspace when this route can, else a full navigation. */
+function openSettingsAt(target: URL, focusReturn: HTMLElement | null): void {
+  if (canOpenSettingsInPlace() && settingsOverlayTransition.open(target, { focusReturn })) return
+  window.location.assign(`${target.pathname}${target.search}${target.hash}`)
+}
+
 function navigateToSettings(
   section: string | null = null,
   focusReturn: HTMLElement | null = null,
@@ -9134,12 +10100,32 @@ function navigateToSettings(
 ): void {
   const target = settingsNavigationUrl(new URL(window.location.href), graphId)
   if (section) target.hash = section
-  if (canOpenSettingsInPlace() && settingsOverlayTransition.open(target, { focusReturn })) return
-  window.location.assign(`${target.pathname}${target.search}${target.hash}`)
+  openSettingsAt(target, focusReturn)
 }
 
 hostEl.addEventListener('mn-settings-toggle', (event) => {
   navigateToSettings(null, settingsFocusReturn(event))
+})
+
+// The chat's "Add credits" (the refusal banner, the balance line) takes the person to Settings, Billing
+// on the amount that covers what the chat said it needed, through the same overlay the gear uses.
+connectChatCredits({
+  host: hostEl,
+  currentUrl: () => new URL(window.location.href),
+  graphId: () => (sourceSelect.value === 'CELL_LIVE' ? currentGraphId : null),
+  open: (target, focusReturn) => {
+    if (!canOpenSettingsInPlace()) return false
+    return settingsOverlayTransition.open(target, { focusReturn })
+  },
+  assign: path => window.location.assign(path),
+})
+
+hostEl.addEventListener('mn-appearance-menu', (event) => {
+  const point = (event as CustomEvent<{ x: number; y: number }>).detail
+  showCustomCssMenu(point.x, point.y, () => {
+    if (customCssController) void customCssController.open()
+    else window.alert('Open a live workspace to edit Custom CSS.')
+  })
 })
 
 function bootPublicShellRoute(): boolean {
@@ -9147,7 +10133,7 @@ function bootPublicShellRoute(): boolean {
     location: window.location,
     history: window.history,
     storage: window.sessionStorage,
-    transport: { baseUrl: '/cell' },
+    transport: { baseUrl: cellRestBase() },
     clipboard: navigator.clipboard,
   })
   if (!mount) return false
@@ -9192,11 +10178,6 @@ function hostedAuthActions(auth: CognitoAuthSession): OrganismAuthActions {
       }
     },
   }
-}
-
-function safeAuthReturnUrl(location: Pick<Location, 'href'> | URL): string {
-  const url = location instanceof URL ? location : new URL(location.href)
-  return settingsReturnPath(url)
 }
 
 function signInLocation(returnTo: string): URL {
@@ -9269,7 +10250,7 @@ function gardenHomeAccount(contract: OrganismCellContract): MnGardenHomeAccount 
 }
 
 function hostedGardenHomeWorkspaces(
-  graphs: readonly GatewayGraphInfo[],
+  graphs: readonly HostedWorkspaceInfo[],
   recency: Readonly<Record<string, number>>,
 ): readonly GardenHomeWorkspaceSummary[] {
   return graphs.map(graph => ({
@@ -9277,6 +10258,7 @@ function hostedGardenHomeWorkspaces(
     title: graph.title,
     role: graph.role,
     cellState: graph.cellState,
+    ...(graph.localCreation ? { localCreation: graph.localCreation } : {}),
     lastOpenedAt: recency[graph.graphId] ?? null,
     ...(graph.role === 'viewer'
       ? {
@@ -9334,20 +10316,11 @@ function localGraphId(title: string): string {
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .slice(0, 42) || 'garden'
-  const random = globalThis.crypto?.randomUUID?.().replace(/-/g, '').slice(0, 8)
-    ?? Date.now().toString(36)
-  return `${slug}-${random}`
+  return `${slug}-${randomUUID().replace(/-/g, '').slice(0, 8)}`
 }
 
 function lifecycleUuid(): string {
-  const direct = globalThis.crypto?.randomUUID?.()
-  if (direct) return direct
-  const bytes = new Uint8Array(16)
-  globalThis.crypto?.getRandomValues?.(bytes)
-  bytes[6] = ((bytes[6] ?? 0) & 0x0f) | 0x40
-  bytes[8] = ((bytes[8] ?? 0) & 0x3f) | 0x80
-  const hex = [...bytes].map(value => value.toString(16).padStart(2, '0')).join('')
-  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
+  return randomUUID()
 }
 
 function navigateToGardenGraph(graphId: string, access = false): void {
@@ -9360,45 +10333,93 @@ function navigateToGardenGraph(graphId: string, access = false): void {
   window.location.assign(query ? `${path}?${query}` : path)
 }
 
+async function startHostedGardenTour(): Promise<void> {
+  const contract = hostedGatewayContract
+  if (deploymentConfig.mode !== 'hosted' || !contract) throw new Error('The hosted Garden tour is unavailable in this session.')
+  await contract.auth.whenReady?.()
+  const subject = contract.auth.userId()
+  const token = contract.auth.token()
+  const isCurrent = (): boolean => Boolean(subject && token)
+    && subject === contract.auth.userId() && token === contract.auth.token()
+    && hostedGatewayContract === contract
+  const ensureCurrent = (): void => {
+    if (!isCurrent()) throw new Error('The account or session changed. Return to Garden Home before starting a tour; any already saved workspace is retained.')
+  }
+  ensureCurrent()
+  // The tutorial text and seeder are fetched only for an explicit tour request.
+  const { GARDEN_ONBOARDING_EDITION, GARDEN_ONBOARDING_TITLE, seedGardenOnboarding } = await import('./cell/garden-onboarding.js')
+  const confirmed = await confirmAction({
+    title: 'Start the Garden tour',
+    message: `Create a separate, editable tour workspace (edition ${GARDEN_ONBOARDING_EDITION})? This uses one workspace slot. Your existing graphs and pages will not be changed.`,
+    confirmText: 'Create tour',
+  })
+  if (!confirmed) return
+  ensureCurrent()
+  const graphId = localGraphId(GARDEN_ONBOARDING_TITLE)
+  const graphIncarnation = lifecycleUuid()
+  const intent = await prepareHostedWorkspace(contract.sourceMirror, {
+    graphId, graphIncarnation, operationId: `graph:create:${graphIncarnation}`, title: GARDEN_ONBOARDING_TITLE,
+  })
+  ensureCurrent()
+  const workspace = await confirmHostedWorkspaceCreation(intent, () => refreshHostedGraphs(false))
+  ensureCurrent()
+  const report = await seedGardenOnboarding({
+    mcp: contract.rawMcp, workspace,
+    expectedOwner: subject.startsWith('user:') ? subject : `user:${subject}`,
+    isCurrent,
+  })
+  ensureCurrent()
+  if (report.status === 'created' && !report.contentVerified) {
+    throw new Error(`The tour in ${graphId} has not been verified. Its pages are retained; no retry or deletion was performed.`)
+  }
+  // A verified content return is sufficient to open the project. No cloud
+  // publication or off-host durability promise is inferred from navigation.
+  navigateToGardenGraph(report.graphId)
+}
+
 function createGardenHomeService(contract: OrganismCellContract): OrganismGardenHomeService {
   return {
+    ...(deploymentConfig.mode === 'hosted' && hostedGatewayContract ? { startOnboarding: startHostedGardenTour } : {}),
     async load(): Promise<OrganismGardenHomeSnapshot> {
+      const subject = contract.auth.userId()
+      const token = contract.auth.token()
+      const gateway = hostedGatewayContract
+      const ensureCurrent = (): void => {
+        if (deploymentConfig.mode === 'hosted' && (gateway !== hostedGatewayContract
+          || subject !== contract.auth.userId() || token !== contract.auth.token() || !contract.auth.isAuthenticated())) {
+          throw new Error('The account or session changed while loading Workspaces.')
+        }
+      }
+      ensureCurrent()
       const recency = gardenHomeRecency()
       let workspaces: readonly GardenHomeWorkspaceSummary[]
       if (deploymentConfig.mode === 'hosted' && hostedGatewayContract) {
         try {
           workspaces = hostedGardenHomeWorkspaces(await refreshHostedGraphs(false), recency)
         } catch {
+          ensureCurrent()
           workspaces = localGardenHomeWorkspaces(await contract.rest.graphs(), recency)
         }
+        ensureCurrent()
         const lifecycle = await hostedGatewayContract.sourceMirror.openGraphLifecycle()
+        ensureCurrent()
         const hidden = new Set(
           lifecycle.records()
             .filter(intent => intent.kind === 'delete' && intent.status !== 'conflict')
             .map(intent => intent.graphId),
         )
         const merged = workspaces.filter(workspace => !hidden.has(workspace.graphId))
-        for (const intent of lifecycle.records()) {
-          if (intent.kind !== 'create' || intent.status === 'conflict'
-            || merged.some(workspace => workspace.graphId === intent.graphId)) continue
-          merged.push({
-            graphId: intent.graphId,
-            title: intent.title ?? intent.graphId,
-            role: 'owner',
-            cellState: 'running',
-            lastOpenedAt: recency[intent.graphId] ?? null,
-          })
-        }
         workspaces = merged
         hostedGatewayContract.sourceMirror.backgroundFlushGraphLifecycle()
         for (const workspace of workspaces) {
-          if (!workspace.disabled && workspace.role !== 'viewer') {
+          if (!workspace.disabled && !workspace.localCreation && workspace.role !== 'viewer') {
             hostedGatewayContract.sourceMirror.backgroundSync(workspace.graphId)
           }
         }
       } else {
         workspaces = localGardenHomeWorkspaces(await contract.rest.graphs(), recency)
       }
+      ensureCurrent()
       return {
         account: gardenHomeAccount(contract),
         workspaces,
@@ -9422,16 +10443,15 @@ function createGardenHomeService(contract: OrganismCellContract): OrganismGarden
       if (deploymentConfig.mode === 'hosted' && hostedGatewayContract) {
         const graphIncarnation = lifecycleUuid()
         const operationId = `graph:create:${graphIncarnation}`
-        const lifecycle = await hostedGatewayContract.sourceMirror.openGraphLifecycle()
-        await lifecycle.enqueueCreate({
+        const intent = await prepareHostedWorkspace(hostedGatewayContract.sourceMirror, {
           graphId,
           graphIncarnation,
           operationId,
           title,
         })
-        await hostedGatewayContract.sourceMirror.provisionGraph(graphId, graphIncarnation)
+        const confirmed = await confirmHostedWorkspaceCreation(intent, () => refreshHostedGraphs(false))
         hostedGatewayContract.sourceMirror.backgroundFlushGraphLifecycle()
-        navigateToGardenGraph(graphId)
+        navigateToGardenGraph(confirmed.graphId)
         return
       }
       if (deploymentConfig.mode !== 'hosted' || !hostedGatewayContract) {
@@ -9452,22 +10472,32 @@ function organismAppRouteOptions(
   onClose?: (route: OrganismAppRoute) => void,
 ): MountOrganismAppRouteOptions {
   const detectedRoute = detectOrganismAppRoute(location)
-  const contract = deploymentContract ?? (detectedRoute?.kind === 'home' ? createLocalGardendContract() : null)
+  const contract = deploymentContract ?? (detectedRoute?.kind === 'home' || detectedRoute?.kind === 'choreograph' ? createLocalGardendContract() : null)
   // Home is itself a route, but its real local contract must remain available
   // when Account Settings opens over it without rebooting the document.
   if (!deploymentContract && detectedRoute?.kind === 'home' && contract) deploymentContract = contract
   return shellFeatureHost.routeOptions(currentShellContext(location), {
     location,
     history: window.history,
+    replaceUrl: url => window.history.replaceState(window.history.state, '', url),
     clipboard: navigator.clipboard,
     onChatSurfaceAction: handleChatSurfaceAction,
     ...(contract ? {
       chatService: () => buildShellChatService(contract),
       opsHealthService: makeOpsHealthService(contract),
-      choreographStudioService: new ChoreographStudioService(contract),
+      choreographContract: contract,
+      choreographGraphId: currentGraphId,
+      choreographAppLinks: (graphId: string) => choreographRouteAppLinks({
+        deploymentMode: deploymentConfig.mode,
+        userId: hostedAuthSession?.userId() ?? null,
+        env: import.meta.env,
+        dev: import.meta.env.DEV,
+        graphId,
+      }),
       gardenHomeService: createGardenHomeService(contract),
     } : {}),
     ...(hostedAuthSession ? {
+      gardenAppHref: hostedSignUpLocation(location).href,
       authActions: hostedAuthActions(hostedAuthSession),
       onAuthSuccess: () => {
         window.location.replace(safeAuthReturnUrl(location))
@@ -9507,8 +10537,11 @@ function bootOrganismAppRoute(location: OrganismRouteLocation = window.location)
 
   document.body.dataset.organismMode = 'route'
   document.body.dataset.organismRoute = mount.route.kind
+  // A route frame's top bar shows the live theme / visual style too.
+  reflectChromeState()
   ok(`route: loading ${mount.route.kind}`)
   void mount.ready.then(() => {
+    reflectChromeState()
     ok(`route: loaded ${mount.route.kind}`)
   })
   return true
@@ -9542,6 +10575,23 @@ async function prepareHostedDeployment(config: HostedDeploymentConfig): Promise<
 
 function storedHostedGraphId(): string {
   try { return window.sessionStorage.getItem('shrubbery.organism.active-graph')?.trim() ?? '' } catch { return '' }
+}
+
+/**
+ * The room's FOCUS (el Despacho W1): the bead under the cursor, carried in the
+ * address as `?focus=<absolute IRI>` beside `?graph`. Read fresh on every
+ * render pass (a focus link is an ordinary hyperlink that replaces the
+ * param). Anything that is not an embeddable absolute IRI is treated as no
+ * focus — the fragment then paints its honest "no focus" state rather than
+ * splicing unsafe text into a query.
+ */
+function currentFocus(): string | null {
+  try {
+    const raw = new URL(window.location.href).searchParams.get('focus')?.trim() ?? ''
+    return raw && isEmbeddableFocusIri(raw) ? raw : null
+  } catch {
+    return null
+  }
 }
 
 function persistHostedGraphSelection(graphId: string): void {
@@ -9581,24 +10631,50 @@ function lifetimeFromOfflineGraphRow(row: Record<string, unknown>): MnWorkspaceL
   }
 }
 
-async function refreshHostedGraphs(rerender = true): Promise<readonly GatewayGraphInfo[]> {
+async function refreshHostedGraphs(rerender = true): Promise<readonly HostedWorkspaceInfo[]> {
   if (!hostedGatewayContract) throw new Error('Hosted gateway contract is unavailable')
+  const contract = hostedGatewayContract
+  const subject = contract.auth.userId()
+  const token = contract.auth.token()
+  const readId = ++hostedDirectoryReadId
+  const isCurrent = (): boolean => contract === hostedGatewayContract && contract.auth.isAuthenticated()
+    && subject === contract.auth.userId() && token === contract.auth.token() && readId === hostedDirectoryReadId
+  const ensureCurrent = (): void => {
+    if (readId !== hostedDirectoryReadId) throw new Error('Workspace directory refresh was superseded by a newer request.')
+    if (!isCurrent()) throw new Error('The account or session changed while loading Workspaces.')
+  }
+  ensureCurrent()
   hostedGraphsStatus = 'loading'
   hostedGraphsError = ''
   if (rerender && store) rerenderCurrentSource()
   try {
-    hostedGraphs = await hostedGatewayContract.gateway.graphs()
+    const catalog = await readCapturedHostedDirectory({
+      gatewayBaseUrl: deploymentConfig.mode === 'hosted' ? deploymentConfig.gatewayBaseUrl : '',
+      auth: contract.auth, isCurrent,
+    })
+    ensureCurrent()
+    const lifecycle = await contract.sourceMirror.openGraphLifecycle()
+    ensureCurrent()
+    contract.gateway.adoptGraphDirectory(catalog)
+    hostedGraphs = mergeHostedWorkspaceCreations(catalog, lifecycle.records())
     hostedGraphsStatus = 'ready'
     if (rerender && store) rerenderCurrentSource()
     return hostedGraphs
   } catch (error) {
-    const offline = await hostedGatewayContract.sourceMirror.rest.graphs()
+    ensureCurrent()
+    const offline = await contract.sourceMirror.rest.graphs()
+    ensureCurrent()
+    const lifecycle = await contract.sourceMirror.openGraphLifecycle()
+    ensureCurrent()
+    const retainedCreations = new Map(mergeHostedWorkspaceCreations([], lifecycle.records())
+      .map(graph => [graph.graphId, graph]))
+    const previousCatalog = new Map(hostedGraphs.map(graph => [graph.graphId, graph]))
     const rows = Array.isArray(offline)
       ? offline
       : offline && typeof offline === 'object' && Array.isArray((offline as { graphs?: unknown }).graphs)
         ? (offline as { graphs: unknown[] }).graphs
         : []
-    hostedGraphs = rows.flatMap((value): GatewayGraphInfo[] => {
+    hostedGraphs = rows.flatMap((value): HostedWorkspaceInfo[] => {
       if (!value || typeof value !== 'object' || Array.isArray(value)) return []
       const row = value as Record<string, unknown>
       const graphId = typeof row.graphId === 'string'
@@ -9607,11 +10683,15 @@ async function refreshHostedGraphs(rerender = true): Promise<readonly GatewayGra
           ? row.graph_id
           : ''
       if (!graphId) return []
+      const previous = previousCatalog.get(graphId)
+      const localCreation = previous?.owner ? undefined : retainedCreations.get(graphId)?.localCreation
       return [{
         graphId,
         title: typeof row.title === 'string' ? row.title : graphId,
-        role: 'owner',
-        cellState: 'running',
+        role: previous?.role ?? 'owner',
+        cellState: 'stopped',
+        ...(previous?.owner ? { owner: previous.owner } : {}),
+        ...(localCreation ? { localCreation } : {}),
         lifetime: lifetimeFromOfflineGraphRow(row),
       }]
     })
@@ -9628,36 +10708,43 @@ async function refreshHostedGraphs(rerender = true): Promise<readonly GatewayGra
   }
 }
 
-function initialHostedGraphId(graphs: readonly GatewayGraphInfo[]): string | null {
-  const url = new URL(window.location.href)
-  const graphLocation = gardenGraphLocation(url)
-  if (graphLocation && graphs.some(graph => graph.graphId === graphLocation.graphId)) {
-    return graphLocation.graphId
-  }
-  if (url.searchParams.has('graph') || url.searchParams.has('graph_id')) {
-    return selectHostedGraphId(url, graphs)
-  }
-  const stored = storedHostedGraphId()
-  if (stored && graphs.some(graph => graph.graphId === stored)) return stored
-  return graphs.find(graph => graph.role !== 'viewer' && graph.cellState === 'running')?.graphId
-    ?? graphs.find(graph => graph.role !== 'viewer')?.graphId
-    ?? selectHostedGraphId(url, graphs)
+/** One completion refresh; Home owns its existing load intent, never a redirect. */
+function refreshAfterHostedStarter(startup: HostedStarterStartup, runId: number): void {
+  void startup.initial.then(preference => {
+    // A fast preferred starter is already confirmed by the selection reader.
+    if (preference) return
+    void startup.done.then(result => {
+      if (runId !== hostedStarterRunId || !startup.isCurrent() || !('workspace' in result)) return
+      const home = hostEl.querySelector('mn-garden-home')
+      if (home) home.dispatchEvent(new CustomEvent('mn-garden-home-refresh'))
+      else void refreshHostedGraphs().catch(() => { /* existing workspace status exposes refresh failure */ })
+    })
+  })
 }
 
-async function selectHostedGraph(): Promise<string> {
+async function selectHostedEntry(preference?: StarterStartupPreference | null): Promise<HostedEntry> {
+  // A starter result is only a preference. Re-read the authoritative directory
+  // and require its exact owner/generation before using that preference.
   const graphs = await refreshHostedGraphs(false)
-  const graphId = initialHostedGraphId(graphs)
-  if (!graphId) throw new Error('No Garden graphs are available to this account.')
-  const graph = graphs.find(item => item.graphId === graphId)
-  if (graph?.role === 'viewer') {
-    throw new Error(
-      `Graph "${graphId}" is viewer-only; the current gateway MCP route requires Editor for workspace reads.`,
-    )
+  if (preference && !preference.isCurrent()) {
+    throw new Error('The account or destination changed before starter selection. Open your workspaces to continue.')
   }
+  const storedGraphId = storedHostedGraphId()
+  const preferredGraphId = confirmedStarterPreference(preference, graphs, storedGraphId)
+  const entry = await resolveHostedEntry({
+    location: window.location,
+    storedGraphId: preferredGraphId ?? storedGraphId,
+    loadGraphs: async () => graphs,
+  })
+  if (preferredGraphId && !preference?.isCurrent()) {
+    throw new Error('The account or destination changed before starter selection. Open your workspaces to continue.')
+  }
+  if (entry.kind === 'home') return entry
+  const { graphId } = entry
   cellGraphId.value = graphId
   currentGraphId = graphId
   persistHostedGraphSelection(graphId)
-  return graphId
+  return entry
 }
 
 async function switchHostedWorkspace(graphId: string): Promise<void> {
@@ -9701,7 +10788,7 @@ async function createHostedWorkspace(): Promise<void> {
   if (!hostedGatewayContract) return
   const title = await promptForText({
     title: 'New Workspace',
-    message: 'Name the new Cloud-2 workspace.',
+    message: 'Name the new workspace.',
     placeholder: 'Workspace name',
     confirmText: 'Create',
   })
@@ -9712,18 +10799,17 @@ async function createHostedWorkspace(): Promise<void> {
     const graphId = localGraphId(title)
     const graphIncarnation = lifecycleUuid()
     const operationId = `graph:create:${graphIncarnation}`
+    const intent = await prepareHostedWorkspace(hostedGatewayContract.sourceMirror, {
+      graphId, graphIncarnation, operationId, title,
+    })
     const lifecycle = await hostedGatewayContract.sourceMirror.openGraphLifecycle()
-    await lifecycle.enqueueCreate({ graphId, graphIncarnation, operationId, title })
-    await hostedGatewayContract.sourceMirror.provisionGraph(graphId, graphIncarnation)
+    hostedGraphs = mergeHostedWorkspaceCreations(
+      hostedGraphs.filter(graph => !graph.localCreation), lifecycle.records(),
+    )
+    const graph = await confirmHostedWorkspaceCreation(intent, () => refreshHostedGraphs(false))
     hostedGatewayContract.sourceMirror.backgroundFlushGraphLifecycle()
-    hostedGraphs = [
-      ...hostedGraphs,
-      { graphId, title, role: 'owner', cellState: 'running' },
-    ]
-    const graph = hostedGraphs.find(item => item.graphId === graphId)
-    if (!graph) throw new Error(`Provisioned workspace "${graphId}" was absent from the local graph list.`)
     await switchHostedWorkspace(graph.graphId)
-    ok(`created and selected workspace "${graph.title || graph.graphId}"; gateway reconciliation continues in the background`)
+    ok(`created and selected workspace "${graph.title || graph.graphId}"`)
   } catch (error) {
     hostedGraphsStatus = 'error'
     hostedGraphsError = error instanceof Error ? error.message : String(error)
@@ -9791,8 +10877,191 @@ async function deleteHostedWorkspace(workspace: WorkspaceSummary): Promise<void>
   }
 }
 
+// ── Self-host: the person's own gardend, same origin (cell/self-host.ts) ──────
+//
+// The boot reuses the desktop app's local-cell path; only the manifest differs
+// (this origin plus /self-host.json instead of Tauri's get_loopback_manifest).
+// The workspace picker lists the cell's own graph catalog, and a switch is a
+// fresh page load on `?graph=`.
+const SELF_HOST_GRAPH_STORAGE_KEY = 'shrubbery.self-host.active-graph'
+/** Hosted pages with nothing behind them in a self-host: sign-in, the landing and legal pages, chat, Choreograph. */
+const SELF_HOST_CLOSED_ROUTES: ReadonlySet<string> = new Set([
+  'auth', 'signin', 'landing', 'legal', 'chat', 'chat-debug', 'choreograph',
+])
+let selfHostContract: GardendContract | null = null
+let selfHostWorkspaces: readonly WorkspaceSummary[] = []
+let selfHostWorkspacesStatus: 'idle' | 'loading' | 'ready' | 'error' = 'idle'
+let selfHostWorkspacesError = ''
+let selfHostWorkspaceBusyId = ''
+/** Until gardend refuses this person a graph write: a member (not an admin) may not make workspaces. */
+let selfHostMayCreateGraphs = true
+
+async function refreshSelfHostWorkspaces(): Promise<void> {
+  const contract = selfHostContract
+  if (!contract) return
+  selfHostWorkspacesStatus = 'loading'
+  selfHostWorkspacesError = ''
+  try {
+    const catalog = await contract.restConcrete.graphs()
+    selfHostWorkspaces = catalog.graphs
+      .filter(graph => graph.status === 'active')
+      .map(graph => ({
+        graphId: graph.graph_id,
+        title: graph.title || graph.graph_id,
+        role: 'owner' as const,
+        cellState: 'running' as const,
+        // Explicit, empty: the picker offers no delete here (that stays a deliberate act).
+        capabilities: {},
+      }))
+    selfHostWorkspacesStatus = 'ready'
+  } catch (error) {
+    selfHostWorkspacesStatus = 'error'
+    selfHostWorkspacesError = error instanceof Error ? error.message : String(error)
+  }
+  if (store) rerenderCurrentSource()
+}
+
+function selfHostWorkspaceChrome() {
+  return {
+    workspaces: selfHostWorkspaces,
+    workspaceStatus: selfHostWorkspacesStatus,
+    workspaceError: selfHostWorkspacesError,
+    activeWorkspaceId: currentGraphId,
+    workspaceBusyId: selfHostWorkspaceBusyId,
+    onWorkspaceRefresh: () => { void refreshSelfHostWorkspaces() },
+    onWorkspaceSelect: (workspace: WorkspaceSummary) => openSelfHostWorkspace(workspace.graphId),
+    workspaceCreateAvailable: selfHostMayCreateGraphs,
+    ...(selfHostMayCreateGraphs ? { onWorkspaceCreate: () => { void createSelfHostWorkspace() } } : {}),
+  }
+}
+
+function openSelfHostWorkspace(graphId: string): void {
+  if (!graphId || graphId === currentGraphId) return
+  try { window.localStorage.setItem(SELF_HOST_GRAPH_STORAGE_KEY, graphId) } catch { /* best effort */ }
+  window.location.assign(`/?graph=${encodeURIComponent(graphId)}`)
+}
+
+async function createSelfHostWorkspace(): Promise<void> {
+  const contract = selfHostContract
+  if (!contract) return
+  const title = await promptForText({
+    title: 'New Workspace',
+    message: 'Name the new workspace.',
+    placeholder: 'Workspace name',
+    confirmText: 'Create',
+  })
+  if (!title) return
+  selfHostWorkspaceBusyId = '__create__'
+  if (store) rerenderCurrentSource()
+  try {
+    const graphId = localGraphId(title)
+    await contract.mcp.toolsCall('create_graph', { graph_id: graphId, title })
+    ok(`created workspace "${title}"`)
+    openSelfHostWorkspace(graphId)
+  } catch (error) {
+    if (isPermissionRefusal(error)) {
+      // A member: say so once, and stop offering it.
+      selfHostMayCreateGraphs = false
+      void confirmAction({
+        title: 'Only the owner can make workspaces',
+        message: 'You can read and write in the workspaces of this Sophia. A new workspace is made by its owner.',
+        confirmText: 'OK',
+      })
+      return
+    }
+    selfHostWorkspacesStatus = 'error'
+    selfHostWorkspacesError = error instanceof Error ? error.message : String(error)
+    err(`create workspace error:\n${selfHostWorkspacesError}`)
+  } finally {
+    selfHostWorkspaceBusyId = ''
+    if (store) rerenderCurrentSource()
+  }
+}
+
+async function bootSelfHost(): Promise<void> {
+  const route = detectOrganismAppRoute(window.location)
+  if (route && SELF_HOST_CLOSED_ROUTES.has(route.kind)) {
+    window.history.replaceState(window.history.state, '', `/${window.location.hash}`)
+  }
+  const url = new URL(window.location.href)
+  let storedGraphId: string | null = null
+  try {
+    storedGraphId = window.localStorage.getItem(SELF_HOST_GRAPH_STORAGE_KEY)
+  } catch { /* storage can be disabled without disabling the cell */ }
+  const boot = await bootstrapSelfHostCell({
+    location: window.location,
+    storage: browserLocalStorage(),
+    replaceUrl: next => window.history.replaceState(window.history.state, '', next),
+    assign: next => window.location.assign(next),
+    requestedGraphId: gardenGraphLocation(url)?.graphId
+      ?? url.searchParams.get('graph')
+      ?? url.searchParams.get('graph_id'),
+    storedGraphId,
+  })
+  if (boot.kind === 'needs-key') {
+    document.body.dataset.organismMode = 'self-host-key'
+    renderSelfHostKeyScreen(hostEl, {
+      reason: boot.reason,
+      onKey: key => acceptPastedSelfHostKey(key, next => {
+        window.history.replaceState(window.history.state, '', next)
+        window.location.reload()
+      }),
+    })
+    // Opening the printed link in this same tab changes only the fragment, which does not reload.
+    window.addEventListener('hashchange', () => {
+      if (/(^#|&)key=/.test(window.location.hash)) window.location.reload()
+    })
+    ok(`self-host: ${boot.reason === 'rejected' ? 'the stored key was not accepted' : 'no key in this browser yet'}`)
+    return
+  }
+
+  selfHostContract = boot.contract
+  selfHostMayCreateGraphs = boot.mayCreateGraphs
+  deploymentContract = boot.contract
+  currentGraphId = boot.graphId
+  cellGraphId.value = boot.graphId
+  try {
+    window.localStorage.setItem(SELF_HOST_GRAPH_STORAGE_KEY, boot.graphId)
+  } catch { /* best effort */ }
+  document.body.dataset.selfHost = boot.session.auth
+  void refreshSelfHostWorkspaces()
+
+  const settingsGraphId = settingsCellGraph(new URL(window.location.href))
+  if (settingsGraphId) {
+    currentGraphId = settingsGraphId
+    cellGraphId.value = settingsGraphId
+  }
+  if (bootOrganismAppRoute()) return
+
+  document.body.dataset.organismMode = 'local-cell'
+  sourceSelect.value = 'CELL_LIVE'
+  // Boot: the app has no prior mode, so this is always a genuine entry.
+  cellControls.hidden = false
+  startCellMode()
+  ok(
+    `self-host: loading ${currentGraphId} from this gardend (${boot.session.auth}`
+    + `${boot.session.email ? `, ${boot.session.email}` : ''})`
+    + (boot.seededUxConfig ? ' (seeded Shrubbery UX config)' : ''),
+  )
+}
+
 async function bootOrganism(): Promise<void> {
   applyCurrent()
+
+  // A self-host build never takes the desktop, hosted or dev paths below, and
+  // only it ever asks for /self-host.json.
+  if (SELF_HOST) {
+    try {
+      await bootSelfHost()
+    } catch (error) {
+      // The #status strip is hidden outside ?debug=1; paint the reason where the app would be.
+      const message = error instanceof Error ? error.message : String(error)
+      document.body.dataset.organismMode = 'error'
+      renderCellErrorPanel(hostEl, message, { onRetry: () => window.location.reload() })
+      err(`self-host boot failed:\n${message}`)
+    }
+    return
+  }
 
   // The packaged Garden desktop app consumes this Shrubbery bundle directly.
   // Tauri contributes only its loopback manifest; the normal CELL_LIVE path
@@ -9851,10 +11120,54 @@ async function bootOrganism(): Promise<void> {
       return
     }
 
-    if (auth.isAuthenticated() && !publicRoute && !authRoute && detectedRoute?.kind !== 'home') {
-      await selectHostedGraph()
+    if (auth.isAuthenticated() && !publicRoute && !authRoute && hostedGatewayContract) {
+      // `#share=shr_…`: scrub the token from history, then join through it.
+      const landing = await redeemShareLinkFromLocation({
+        location: new URL(window.location.href),
+        gateway: hostedGatewayContract.gateway,
+        replaceUrl: url => window.history.replaceState(window.history.state, '', url),
+      })
+      if (landing) {
+        showShareLinkLanding(document, landing)
+        if (landing.kind === 'joined') ok(`share link: joined ${landing.graphId} as ${landing.role}`)
+        else err(`share link: ${landing.message}`)
+      }
     }
-    if (bootOrganismAppRoute()) return
+
+    let starterPreference: StarterStartupPreference | null = null
+    if (auth.isAuthenticated() && !publicRoute && !authRoute) {
+      stopHostedStarterStartup()
+      const runId = hostedStarterRunId
+      const contract = hostedGatewayContract
+      hostedStarterStartup = startHostedStarter({
+        mode: 'hosted', auth, cognito: deploymentConfig.cognito,
+        gatewayBaseUrl: deploymentConfig.gatewayBaseUrl,
+        serviceProxySubject: deploymentConfig.devServiceProxySubject,
+        location: () => new URL(window.location.href),
+        isHostCurrent: () => hostedGatewayContract === contract,
+        onNotice: notice => { if (runId === hostedStarterRunId) starterStartupNotice.show(notice) },
+      })
+      // Explicit destinations resolve immediately. Only an undirected root can
+      // wait up to two seconds; the bounded background result never navigates.
+      starterPreference = await hostedStarterStartup.initial
+      if (!auth.isAuthenticated()) {
+        bootOrganismAppRoute(signInLocation(`${window.location.pathname}${window.location.search}${window.location.hash}`))
+        return
+      }
+    }
+    if (auth.isAuthenticated() && !publicRoute && !authRoute && detectedRoute?.kind !== 'home') {
+      const entry = await selectHostedEntry(starterPreference)
+      if (entry.kind === 'home') {
+        window.history.replaceState(window.history.state, '', entry.location)
+        if (!bootOrganismAppRoute(entry.location)) throw new Error('Garden Home route is unavailable')
+        if (hostedStarterStartup) refreshAfterHostedStarter(hostedStarterStartup, hostedStarterRunId)
+        return
+      }
+    }
+    if (bootOrganismAppRoute()) {
+      if (hostedStarterStartup) refreshAfterHostedStarter(hostedStarterStartup, hostedStarterRunId)
+      return
+    }
 
     document.body.dataset.organismMode = 'hosted'
     sourceSelect.value = 'CELL_LIVE'
@@ -9862,6 +11175,7 @@ async function bootOrganism(): Promise<void> {
     cellControls.hidden = false
     startCellMode()
     ok(`hosted Garden: loading ${currentGraphId} through ${deploymentConfig.gatewayBaseUrl}`)
+    if (hostedStarterStartup) refreshAfterHostedStarter(hostedStarterStartup, hostedStarterRunId)
     return
   }
 
@@ -9914,6 +11228,8 @@ void bootOrganism().catch(error => {
   err(`Organism boot failed:\n${error instanceof Error ? error.message : String(error)}`)
 })
 window.addEventListener('beforeunload', () => {
+  customCssController?.dispose()
+  stopHostedStarterStartup()
   settingsOverlayTransition.destroy()
   resetQuickClip(true, false)
   teardownExcalidrawRuntime()

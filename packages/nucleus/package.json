@@ -9,11 +9,15 @@
     ".": "./src/index.ts",
     "./contract": "./src/contract.ts",
     "./kinds": "./src/kinds/index.ts",
+    "./value-faces": "./src/value-faces/index.ts",
     "./workspace": "./src/workspace/index.ts",
+    "./files-canvas": "./src/workspace/files-canvas/index.ts",
     "./layout": "./src/layout/index.ts",
     "./component-library": "./src/workspace/component-library.ts",
     "./component-library/manifest": "./component-library/manifest.ts",
-    "./seed/garden-default.ux.nt": "./src/workspace/__generated__/garden-default.ux.nt"
+    "./seed/garden-default.ux.nt": "./src/workspace/__generated__/garden-default.ux.nt",
+    "./web-crypto": "./src/web-crypto.ts",
+    "./roving-toolbar": "./src/roving-toolbar.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",
@@ -24,6 +28,9 @@
     "generate:ux-seed": "tsx scripts/generate-garden-default.mts"
   },
   "dependencies": {
+    "@excalidraw/common": "0.18.0-4ce38fb",
+    "@excalidraw/element": "0.18.0-4ce38fb",
+    "@excalidraw/math": "0.18.0-4ce38fb",
     "lit": "^3.1.4"
   },
   "devDependencies": {

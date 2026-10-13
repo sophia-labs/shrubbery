@@ -49,6 +49,19 @@ export interface DynamicCellProxyPlugin {
   readonly name: string
   readonly apply: 'serve'
   configureServer(server: ViteDevServerLike): void
+  /**
+   * The same proxy for `vite preview`, which serves the PRODUCTION BUNDLE.
+   *
+   * Without this, every browser harness in this repo could only ever drive the
+   * dev server, because the dev server was the only thing that could reach a
+   * cell. That is a whole class of bug rendered untestable by the instrument:
+   * dev serves each stylesheet as its own injected <style> in module order,
+   * while the build concatenates them in another, and rules of equal
+   * specificity resolve differently between the two. This repo has already
+   * shipped one bug of exactly that kind (a document-level `display: block`
+   * beating a component's own `:host`, which flattened the sidebar).
+   */
+  configurePreviewServer(server: ViteDevServerLike): void
 }
 
 type ManifestFailureReason =
@@ -231,10 +244,12 @@ export function dynamicCellProxy(options: DynamicCellProxyOptions): DynamicCellP
   const upstreamTimeoutMs = options.upstreamTimeoutMs ?? DEFAULT_UPSTREAM_TIMEOUT_MS
   const secretBasename = basename(options.manifestPath)
 
-  return {
-    name: 'shrubbery-dynamic-cell-proxy',
-    apply: 'serve',
-    configureServer(server) {
+  /**
+   * Bind the proxy to a Vite server. Identical for the dev server and the
+   * preview server: both expose `middlewares` and `httpServer`, and the cell
+   * does not care which one is asking.
+   */
+  const attach = (server: ViteDevServerLike): void => {
       // No constructor target: the request-local target passed to web()/ws()
       // below is authoritative. This avoids Vite's static ProxyOptions capture.
       const proxy = httpProxy.createProxyServer()
@@ -298,6 +313,12 @@ export function dynamicCellProxy(options: DynamicCellProxyOptions): DynamicCellP
       server.httpServer.once('close', () => {
         server.httpServer?.off('upgrade', onUpgrade)
       })
-    },
+  }
+
+  return {
+    name: 'shrubbery-dynamic-cell-proxy',
+    apply: 'serve',
+    configureServer: attach,
+    configurePreviewServer: attach,
   }
 }

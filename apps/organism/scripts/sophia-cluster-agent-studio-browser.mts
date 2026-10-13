@@ -122,6 +122,73 @@ try {
     assert.ok(studioText.includes(section), `Agent Studio omitted ${section}`)
   }
 
+  const chat = page.locator('sh-chat-host')
+  await chat.waitFor({ state: 'visible' })
+  await page.waitForFunction(() => {
+    const host = document.querySelector('sh-chat-host') as HTMLElement & {
+      panel?: HTMLElement & { onSend?: (text: string) => void }
+      service?: unknown
+      sessionId?: string | null
+    } | null
+    return host?.panel?.onSend && host.service && host.sessionId
+  })
+  assert.equal(await page.locator('sh-chat-host').count(), 1, 'workspace mounted more than one live chat host')
+  assert.equal(await page.locator('mn-chat-panel').count(), 0, 'workspace retained a duplicate inert chat panel')
+  const chatMount = await chat.evaluate((element) => {
+    const host = element as HTMLElement & {
+      panel?: HTMLElement
+      service?: unknown
+      sessionId?: string | null
+      shadowRoot: ShadowRoot | null
+    }
+    return {
+      serviceBound: host.service != null,
+      sessionBound: typeof host.sessionId === 'string' && host.sessionId.length > 0,
+      panels: host.shadowRoot?.querySelectorAll('sh-chat-panel').length ?? 0,
+      region: host.closest<HTMLElement>('[data-region]')?.dataset.region ?? null,
+      role: host.closest<HTMLElement>('[data-region]')?.dataset.role ?? null,
+      collapseControls: document.querySelectorAll('[data-panel-controls="right"][data-panel-mode="collapsed"]').length,
+    }
+  })
+  assert.deepEqual(chatMount, {
+    serviceBound: true,
+    sessionBound: true,
+    panels: 1,
+    region: 'region-chat-rail',
+    role: 'right',
+    collapseControls: 1,
+  })
+  const chatSplit = await page.evaluate(() => {
+    const surface = document.querySelector('sh-workspace-surface') as HTMLElement & {
+      surfaceDocument?: () => { nodes?: Record<string, {
+        kind?: string
+        axis?: string
+        startBasisPoints?: number
+      }> } | null
+    } | null
+    const node = surface?.surfaceDocument?.()?.nodes?.['workspace-spine:region-agent-studio']
+    return node ? { kind: node.kind, axis: node.axis, startBasisPoints: node.startBasisPoints } : null
+  })
+  assert.ok(chatSplit, 'production Surface omitted the Agent Studio/chat split')
+  assert.equal(chatSplit.kind, 'split')
+  assert.equal(chatSplit.axis, 'horizontal')
+  assert.ok(
+    typeof chatSplit.startBasisPoints === 'number'
+      && chatSplit.startBasisPoints > 5_000
+      && chatSplit.startBasisPoints < 9_000,
+    `chat split had an implausible basis: ${String(chatSplit.startBasisPoints)}`,
+  )
+  await chat.evaluate((element) => {
+    const host = element as HTMLElement & { panel?: { onSend?: (text: string) => void } }
+    host.panel?.onSend?.('hello from the Sophia Cluster workspace')
+  })
+  await page.waitForFunction(() => {
+    const host = document.querySelector('sh-chat-host') as HTMLElement & { panel?: HTMLElement } | null
+    const panel = host?.panel
+    return panel?.querySelector('.message.user')?.textContent?.includes('hello from the Sophia Cluster workspace')
+      && panel.querySelector('.message.assistant')?.textContent?.includes('I can grow your interface')
+  })
+
   await studio.evaluate((element) => {
     const labels = [...element.shadowRoot!.querySelectorAll('label')]
     const input = labels.find(label => label.textContent?.includes('Display name'))?.querySelector('input')
@@ -142,7 +209,8 @@ try {
 
   const definition = await readJsonDocument(mcp, GRAPH_ID, DEFINITION_ID)
   assert.equal(definition.schema, 'sophia.domain-agent-definition.v2')
-  assert.equal(definition.registeredName, 'sophia-cluster-lead')
+  assert.equal(definition.registeredName, 'sophia-1')
+  assert.equal(definition.agentId, SOPHIA_CLUSTER_LEAD_HARNESS.agentId)
   assert.equal((definition.models as Record<string, unknown>).pilot, 'gpt-5.6-sol')
   const grantRef = definition.grantRef as Record<string, unknown>
   assert.equal(grantRef.graphId, AUTHORITY_GRAPH_ID)
@@ -165,6 +233,9 @@ try {
     agentId: definition.agentId,
     provider: (definition.models as Record<string, unknown>).provider,
     sections: 13,
+    liveChatHosts: 1,
+    liveChatPanels: 1,
+    chatRoundTrips: 1,
     sameOriginMcpRequests: requests.filter(url => new URL(url).pathname === '/cell/mcp').length,
     directLoopbackRequests: 0,
     screenshotPath,

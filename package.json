@@ -7,6 +7,7 @@
   "type": "module",
   "scripts": {
     "build": "pnpm -r build",
+    "build:selfhost": "pnpm --filter @shrubbery/organism build:selfhost",
     "concordance:status": "node scripts/validate-concordance-campaign.mjs --write",
     "test": "pnpm -r test:run",
     "test:run": "pnpm -r test:run",
@@ -18,7 +19,17 @@
   },
   "packageManager": "pnpm@9.0.0",
   "pnpm": {
-    "onlyBuiltDependencies": ["esbuild"]
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ],
+    "overrides": {
+      "@codemirror/state": "6.5.2",
+      "@codemirror/view": "6.38.1",
+      "@codemirror/lint": "6.9.0"
+    },
+    "patchedDependencies": {
+      "@tiptap/y-tiptap@3.0.5": "patches/@tiptap__y-tiptap@3.0.5.patch"
+    }
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.4",

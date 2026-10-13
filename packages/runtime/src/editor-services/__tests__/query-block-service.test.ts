@@ -112,6 +112,28 @@ describe('makeQueryBlockService', () => {
     expect(rest.queries).toEqual([])
   })
 
+  it('does not mistake an update keyword INSIDE an IRI or a string literal for an update (el Despacho W1, found live)', async () => {
+    // Real beads on Sirin: `…:cuenta:sirin-w1-move-sophia-cluster` and
+    // `…:cuenta:sirin-g-freeze-and-move` — `\bMOVE\b` matched the IRI and the
+    // card.cuenta face painted "Only read-only … queries are allowed" for a
+    // plain SELECT (receipts/despacho-w1-sirin-w1-children-one-entry-refused-
+    // by-readonly-guard.jpg, 2026-09-15).
+    const move = 'urn:mnemosyne:local:graph:sophia-cluster:projection:cuentas:cuenta:sirin-w1-move-sophia-cluster'
+    expect(inferQueryBlockQueryKind(`SELECT ?p ?o WHERE { GRAPH ?g { <${move}> ?p ?o } } LIMIT 500`)).toBe('select')
+    expect(inferQueryBlockQueryKind('SELECT ?s WHERE { ?s <urn:x#title> "please DROP the old copy" }')).toBe('select')
+    expect(inferQueryBlockQueryKind("SELECT ?s WHERE { ?s <urn:x#note> '''we CREATE, then LOAD''' }")).toBe('select')
+    // The guard still bites on every real update form, including after a
+    // read-only prefix and with an IRI in play.
+    for (const update of [
+      'DELETE WHERE { ?s ?p ?o }',
+      `INSERT DATA { <${move}> <urn:x#p> "o" }`,
+      `SELECT * WHERE { ?s ?p ?o } ; DROP GRAPH <${move}>`,
+      'CLEAR ALL',
+    ]) {
+      expect(() => inferQueryBlockQueryKind(update), update).toThrow(/Only read-only/)
+    }
+  })
+
   it('normalizes ASK and serialized CONSTRUCT results', async () => {
     const ask = await makeQueryBlockService(new MemoryRestClient({ boolean: true })).run(
       'g',
@@ -261,7 +283,7 @@ describe('makeQueryBlockRenderer', () => {
     document.documentElement.removeAttribute('data-skin')
   })
 
-  it('auto-recommends Vega, persists the generated spec, and rebuilds it from visual controls', async () => {
+  it('auto-recommends Vega WITHOUT storing it on open (read never writes), and stores the chart only when the author edits it', async () => {
     const result: QueryBlockResult = {
       queryKind: 'select',
       resultKind: 'bindings',
@@ -280,10 +302,18 @@ describe('makeQueryBlockRenderer', () => {
     const mounted = mount(result, attrs, async () => embed)
     await new Promise((resolve) => setTimeout(resolve, 0))
 
-    const generated = mounted.updates.find(update => update.visualization === 'vega')
-    expect(generated?.vegaLiteSpec).toContain('"type": "bar"')
-    expect(mounted.target.querySelector<HTMLDivElement>('.query-block-host-vega-builder')?.hidden).toBe(false)
+    // Opening drew the recommended chart and wrote NOTHING (senderos readme-weakest-q, 2026-09-25).
+    expect(mounted.updates).toEqual([])
     expect(mounted.target.querySelector('[data-visualization-status="done"]')).not.toBeNull()
+    expect(mounted.target.querySelector<HTMLElement>('.query-block-host-vega')?.dataset.mark).toBe('bar')
+    // The encoding editor sits behind "Edit chart".
+    const builder = mounted.target.querySelector<HTMLDivElement>('.query-block-host-vega-builder')!
+    expect(builder.hidden).toBe(true)
+    const editChart = mounted.target.querySelector<HTMLButtonElement>('.query-block-edit-chart')!
+    expect(editChart.hidden).toBe(false)
+    editChart.click()
+    expect(builder.hidden).toBe(false)
+    expect(mounted.target.querySelector<HTMLTextAreaElement>('.query-block-host-vega-spec')?.value).toContain('"type": "bar"')
 
     const mark = mounted.target.querySelector<HTMLSelectElement>('[data-vega-field="mark"]')!
     const x = mounted.target.querySelector<HTMLSelectElement>('[data-vega-field="x"]')!

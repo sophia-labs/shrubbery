@@ -18,12 +18,10 @@ describe('Organism deployment config', () => {
       VITE_COGNITO_REGION: 'us-west-1',
       VITE_COGNITO_CLIENT_ID: 'client',
       VITE_COGNITO_USER_POOL_ID: 'pool',
-      VITE_CHAT_API_BASE_URL: 'https://chat.test/',
     })).toEqual({
       mode: 'hosted',
       gatewayBaseUrl: 'https://gateway.test',
       cognito: { region: 'us-west-1', clientId: 'client', userPoolId: 'pool' },
-      chatApiBaseUrl: 'https://chat.test',
     })
   })
 

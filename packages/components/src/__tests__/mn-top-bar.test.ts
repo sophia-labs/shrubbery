@@ -8,6 +8,7 @@
 import { describe, it, expect, beforeAll } from 'vitest'
 import '../mn-top-bar.js'
 import type { ChromeAppTab, MnTopBar } from '../mn-top-bar.js'
+import { APP_TOOLBAR_ACTIONS, HOME_ACTION, appToolbarActions } from '../app-toolbar.js'
 
 /** The two-tab fixture every pre-Slice-10 test relied on being hardcoded. */
 const GARDEN_CHOREOGRAPH_TABS: readonly ChromeAppTab[] = [
@@ -32,18 +33,89 @@ describe('mn-top-bar — real custom element', () => {
     expect(customElements.get('mn-top-bar')).toBeDefined()
   })
 
+  it('offers New Workspace unless the shell says this person may not create one', async () => {
+    const workspaces = [{ graphId: 'garden', title: 'Garden', role: 'owner' as const, cellState: 'running' as const }]
+    const open = async (el: MnTopBar) => {
+      const selector = el.shadowRoot!.querySelector('mn-workspace-selector') as HTMLElement & { updateComplete: Promise<unknown> }
+      await selector.updateComplete
+      selector.shadowRoot!.querySelector<HTMLButtonElement>('.trigger')!.click()
+      await selector.updateComplete
+      return selector.shadowRoot!.querySelector('.create')
+    }
+    expect(await open(await mount(e => { e.workspaces = workspaces; e.workspaceStatus = 'ready' }))).not.toBeNull()
+    document.body.replaceChildren()
+    expect(await open(await mount(e => {
+      e.workspaces = workspaces
+      e.workspaceStatus = 'ready'
+      e.workspaceCreateAvailable = false
+    }))).toBeNull()
+  })
+
   it('upgrades the tag and builds a shadow root', async () => {
     const el = await mount()
     expect(el.shadowRoot).not.toBeNull()
     expect(el.tagName.toLowerCase()).toBe('mn-top-bar')
   })
 
-  it('renders the masthead brand + badge from controlled props (defaults)', async () => {
+  it('the app picker sits alone in the left corner — no Sophia/Start button; no badge by default (out of beta)', async () => {
     const el = await mount()
+    expect(sr(el).querySelector('.masthead')).toBeNull()
+    expect(sr(el).querySelector('.os-menu')).toBeNull()
+    const first = sr(el).firstElementChild as HTMLElement
+    expect(first.classList.contains('app-title')).toBe(true)
     const name = sr(el).querySelector('.masthead-name')
     const badge = sr(el).querySelector('.masthead-badge')
     expect(name?.textContent?.trim()).toBe('Garden')
-    expect(badge?.textContent?.trim()).toBe('beta')
+    expect(badge?.textContent?.trim()).toBe('')
+    expect(badge?.hasAttribute('hidden')).toBe(true)
+  })
+
+  it('with apps, the app title is the ACTIVE app and the launcher lists every app with a description', async () => {
+    const el = await mount(e => { e.apps = GARDEN_CHOREOGRAPH_TABS; e.activeApp = 'choreograph' })
+    expect(sr(el).querySelector('.masthead-name')?.textContent?.trim()).toBe('Choreograph')
+    const picker = sr(el).querySelector('.app-picker') as HTMLButtonElement
+    expect(picker.disabled).toBe(false)
+    expect(picker.getAttribute('aria-haspopup')).toBe('menu')
+    const descriptions = Array.from(sr(el).querySelectorAll('.switcher-description')).map(d => d.textContent?.trim())
+    expect(descriptions).toEqual(['Notes, documents and the knowledge graph', 'Agents, runs and workflows'])
+  })
+
+  it('the app picker opens and closes the launcher; aria-expanded mirrors it', async () => {
+    const el = await mount(e => { e.apps = GARDEN_CHOREOGRAPH_TABS })
+    const picker = sr(el).querySelector('.app-picker') as HTMLButtonElement
+    const launcher = sr(el).querySelector('.app-switcher') as HTMLElement
+    picker.click()
+    await el.updateComplete
+    expect(launcher.hasAttribute('popover-open')).toBe(true)
+    expect(picker.getAttribute('aria-expanded')).toBe('true')
+    picker.click()
+    await el.updateComplete
+    expect(launcher.hasAttribute('popover-open')).toBe(false)
+    expect(picker.getAttribute('aria-expanded')).toBe('false')
+  })
+
+  it('a native close (Escape / light dismiss) is mirrored, so the next click reopens instead of "closing"', async () => {
+    const el = await mount(e => { e.apps = GARDEN_CHOREOGRAPH_TABS })
+    const os = sr(el).querySelector('.app-picker') as HTMLButtonElement
+    const menu = sr(el).querySelector('.app-switcher') as HTMLElement
+    os.click()
+    await el.updateComplete
+    // The browser closes the popover itself and fires `toggle` (newState=closed).
+    const toggle = Object.assign(new Event('toggle'), { newState: 'closed', oldState: 'open' })
+    menu.dispatchEvent(toggle)
+    await el.updateComplete
+    expect(menu.hasAttribute('popover-open')).toBe(false)
+    expect(os.getAttribute('aria-expanded')).toBe('false')
+    os.click()
+    await el.updateComplete
+    expect(menu.hasAttribute('popover-open')).toBe(true)
+  })
+
+  it('with no apps the picker is an inert title (disabled, no caret)', async () => {
+    const el = await mount()
+    const picker = sr(el).querySelector('.app-picker') as HTMLButtonElement
+    expect(picker.disabled).toBe(true)
+    expect(sr(el).querySelector('.app-picker-caret')?.hasAttribute('hidden')).toBe(true)
   })
 
   it('brand/badge are driven by props, not faked from a store', async () => {
@@ -76,9 +148,22 @@ describe('mn-top-bar — real custom element', () => {
     expect(garden.querySelector('.switcher-label')?.textContent?.trim()).toBe('Garden')
     expect(choreo.querySelector('.switcher-label')?.textContent?.trim()).toBe('Choreograph')
     expect(garden.classList.contains('app-switcher-btn--active')).toBe(true)
-    expect(garden.getAttribute('aria-selected')).toBe('true')
+    // Launcher rows are radio menu items (a menu, not a tablist).
+    expect(garden.getAttribute('role')).toBe('menuitemradio')
+    expect(garden.getAttribute('aria-checked')).toBe('true')
     expect(choreo.classList.contains('app-switcher-btn--active')).toBe(false)
-    expect(choreo.getAttribute('aria-selected')).toBe('false')
+    expect(choreo.getAttribute('aria-checked')).toBe('false')
+  })
+
+  it('offers an explicitly configured Hoja route as a suite app', async () => {
+    const el = await mount(e => { e.apps = GARDEN_CHOREOGRAPH_TABS; e.hojaHref = '/hoja/' })
+    const hoja = sr(el).querySelector<HTMLAnchorElement>('.app-switcher-btn[data-app-id="hoja"]')
+
+    expect(hoja?.getAttribute('href')).toBe('/hoja/')
+    expect(hoja?.querySelector('.switcher-label')?.textContent?.trim()).toBe('Hoja')
+    // One launcher: tabs and links are the same kind of row, unchecked unless current.
+    expect(sr(el).querySelectorAll('[role="menuitemradio"]')).toHaveLength(3)
+    expect(hoja?.getAttribute('aria-checked')).toBe('false')
   })
 
   it('a THIRD, config-declared app renders as a real tab (no hardcoded two-tab ceiling)', async () => {
@@ -95,15 +180,15 @@ describe('mn-top-bar — real custom element', () => {
   it('activeApp prop drives which tab is active (controlled, no store)', async () => {
     const el = await mount(e => { e.apps = GARDEN_CHOREOGRAPH_TABS; e.activeApp = 'choreograph' })
     const tabs = sr(el).querySelectorAll('.app-switcher-btn')
-    expect(tabs[0].getAttribute('aria-selected')).toBe('false')
-    expect(tabs[1].getAttribute('aria-selected')).toBe('true')
+    expect(tabs[0].getAttribute('aria-checked')).toBe('false')
+    expect(tabs[1].getAttribute('aria-checked')).toBe('true')
     expect(tabs[1].classList.contains('app-switcher-btn--active')).toBe(true)
   })
 
   it('an activeApp that matches NO tab (an undeclared/stale app) leaves every tab unselected — never a guess', async () => {
     const el = await mount(e => { e.apps = GARDEN_CHOREOGRAPH_TABS; e.activeApp = 'not-a-real-app' })
     const tabs = sr(el).querySelectorAll('.app-switcher-btn')
-    expect(Array.from(tabs).every(t => t.getAttribute('aria-selected') === 'false')).toBe(true)
+    expect(Array.from(tabs).every(t => t.getAttribute('aria-checked') === 'false')).toBe(true)
     expect(Array.from(tabs).every(t => !t.classList.contains('app-switcher-btn--active'))).toBe(true)
   })
 
@@ -204,34 +289,80 @@ describe('mn-top-bar — real custom element', () => {
     expect(menuOpened).toBe(false)
   })
 
-  it('the masthead click emits mn-navigate-home', async () => {
-    const el = await mount()
+  it('Garden declares exactly one toolbar button — Home — right of the picker; it emits mn-navigate-home', async () => {
+    const el = await mount(e => { e.apps = GARDEN_CHOREOGRAPH_TABS })
+    const toolbar = sr(el).querySelector('.app-toolbar') as HTMLElement
+    expect(toolbar.getAttribute('role')).toBe('toolbar')
+    expect(toolbar.getAttribute('aria-label')).toBe('Garden tools')
+    expect(toolbar.hasAttribute('hidden')).toBe(false)
+    // Order: picker first, toolbar immediately after it.
+    expect(sr(el).querySelector('.app-title')?.nextElementSibling).toBe(toolbar)
+    const buttons = Array.from(toolbar.querySelectorAll('button'))
+    expect(buttons.map(b => b.dataset.appAction)).toEqual(['home'])
+    const home = buttons[0]
+    // Icon-only: an accessible name and a tooltip, plus a real glyph.
+    expect(home.getAttribute('aria-label')).toBe('Home')
+    expect(home.getAttribute('title')).toBe('Home')
+    expect(home.querySelector('svg')).not.toBeNull()
     let fired = false
     el.addEventListener('mn-navigate-home', () => { fired = true })
-    ;(sr(el).querySelector('.masthead') as HTMLElement).click()
+    home.click()
     expect(fired).toBe(true)
   })
 
-  it('theme/skin action buttons reflect controlled props + emit composed events', async () => {
+  it('the toolbar is registry-driven: an app with no declared set renders an empty, hidden toolbar', async () => {
+    const el = await mount(e => { e.apps = [...GARDEN_CHOREOGRAPH_TABS, { id: 'grapevine', label: 'Grapevine' }]; e.activeApp = 'grapevine' })
+    const toolbar = sr(el).querySelector('.app-toolbar') as HTMLElement
+    expect(toolbar.querySelectorAll('button').length).toBe(0)
+    expect(toolbar.hasAttribute('hidden')).toBe(true)
+    expect(appToolbarActions('grapevine')).toEqual([])
+    expect(APP_TOOLBAR_ACTIONS.garden).toEqual([HOME_ACTION])
+  })
+
+  it('a shell may override the declared set; each action emits its own event and detail', async () => {
+    const el = await mount(e => {
+      e.toolbarActions = [
+        HOME_ACTION,
+        { id: 'search', label: 'Search', icon: 'search', event: 'mn-search-open', detail: { scope: 'graph' } },
+      ]
+    })
+    const buttons = Array.from(sr(el).querySelectorAll<HTMLButtonElement>('.app-toolbar button'))
+    expect(buttons.map(b => b.dataset.appAction)).toEqual(['home', 'search'])
+    let detail: unknown = null
+    el.addEventListener('mn-search-open', e => { detail = (e as CustomEvent).detail })
+    buttons[1].click()
+    expect(detail).toEqual({ scope: 'graph' })
+  })
+
+  it('theme action and skin picker reflect controlled props + emit composed events', async () => {
     const el = await mount(e => { e.isDark = true; e.activeSkin = '98' })
     const buttons = Array.from(sr(el).querySelectorAll('.action-btn')) as HTMLButtonElement[]
     const themeBtn = buttons.find(b => b.getAttribute('aria-label') === 'Toggle theme')!
-    const skinBtn = buttons.find(b => b.dataset.action === 'skin')!
     const settingsBtn = buttons.find(b => b.getAttribute('aria-label') === 'Settings')!
+    const picker = sr(el).querySelector('mn-skin-picker[data-action="skin"]') as HTMLElement & { value: string; updateComplete: Promise<unknown> }
     // pressed state comes from props, not a theme store.
     expect(themeBtn.getAttribute('aria-pressed')).toBe('true')
     expect(themeBtn.classList.contains('active')).toBe(true)
-    expect(skinBtn.getAttribute('aria-pressed')).toBeNull()
-    expect(skinBtn.dataset.activeSkin).toBe('98')
-    expect(skinBtn.getAttribute('aria-label')).toContain('98')
-    expect(skinBtn.querySelector('svg')).not.toBeNull()
+    // the skin control is a picker (a drop-down listing every skin), not a toggle button
+    expect(sr(el).querySelector('button[data-action="skin"]')).toBeNull()
+    expect(picker.value).toBe('98')
+    await picker.updateComplete
+    const dropdown = picker.shadowRoot!.querySelector('mn-dropdown-button') as HTMLElement & { updateComplete: Promise<unknown> }
+    await dropdown.updateComplete
+    const trigger = dropdown.shadowRoot!.querySelector('.trigger') as HTMLButtonElement
+    expect(trigger.getAttribute('aria-label')).toContain('98')
+    expect(trigger.querySelector('svg')).not.toBeNull()
 
-    let theme = false, skin = false, settings = false
+    let theme = false, settings = false
+    const skins: string[] = []
     el.addEventListener('mn-theme-toggle', () => { theme = true })
-    el.addEventListener('mn-skin-toggle', () => { skin = true })
+    el.addEventListener('mn-skin-select', e => { skins.push((e as CustomEvent<{ skin: string }>).detail.skin) })
     el.addEventListener('mn-settings-toggle', () => { settings = true })
-    themeBtn.click(); skinBtn.click(); settingsBtn.click()
-    expect([theme, skin, settings]).toEqual([true, true, true])
+    themeBtn.click(); settingsBtn.click()
+    trigger.click()
+    await dropdown.updateComplete
+    dropdown.shadowRoot!.querySelector<HTMLButtonElement>('[data-menu-item-id="glass"]')!.click()
+    expect([theme, settings, skins]).toEqual([true, true, ['glass']])
   })
 
   it('renders Quick Clip only for a live graph and forwards controlled state/intents', async () => {
@@ -271,7 +402,7 @@ describe('mn-top-bar — real custom element', () => {
     await el.updateComplete
     let caughtOnHost = false
     host.addEventListener('mn-navigate-home', () => { caughtOnHost = true })
-    ;(el.shadowRoot!.querySelector('.masthead') as HTMLElement).click()
+    ;(el.shadowRoot!.querySelector('[data-app-action="home"]') as HTMLElement).click()
     expect(caughtOnHost).toBe(true)
   })
 })

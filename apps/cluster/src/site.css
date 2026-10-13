@@ -1,0 +1,444 @@
+/* cluster.sophia-labs.com: a catalogue sheet, faithful to the genre and soft at the edges. */
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Serif:ital,wght@1,400&display=swap');
+
+@font-face {
+  font-family: 'DM Mono';
+  src: url('/assets/fonts/dm-mono-5.3.0-latin-300.woff2') format('woff2');
+  font-weight: 300;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'DM Mono';
+  src: url('/assets/fonts/dm-mono-5.3.0-latin-400.woff2') format('woff2');
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'DM Mono';
+  src: url('/assets/fonts/dm-mono-5.3.0-latin-500.woff2') format('woff2');
+  font-weight: 500;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Literata';
+  src: url('/assets/fonts/literata-5.2.8-latin-standard.woff2') format('woff2');
+  font-weight: 200 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Literata';
+  src: url('/assets/fonts/literata-5.2.8-latin-standard-italic.woff2') format('woff2');
+  font-weight: 200 900;
+  font-style: italic;
+  font-display: swap;
+}
+
+:root {
+  --sophia-blue: #00356b; /* PMS 289 */
+  --safety-orange: #f26a1b;
+  --mono: 'DM Mono', ui-monospace, Menlo, monospace;
+  --serif: 'IBM Plex Serif', Georgia, serif;
+  --letter: 'Literata', Georgia, serif;
+  --ink: #23242a;
+  --ink-2: #5b5d66;
+  --ink-3: #9a9ca4;
+  --hair: #e3e5ea;
+  --tint: #f3f6fa;
+  --paper: #fffefb;
+  --radius: 12px;
+  color-scheme: light;
+}
+
+* { box-sizing: border-box; }
+
+html {
+  font: 400 13px/1.55 var(--mono);
+  color: var(--ink);
+  background: var(--paper);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* The page is a drawing sheet: a ruled frame with ticks along its edges. */
+body {
+  --tick: var(--ink-3);
+  margin: 14px;
+  min-height: calc(100vh - 28px);
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  grid-template-columns: minmax(0, 1fr);
+  border: 1px solid var(--ink);
+  border-radius: 3px;
+  background:
+    linear-gradient(to right, var(--tick) 1px, transparent 1px) left top / 64px 5px repeat-x,
+    linear-gradient(to right, var(--tick) 1px, transparent 1px) left bottom / 64px 5px repeat-x,
+    linear-gradient(to bottom, var(--tick) 1px, transparent 1px) left top / 5px 64px repeat-y,
+    linear-gradient(to bottom, var(--tick) 1px, transparent 1px) right top / 5px 64px repeat-y,
+    var(--paper);
+}
+
+/* The masthead: the maker's mark, then one bright hairline across the sheet. */
+header.site {
+  display: flex;
+  align-items: center;
+  padding: 15px 26px 13px;
+  border-bottom: 2px solid var(--safety-orange);
+}
+
+header.site a {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font: 500 14px/1 var(--mono);
+  letter-spacing: 0.01em;
+  text-transform: lowercase;
+  color: var(--sophia-blue);
+  text-decoration: none;
+}
+
+header.site a::before {
+  content: "";
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  background: var(--sophia-blue);
+  clip-path: polygon(0 0, 100% 0, 100% 62%, 62% 100%, 0 100%);
+}
+
+/* The beats: a quick title; then the spotlight (the thesis, large, with the
+   drawing beside it in support); then the specification as quiet fine print. */
+main {
+  padding: 30px 26px 40px;
+}
+
+main.page-index {
+  display: grid;
+  grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+  grid-template-areas:
+    "title title"
+    "line line"
+    "thesis drawing"
+    "cta drawing"
+    "push push"
+    "spec spec"
+    "letter letter";
+  grid-template-rows: auto auto auto auto 1fr auto auto;
+  column-gap: 48px;
+}
+
+main h1 {
+  grid-area: title;
+  margin: 0;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--sophia-blue);
+  font: 500 24px/1.15 var(--mono);
+  letter-spacing: -0.02em;
+  color: var(--sophia-blue);
+}
+
+main > p:first-of-type {
+  grid-area: line;
+  margin: 9px 0 0;
+  color: var(--ink-2);
+}
+
+/* The spotlight. */
+main blockquote {
+  grid-area: thesis;
+  align-self: center;
+  position: relative;
+  margin: 64px 0 30px;
+  padding: 30px 0 0;
+}
+
+main blockquote::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 48px;
+  border-top: 2px solid var(--safety-orange);
+}
+
+main blockquote p {
+  margin: 0;
+  max-width: 30ch;
+  font: italic 400 31px/1.34 var(--serif);
+  letter-spacing: -0.005em;
+  color: var(--ink);
+  hanging-punctuation: first;
+  text-wrap: pretty;
+}
+
+/* The drawing, in support. */
+main > p:has(img) {
+  grid-area: drawing;
+  align-self: center;
+  margin: 0;
+}
+
+main img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* A live feature (e.g. the orb) takes the drawing's place: its still frame until
+   mount-v1.js swaps in the animation. */
+main figure.feature {
+  grid-area: drawing;
+  align-self: center;
+  position: relative;
+  margin: 0;
+  aspect-ratio: 46 / 30;
+}
+
+main figure.feature img,
+main figure.feature canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+main figure.feature.live img { display: none; }
+
+/* The specification: four lines on a pale Sophia Blue band, each led by a printed square. */
+main.page-index ul,
+main[class^="page-catalog-"] > ul {
+  grid-area: spec;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 32px 0 0;
+  padding: 16px 0;
+  list-style: none;
+  border-radius: var(--radius);
+  background: var(--tint);
+}
+
+main.page-index li,
+main[class^="page-catalog-"] > ul li {
+  display: flex;
+  align-items: baseline;
+  gap: 11px;
+  padding: 4px 22px;
+  font: 400 14px/1.45 var(--mono);
+  color: var(--ink);
+}
+
+main.page-index li + li,
+main[class^="page-catalog-"] > ul li + li {
+  border-left: 1px solid rgb(0 53 107 / 0.14);
+}
+
+main.page-index li::before,
+main[class^="page-catalog-"] > ul li::before {
+  content: "";
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: var(--sophia-blue);
+  transform: translateY(-1px);
+}
+
+/* The call to action: a catalogue's order button, quiet and square-shouldered. */
+main p.cta {
+  grid-area: cta;
+  align-self: start;
+  margin: 0 0 48px;
+}
+
+main p.cta a {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 24px 16px 26px;
+  border-radius: 10px;
+  background: var(--sophia-blue);
+  color: #fff;
+  font: 500 16px/1 var(--mono);
+  letter-spacing: 0.01em;
+  text-decoration: none;
+}
+
+main p.cta a::after { content: "\2192"; }
+main p.cta a:hover { background: #00264d; }
+
+/* The letter: a manuscript laid on the sheet, its heading in the margin. */
+main.page-index section.part {
+  grid-area: letter;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 3fr);
+  column-gap: 48px;
+  margin: 76px 0 12px;
+  padding-top: 36px;
+  border-top: 1px solid var(--hair);
+}
+
+main.page-index section.part h2 {
+  grid-column: 1;
+  grid-row: 1 / span 99;
+  margin: 5px 0 0;
+  font: 500 11px/1.4 var(--mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+main.page-index section.part > :not(h2) {
+  grid-column: 2;
+  max-width: 62ch;
+}
+
+main.page-index section.part p {
+  margin: 0 0 1em;
+  font: 400 17px/1.66 var(--letter);
+  color: var(--ink);
+}
+
+/* The catalogue shelf: one card per product; the whole card is the link. */
+main.page-catalog {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 22px;
+  align-content: start;
+}
+
+main.page-catalog > h1,
+main.page-catalog > p:first-of-type { grid-area: auto; grid-column: 1 / -1; }
+
+main.page-catalog > p:first-of-type {
+  max-width: 72ch;
+  margin: 6px 0 14px;
+  color: var(--ink-2);
+}
+
+main.page-catalog section.part {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: 22px 24px 18px;
+  border: 1px solid var(--hair);
+  border-radius: var(--radius);
+  background: #fff;
+}
+
+main.page-catalog section.part:hover { border-color: var(--sophia-blue); }
+
+main.page-catalog h2 { margin: 0 0 8px; font: 500 19px/1.2 var(--mono); }
+main.page-catalog h2 a { color: var(--sophia-blue); text-decoration: none; }
+main.page-catalog h2 a::after { content: ""; position: absolute; inset: 0; border-radius: var(--radius); }
+main.page-catalog section.part > p:first-of-type { margin: 0 0 12px; color: var(--ink); }
+
+main.page-catalog section.part ul {
+  margin: 0 0 14px;
+  padding: 0;
+  list-style: none;
+  font: 400 12.5px/1.5 var(--mono);
+  color: var(--ink-2);
+}
+
+main.page-catalog section.part li { position: relative; padding: 2px 0 2px 16px; }
+
+main.page-catalog section.part li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 9px;
+  width: 6px;
+  height: 6px;
+  border-radius: 2px;
+  background: var(--sophia-blue);
+}
+
+main.page-catalog section.part > p:last-child { margin: auto 0 0; padding-top: 10px; border-top: 1px dashed var(--hair); }
+main.page-catalog em,
+main[class^="page-catalog-"] > p > em:only-child { font: 500 11.5px/1.4 var(--mono); font-style: normal; letter-spacing: 0.02em; color: var(--ink-3); }
+
+/* A product page: breadcrumb, splash and status, then a table per family. */
+main[class^="page-catalog-"] > p:first-child { margin: 0 0 18px; font-size: 12px; color: var(--ink-3); }
+main[class^="page-catalog-"] > p:first-child a { color: var(--ink-3); }
+main[class^="page-catalog-"] > * { grid-area: auto; }
+main[class^="page-catalog-"] > ul { margin: 0 0 6px; }
+main[class^="page-catalog-"] > h1 + p { max-width: 72ch; margin: 12px 0 14px; font-size: 14px; color: var(--ink); }
+main[class^="page-catalog-"] section.part { margin: 30px 0 0; }
+
+main[class^="page-catalog-"] h2 {
+  margin: 0;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--sophia-blue);
+  font: 500 15px/1.3 var(--mono);
+  color: var(--sophia-blue);
+}
+
+main[class^="page-catalog-"] table { width: 100%; border-collapse: collapse; font: 400 12.5px/1.5 var(--mono); }
+
+main[class^="page-catalog-"] th {
+  padding: 8px 14px 5px 0;
+  border-bottom: 1px solid var(--hair);
+  font-weight: 500;
+  font-size: 11px;
+  text-align: left;
+  vertical-align: bottom;
+  color: var(--ink-3);
+}
+
+main[class^="page-catalog-"] td {
+  padding: 9px 14px 9px 0;
+  border-bottom: 1px solid var(--hair);
+  vertical-align: top;
+  color: var(--ink-2);
+}
+
+main[class^="page-catalog-"] td:first-child { width: 27%; font-weight: 500; color: var(--ink); }
+main[class^="page-catalog-"] td:last-child { width: 17%; white-space: nowrap; color: var(--ink); }
+main[class^="page-catalog-"] td em { font-style: normal; color: var(--ink-3); }
+
+main a { color: var(--sophia-blue); }
+
+/* The serial number, alone and quiet in the sheet's corner. */
+footer.site {
+  justify-self: end;
+  padding: 0 22px 9px;
+}
+
+footer.site code {
+  font: 400 10px/1 var(--mono);
+  letter-spacing: 0.04em;
+  color: var(--ink-3);
+}
+
+@media (max-width: 860px) {
+  main.page-index {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "title" "line" "thesis" "cta" "drawing" "push" "spec" "letter";
+    grid-template-rows: auto auto auto auto auto 1fr auto auto;
+  }
+  main p.cta { margin-bottom: 32px; }
+  main.page-catalog { grid-template-columns: minmax(0, 1fr); }
+  main.page-index section.part { grid-template-columns: minmax(0, 1fr); margin-top: 48px; }
+  main.page-index section.part h2 { grid-row: auto; margin-bottom: 14px; }
+  main.page-index section.part > :not(h2) { grid-column: 1; }
+  main blockquote { margin: 40px 0 36px; }
+  main blockquote p { font-size: 25px; }
+  main.page-index ul, main[class^="page-catalog-"] > ul { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); row-gap: 8px; margin-top: 28px; }
+  main.page-index li:nth-child(3), main[class^="page-catalog-"] > ul li:nth-child(3) { border-left: 0; }
+}
+
+@media (max-width: 600px) {
+  body { margin: 8px; min-height: calc(100vh - 16px); }
+  header.site { padding: 13px 16px 11px; }
+  main { padding: 22px 16px 32px; }
+  main h1 { font-size: 20px; }
+  main blockquote p { font-size: 22px; }
+  main.page-index section.part p { font-size: 16px; }
+  main[class^="page-catalog-"] table, main[class^="page-catalog-"] tbody, main[class^="page-catalog-"] tr, main[class^="page-catalog-"] td { display: block; width: auto; }
+  main[class^="page-catalog-"] thead { display: none; }
+  main[class^="page-catalog-"] tr { padding: 11px 0; border-bottom: 1px solid var(--hair); }
+  main[class^="page-catalog-"] td { padding: 1px 0; border: 0; white-space: normal; }
+  main[class^="page-catalog-"] td:first-child { width: auto; }
+  main[class^="page-catalog-"] td:last-child { width: auto; margin-top: 4px; color: var(--sophia-blue); }
+  footer.site { padding: 0 14px 8px; }
+}

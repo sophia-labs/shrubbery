@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Chat writes browser harness</title>
+    <style>
+      html, body { margin: 0; height: 100%; }
+      body { background: var(--mn-color-surface-base, #f7f8f5); font-family: var(--mn-font-chrome, system-ui, sans-serif); }
+      /* The chat rail as the app frames it: a column on the right of a desktop, the whole screen on a phone. */
+      #frame { height: 100dvh; display: flex; justify-content: flex-end; }
+      #rail { width: min(440px, 100%); height: 100%; border-left: 1px solid var(--mn-color-border-subtle, #d8ded9); position: relative; background: var(--mn-color-surface-panel, #fff); }
+      #note { position: fixed; left: 24px; top: 20px; max-width: 34ch; color: #66736a; font-size: 13px; line-height: 1.5; }
+      @media (max-width: 800px) { #note { display: none; } }
+    </style>
+  </head>
+  <body>
+    <p id="note">Harness page: the real chat host, with the workspace's change links and live HTML preview, against a scripted host. The workspace around it is not part of it.</p>
+    <div id="frame"><div id="rail"></div></div>
+    <script type="module" src="/scripts/chat-writes-browser-page.ts"></script>
+  </body>
+</html>

@@ -66,6 +66,7 @@ import './mn-tooltip.js'
 import './mn-avatar.js'
 import './mn-panel-header.js'
 import './mn-dropdown-button.js'
+import './mn-skin-picker.js'
 import './mn-inline-edit.js'
 import './mn-toast.js'
 import './mn-modal.js'
@@ -95,12 +96,16 @@ import './mn-doc-history-panel.js'
 import './mn-original-viewer.js'
 import './wf-choreograph-view.js'
 import './wf-studio-shell.js'
+import './choreo-modes-surface.js'
+export { WfDevelopmentWorkspace } from './wf-development-workspace.js'
+export { WfDevelopmentIde } from './wf-development-ide.js'
 import './mn-snapshot-diff.js'
 import './mn-timeline-rail.js'
 import './mn-restore-overlay.js'
 import './mn-comments-panel.js'
 import './mn-comment-popover.js'
 import './mn-inspector.js'
+import './mn-file-info.js'
 import './mn-document-switcher.js'
 import './mn-settings-page.js'
 import './mn-ops-health-page.js'
@@ -149,7 +154,27 @@ export {
   type ChromeSkinId,
   type ChromeBreadcrumb,
   type ChromeBreadcrumbOpenDetail,
+  type ChromeAppLink,
+  type ChromeAppTab,
+  type ChromeControl,
 } from './mn-top-bar.js'
+export {
+  APP_TOOLBAR_ACTIONS,
+  HOME_ACTION,
+  CHOREOGRAPH_OVERVIEW_ACTION,
+  CHOREOGRAPH_NEW_MODE_ACTION,
+  HOJA_NEW_NOTE_ACTION,
+  appToolbarActions,
+  type AppToolbarAction,
+} from './app-toolbar.js'
+export {
+  SOPHIA_APP_ORDER,
+  SOPHIA_APPS,
+  sophiaApp,
+  sophiaAppHref,
+  orderSophiaApps,
+  type SophiaAppIdentity,
+} from './sophia-suite.js'
 export {
   MnQuickClip,
   type MnQuickClipKind,
@@ -288,6 +313,9 @@ export {
   type MnDropdownSize,
   type MnDropdownVariant,
 } from './mn-dropdown-button.js'
+export { MnSkinPicker, type MnSkinSelectDetail } from './mn-skin-picker.js'
+export { CHROME_PICKER_SKINS, chromeSkinMeta, type ChromeSkinMeta } from './chrome-skin.js'
+export { BEVELLED_SKIN_IDS, WINDOW_LISTED_SKIN_IDS } from './bevelled-skins.js'
 export { MnInlineEdit, type MnInlineEditSaveDetail } from './mn-inline-edit.js'
 export {
   MnToast,
@@ -514,6 +542,10 @@ export {
   type WfWorkflowPhaseSummary,
   type WfWorkflowRequestDetail,
 } from './wf-studio-shell.js'
+export { ChoreoModesSurface, type ChoreoRunOverviewItem, type ChoreoRunOverviewResult, type ChoreoRunOverviewPort } from './choreo-modes-surface.js'
+export { ChoreoAgentProfile } from './choreo-agent-profile.js'
+export * from './choreo-modes-model.js'
+export { WfAgentStatusView, type WfAgentStatusReport, type WfAgentStatusSubject, type WfAgentStatusReadState } from './wf-agent-status-view.js'
 export {
   MnSnapshotDiff,
   diffSnapshotLines,
@@ -568,6 +600,14 @@ export {
   type MnInspectorRelationsScope,
 } from './mn-inspector.js'
 export {
+  MnFileInfo,
+  type MnFileInfoActionDetail,
+  type MnFileInfoModel,
+  type MnFileInfoRenameDetail,
+  type MnFileInfoRow,
+  type MnFileInfoSection,
+} from './mn-file-info.js'
+export {
   MnDocumentSwitcher,
   type MnDocumentSwitcherAction,
   type MnDocumentSwitcherActionDetail,
@@ -620,6 +660,12 @@ export {
   type MnAccessRole,
   type MnAccessRoleChangeDetail,
   type MnAccessStatus,
+  type MnAccessSharing,
+  type MnEveryoneChangeDetail,
+  type MnShareLink,
+  type MnShareLinkCreateDetail,
+  type MnShareLinkRevokeDetail,
+  type MnSharingBusyAction,
 } from './mn-access-manager.js'
 export {
   MnOpsHealthPage,
@@ -933,3 +979,15 @@ export {
   type PositionOptions,
   type PopoverControllerOptions,
 } from './popover.js'
+
+export * from './mn-api-key-manager.js'
+export {
+  MnFileGlyph,
+  GLYPH_SIZES,
+  fileGlyphGeometry,
+  glyphCaption,
+  snapGlyphSize,
+  type GlyphGeometry,
+  type GlyphKind,
+  type GlyphSize,
+} from './mn-file-glyph.js'

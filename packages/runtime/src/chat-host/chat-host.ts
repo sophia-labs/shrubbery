@@ -49,12 +49,18 @@
 // side-effect import is in the RUNTIME subdir, NOT the kernel, so the kernel
 // purity gate is unaffected (the kernel never imports the host/store).
 import '@shrubbery/chat-kernel'
+import './continue-chooser.js'
+import './chat-artifact-preview.js'
 import { LitElement, html, css, nothing, type TemplateResult } from 'lit'
 import { customElement, property, state } from 'lit/decorators.js'
 import type {
+  ChangeSubject,
+  ChatArtifactPreviewRequest,
+  ChatChangeIntent,
   ChatDraftChangeReason,
   ChatMessage,
   ChatPresentation,
+  ChatSeamAction,
   ChatSendContext,
   ChatSessionAction,
   ChatSessionSlot,
@@ -63,19 +69,148 @@ import type {
   HojaComposerDetail,
   HojaWikiLinkResolver,
   MessageActionKind,
-  SessionSummary,
+  MessageActionResult,
   ShChatPanel,
   SurfaceActionIntent,
 } from '@shrubbery/chat-kernel'
-import type { ChatService } from '../chat-services/chat-service.js'
+import type { ChatService, ContinueIntent, ConversationLineage } from '../chat-services/chat-service.js'
+import type { ArchivedConversation } from '../chat-services/conversation-archive.js'
+import type { ContinuationPlan } from '../chat-services/continuation.js'
+import type { CreditsFacts } from '../chat-services/credits-facts.js'
 import { buildChatKernelOptions } from '../chat-services/assemble.js'
+import {
+  ADD_CREDITS_ACTION,
+  CREDITS_NOTICE_DETAILS_ACTION,
+  CREDITS_NOTICE_DISMISS_ACTION,
+  NEW_CHAT_ACTION,
+  costAnnotation,
+  creditsNoticeFor,
+  type ChatCreditsNoticeSource,
+} from '../chat-services/chat-billing.js'
+import { CANNOT_CONTINUE } from '../chat-services/sobremesa-contract.js'
+import { liveExportSource, importedExportSource, type ConversationExportSource, type MarkdownFile } from '../chat-services/conversation-export.js'
+import { createConversationHomeController, type ConversationHomeController } from '../chat-services/conversation-home-controller.js'
+import { isPlaceholderTitle } from '../chat-services/conversation-home.js'
+import { createImportedReader, type ContinueConversationIntent, type ImportedReader } from '../chat-services/imported-reader.js'
+import { createSaveFlow, type SaveFlow } from '../chat-services/save-flow.js'
 import { createChatServiceStore, type ChatServiceStore } from './chat-service-store.js'
+import type { ContinueConfirmDetail, ContinuePhase } from './continue-chooser.js'
+import { conversationHomeStyles, renderConversationHome, renderImportedReader, renderSaveDialog } from './conversation-archive-view.js'
+import { CHAT_CONTINUE_EVENT, type ConversationHomePorts } from './conversation-home-ports.js'
+import { downloadMarkdownFile } from './download-file.js'
+import type { ChatArtifactPreviewPort } from './chat-artifact-preview.js'
 
 /** Generic shell seam for every message-level action the pure kernel emits. */
 export const CHAT_MESSAGE_ACTION_EVENT = 'mn-chat-message-action'
 export const CHAT_CODE_COPY_EVENT = 'mn-chat-code-copy'
 export const CHAT_HEADER_ACTION_EVENT = 'mn-chat-header-action'
 export const CHAT_SESSION_ACTION_EVENT = 'mn-chat-session-action'
+/**
+ * "Continue with…": a shell raises this on the host (bubbling, composed, `detail` a
+ * {@link ContinueIntent}) and the host runs the flow behind it. The host's
+ * `continueWith(intent)` does the same, and is what the conversation reader's own
+ * `onContinue` callback should call: the reader draws "Continue with…" only when the shell
+ * gives it one (`onContinue: intent => host.continueWith(intent)`). Named apart from the
+ * reader's own event (`mn-chat-continue-conversation`) on purpose: two things of one name
+ * would collide the day the two branches meet.
+ */
+export const CHAT_CONTINUE_WITH_EVENT = 'sh-chat-continue'
+/**
+ * "…open the original": a continued conversation's seam asks the shell to open the
+ * imported conversation it picked up. `detail` is its lineage
+ * (`{ archiveConversationUrn, revisionId, title }`); how the shell opens it is the shell's.
+ */
+export const CHAT_OPEN_ORIGINAL_EVENT = 'sh-chat-open-original'
+/**
+ * "Add credits": the person chose to add credits, from the refusal banner or from the
+ * balance line's own button. The chat does not sell credits and does not know how they are
+ * bought: it raises this (bubbling, composed) and whatever owns Settings, Billing takes it
+ * from there. `detail` says what the person needs to know: {@link ChatAddCreditsDetail}.
+ */
+export const CHAT_ADD_CREDITS_EVENT = 'sh-chat-add-credits'
+
+/** What the chat knows when the person asks to add credits. Amounts are micro-USD; null where nothing is known. */
+export interface ChatAddCreditsDetail {
+  /**
+   * Where the person asked: the refusal banner, the balance line, or "Details" on the heads-up that
+   * credits are starting. The last is a request to open Billing, not to buy: it names no shortfall.
+   */
+  readonly source: 'refusal' | 'balance-line' | 'notice'
+  /** Their balance: what the platform said when it refused, else what the balance line last read. */
+  readonly balanceMicroUsd: number | null
+  /** What one message needs at the least: what the platform said when it refused, else the smallest call the voice in use takes. */
+  readonly requiredMicroUsd: number | null
+}
+
+/**
+ * What the shell lets the chat do about credits. Every field is the shell's to grant. A shell that
+ * grants none gets the voices release's chat: each reply shows what it cost, there is no balance line
+ * and no "Add credits", so a workspace that cannot sell credits (a local one) never shows a button that
+ * goes nowhere. The credits release grants both, for a hosted account only.
+ */
+export interface ChatHostCredits {
+  /** Show the credit balance line beside the voice picker (`showBalance` on the host). */
+  readonly showBalance?: boolean
+  /** The shell answers {@link CHAT_ADD_CREDITS_EVENT}, so "Add credits" is offered (`canAddCredits` on the host). */
+  readonly canAddCredits?: boolean
+  /**
+   * The heads-up that credits are starting (`creditsNotice` on the host): a source the chat reads, listens
+   * to and reports Dismiss to. The shell owns the words and who has put it away; the day and the fee are
+   * the BACKEND's (Vera, 2026-10-03), so the chat hands the source what the backend said on its last
+   * balance read (`current(facts)`, `dismiss(facts)`) and a source answers null until a day is named.
+   */
+  readonly notice?: ChatCreditsNoticeSource
+}
+
+/**
+ * A "Changed in this turn" link was chosen (open a document, its History, an artifact or its revisions).
+ * Raised (bubbling, composed) beside the shell's `workspace.onChangeAction`; `detail` is the intent.
+ */
+export const CHAT_CHANGE_ACTION_EVENT = 'sh-chat-change-action'
+
+/**
+ * What the shell lets the workspace chat do with what a turn changed (the empowered-chat release). Every
+ * field is the shell's to grant; a shell that grants none gets the strip without links and no preview.
+ */
+export interface ChatHostWorkspace {
+  /** Route a change link, always in the chat's own graph: the document, its History, the artifact, its revisions. */
+  readonly onChangeAction?: (intent: ChatChangeIntent) => void
+  /** A name the shell knows for a document or artifact a turn did not name. */
+  readonly changeTitle?: (subject: ChangeSubject, id: string) => string | null
+  /** Read and watch an artifact the chat previews live (scripts off). Absent: no preview. */
+  readonly artifactPreview?: ChatArtifactPreviewPort
+}
+
+/** What a shell must send for the host to act on it: the shape of an archive conversation, not any object. */
+function isContinueIntent(value: unknown): value is ContinueIntent {
+  if (value == null || typeof value !== 'object') return false
+  const intent = value as Record<string, unknown>
+  return typeof intent.conversationId === 'string'
+    && /^urn:sophia:conversation-archive:conversation:[a-f0-9]{64}$/.test(intent.conversationId)
+    && typeof intent.revisionId === 'string'
+    && /^[a-f0-9]{64}$/.test(intent.revisionId)
+    && typeof intent.title === 'string'
+    && typeof intent.messagesLoaded === 'number'
+}
+
+/** Where the chooser is: reading the old conversation, choosing a voice, starting, or refused with words. */
+type ContinueState =
+  | { readonly phase: 'reading'; readonly intent: ContinueIntent }
+  | { readonly phase: 'choosing' | 'starting'; readonly intent: ContinueIntent; readonly plan: ContinuationPlan }
+  | { readonly phase: 'refused'; readonly intent: ContinueIntent; readonly message: string }
+
+/**
+ * The message buttons a LIVE chat can honour. Copy works. Read aloud and Regenerate
+ * have no handler behind them anywhere, so they are not drawn; a message-level
+ * "Save to Garden" would be ambiguous beside the conversation-level one in the
+ * header, so it is not drawn either.
+ */
+const LIVE_MESSAGE_ACTIONS: readonly MessageActionKind[] = ['copy']
+/** An imported conversation can be copied from, message by message, and nothing else. */
+const READER_MESSAGE_ACTIONS: readonly MessageActionKind[] = ['copy']
+const PREPARING_DOWNLOAD = 'Preparing the download…'
+const FOCUSABLE_IN_DRAWER =
+  'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [href], [tabindex]:not([tabindex="-1"])'
 
 export interface ChatMessageActionDetail {
   readonly messageId: string
@@ -147,7 +282,7 @@ export class ShChatHost extends LitElement {
     :host([presentation='fullscreen']) {
       position: fixed;
       inset: 0;
-      z-index: 2147483000;
+      z-index: var(--mn-z-overlay, 1500);
       width: 100vw;
       height: 100vh;
       height: 100dvh;
@@ -172,42 +307,45 @@ export class ShChatHost extends LitElement {
       flex: 1 1 auto;
       min-height: 0;
     }
-    .history-layer {
+    .history-layer, .history-current, .continue-layer {
       display: contents;
     }
     .history-backdrop {
       position: absolute;
       inset: 0;
-      z-index: 20;
+      z-index: 60;
       display: flex;
       justify-content: flex-end;
-      background: var(--mn-color-backdrop, rgba(15, 23, 42, 0.18));
+      background: var(--mn-color-backdrop, rgb(18 32 23 / 0.24));
     }
     .history-drawer {
-      width: min(24rem, 100%);
+      width: min(26rem, 100%);
       height: 100%;
       box-sizing: border-box;
       display: flex;
       flex-direction: column;
-      border-left: 1px solid var(--mn-color-border-default, #d0d7de);
-      background: var(--mn-color-surface-elevated, var(--mn-color-surface-base, #fff));
-      box-shadow: var(--mn-shadow-modal, -12px 0 32px rgba(15, 23, 42, 0.18));
-      backdrop-filter: var(--mn-window-backdrop-filter, none);
-      color: var(--mn-color-text-primary, #1f2933);
-      font-family: var(--mn-font-sans, system-ui, sans-serif);
+      min-width: 0;
+      border-left: 1px solid var(--mn-color-border-subtle, #d8ded9);
+      background: var(--mn-color-surface-panel, var(--mn-color-surface-base, #fff));
+      box-shadow: var(--mn-shadow-modal, -12px 0 32px rgb(15 30 20 / 0.17));
+      color: var(--mn-color-text-primary, #18211b);
+      font-family: var(--mn-font-chrome, system-ui, sans-serif);
     }
+    .history-drawer[data-imported] { width: min(48rem, 100%); }
     .history-header {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 0.75rem;
+      gap: 0.625rem;
+      min-height: 68px;
+      box-sizing: border-box;
       padding: 0.875rem 1rem;
-      border-bottom: 1px solid var(--mn-color-border-default, #d0d7de);
+      border-bottom: 1px solid var(--mn-color-border-subtle, #d8ded9);
     }
     .history-title {
       margin: 0;
-      font-size: 0.95rem;
-      font-weight: 650;
+      font: 650 1.15rem/1.15 var(--mn-font-display, Georgia, serif);
+      letter-spacing: -0.025em;
     }
     .history-actions {
       display: inline-flex;
@@ -215,25 +353,35 @@ export class ShChatHost extends LitElement {
       align-items: center;
     }
     .history-button {
-      border: var(--mn-control-border, 1px solid var(--mn-color-border-default, #d0d7de));
-      border-radius: var(--mn-radius-control, 6px);
-      background: var(--mn-control-background, var(--mn-color-surface-subtle, #f8fafc));
+      min-height: 36px;
+      border: 1px solid var(--mn-garden-control-edge, var(--mn-color-border-subtle, #d8ded9));
+      border-radius: 10px;
+      background: var(--mn-garden-control-bg, var(--mn-color-surface-raised, #fff));
       color: inherit;
       cursor: pointer;
       font: inherit;
-      font-size: 0.8rem;
+      font-size: 0.75rem;
       line-height: 1;
-      padding: 0.45rem 0.55rem;
-      box-shadow: var(--mn-control-shadow, none);
+      padding: 0.45rem 0.7rem;
     }
     .history-button:hover {
       background: var(--mn-color-surface-hover, #eef2f7);
     }
     .history-button.icon {
-      width: 2rem;
-      height: 2rem;
+      width: 36px;
+      height: 36px;
       padding: 0;
-      font-size: 1rem;
+      font-size: 1.15rem;
+    }
+    .history-button:focus-visible, .history-select:focus-visible, .history-input:focus-visible {
+      outline: 2px solid var(--mn-focus-ring-color, #376d57);
+      outline-offset: 2px;
+    }
+    .history-button[data-chat-history-new] {
+      border-color: var(--mn-color-text-accent-strong, #2d6a4f);
+      background: var(--mn-color-text-accent-strong, #2d6a4f);
+      color: var(--mn-color-surface-raised, #fff);
+      font-weight: 650;
     }
     .history-status {
       padding: 1rem;
@@ -246,24 +394,33 @@ export class ShChatHost extends LitElement {
     .history-list {
       min-height: 0;
       flex: 1 1 auto;
-      overflow: auto;
-      padding: 0.5rem;
+      overflow-x: hidden;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      padding: 0.75rem;
     }
     .history-row {
       display: grid;
-      grid-template-columns: 1fr auto auto;
-      gap: 0.375rem;
+      grid-template-columns: minmax(0, 1fr) auto auto;
+      gap: 0.25rem;
       align-items: center;
       width: 100%;
       box-sizing: border-box;
+      min-height: 92px;
+      margin-bottom: 0.5rem;
       padding: 0.375rem;
-      border-radius: var(--mn-radius-surface, 8px);
+      border: 1px solid var(--mn-color-border-subtle, #d8ded9);
+      border-radius: 13px;
+      background: var(--mn-color-surface-raised, #fff);
     }
     .history-row[data-active] {
+      border-color: var(--mn-garden-card-edge, #c2d7c8);
       background: var(--mn-color-surface-accent, #e9f5ef);
     }
     .history-select {
       min-width: 0;
+      align-self: stretch;
+      grid-column: 1 / -1;
       border: 0;
       background: transparent;
       color: inherit;
@@ -280,14 +437,14 @@ export class ShChatHost extends LitElement {
       display: block;
       overflow: hidden;
       font-size: 0.875rem;
-      font-weight: 600;
+      font-weight: 650;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
     .history-meta {
       display: block;
       margin-top: 0.125rem;
-      color: var(--mn-color-text-tertiary, #697386);
+      color: var(--mn-color-text-muted, #66736a);
       font-size: 0.72rem;
     }
     .history-inline {
@@ -308,6 +465,29 @@ export class ShChatHost extends LitElement {
       font-size: 0.875rem;
       padding: 0.45rem 0.5rem;
     }
+    .history-row > .history-button {
+      min-height: 32px;
+      padding-inline: 0.5rem;
+      border-color: transparent;
+      background: transparent;
+      color: var(--mn-color-text-secondary, #58665c);
+    }
+    .history-row > [data-chat-history-rename] { grid-column: 2; }
+    .history-row > [data-chat-history-delete] { grid-column: 3; }
+    .history-row > .history-button:hover { background: var(--mn-color-surface-hover, #edf6ef); }
+    .history-row > [data-chat-history-delete] { color: var(--mn-color-text-danger, #9f3535); }
+    @media (max-width: 600px) {
+      .history-drawer { width: 100%; border-left: 0; }
+      .history-header {
+        min-height: calc(68px + env(safe-area-inset-top, 0px));
+        padding-top: calc(0.875rem + env(safe-area-inset-top, 0px));
+      }
+      .history-button { min-height: 44px; }
+      .history-button.icon { width: 44px; height: 44px; }
+      .history-row { min-height: 96px; }
+      .history-row > .history-button { min-height: 44px; }
+    }
+    ${conversationHomeStyles}
   `
 
   /**
@@ -366,6 +546,23 @@ export class ShChatHost extends LitElement {
   @property({ attribute: false })
   onSessionAction?: (detail: ChatSessionActionDetail) => void
 
+  /**
+   * What only the shell can do for the history drawer and the imported reader:
+   * where a copy may be saved, how to continue an imported conversation, how to
+   * hand over a file, and the clock. Every port is optional; a missing one removes
+   * the control that would have used it.
+   */
+  @property({ attribute: false })
+  conversationHome?: ConversationHomePorts
+
+  /**
+   * What the shell lets the workspace chat do with what a turn changed: route its links, name what it
+   * changed, preview an HTML artifact live. Written to the panel on every render, so a render that no
+   * longer grants one takes it back.
+   */
+  @property({ attribute: false })
+  workspace?: ChatHostWorkspace
+
   /** The store built over the current service (rebuilt only on service change). */
   private _store: ChatServiceStore | null = null
 
@@ -398,13 +595,45 @@ export class ShChatHost extends LitElement {
 
   @state()
   private historyOpen = false
-
+  /** The "Continue with…" chooser, while there is one. */
   @state()
-  private historySessions: SessionSummary[] = []
+  private continuing: ContinueState | null = null
 
-  @state()
-  private historyLoading = false
+  /** Which continuation is the current one: a read or a start that belongs to an earlier one is let go. */
+  private _continueRun = 0
 
+  /**
+   * The shell says it can take the person to add credits: it answers {@link CHAT_ADD_CREDITS_EVENT}
+   * (the organism shell opens Settings, Billing through its Settings overlay: `connectChatCredits`).
+   * Default false, and a shell grants it through `chatHost.credits`. Until it is set the chat offers no
+   * "Add credits" anywhere (a button that goes nowhere is dead UI) and does not call an account "out of
+   * credits" that is only low.
+   */
+  @property({ type: Boolean, attribute: false })
+  canAddCredits = false
+
+  /**
+   * Whether the chat shows the credit balance line. Default false: the voices release (Vera,
+   * 2026-09-30) shows what each reply cost but no balance until the credits release adds a way to
+   * add credits. A refusal the gateway announces is shown either way.
+   */
+  @property({ type: Boolean, attribute: false })
+  showBalance = false
+
+  /**
+   * The shell's heads-up that credits are starting (the credits release). A source the chat reads each
+   * time it projects, listens to (a dismissal or new words show at once), and reports Dismiss to; the
+   * shell owns the words, the date and who put it away. Absent: no heads-up. It shows only in the one
+   * notice slot, after a refusal or the size limit, and its "Details" is offered only where
+   * {@link canAddCredits} says the shell can take the person to Billing.
+   */
+  @property({ attribute: false })
+  creditsNotice?: ChatCreditsNoticeSource
+
+  /** The listening to {@link creditsNotice}, so a dismissal or new words are shown at once. */
+  private _noticeUnsub: (() => void) | null = null
+
+  /** A failed select, create, rename or delete in the list. */
   @state()
   private historyError: string | null = null
 
@@ -414,7 +643,30 @@ export class ShChatHost extends LitElement {
   @state()
   private editingTitle = ''
 
+  /** A failed Continue or download in the imported reader. */
+  @state()
+  private readerActionError: string | null = null
+
+  /** A line for the reader while something is in progress or just done. */
+  @state()
+  private readerNote: string | null = null
+
   private historyReturnFocus: HTMLElement | null = null
+
+  /** The data behind the one conversation home; lives as long as the service it was made for. */
+  private _home: ConversationHomeController | null = null
+  private _homeService: ChatService | null = null
+  private _homeUnsub: (() => void) | null = null
+
+  /** The imported conversation being read, and the list row that opened it (for focus on the way back). */
+  private _reader: ImportedReader | null = null
+  private _readerUnsub: (() => void) | null = null
+  private _readerOpener: string | null = null
+
+  /** The Save to Garden / Download dialog, while it is open, and where focus returns when it closes. */
+  private _save: SaveFlow | null = null
+  private _saveUnsub: (() => void) | null = null
+  private _saveReturnFocus: HTMLElement | null = null
 
   /** Whether showPopover() successfully promoted this host into the top layer. */
   private _usingTopLayer = false
@@ -423,6 +675,11 @@ export class ShChatHost extends LitElement {
    * chance to consume Escape (model picker, menus, and the Hoja suggestion UI). */
   private readonly _documentKeyDown = (event: KeyboardEvent): void => {
     if (event.key !== 'Escape' || event.repeat || this.presentation !== 'fullscreen') return
+    if (this._save) {
+      event.preventDefault()
+      this._closeSaveDialog(true)
+      return
+    }
     if (this.historyOpen) {
       event.preventDefault()
       this._closeHistoryDrawer()
@@ -434,18 +691,27 @@ export class ShChatHost extends LitElement {
     })
   }
 
+  private readonly _onContinueEvent = (event: Event): void => {
+    const intent = (event as CustomEvent<unknown>).detail
+    if (isContinueIntent(intent)) void this.continueWith(intent)
+  }
+
   override connectedCallback(): void {
     super.connectedCallback()
+    this.addEventListener(CHAT_CONTINUE_WITH_EVENT, this._onContinueEvent)
     this.ownerDocument.addEventListener('keydown', this._documentKeyDown)
     this._observeAmbientTheme()
     this._reconcileStore()
+    this._bindCreditsNotice()
   }
 
   override disconnectedCallback(): void {
+    this.removeEventListener(CHAT_CONTINUE_WITH_EVENT, this._onContinueEvent)
     this.ownerDocument.removeEventListener('keydown', this._documentKeyDown)
     this._leaveTopLayer()
     this._unsub?.()
     this._unsub = null
+    this._releaseCreditsNotice()
     this._themeObserver?.disconnect()
     this._themeObserver = null
     super.disconnectedCallback()
@@ -476,6 +742,39 @@ export class ShChatHost extends LitElement {
     if (changed.has('onCodeCopy')) this._applyToPanel()
     if (changed.has('onHeaderAction')) this._applyToPanel()
     if (changed.has('onSessionAction')) this._applyToPanel()
+    if (changed.has('workspace')) this._applyToPanel()
+    if (changed.has('canAddCredits')) this._applyToPanel()
+    if (changed.has('showBalance')) this._applyToPanel()
+    if (changed.has('creditsNotice')) {
+      this._bindCreditsNotice()
+      this._applyToPanel()
+    }
+  }
+
+  /** Listen to the shell's notice source (only that one, only while connected), and show what it says now. */
+  private _bindCreditsNotice(): void {
+    this._releaseCreditsNotice()
+    const source = this.creditsNotice
+    if (!source || !this.isConnected) return
+    this._noticeUnsub = source.subscribe(() => this._applyToPanel())
+  }
+
+  private _releaseCreditsNotice(): void {
+    this._noticeUnsub?.()
+    this._noticeUnsub = null
+  }
+
+  /**
+   * The heads-up as the slot takes it: the source's words now, given what the backend said on the last
+   * read of the balance, or none. Never throws into a render.
+   */
+  private _creditsNoticeProjection(facts: CreditsFacts | null) {
+    try {
+      const view = this.creditsNotice?.current(facts) ?? null
+      return view ? creditsNoticeFor(view, { details: this.canAddCredits }) : null
+    } catch {
+      return null
+    }
   }
 
   /**
@@ -491,14 +790,21 @@ export class ShChatHost extends LitElement {
     }
     this._unsub?.()
     this._unsub = null
+    this._store?.dispose()
     this._store = null
     this._storeService = null
     this._boundSession = null
+    // What the drawer knows belongs to the service it read it from.
+    this._disposeHome()
     if (!this.service) {
       this._applyToPanel()
       return
     }
-    const store = createChatServiceStore(this.service)
+    const store = createChatServiceStore(this.service, {
+      canAddCredits: () => this.canAddCredits,
+      showBalance: () => this.showBalance,
+      creditsNotice: facts => this._creditsNoticeProjection(facts),
+    })
     this._store = store
     this._storeService = this.service
     // The bind-on-tick loop (lifted from atelier mountChat): on every store tick,
@@ -710,6 +1016,7 @@ export class ShChatHost extends LitElement {
       draft,
       draftDetail,
       draftIdentity: sessionId,
+      messageActions: LIVE_MESSAGE_ACTIONS,
       composerReferenceResolver: this.composerReferenceResolver,
       onDraftChange: (
         nextDraft: string,
@@ -729,7 +1036,185 @@ export class ShChatHost extends LitElement {
         void this._handleHeaderAction(action)
       },
       onSessionAction: (action: ChatSessionAction) => this._handleSessionAction(action),
+      onSeamAction: (action: ChatSeamAction) => this._handleSeamAction(action),
+      // Money is the platform's and the shell's: the panel renders the cost of a reply and
+      // the buttons of the banner, and these are where their intents go.
+      formatModelAnnotation: costAnnotation,
+      onComposerNoticeAction: (id: string) => this._handleNoticeAction(id),
+      onAccountAction: (id: string) => this._handleAccountAction(id),
+      // What a turn changed: links only where the shell routes them, names it knows, a live preview through its port.
+      onChangeAction: this.workspace?.onChangeAction ? this._handleChangeAction : undefined,
+      changeTitle: this.workspace?.changeTitle,
+      renderArtifactPreview: this.workspace?.artifactPreview ? this._renderArtifactPreview : undefined,
     })
+  }
+
+  /** A change link: raised for whoever listens, and handed to the shell. */
+  private readonly _handleChangeAction = (intent: ChatChangeIntent): void => {
+    this.dispatchEvent(new CustomEvent<ChatChangeIntent>(CHAT_CHANGE_ACTION_EVENT, {
+      detail: intent,
+      bubbles: true,
+      composed: true,
+    }))
+    this.workspace?.onChangeAction?.(intent)
+  }
+
+  /** The preview's history button: the artifact's revisions, as a change link. */
+  private readonly _openRevisions = (artifactId: string): void => {
+    this._handleChangeAction({ type: 'open-artifact', artifactId, revisions: true })
+  }
+
+  /** The live preview the panel asks for: the shell's port behind an <mn-artifact-view> with scripts off. */
+  private readonly _renderArtifactPreview = (request: ChatArtifactPreviewRequest): unknown => {
+    const port = this.workspace?.artifactPreview
+    if (!port) return nothing
+    return html`<sh-chat-artifact-preview
+      .artifactId=${request.artifactId}
+      .title=${request.title ?? ''}
+      .port=${port}
+      .onOpenRevisions=${this._openRevisions}
+    ></sh-chat-artifact-preview>`
+  }
+
+  /** The banner's button: add credits (the shell's), or leave a chat that is over (ours); the heads-up's two: details (the shell's), or put it away (its source's). */
+  private _handleNoticeAction(id: string): void {
+    if (id === ADD_CREDITS_ACTION) this._raiseAddCredits('refusal')
+    else if (id === NEW_CHAT_ACTION) void this._handleSessionAction({ type: 'new' })
+    else if (id === CREDITS_NOTICE_DETAILS_ACTION) this._raiseAddCredits('notice')
+    else if (id === CREDITS_NOTICE_DISMISS_ACTION) this.creditsNotice?.dismiss(this._store?.creditsFacts() ?? null)
+  }
+
+  /** The balance line's button. */
+  private _handleAccountAction(id: string): void {
+    if (id === ADD_CREDITS_ACTION) this._raiseAddCredits('balance-line')
+  }
+
+  private _raiseAddCredits(source: ChatAddCreditsDetail['source']): void {
+    const need = this._store?.creditsNeed() ?? { balanceMicroUsd: null, requiredMicroUsd: null }
+    this.dispatchEvent(
+      new CustomEvent<ChatAddCreditsDetail>(CHAT_ADD_CREDITS_EVENT, {
+        detail: { source, balanceMicroUsd: need.balanceMicroUsd, requiredMicroUsd: need.requiredMicroUsd },
+        bubbles: true,
+        composed: true,
+      }),
+    )
+  }
+
+  /**
+   * "…open the original": say which conversation that means. A shell that opens it itself says so by cancelling the event;
+   * otherwise it opens here, in the history drawer's reader, so the line is never a button that goes nowhere.
+   */
+  private _handleSeamAction(action: ChatSeamAction): void {
+    if (action.type !== 'open-original') return
+    const sessionId = this._store?.getState().sessionId
+    const lineage = sessionId ? this._store?.service.sessionLineage?.(sessionId) ?? null : null
+    if (!lineage) return
+    const shellOpened = !this.dispatchEvent(
+      new CustomEvent(CHAT_OPEN_ORIGINAL_EVENT, {
+        detail: { ...lineage },
+        bubbles: true,
+        composed: true,
+        cancelable: true,
+      }),
+    )
+    if (shellOpened) return
+    void this._openOriginal(lineage)
+  }
+
+  /** The conversation a continued chat picked up, in the reader of the history drawer. */
+  private async _openOriginal(lineage: ConversationLineage): Promise<void> {
+    await this._openHistoryDrawer()
+    const known = this._home?.itemById(lineage.archiveConversationUrn) ?? null
+    // Not among the pages loaded so far: the reader needs only what the continuation recorded.
+    const item: ArchivedConversation = known ?? {
+      conversationId: lineage.archiveConversationUrn,
+      graphId: '',
+      revision: {
+        revisionId: lineage.revisionId,
+        title: lineage.title?.trim() || 'Imported conversation',
+        messageCount: 0,
+        partCount: 0,
+      },
+      revisionCount: 1,
+    }
+    this._openImported(lineage.archiveConversationUrn, item)
+  }
+
+  /**
+   * "Continue with…": read the old conversation, let the person choose the voice that
+   * will pick it up, open the continued conversation on the active slot. Nothing is
+   * sent anywhere until they send their first message there. Wherever it cannot be
+   * done the chooser says so in words, and nothing is made.
+   */
+  async continueWith(intent: ContinueIntent): Promise<void> {
+    if (this.continuing && this.continuing.phase !== 'refused') return
+    const service = this._store?.service
+    if (!service) return
+    // What is read for this one is let go if the person cancels before it arrives: a read that finishes after
+    // Cancel must not open the sheet again over someone who has gone back to what they were doing.
+    const run = ++this._continueRun
+    this.continuing = { phase: 'reading', intent }
+    try {
+      await service.probeCapabilities?.()
+      if (run !== this._continueRun) return
+      if (!service.prepareContinuation || !service.continueConversation || !service.capabilities?.continuation) {
+        this.continuing = { phase: 'refused', intent, message: CANNOT_CONTINUE }
+        return
+      }
+      const plan = await service.prepareContinuation(intent)
+      if (run !== this._continueRun) return
+      this.continuing = { phase: 'choosing', intent, plan }
+    } catch (error) {
+      if (run !== this._continueRun) return
+      this.continuing = { phase: 'refused', intent, message: error instanceof Error ? error.message : String(error) }
+    }
+  }
+
+  private async _confirmContinue(detail: ContinueConfirmDetail): Promise<void> {
+    const state = this.continuing
+    const service = this._store?.service
+    if (state?.phase !== 'choosing' || !service?.continueConversation) return
+    this.continuing = { phase: 'starting', intent: state.intent, plan: state.plan }
+    try {
+      const session = await service.continueConversation(state.plan, { modelId: detail.modelId })
+      this._bindSessionToActiveSlot(session.id)
+      this.continuing = null
+      // The person is in the new chat: the old conversation's reader is left (the drawer opens on the list next time).
+      this._leaveReader(false)
+      this._closeHistoryDrawer()
+    } catch (error) {
+      this.continuing = {
+        phase: 'refused',
+        intent: state.intent,
+        message: error instanceof Error ? error.message : String(error),
+      }
+    }
+  }
+
+  private _cancelContinue(): void {
+    // Starting takes a moment and cannot be taken back half way: the sheet says "Starting…" and its Cancel is disabled.
+    if (this.continuing?.phase === 'starting') return
+    this._continueRun += 1
+    this.continuing = null
+    // Back to what was being read, if that is where it began.
+    void this.updateComplete.then(() => {
+      this.renderRoot.querySelector<HTMLElement>('[data-chat-reader-continue]')?.focus()
+    })
+  }
+
+  private _renderContinue(): TemplateResult | typeof nothing {
+    const state = this.continuing
+    if (!state) return nothing
+    const phase: ContinuePhase = state.phase
+    return html`<sh-continue-chooser
+      .phase=${phase}
+      .conversationTitle=${state.intent.title}
+      .plan=${state.phase === 'choosing' || state.phase === 'starting' ? state.plan : null}
+      .roster=${this._store?.service.models() ?? []}
+      .message=${state.phase === 'refused' ? state.message : ''}
+      @sh-continue-confirm=${(event: CustomEvent<ContinueConfirmDetail>) => void this._confirmContinue(event.detail)}
+      @sh-continue-cancel=${() => this._cancelContinue()}
+    ></sh-continue-chooser>`
   }
 
   private _handleSurfaceAction(action: SurfaceActionIntent): void {
@@ -824,6 +1309,9 @@ export class ShChatHost extends LitElement {
         if (!store || !state?.sessionId) throw new Error('No session bound.')
         await store.service.abort(state.sessionId)
         defaultHandled = true
+      } else if (action === 'save-garden') {
+        this._openLiveSaveDialog()
+        defaultHandled = true
       }
     } catch (e) {
       error = e instanceof Error ? e.message : String(e)
@@ -852,12 +1340,17 @@ export class ShChatHost extends LitElement {
       : this.ownerDocument.activeElement
     this.historyReturnFocus = active instanceof HTMLElement ? active : null
     this.historyOpen = true
+    this.historyError = null
     this.editingSessionId = null
     this.editingTitle = ''
+    // Start reading before the first paint, so the drawer opens on "Loading" and not on a blank body.
+    const opening = this._ensureHome()?.open() ?? Promise.resolve()
+    // What the registry says the host can do (cached per graph) decides whether a conversation can be continued.
+    void this._store?.service.probeCapabilities?.().then(() => this.requestUpdate(), () => undefined)
     this.requestUpdate()
     await this.updateComplete
     this.renderRoot.querySelector<HTMLElement>('[data-chat-history-drawer]')?.focus()
-    await this._loadHistorySessions()
+    await opening
   }
 
   private _closeHistoryDrawer(): void {
@@ -881,9 +1374,10 @@ export class ShChatHost extends LitElement {
     if (event.key !== 'Tab') return
     const drawer = this.renderRoot.querySelector<HTMLElement>('[data-chat-history-drawer]')
     if (!drawer) return
-    const focusable = Array.from(drawer.querySelectorAll<HTMLElement>(
-      'button:not([disabled]), input:not([disabled]), [href], [tabindex]:not([tabindex="-1"])',
-    )).filter(element => !element.hasAttribute('hidden'))
+    // Everything in the drawer is in this shadow tree (the list, the reader and its
+    // transcript alike), so one query reaches every control the trap must hold.
+    const focusable = Array.from(drawer.querySelectorAll<HTMLElement>(FOCUSABLE_IN_DRAWER))
+      .filter(element => !element.hasAttribute('hidden'))
     if (focusable.length === 0) {
       event.preventDefault()
       drawer.focus()
@@ -900,21 +1394,7 @@ export class ShChatHost extends LitElement {
   }
 
   private async _loadHistorySessions(): Promise<void> {
-    const service = this._store?.service
-    if (!service) {
-      this.historySessions = []
-      this.historyError = 'No chat service bound.'
-      return
-    }
-    this.historyLoading = true
-    this.historyError = null
-    try {
-      this.historySessions = await service.listSessions()
-    } catch (e) {
-      this.historyError = e instanceof Error ? e.message : String(e)
-    } finally {
-      this.historyLoading = false
-    }
+    await this._ensureHome()?.refreshLive()
   }
 
   private _bindSessionToActiveSlot(sessionId: string): void {
@@ -929,6 +1409,7 @@ export class ShChatHost extends LitElement {
   private async _selectHistorySession(sessionId: string): Promise<void> {
     try {
       this._bindSessionToActiveSlot(sessionId)
+      this._leaveReader(false)
       this._closeHistoryDrawer()
     } catch (e) {
       this.historyError = e instanceof Error ? e.message : String(e)
@@ -941,23 +1422,22 @@ export class ShChatHost extends LitElement {
       this.historyError = 'No chat store bound.'
       return
     }
-    this.historyLoading = true
     this.historyError = null
     try {
       const session = await store.service.createSession({ title: null })
       this._bindSessionToActiveSlot(session.id)
       await this._loadHistorySessions()
+      this._leaveReader(false)
       this._closeHistoryDrawer()
     } catch (e) {
       this.historyError = e instanceof Error ? e.message : String(e)
-    } finally {
-      this.historyLoading = false
     }
   }
 
-  private _startRenameSession(session: SessionSummary): void {
-    this.editingSessionId = session.id
-    this.editingTitle = this._sessionTitle(session)
+  /** A chat still named by the shell's old label starts from an empty box, not from "Untitled chat". */
+  private _startRename(id: string, rawTitle: string | null): void {
+    this.editingSessionId = id
+    this.editingTitle = isPlaceholderTitle(rawTitle) ? '' : (rawTitle as string).trim()
   }
 
   private async _commitRenameSession(sessionId: string): Promise<void> {
@@ -967,7 +1447,6 @@ export class ShChatHost extends LitElement {
       return
     }
     const title = this.editingTitle.trim() || 'New chat'
-    this.historyLoading = true
     this.historyError = null
     try {
       await store.service.renameSession(sessionId, title)
@@ -979,8 +1458,6 @@ export class ShChatHost extends LitElement {
       await this._loadHistorySessions()
     } catch (e) {
       this.historyError = e instanceof Error ? e.message : String(e)
-    } finally {
-      this.historyLoading = false
     }
   }
 
@@ -990,7 +1467,6 @@ export class ShChatHost extends LitElement {
       this.historyError = 'No chat store bound.'
       return
     }
-    this.historyLoading = true
     this.historyError = null
     try {
       const slots = store.service.slotSessions()
@@ -1005,8 +1481,6 @@ export class ShChatHost extends LitElement {
       await this._loadHistorySessions()
     } catch (e) {
       this.historyError = e instanceof Error ? e.message : String(e)
-    } finally {
-      this.historyLoading = false
     }
   }
 
@@ -1096,100 +1570,321 @@ export class ShChatHost extends LitElement {
     )
   }
 
-  private _sessionTitle(session: SessionSummary): string {
-    const title = session.title?.trim()
-    if (!title || title.startsWith('New session - ')) return 'New chat'
-    return title
+  // ── the one conversation home ────────────────────────────────────────────
+
+  private _now(): number {
+    return this.conversationHome?.now?.() ?? Date.now()
   }
 
-  private _sessionTime(session: SessionSummary): string {
-    const value = session.updated_at ?? session.created_at
-    if (!value) return ''
+  private _downloader(): (file: MarkdownFile) => void {
+    return this.conversationHome?.download ?? (file => downloadMarkdownFile(file, this.ownerDocument))
+  }
+
+  /** The controller for the current service: made on first use, rebuilt if the service changes. */
+  private _ensureHome(): ConversationHomeController | null {
+    const service = this._store?.service ?? null
+    if (!service) return null
+    if (this._homeService !== service) {
+      this._disposeHome()
+      this._homeService = service
+      this._home = createConversationHomeController(service)
+      this._homeUnsub = this._home.subscribe(() => this.requestUpdate())
+    }
+    return this._home
+  }
+
+  private _disposeHome(): void {
+    this._closeSaveDialog(false)
+    this._leaveReader(false)
+    this._homeUnsub?.()
+    this._homeUnsub = null
+    this._home?.dispose()
+    this._home = null
+    this._homeService = null
+  }
+
+  /** Read an imported conversation. Moving within a family keeps the list row the person first came from. */
+  private _openImported(conversationId: string, known: ArchivedConversation | null = null): void {
+    const archive = this._store?.service.archive
+    const item = known ?? this._home?.itemById(conversationId) ?? null
+    if (!archive || !item) return
+    const opener = this._reader ? this._readerOpener : conversationId
+    this._leaveReader(false)
+    this._readerOpener = opener
+    const reader = createImportedReader(archive, item)
+    this._reader = reader
+    this._readerUnsub = reader.subscribe(() => this.requestUpdate())
+    void reader.open()
+    this.requestUpdate()
+    void this.updateComplete.then(() => {
+      this.renderRoot.querySelector<HTMLElement>('[data-chat-reader-back]')?.focus()
+    })
+  }
+
+  private _leaveReader(refocus: boolean): void {
+    const opener = this._readerOpener
+    this._readerUnsub?.()
+    this._readerUnsub = null
+    this._reader?.dispose()
+    this._reader = null
+    this._readerOpener = null
+    this.readerActionError = null
+    this.readerNote = null
+    this.requestUpdate()
+    if (!refocus) return
+    void this.updateComplete.then(() => {
+      const rows = Array.from(this.renderRoot.querySelectorAll<HTMLElement>('[data-chat-history-open]'))
+      const target = rows.find(row => row.getAttribute('data-chat-history-open') === opener)
+        ?? this.renderRoot.querySelector<HTMLElement>('[data-chat-history-drawer]')
+      target?.focus()
+    })
+  }
+
+  /**
+   * Whether this chat can pick up an imported conversation: a shell that does it itself (`conversationHome.onContinue`),
+   * or a service whose host advertises `seed` in its registry. A host that does not would drop the window and start a
+   * plain chat while the person believed the old one had been carried over, so nothing is offered there.
+   */
+  private _continueOffered(): boolean {
+    if (this.conversationHome?.onContinue) return true
+    const service = this._store?.service
+    return Boolean(service?.prepareContinuation && service.continueConversation && service.capabilities?.continuation)
+  }
+
+  /**
+   * "Continue with…": say what is being continued; whatever can continue it does the rest. Where the shell gave a handler
+   * it is the shell's (a refusal is shown and the drawer stays; success closes it). Otherwise the host's own flow: the
+   * chooser opens above this drawer, which stays under it, and the drawer closes when the conversation has been picked up.
+   */
+  private async _continueImported(): Promise<void> {
+    const reader = this._reader
+    if (!reader || reader.getState().status !== 'ready') return
+    const intent = reader.continueIntent()
+    this.readerActionError = null
+    this.dispatchEvent(new CustomEvent<ContinueConversationIntent>(CHAT_CONTINUE_EVENT, { detail: intent, bubbles: true, composed: true }))
+    const onContinue = this.conversationHome?.onContinue
+    if (!onContinue) {
+      await this.continueWith(intent)
+      return
+    }
     try {
-      return new Date(value).toLocaleString([], {
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      })
-    } catch {
-      return value
+      await onContinue(intent)
+      this._leaveReader(false)
+      this._closeHistoryDrawer()
+    } catch (error) {
+      this.readerActionError = error instanceof Error ? error.message : String(error)
     }
   }
 
-  private _renderHistoryRow(session: SessionSummary): TemplateResult {
-    const active = this._store?.getState().sessionId === session.id
-    const editing = this.editingSessionId === session.id
-    if (editing) {
-      return html`
-        <div class="history-row" data-chat-history-row=${session.id} ?data-active=${active}>
-          <div class="history-inline">
-            <input
-              class="history-input"
-              data-chat-history-rename-input
-              .value=${this.editingTitle}
-              @input=${(event: Event) => {
-                this.editingTitle = (event.target as HTMLInputElement).value
-              }}
-              @keydown=${(event: KeyboardEvent) => {
-                if (event.key === 'Enter') {
-                  event.preventDefault()
-                  void this._commitRenameSession(session.id)
-                } else if (event.key === 'Escape') {
-                  event.preventDefault()
-                  this.editingSessionId = null
-                  this.editingTitle = ''
-                }
-              }}
-              aria-label="Session title"
-            />
-            <button
-              class="history-button"
-              data-chat-history-rename-save
-              @click=${() => void this._commitRenameSession(session.id)}
-            >Save</button>
-            <button
-              class="history-button"
-              data-chat-history-rename-cancel
-              @click=${() => {
-                this.editingSessionId = null
-                this.editingTitle = ''
-              }}
-            >Cancel</button>
-          </div>
-        </div>
-      `
+  /** Download straight from the reader: read every page, then hand over the file. */
+  private async _downloadImported(reader: ImportedReader): Promise<void> {
+    // One download at a time: a second press while pages are still being read does nothing.
+    if (this.readerNote === PREPARING_DOWNLOAD) return
+    this.readerActionError = null
+    this.readerNote = PREPARING_DOWNLOAD
+    const flow = createSaveFlow({ source: importedExportSource(reader), port: null, download: this._downloader(), now: () => this._now() })
+    await flow.downloadMarkdown()
+    const state = flow.getState()
+    flow.dispose()
+    if (this._reader !== reader) return
+    this.readerNote = state.downloaded ? `Downloaded ${state.downloaded}.` : null
+    if (state.phase === 'error' && state.error) this.readerActionError = state.error
+  }
+
+  /** Stable identities: a new function on every render would make the transcript draw itself again each time. */
+  private readonly _onReaderMessageAction = (messageId: string, action: MessageActionKind): Promise<MessageActionResult> =>
+    this._readerMessageAction(messageId, action)
+
+  private readonly _onReaderCodeCopy = (intent: CodeCopyIntent): Promise<void> => this._writeClipboard(intent.code)
+
+  private async _readerMessageAction(messageId: string, action: MessageActionKind): Promise<MessageActionResult> {
+    if (action !== 'copy') return { defaultHandled: false, error: null }
+    const message = this._reader?.transcript().messages.find(candidate => candidate.id === messageId)
+    if (!message) return { defaultHandled: false, error: 'Message not found.' }
+    try {
+      await this._writeClipboard(message.content)
+      return { defaultHandled: true, error: null }
+    } catch (error) {
+      return { defaultHandled: false, error: error instanceof Error ? error.message : String(error) }
     }
-    return html`
-      <div class="history-row" data-chat-history-row=${session.id} ?data-active=${active}>
-        <button
-          class="history-select"
-          data-chat-history-select=${session.id}
-          @click=${() => void this._selectHistorySession(session.id)}
-        >
-          <span class="history-name">${this._sessionTitle(session)}</span>
-          <span class="history-meta">${this._sessionTime(session)}</span>
-        </button>
-        <button
-          class="history-button"
-          data-chat-history-rename=${session.id}
-          title="Rename chat"
-          aria-label="Rename ${this._sessionTitle(session)}"
-          @click=${() => this._startRenameSession(session)}
-        >Rename</button>
-        <button
-          class="history-button"
-          data-chat-history-delete=${session.id}
-          title="Delete chat"
-          aria-label="Delete ${this._sessionTitle(session)}"
-          @click=${() => void this._deleteHistorySession(session.id)}
-        >Delete</button>
-      </div>
-    `
+  }
+
+  // ── Save to Garden and Download as Markdown ──────────────────────────────
+
+  /** The header's "Save chat to Garden": this live conversation, as it is at the moment of asking. */
+  private _openLiveSaveDialog(): void {
+    const state = this._store?.getState()
+    if (!state) throw new Error('No chat store bound.')
+    const active = this.renderRoot instanceof ShadowRoot ? this.renderRoot.activeElement : null
+    const invoker = active instanceof HTMLElement
+      ? active
+      : this._panel?.querySelector<HTMLElement>('.icon-button[aria-label="Save chat to Garden"]') ?? null
+    this._openSaveDialog(
+      liveExportSource({ title: state.sessionTitle, messages: state.messages, continues: state.seam?.originalTitle ?? null }),
+      invoker,
+    )
+  }
+
+  private _openSaveDialog(source: ConversationExportSource, invoker: HTMLElement | null): void {
+    this._closeSaveDialog(false)
+    const flow = createSaveFlow({
+      source,
+      port: this.conversationHome?.saveToGarden ?? null,
+      download: this._downloader(),
+      now: () => this._now(),
+    })
+    this._save = flow
+    this._saveReturnFocus = invoker
+    this._saveUnsub = flow.subscribe(() => this.requestUpdate())
+    void flow.loadTargets()
+    this.requestUpdate()
+    void this.updateComplete.then(() => {
+      this.renderRoot.querySelector<HTMLElement>('[data-chat-save-dialog]')?.focus()
+    })
+  }
+
+  private _closeSaveDialog(refocus: boolean): void {
+    this._saveUnsub?.()
+    this._saveUnsub = null
+    this._save?.dispose()
+    this._save = null
+    const target = this._saveReturnFocus
+    this._saveReturnFocus = null
+    this.requestUpdate()
+    if (refocus && target) void this.updateComplete.then(() => target.focus())
+  }
+
+  private _saveKeyDown(event: KeyboardEvent): void {
+    if (event.key === 'Escape') {
+      // Escape closes the dialog and nothing behind it.
+      event.preventDefault()
+      event.stopPropagation()
+      this._closeSaveDialog(true)
+      return
+    }
+    if (event.key !== 'Tab') return
+    const dialog = this.renderRoot.querySelector<HTMLElement>('[data-chat-save-dialog]')
+    if (!dialog) return
+    const focusable = Array.from(dialog.querySelectorAll<HTMLElement>(FOCUSABLE_IN_DRAWER))
+      .filter(element => !element.hasAttribute('hidden'))
+    if (focusable.length === 0) {
+      event.preventDefault()
+      dialog.focus()
+      return
+    }
+    const active = this.renderRoot instanceof ShadowRoot ? this.renderRoot.activeElement : null
+    if (event.shiftKey && (active === focusable[0] || active === dialog)) {
+      event.preventDefault()
+      focusable.at(-1)?.focus()
+    } else if (!event.shiftKey && active === focusable.at(-1)) {
+      event.preventDefault()
+      focusable[0]?.focus()
+    }
+  }
+
+  private _openSaved(flow: SaveFlow): void {
+    const result = flow.getState().result
+    const documentId = result?.documentIds[0]
+    if (!result || !documentId) return
+    this.conversationHome?.saveToGarden?.open?.({ workspaceId: result.workspaceId, documentId })
+    this._closeSaveDialog(false)
+    this._closeHistoryDrawer()
+  }
+
+  private _renderSaveDialog(): TemplateResult | typeof nothing {
+    const flow = this._save
+    if (!flow) return nothing
+    const port = this.conversationHome?.saveToGarden
+    return renderSaveDialog({
+      state: flow.getState(),
+      hasPort: Boolean(port),
+      canOpen: Boolean(port?.open),
+      actions: {
+        select: graphId => flow.select(graphId),
+        confirm: () => { void flow.save() },
+        download: () => { void flow.downloadMarkdown() },
+        cancelReading: () => flow.cancel(),
+        retryTargets: () => { void flow.loadTargets() },
+        open: () => this._openSaved(flow),
+        close: () => this._closeSaveDialog(true),
+        keydown: event => this._saveKeyDown(event),
+      },
+    })
+  }
+
+  // ── the drawer ───────────────────────────────────────────────────────────
+
+  private _renderHome(): TemplateResult {
+    const home = this._home
+    if (!home) {
+      return html`<div class="history-status error" role="alert">${this.historyError ?? 'No chat service bound.'}</div>`
+    }
+    const state = home.getState()
+    return renderConversationHome({
+      view: home.view(),
+      query: state.query,
+      filter: state.filter,
+      expanded: state.expanded,
+      now: this._now(),
+      activeSessionId: this._store?.getState().sessionId ?? null,
+      editingId: this.editingSessionId,
+      editingTitle: this.editingTitle,
+      actionError: this.historyError,
+      actions: {
+        search: query => home.setQuery(query),
+        filter: filter => home.setFilter(filter),
+        toggleChildren: conversationId => home.toggleExpanded(conversationId),
+        selectLive: id => { void this._selectHistorySession(id) },
+        openImported: conversationId => this._openImported(conversationId),
+        startRename: (id, rawTitle) => this._startRename(id, rawTitle),
+        editTitle: value => { this.editingTitle = value },
+        commitRename: id => { void this._commitRenameSession(id) },
+        cancelRename: () => {
+          this.editingSessionId = null
+          this.editingTitle = ''
+        },
+        deleteLive: id => { void this._deleteHistorySession(id) },
+        retryLive: () => { void home.refreshLive() },
+        retryImported: () => { void home.retryImported() },
+        dismissNotice: () => home.dismissNotice(),
+        loadMore: () => { void home.loadMoreImported() },
+      },
+    })
+  }
+
+  private _renderReader(reader: ImportedReader): TemplateResult {
+    const family = this._home?.familyOf(reader.conversation.conversationId) ?? { parent: null, children: [] }
+    return renderImportedReader({
+      state: reader.getState(),
+      header: reader.header(),
+      transcript: reader.transcript(),
+      annotate: reader.annotate,
+      family,
+      startedByUnloaded: Boolean(reader.conversation.parentConversationId) && family.parent === null,
+      now: this._now(),
+      // Only a conversation that has been read can be picked up, and only where something can pick it up.
+      continueAvailable: reader.getState().status === 'ready' && this._continueOffered(),
+      actionError: this.readerActionError,
+      actionNote: this.readerNote,
+      messageActions: READER_MESSAGE_ACTIONS,
+      onMessageAction: this._onReaderMessageAction,
+      onCodeCopy: this._onReaderCodeCopy,
+      actions: {
+        back: () => this._leaveReader(true),
+        retry: () => { void reader.open() },
+        loadMore: () => { void reader.loadMore() },
+        switchRevision: revisionId => { void reader.switchRevision(revisionId) },
+        open: conversationId => this._openImported(conversationId),
+        continueConversation: () => { void this._continueImported() },
+        save: invoker => this._openSaveDialog(importedExportSource(reader), invoker),
+        download: () => { void this._downloadImported(reader) },
+      },
+    })
   }
 
   private _renderHistoryDrawer(): TemplateResult | typeof nothing {
     if (!this.historyOpen) return nothing
+    const reader = this._reader
     return html`
       <div
         class="history-backdrop"
@@ -1198,11 +1893,13 @@ export class ShChatHost extends LitElement {
       >
         <section
           class="history-drawer"
+          ?data-imported=${reader !== null}
           data-chat-history-drawer
           role="dialog"
           aria-modal="true"
           aria-labelledby="chat-history-title"
           tabindex="-1"
+          ?inert=${this.continuing !== null}
           @keydown=${(event: KeyboardEvent) => this._historyKeyDown(event)}
           @click=${(event: Event) => event.stopPropagation()}
         >
@@ -1222,18 +1919,7 @@ export class ShChatHost extends LitElement {
               >×</button>
             </div>
           </header>
-          ${this.historyError
-            ? html`<div class="history-status error" role="alert">${this.historyError}</div>`
-            : nothing}
-          ${this.historyLoading
-            ? html`<div class="history-status">Loading...</div>`
-            : this.historySessions.length === 0
-              ? html`<div class="history-status">No chats yet.</div>`
-              : html`
-                  <div class="history-list" role="list">
-                    ${this.historySessions.map((session) => this._renderHistoryRow(session))}
-                  </div>
-                `}
+          ${reader ? this._renderReader(reader) : this._renderHome()}
         </section>
       </div>
     `
@@ -1255,7 +1941,10 @@ export class ShChatHost extends LitElement {
     // ONLY the stable mount target — the live panel is mounted into it
     // imperatively (firstUpdated) and never stamped in the template, so an
     // interface-grow re-render that re-runs render() cannot re-create the panel.
-    return html`<div class="chat-mount"></div><div class="history-layer">${this._renderHistoryDrawer()}</div>`
+    // Every child part sits inside an element: a template that ENDS in a bare child binding is parsed
+    // by happy-dom into a stray `<?>` text node (the chooser never appears under test), and a wrapper
+    // that is `display: contents` costs the browser nothing.
+    return html`<div class="chat-mount"></div><div class="history-layer">${this._renderHistoryDrawer()}${this._renderSaveDialog()}</div><div class="continue-layer">${this._renderContinue()}</div>`
   }
 }
 

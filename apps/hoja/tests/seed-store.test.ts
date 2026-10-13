@@ -28,67 +28,9 @@ describe('SoilStore', () => {
   })
 })
 
+// List, paging, workspace switching, read/create/save: tests/cell-store.cell.test.ts
+// runs them against a real gardend cell.
 describe('CellStore', () => {
-  it('maps a graph to the SeedStore contract and saves canonical TipTap JSON', async () => {
-    const calls: Array<{ graphId: string, tool: string, args: Readonly<Record<string, unknown>> }> = []
-    const gateway: CellStoreGateway = {
-      async graphs() { return [graph('obs-hoja-1', 'editor')] },
-      async toolsCall(graphId, tool, args) {
-        calls.push({ graphId, tool, args })
-        if (tool === 'list_documents') {
-          return result([{
-            document_id: 'doc-a',
-            title: 'A leaf',
-            body: '# A leaf\n\nbody',
-            updated_at: '2026-08-01T12:00:00Z',
-          }])
-        }
-        if (tool === 'read_document') {
-          return result({ document_id: 'doc-a', title: 'A leaf', content: '# A leaf\n\nbody' })
-        }
-        if (tool === 'create_document') return result({ documentId: 'doc-new' })
-        if (tool === 'write_document') return result({ success: true, title: 'Changed' })
-        throw new Error(`unexpected tool ${tool}`)
-      },
-    }
-    const storage = memoryStorage()
-    const store = new CellStore({
-      gateway,
-      graphId: 'obs-hoja-1',
-      storage,
-      now: () => 1234,
-      idFactory: () => 'doc-new',
-    })
-
-    await expect(store.list()).resolves.toEqual([{
-      id: 'doc-a',
-      title: 'A leaf',
-      snippet: 'body',
-      modified_ms: Date.parse('2026-08-01T12:00:00Z'),
-      readOnly: false,
-    }])
-    await expect(store.read('doc-a')).resolves.toEqual({
-      id: 'doc-a', title: 'A leaf', markdown: '# A leaf\n\nbody',
-    })
-    await expect(store.create()).resolves.toEqual({ id: 'doc-new' })
-    const tiptapJson = { type: 'doc', content: [{ type: 'paragraph' }] }
-    await expect(store.save('doc-a', { markdown: '# Changed\n\nnew body', json: tiptapJson }))
-      .resolves.toEqual({ ok: true, title: 'Changed', snippet: 'new body', modified_ms: 1234 })
-
-    expect(calls.at(-1)).toEqual({
-      graphId: 'obs-hoja-1',
-      tool: 'write_document',
-      args: {
-        graphId: 'obs-hoja-1',
-        documentId: 'doc-a',
-        title: 'Changed',
-        tiptapJson,
-        awaitDurable: true,
-      },
-    })
-    expect(storage.getItem('shrubbery.hoja.active-graph')).toBe('obs-hoja-1')
-  })
-
   it('keeps viewer graphs readable but refuses app mutations before MCP', async () => {
     let toolCalls = 0
     const gateway: CellStoreGateway = {
@@ -133,12 +75,4 @@ function result(value: unknown): GatewayMcpResult {
 
 function jsonResponse(value: unknown): Response {
   return new Response(JSON.stringify(value), { status: 200, headers: { 'content-type': 'application/json' } })
-}
-
-function memoryStorage(): Pick<Storage, 'getItem' | 'setItem'> {
-  const values = new Map<string, string>()
-  return {
-    getItem: key => values.get(key) ?? null,
-    setItem: (key, value) => { values.set(key, value) },
-  }
 }

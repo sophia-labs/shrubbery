@@ -69,14 +69,24 @@ describe('RHIZOME shell smoke — top bar icons, no emoji, brand "Rhizome"', () 
 
     const root = bar!.shadowRoot!
 
-    // (a) the theme / skin / settings actions each render an inline <svg>.
+    // (a) the theme / skin / settings actions each render an inline <svg>. The skin control is the skin
+    // picker (a drop-down, not a button of the bar's own), so its trigger — and the svg in it — lives in the
+    // picker's own shadow tree, one level down (picker → dropdown button → trigger).
     expect(actionBtn(root, 'Toggle theme')?.querySelector('svg')).toBeTruthy()
-    expect(actionBtn(root, 'Visual style')?.querySelector('svg')).toBeTruthy()
     expect(actionBtn(root, 'Settings')?.querySelector('svg')).toBeTruthy()
+    const picker = root.querySelector('mn-skin-picker') as (HTMLElement & { updateComplete?: Promise<unknown> }) | null
+    expect(picker, 'the bar carries the skin picker').toBeTruthy()
+    await picker!.updateComplete
+    const dropdown = picker!.shadowRoot!.querySelector('mn-dropdown-button') as (HTMLElement & { updateComplete?: Promise<unknown> }) | null
+    expect(dropdown, 'the picker is a drop-down').toBeTruthy()
+    await dropdown!.updateComplete
+    const skinTrigger = dropdown!.shadowRoot!.querySelector('.trigger')
+    expect(skinTrigger?.getAttribute('aria-label')?.startsWith('Visual style')).toBe(true)
+    expect(skinTrigger?.querySelector('svg')).toBeTruthy()
     // The masthead brand glyph (sprout) is an svg too, not an emoji.
     expect(root.querySelector('.masthead-glyph svg')).toBeTruthy()
-    // ≥ 4 icons total (theme, skin, settings, masthead) — search adds a 5th.
-    expect(root.querySelectorAll('svg').length).toBeGreaterThanOrEqual(4)
+    // ≥ 4 icons total (theme, skin, settings, masthead) — search adds a 5th. The skin's is the picker trigger's.
+    expect(root.querySelectorAll('svg').length + (skinTrigger?.querySelectorAll('svg').length ?? 0)).toBeGreaterThanOrEqual(4)
 
     // (b) NO emoji codepoint survives anywhere in the rendered shell.
     const text = shadowText(root)

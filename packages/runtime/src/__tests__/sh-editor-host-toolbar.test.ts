@@ -260,6 +260,22 @@ describe('sh-editor-host formatting toolbar', () => {
     expect(h.shadowRoot!.querySelector('mn-original-viewer')).toBeNull()
   })
 
+  it('captures the selected source block from the real editor and preserves unknown anchor data', async () => {
+    const h = await mountLiveHost()
+    const editor = realEditor(h)
+    editor.commands.setContent('<p data-block-id="first" data-source-page="1">First page.</p><p data-block-id="selected" data-source-page="2" data-pdf-anchor="{&quot;version&quot;:2}">Second <strong>passage</strong>.</p>')
+    h.liveEditor!.focusBlock('selected')
+    await settle(h)
+    expect(h.getPdfSourceLocation()).toEqual({ blockId: 'selected', pageNumber: 2, rawAnchor: '{"version":2}', text: 'Second passage.' })
+    const before = h.liveEditor
+    h.originalFileView = originalView(true)
+    await settle(h)
+    h.originalFileView = originalView(false)
+    await settle(h)
+    expect(h.liveEditor).toBe(before)
+    expect(h.getPdfSourceLocation()?.blockId).toBe('selected')
+  })
+
   it('preserves the editor mount and applies inline marks through real commands', async () => {
     const h = await mountLiveHost()
     const editor = realEditor(h)
@@ -675,7 +691,10 @@ describe('sh-editor-host formatting toolbar', () => {
     expect(widget?.querySelector('.mg-target')?.textContent).toBe('Target Doc')
     expect(widget?.querySelector('.mg-snippet')?.textContent).toBe('Target snippet')
     const wiredBlock = h.shadowRoot!.querySelector('[data-block-id="block-wired"]')
-    expect(wiredBlock?.getAttribute('data-block-wired')).toBe('')
+    // 'true', not ''. The empty string was an artifact of toggleAttribute; the
+    // indicator is a ProseMirror decoration now, so it also survives a redraw
+    // (wire-highlight-survives-redraw.test.ts), which the old one did not.
+    expect(wiredBlock?.getAttribute('data-block-wired')).toBe('true')
     expect(h.shadowRoot!.querySelector('.editor-mount')).toBe(mount)
   })
 

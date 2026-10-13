@@ -62,7 +62,8 @@ function gridCollectionResourceKey(locator: ResourceLocator): ResourceKey {
     throw new Error(`grid-collection query resource adapter given a non-query locator (kind '${locator.kind}')`)
   }
   // Collision-safe tagged tuple, not a naive colon-join — see resource-key.ts.
-  return resourceKeyTuple('grid-collection-query', locator.graphId, locator.queryId, locator.revision)
+  // `focus` is part of the identity: the SAME collection over two focuses is two resources (focus-binding.ts).
+  return resourceKeyTuple('grid-collection-query', locator.graphId, locator.queryId, locator.revision, locator.focus)
 }
 
 /**

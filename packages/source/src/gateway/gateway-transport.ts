@@ -30,6 +30,7 @@
  */
 
 import type { AuthProvider } from '@shrubbery/nucleus'
+import { createControlAccessClient } from './control-access.js'
 
 export type GatewayGraphRole = 'viewer' | 'editor' | 'owner'
 export type GatewayCellState = 'running' | 'stopped'
@@ -318,29 +319,6 @@ function activationRecord(value: unknown, expectedId: string): GatewayActivation
   }
 }
 
-function accessGrant(value: unknown, index: number): GatewayAccessGrant {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    throw new Error(`Gateway GET /graphs/{id}/access row ${index} is not an object`)
-  }
-  const row = value as Record<string, unknown>
-  if (
-    typeof row.userId !== 'string' || !row.userId.trim()
-    || (row.role !== 'viewer' && row.role !== 'editor' && row.role !== 'owner')
-    || typeof row.grantedAt !== 'string'
-    || typeof row.grantedBy !== 'string'
-    || (row.email !== undefined && typeof row.email !== 'string')
-    || (row.displayName !== undefined && typeof row.displayName !== 'string')
-  ) {
-    throw new Error(`Gateway GET /graphs/{id}/access row ${index} has an invalid grant shape`)
-  }
-  return row as unknown as GatewayAccessGrant
-}
-
-function accessList(value: unknown): readonly GatewayAccessGrant[] {
-  if (!Array.isArray(value)) throw new Error('Gateway GET /graphs/{id}/access returned a non-array')
-  return value.map(accessGrant)
-}
-
 export function gatewayMcpText(result: GatewayMcpResult): string {
   if (!Array.isArray(result.content)) return JSON.stringify(result)
   return result.content
@@ -357,6 +335,16 @@ export class GatewayTransport {
   private graphOwners = new Map<string, string | null>()
   private explicitGraphOwners = new Map<string, string>()
   private nextId = 1
+  private readonly accessControl = createControlAccessClient({
+    resolveOwner: async (graphId: string) => {
+      if (!this.graphOwners.has(graphId)) await this.graphs()
+      const owner = this.graphOwners.get(graphId)
+      if (owner === null) throw new Error('Access graph identity is ambiguous across owners')
+      if (!owner) throw new Error('Access owner binding is unavailable; refresh the workspace directory.')
+      return owner
+    },
+    request: body => this.requestJson('POST', `${this.gatewayBaseUrl}/control/mcp`, body),
+  })
 
   constructor(private readonly options: GatewayTransportOptions) {
     this.gatewayBaseUrl = normalizeGatewayBaseUrl(options.gatewayBaseUrl)
@@ -446,12 +434,7 @@ export class GatewayTransport {
   }
 
   async access(graphId: string): Promise<readonly GatewayAccessGrant[]> {
-    const id = graphId.trim()
-    if (!id) throw new Error('Gateway graph id must not be empty')
-    return accessList(await this.requestJson(
-      'GET',
-      `${this.gatewayBaseUrl}/graphs/${encodeURIComponent(id)}/access`,
-    ))
+    return this.accessControl.list(graphId)
   }
 
   async putAccess(
@@ -459,35 +442,11 @@ export class GatewayTransport {
     userId: string,
     request: GatewayPutAccessRequest,
   ): Promise<void> {
-    const graph = graphId.trim()
-    const user = userId.trim()
-    if (!graph) throw new Error('Gateway graph id must not be empty')
-    if (!user) throw new Error('Gateway access user id must not be empty')
-    if (request.role !== 'viewer' && request.role !== 'editor') {
-      throw new Error('Gateway access role must be viewer or editor')
-    }
-    const email = request.email?.trim()
-    const displayName = request.displayName?.trim()
-    await this.requestJson(
-      'PUT',
-      `${this.gatewayBaseUrl}/graphs/${encodeURIComponent(graph)}/access/${encodeURIComponent(user)}`,
-      {
-        role: request.role,
-        ...(email ? { email } : {}),
-        ...(displayName ? { displayName } : {}),
-      },
-    )
+    await this.accessControl.put(graphId, userId, request)
   }
 
   async deleteAccess(graphId: string, userId: string): Promise<void> {
-    const graph = graphId.trim()
-    const user = userId.trim()
-    if (!graph) throw new Error('Gateway graph id must not be empty')
-    if (!user) throw new Error('Gateway access user id must not be empty')
-    await this.requestJson(
-      'DELETE',
-      `${this.gatewayBaseUrl}/graphs/${encodeURIComponent(graph)}/access/${encodeURIComponent(user)}`,
-    )
+    await this.accessControl.remove(graphId, userId)
   }
 
   /**

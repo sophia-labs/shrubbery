@@ -1,0 +1,434 @@
+diff --git a/dist/y-tiptap.cjs b/dist/y-tiptap.cjs
+index 12c31808278a80ad6b9708b1449ac646bbeea82b..90574dd50d7cb017366ced514edd96843a8791e9 100644
+--- a/dist/y-tiptap.cjs
++++ b/dist/y-tiptap.cjs
+@@ -838,6 +838,101 @@ class ProsemirrorBinding {
+  * @param {function('removed' | 'added', Y.ID):any} [computeYChange]
+  * @return {PModel.Node | null}
+  */
++// --- shrubbery patch (editor list-loss fix, 2026-09-25) -------------
++// Upstream DELETES any Y item that the ProseMirror schema rejects (unknown
++// node, invalid content, unknown mark), and that deletion syncs to every peer:
++// merely opening a document destroyed content an agent had written. When the
++// schema defines `unsupportedBlock` / `unsupportedMark`, render a placeholder
++// mapped to the ORIGINAL Y type instead and never rewrite it.
++const UNSUPPORTED_BLOCK = 'unsupportedBlock';
++const UNSUPPORTED_MARK = 'unsupportedMark';
++let unsupportedTokenSeq = 0;
++/** @type {WeakMap<any, string>} */
++const unsupportedTokens = new WeakMap();
++/** @type {Map<string, any>} token -> snapshot of the original Y type */
++const unsupportedOrigins = new Map();
++// A detached snapshot, so a placeholder can be written back even after the
++// original was deleted in the same transaction (cut/paste, reorder).
++const snapshotYType = (type) => {
++  if (type instanceof Y__namespace.XmlText) {
++    return { text: type.toDelta() }
++  }
++  return {
++    nodeName: type.nodeName,
++    attrs: type.getAttributes(),
++    children: type.toArray().map(snapshotYType)
++  }
++};
++const buildYType = (snap) => {
++  if (snap.text !== undefined) {
++    const text = new Y__namespace.XmlText();
++    text.applyDelta(snap.text);
++    return text
++  }
++  const el = new Y__namespace.XmlElement(snap.nodeName);
++  for (const key in snap.attrs) {
++    el.setAttribute(key, snap.attrs[key]);
++  }
++  el.insert(0, snap.children.map(buildYType));
++  return el
++};
++// Display text for the placeholder, keeping the original's line structure: one
++// line per block child (a list shows one line per item, marked `•`, `1.`, `☐`),
++// inline children run together. Unknown element names count as blocks.
++const yTypePlainText = (type, schema) => {
++  if (type instanceof Y__namespace.XmlText) {
++    return type.toDelta().map((d) => (typeof d.insert === 'string' ? d.insert : '')).join('')
++  }
++  if (type instanceof Y__namespace.XmlElement || type instanceof Y__namespace.XmlFragment) {
++    const children = type.toArray();
++    // An atom that keeps its text in an attribute (gardend's opaqueBlock) has no children.
++    if (children.length === 0 && type instanceof Y__namespace.XmlElement) {
++      const text = type.getAttribute('text');
++      if (typeof text === 'string') return text
++    }
++    const isBlock = (child) => child instanceof Y__namespace.XmlElement &&
++      !(schema && schema.nodes[child.nodeName] && schema.nodes[child.nodeName].isInline);
++    const ordered = type instanceof Y__namespace.XmlElement && type.nodeName === 'orderedList';
++    const parts = [];
++    children.forEach((child, index) => {
++      let text = yTypePlainText(child, schema);
++      if (text.length === 0) return
++      if (child instanceof Y__namespace.XmlElement && (child.nodeName === 'listItem' || child.nodeName === 'taskItem')) {
++        const checked = child.getAttribute('checked');
++        const marker = child.nodeName === 'taskItem'
++          ? (checked === true || checked === 'true' ? '☑ ' : '☐ ')
++          : ordered ? `${index + 1}. ` : '• ';
++        text = marker + text.split('\n').join('\n  ');
++      }
++      parts.push(text);
++    });
++    return parts.join(children.some(isBlock) ? '\n' : '')
++  }
++  return ''
++};
++const isUnsupportedNode = (node) =>
++  node != null && !(node instanceof Array) && node.type != null && node.type.name === UNSUPPORTED_BLOCK;
++const createUnsupportedNode = (el, schema, meta) => {
++  const nodeType = schema.nodes[UNSUPPORTED_BLOCK];
++  if (nodeType === undefined) {
++    return null
++  }
++  let token = unsupportedTokens.get(el);
++  if (token === undefined) {
++    token = `yu-${++unsupportedTokenSeq}`;
++    unsupportedTokens.set(el, token);
++  }
++  unsupportedOrigins.set(token, snapshotYType(el));
++  const node = nodeType.create({
++    nodeName: el instanceof Y__namespace.XmlElement ? el.nodeName : '#text',
++    text: yTypePlainText(el, schema),
++    yToken: token
++  });
++  meta.mapping.set(el, node);
++  return node
++};
++// --- end shrubbery patch helpers ----------------------------------------------
++
+ const createNodeIfNotExists = (
+   el,
+   schema,
+@@ -858,6 +953,10 @@ const createNodeIfNotExists = (
+         computeYChange
+       )
+     } else {
++      const fallback = createUnsupportedNode(el, schema, meta);
++      if (fallback !== null) {
++        return fallback
++      }
+       throw error__namespace.methodUnimplemented() // we are currently not handling hooks
+     }
+   }
+@@ -882,6 +981,13 @@ const createNodeFromYElement = (
+   prevSnapshot,
+   computeYChange
+ ) => {
++  if (!(el instanceof Y__namespace.XmlElement)) {
++    // e.g. a bare Y.XmlText at the fragment root: upstream crashes here.
++    const fallback = createUnsupportedNode(el, schema, meta);
++    if (fallback !== null) {
++      return fallback
++    }
++  }
+   const children = [];
+   /**
+    * @param {Y.XmlElement | Y.XmlText} type
+@@ -954,6 +1060,10 @@ const createNodeFromYElement = (
+     meta.mapping.set(el, node);
+     return node
+   } catch (e) {
++    const fallback = createUnsupportedNode(el, schema, meta);
++    if (fallback !== null) {
++      return fallback
++    }
+     // an error occured while creating the node. This is probably a result of a concurrent action.
+     /** @type {Y.Doc} */ (el.doc).transact((transaction) => {
+       /** @type {Y.Item} */ (el._item).delete(transaction);
+@@ -1024,6 +1134,13 @@ const createTypeFromTextNodes = (nodes, meta) => {
+  * @return {Y.XmlElement}
+  */
+ const createTypeFromElementNode = (node, meta) => {
++  if (isUnsupportedNode(node) && unsupportedOrigins.has(node.attrs.yToken)) {
++    // A placeholder ProseMirror re-created (moved, copied): write back the
++    // original content, never the placeholder.
++    const clone = buildYType(unsupportedOrigins.get(node.attrs.yToken));
++    meta.mapping.set(clone, node);
++    return clone
++  }
+   const type = new Y__namespace.XmlElement(node.type.name);
+   for (const key in node.attrs) {
+     const val = node.attrs[key];
+@@ -1117,6 +1234,10 @@ const equalYTextPText = (ytext, ptexts) => {
+         const markname = yattr2markname(yattrname);
+         const pmarks = ptexts[i].marks;
+ 
++        const unsupported = pmarks.find(/** @param {any} mark */ mark => mark.type.name === UNSUPPORTED_MARK && mark.attrs.name === yattrname);
++        if (unsupported) {
++          return equalAttrs(attr, unsupported.attrs.value)
++        }
+         const pmark = pmarks.find(/** @param {any} mark */ mark => mark.type.name === markname);
+ 
+         // Ensure the pmark is present in the ptexts before checking equality. When replacing a mark with another mark
+@@ -1156,6 +1277,8 @@ const equalYTypePNode = (ytype, pnode) => {
+  */
+ const mappedIdentity = (mapped, pcontent) =>
+   mapped === pcontent ||
++  (isUnsupportedNode(mapped) && isUnsupportedNode(pcontent) &&
++    mapped.attrs.yToken === pcontent.attrs.yToken) ||
+   (mapped instanceof Array && pcontent instanceof Array &&
+     mapped.length === pcontent.length && mapped.every((a, i) =>
+     pcontent[i] === a
+@@ -1270,7 +1393,12 @@ const attributesToMarks = (attrs, schema) => {
+   const marks = [];
+   for (const markName in attrs) {
+     // remove hashes if necessary
+-    marks.push(schema.mark(yattr2markname(markName), attrs[markName]));
++    const name = yattr2markname(markName);
++    if (schema.marks[name] === undefined && schema.marks[UNSUPPORTED_MARK] !== undefined) {
++      marks.push(schema.mark(UNSUPPORTED_MARK, { name: markName, value: attrs[markName] }));
++      continue
++    }
++    marks.push(schema.mark(name, attrs[markName]));
+   }
+   return marks
+ };
+@@ -1282,6 +1410,10 @@ const attributesToMarks = (attrs, schema) => {
+ const marksToAttributes = (marks, meta) => {
+   const pattrs = {};
+   marks.forEach((mark) => {
++    if (mark.type.name === UNSUPPORTED_MARK) {
++      pattrs[mark.attrs.name] = mark.attrs.value;
++      return
++    }
+     if (mark.type.name !== 'ychange') {
+       const isOverlapping = map__namespace.setIfUndefined(meta.isOMark, mark.type, () => !mark.type.excludes(mark.type));
+       pattrs[isOverlapping ? `${mark.type.name}--${hashOfJSON(mark.toJSON())}` : mark.type.name] = mark.attrs;
+@@ -1372,6 +1504,15 @@ const updateYFragment = (y, yDomFragment, pNode, meta) => {
+       const leftP = pChildren[left];
+       const rightY = yChildren[yChildCnt - right - 1];
+       const rightP = pChildren[pChildCnt - right - 1];
++      // An unchanged placeholder is its original Y type: never rewrite it.
++      if (isUnsupportedNode(leftP) && mappedIdentity(meta.mapping.get(leftY), leftP)) {
++        left += 1;
++        continue
++      }
++      if (isUnsupportedNode(rightP) && mappedIdentity(meta.mapping.get(rightY), rightP)) {
++        right += 1;
++        continue
++      }
+       if (leftY instanceof Y__namespace.XmlText && leftP instanceof Array) {
+         if (!equalYTextPText(leftY, leftP)) {
+           updateYText(leftY, leftP, meta);
+diff --git a/dist/y-tiptap.js b/dist/y-tiptap.js
+index 75d4d7d13db7442e424598b38cbb35bc09fbacb5..2d944c00ad9db6c56ca26dde9e25f08f7ca81b13 100644
+--- a/dist/y-tiptap.js
++++ b/dist/y-tiptap.js
+@@ -804,6 +804,101 @@ class ProsemirrorBinding {
+  * @param {function('removed' | 'added', Y.ID):any} [computeYChange]
+  * @return {PModel.Node | null}
+  */
++// --- shrubbery patch (editor list-loss fix, 2026-09-25) -------------
++// Upstream DELETES any Y item that the ProseMirror schema rejects (unknown
++// node, invalid content, unknown mark), and that deletion syncs to every peer:
++// merely opening a document destroyed content an agent had written. When the
++// schema defines `unsupportedBlock` / `unsupportedMark`, render a placeholder
++// mapped to the ORIGINAL Y type instead and never rewrite it.
++const UNSUPPORTED_BLOCK = 'unsupportedBlock';
++const UNSUPPORTED_MARK = 'unsupportedMark';
++let unsupportedTokenSeq = 0;
++/** @type {WeakMap<any, string>} */
++const unsupportedTokens = new WeakMap();
++/** @type {Map<string, any>} token -> snapshot of the original Y type */
++const unsupportedOrigins = new Map();
++// A detached snapshot, so a placeholder can be written back even after the
++// original was deleted in the same transaction (cut/paste, reorder).
++const snapshotYType = (type) => {
++  if (type instanceof Y.XmlText) {
++    return { text: type.toDelta() }
++  }
++  return {
++    nodeName: type.nodeName,
++    attrs: type.getAttributes(),
++    children: type.toArray().map(snapshotYType)
++  }
++};
++const buildYType = (snap) => {
++  if (snap.text !== undefined) {
++    const text = new Y.XmlText();
++    text.applyDelta(snap.text);
++    return text
++  }
++  const el = new Y.XmlElement(snap.nodeName);
++  for (const key in snap.attrs) {
++    el.setAttribute(key, snap.attrs[key]);
++  }
++  el.insert(0, snap.children.map(buildYType));
++  return el
++};
++// Display text for the placeholder, keeping the original's line structure: one
++// line per block child (a list shows one line per item, marked `•`, `1.`, `☐`),
++// inline children run together. Unknown element names count as blocks.
++const yTypePlainText = (type, schema) => {
++  if (type instanceof Y.XmlText) {
++    return type.toDelta().map((d) => (typeof d.insert === 'string' ? d.insert : '')).join('')
++  }
++  if (type instanceof Y.XmlElement || type instanceof Y.XmlFragment) {
++    const children = type.toArray();
++    // An atom that keeps its text in an attribute (gardend's opaqueBlock) has no children.
++    if (children.length === 0 && type instanceof Y.XmlElement) {
++      const text = type.getAttribute('text');
++      if (typeof text === 'string') return text
++    }
++    const isBlock = (child) => child instanceof Y.XmlElement &&
++      !(schema && schema.nodes[child.nodeName] && schema.nodes[child.nodeName].isInline);
++    const ordered = type instanceof Y.XmlElement && type.nodeName === 'orderedList';
++    const parts = [];
++    children.forEach((child, index) => {
++      let text = yTypePlainText(child, schema);
++      if (text.length === 0) return
++      if (child instanceof Y.XmlElement && (child.nodeName === 'listItem' || child.nodeName === 'taskItem')) {
++        const checked = child.getAttribute('checked');
++        const marker = child.nodeName === 'taskItem'
++          ? (checked === true || checked === 'true' ? '☑ ' : '☐ ')
++          : ordered ? `${index + 1}. ` : '• ';
++        text = marker + text.split('\n').join('\n  ');
++      }
++      parts.push(text);
++    });
++    return parts.join(children.some(isBlock) ? '\n' : '')
++  }
++  return ''
++};
++const isUnsupportedNode = (node) =>
++  node != null && !(node instanceof Array) && node.type != null && node.type.name === UNSUPPORTED_BLOCK;
++const createUnsupportedNode = (el, schema, meta) => {
++  const nodeType = schema.nodes[UNSUPPORTED_BLOCK];
++  if (nodeType === undefined) {
++    return null
++  }
++  let token = unsupportedTokens.get(el);
++  if (token === undefined) {
++    token = `yu-${++unsupportedTokenSeq}`;
++    unsupportedTokens.set(el, token);
++  }
++  unsupportedOrigins.set(token, snapshotYType(el));
++  const node = nodeType.create({
++    nodeName: el instanceof Y.XmlElement ? el.nodeName : '#text',
++    text: yTypePlainText(el, schema),
++    yToken: token
++  });
++  meta.mapping.set(el, node);
++  return node
++};
++// --- end shrubbery patch helpers ----------------------------------------------
++
+ const createNodeIfNotExists = (
+   el,
+   schema,
+@@ -824,6 +919,10 @@ const createNodeIfNotExists = (
+         computeYChange
+       )
+     } else {
++      const fallback = createUnsupportedNode(el, schema, meta);
++      if (fallback !== null) {
++        return fallback
++      }
+       throw error.methodUnimplemented() // we are currently not handling hooks
+     }
+   }
+@@ -848,6 +947,13 @@ const createNodeFromYElement = (
+   prevSnapshot,
+   computeYChange
+ ) => {
++  if (!(el instanceof Y.XmlElement)) {
++    // e.g. a bare Y.XmlText at the fragment root: upstream crashes here.
++    const fallback = createUnsupportedNode(el, schema, meta);
++    if (fallback !== null) {
++      return fallback
++    }
++  }
+   const children = [];
+   /**
+    * @param {Y.XmlElement | Y.XmlText} type
+@@ -920,6 +1026,10 @@ const createNodeFromYElement = (
+     meta.mapping.set(el, node);
+     return node
+   } catch (e) {
++    const fallback = createUnsupportedNode(el, schema, meta);
++    if (fallback !== null) {
++      return fallback
++    }
+     // an error occured while creating the node. This is probably a result of a concurrent action.
+     /** @type {Y.Doc} */ (el.doc).transact((transaction) => {
+       /** @type {Y.Item} */ (el._item).delete(transaction);
+@@ -990,6 +1100,13 @@ const createTypeFromTextNodes = (nodes, meta) => {
+  * @return {Y.XmlElement}
+  */
+ const createTypeFromElementNode = (node, meta) => {
++  if (isUnsupportedNode(node) && unsupportedOrigins.has(node.attrs.yToken)) {
++    // A placeholder ProseMirror re-created (moved, copied): write back the
++    // original content, never the placeholder.
++    const clone = buildYType(unsupportedOrigins.get(node.attrs.yToken));
++    meta.mapping.set(clone, node);
++    return clone
++  }
+   const type = new Y.XmlElement(node.type.name);
+   for (const key in node.attrs) {
+     const val = node.attrs[key];
+@@ -1083,6 +1200,10 @@ const equalYTextPText = (ytext, ptexts) => {
+         const markname = yattr2markname(yattrname);
+         const pmarks = ptexts[i].marks;
+ 
++        const unsupported = pmarks.find(/** @param {any} mark */ mark => mark.type.name === UNSUPPORTED_MARK && mark.attrs.name === yattrname);
++        if (unsupported) {
++          return equalAttrs(attr, unsupported.attrs.value)
++        }
+         const pmark = pmarks.find(/** @param {any} mark */ mark => mark.type.name === markname);
+ 
+         // Ensure the pmark is present in the ptexts before checking equality. When replacing a mark with another mark
+@@ -1122,6 +1243,8 @@ const equalYTypePNode = (ytype, pnode) => {
+  */
+ const mappedIdentity = (mapped, pcontent) =>
+   mapped === pcontent ||
++  (isUnsupportedNode(mapped) && isUnsupportedNode(pcontent) &&
++    mapped.attrs.yToken === pcontent.attrs.yToken) ||
+   (mapped instanceof Array && pcontent instanceof Array &&
+     mapped.length === pcontent.length && mapped.every((a, i) =>
+     pcontent[i] === a
+@@ -1236,7 +1359,12 @@ const attributesToMarks = (attrs, schema) => {
+   const marks = [];
+   for (const markName in attrs) {
+     // remove hashes if necessary
+-    marks.push(schema.mark(yattr2markname(markName), attrs[markName]));
++    const name = yattr2markname(markName);
++    if (schema.marks[name] === undefined && schema.marks[UNSUPPORTED_MARK] !== undefined) {
++      marks.push(schema.mark(UNSUPPORTED_MARK, { name: markName, value: attrs[markName] }));
++      continue
++    }
++    marks.push(schema.mark(name, attrs[markName]));
+   }
+   return marks
+ };
+@@ -1248,6 +1376,10 @@ const attributesToMarks = (attrs, schema) => {
+ const marksToAttributes = (marks, meta) => {
+   const pattrs = {};
+   marks.forEach((mark) => {
++    if (mark.type.name === UNSUPPORTED_MARK) {
++      pattrs[mark.attrs.name] = mark.attrs.value;
++      return
++    }
+     if (mark.type.name !== 'ychange') {
+       const isOverlapping = map.setIfUndefined(meta.isOMark, mark.type, () => !mark.type.excludes(mark.type));
+       pattrs[isOverlapping ? `${mark.type.name}--${hashOfJSON(mark.toJSON())}` : mark.type.name] = mark.attrs;
+@@ -1338,6 +1470,15 @@ const updateYFragment = (y, yDomFragment, pNode, meta) => {
+       const leftP = pChildren[left];
+       const rightY = yChildren[yChildCnt - right - 1];
+       const rightP = pChildren[pChildCnt - right - 1];
++      // An unchanged placeholder is its original Y type: never rewrite it.
++      if (isUnsupportedNode(leftP) && mappedIdentity(meta.mapping.get(leftY), leftP)) {
++        left += 1;
++        continue
++      }
++      if (isUnsupportedNode(rightP) && mappedIdentity(meta.mapping.get(rightY), rightP)) {
++        right += 1;
++        continue
++      }
+       if (leftY instanceof Y.XmlText && leftP instanceof Array) {
+         if (!equalYTextPText(leftY, leftP)) {
+           updateYText(leftY, leftP, meta);

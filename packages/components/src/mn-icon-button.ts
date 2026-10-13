@@ -10,6 +10,7 @@ import { LitElement, css, html, nothing, unsafeCSS, type PropertyValues } from '
 import { customElement, property, query, state } from 'lit/decorators.js'
 import { classMap } from 'lit/directives/class-map.js'
 import { SkinAware } from './skin-aware.js'
+import { BEVELLED } from './bevelled-skins.js'
 import { icon as renderIcon, iconStyles, type IconName } from './icons.js'
 
 export type MnIconButtonSize = 'xs' | 'sm' | 'md' | 'lg'
@@ -149,29 +150,29 @@ export class MnIconButton extends SkinAware(LitElement) {
       font-size: var(--mn-text-2xs, 11px);
     }
 
-    :host([data-skin='98']) button {
+    :host(${BEVELLED}) button {
       border: 0;
       border-radius: 0;
       background: var(--mn-98-face, #c0c0c0);
       color: var(--mn-color-text-primary, #000);
       box-shadow: var(--mn-98-raised);
     }
-    :host([data-skin='98']) button:hover:not(:disabled) {
+    :host(${BEVELLED}) button:hover:not(:disabled) {
       background: var(--mn-98-face, #c0c0c0);
       color: var(--mn-color-text-primary, #000);
     }
-    :host([data-skin='98']) button:active:not(:disabled),
-    :host([data-skin='98']) button[aria-pressed='true'] {
+    :host(${BEVELLED}) button:active:not(:disabled),
+    :host(${BEVELLED}) button[aria-pressed='true'] {
       background: var(--mn-98-face, #c0c0c0);
       color: var(--mn-color-text-primary, #000);
       box-shadow: var(--mn-98-sunken);
       transform: translate(1px, 1px);
     }
-    :host([data-skin='98']) button:focus-visible {
+    :host(${BEVELLED}) button:focus-visible {
       outline: 1px dotted currentColor;
       outline-offset: -4px;
     }
-    :host([data-skin='98']) .tooltip {
+    :host(${BEVELLED}) .tooltip {
       border: 1px solid var(--mn-98-dark, #000);
       border-radius: 0;
       background: var(--mn-color-surface-warm, #ffffe1);

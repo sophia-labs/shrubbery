@@ -1,0 +1,2557 @@
+{
+ "graphId": "datasheet-library",
+ "query": {
+  "part": "TPS54331",
+  "artifact": null,
+  "parameter": null
+ },
+ "namespaces": {
+  "de": "https://sophia-labs.ai/ontology/document-evidence#",
+  "eng": "https://sophia-labs.ai/ontology/engineering#",
+  "ep": "https://sophia-labs.ai/concept/engineering-parameter#"
+ },
+ "matched": 1,
+ "editions": [
+  {
+   "title": "TPS54331 3-A, 28-V Input, Step Down DC-DC Converter With Eco-mode",
+   "revision": null,
+   "maker": "Texas Instruments",
+   "documentType": "datasheet",
+   "parts": [
+    "tps54331"
+   ],
+   "artifact": "ds-cf72dfd0ac69eec6",
+   "sha256": "cf72dfd0ac69eec645b7b493de628dc1c3aa66f5f925a2ea9be6bb5c38260730",
+   "byteCheck": "matched",
+   "pageCount": 41,
+   "namedGraph": "urn:mnemosyne:local:graph:datasheet-library:projection:datasheet:ds-cf72dfd0ac69eec6:m1",
+   "diagnostics": [
+    "text_readers_disagree"
+   ],
+   "corrections": [],
+   "claims": [
+    {
+     "id": "ds-cf72dfd0ac69eec6-params-vin",
+     "kind": "keyParameter",
+     "parameter": "vin",
+     "symbol": null,
+     "section": null,
+     "group": null,
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#inputVoltage",
+     "value": {
+      "lower": null,
+      "typical": null,
+      "upper": 28.0,
+      "unit": "V",
+      "text": null
+     },
+     "regime": "recommendedOperating",
+     "conditions": {
+      "row": null,
+      "completeness": "unknown",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 1,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [
+      {
+       "id": "ds-cf72dfd0ac69eec6-params-vin-r0",
+       "sourceRole": "roc",
+       "readerTools": [
+        "docling"
+       ],
+       "page": 4,
+       "lower": 3.5,
+       "upper": 28.0,
+       "externalFile": null,
+       "diagnostics": []
+      },
+      {
+       "id": "ds-cf72dfd0ac69eec6-params-vin-r1",
+       "sourceRole": "prose",
+       "readerTools": [
+        "docling"
+       ],
+       "page": 1,
+       "lower": null,
+       "upper": 28.0,
+       "externalFile": null,
+       "diagnostics": []
+      }
+     ],
+     "corroboration": {
+      "level": "low",
+      "independentSources": 1,
+      "sources": [
+       "prose"
+      ],
+      "contested": false
+     },
+     "diagnostics": [
+      "disagreement: \"prose=?\u201328 vs roc=3.5\u201328\""
+     ],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cf72dfd0ac69eec6#evidence=ds-cf72dfd0ac69eec6-params-vin"
+    },
+    {
+     "id": "ds-cf72dfd0ac69eec6-params-iout",
+     "kind": "keyParameter",
+     "parameter": "iout",
+     "symbol": null,
+     "section": null,
+     "group": null,
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#outputCurrent",
+     "value": {
+      "lower": null,
+      "typical": null,
+      "upper": 3.0,
+      "unit": "A",
+      "text": null
+     },
+     "regime": "recommendedOperating",
+     "conditions": {
+      "row": null,
+      "completeness": "unknown",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 1,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [
+      {
+       "id": "ds-cf72dfd0ac69eec6-params-iout-r0",
+       "sourceRole": "prose",
+       "readerTools": [
+        "docling"
+       ],
+       "page": 1,
+       "lower": null,
+       "upper": 3.0,
+       "externalFile": null,
+       "diagnostics": []
+      }
+     ],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "prose"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cf72dfd0ac69eec6#evidence=ds-cf72dfd0ac69eec6-params-iout"
+    },
+    {
+     "id": "ds-cf72dfd0ac69eec6-params-fsw",
+     "kind": "keyParameter",
+     "parameter": "fsw",
+     "symbol": null,
+     "section": null,
+     "group": null,
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#switchingFrequency",
+     "value": {
+      "lower": null,
+      "typical": null,
+      "upper": 570.0,
+      "unit": "kHz",
+      "text": null
+     },
+     "regime": "recommendedOperating",
+     "conditions": {
+      "row": null,
+      "completeness": "unknown",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 1,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [
+      {
+       "id": "ds-cf72dfd0ac69eec6-params-fsw-r0",
+       "sourceRole": "page1",
+       "readerTools": [
+        "docling"
+       ],
+       "page": 1,
+       "lower": null,
+       "upper": 570.0,
+       "externalFile": null,
+       "diagnostics": []
+      },
+      {
+       "id": "ds-cf72dfd0ac69eec6-params-fsw-r1",
+       "sourceRole": "prose",
+       "readerTools": [
+        "docling"
+       ],
+       "page": 1,
+       "lower": null,
+       "upper": 570.0,
+       "externalFile": null,
+       "diagnostics": []
+      }
+     ],
+     "corroboration": {
+      "level": "high",
+      "independentSources": 2,
+      "sources": [
+       "page1",
+       "prose"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cf72dfd0ac69eec6#evidence=ds-cf72dfd0ac69eec6-params-fsw"
+    },
+    {
+     "id": "ds-cf72dfd0ac69eec6-spec_rows-0",
+     "kind": "specRow",
+     "parameter": "VIN",
+     "symbol": null,
+     "section": "6.1 Absolute Maximum Ratings",
+     "group": null,
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#vin",
+     "value": {
+      "lower": -0.3,
+      "typical": null,
+      "upper": 30.0,
+      "unit": "V",
+      "text": null
+     },
+     "regime": "absoluteMaximum",
+     "conditions": {
+      "row": null,
+      "completeness": "unknown",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 4,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cf72dfd0ac69eec6#evidence=ds-cf72dfd0ac69eec6-spec_rows-0"
+    },
+    {
+     "id": "ds-cf72dfd0ac69eec6-spec_rows-1",
+     "kind": "specRow",
+     "parameter": "EN",
+     "symbol": null,
+     "section": "6.1 Absolute Maximum Ratings",
+     "group": null,
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#en",
+     "value": {
+      "lower": -0.3,
+      "typical": null,
+      "upper": 6.0,
+      "unit": "V",
+      "text": null
+     },
+     "regime": "absoluteMaximum",
+     "conditions": {
+      "row": null,
+      "completeness": "unknown",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 4,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cf72dfd0ac69eec6#evidence=ds-cf72dfd0ac69eec6-spec_rows-1"
+    },
+    {
+     "id": "ds-cf72dfd0ac69eec6-spec_rows-2",
+     "kind": "specRow",
+     "parameter": "Input voltage BOOT",
+     "symbol": null,
+     "section": "6.1 Absolute Maximum Ratings",
+     "group": null,
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#inputVoltageBoot",
+     "value": {
+      "lower": null,
+      "typical": null,
+      "upper": 38.0,
+      "unit": "V",
+      "text": null
+     },
+     "regime": "absoluteMaximum",
+     "conditions": {
+      "row": null,
+      "completeness": "unknown",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 4,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cf72dfd0ac69eec6#evidence=ds-cf72dfd0ac69eec6-spec_rows-2"
+    },
+    {
+     "id": "ds-cf72dfd0ac69eec6-spec_rows-3",
+     "kind": "specRow",
+     "parameter": "VSENSE",
+     "symbol": null,
+     "section": "6.1 Absolute Maximum Ratings",
+     "group": null,
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#vsense",
+     "value": {
+      "lower": -0.3,
+      "typical": null,
+      "upper": 3.0,
+      "unit": "V",
+      "text": null
+     },
+     "regime": "absoluteMaximum",
+     "conditions": {
+      "row": null,
+      "completeness": "unknown",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 4,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cf72dfd0ac69eec6#evidence=ds-cf72dfd0ac69eec6-spec_rows-3"
+    },
+    {
+     "id": "ds-cf72dfd0ac69eec6-spec_rows-4",
+     "kind": "specRow",
+     "parameter": "COMP",
+     "symbol": null,
+     "section": "6.1 Absolute Maximum Ratings",
+     "group": null,
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#comp",
+     "value": {
+      "lower": -0.3,
+      "typical": null,
+      "upper": 3.0,
+      "unit": "V",
+      "text": null
+     },
+     "regime": "absoluteMaximum",
+     "conditions": {
+      "row": null,
+      "completeness": "unknown",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 4,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cf72dfd0ac69eec6#evidence=ds-cf72dfd0ac69eec6-spec_rows-4"
+    },
+    {
+     "id": "ds-cf72dfd0ac69eec6-spec_rows-5",
+     "kind": "specRow",
+     "parameter": "SS",
+     "symbol": null,
+     "section": "6.1 Absolute Maximum Ratings",
+     "group": null,
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#ss",
+     "value": {
+      "lower": -0.3,
+      "typical": null,
+      "upper": 3.0,
+      "unit": "V",
+      "text": null
+     },
+     "regime": "absoluteMaximum",
+     "conditions": {
+      "row": null,
+      "completeness": "unknown",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 4,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cf72dfd0ac69eec6#evidence=ds-cf72dfd0ac69eec6-spec_rows-5"
+    },
+    {
+     "id": "ds-cf72dfd0ac69eec6-spec_rows-6",
+     "kind": "specRow",
+     "parameter": "BOOT-PH",
+     "symbol": null,
+     "section": "6.1 Absolute Maximum Ratings",
+     "group": null,
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#bootPh",
+     "value": {
+      "lower": null,
+      "typical": null,
+      "upper": 8.0,
+      "unit": "V",
+      "text": null
+     },
+     "regime": "absoluteMaximum",
+     "conditions": {
+      "row": null,
+      "completeness": "unknown",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 4,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cf72dfd0ac69eec6#evidence=ds-cf72dfd0ac69eec6-spec_rows-6"
+    },
+    {
+     "id": "ds-cf72dfd0ac69eec6-spec_rows-7",
+     "kind": "specRow",
+     "parameter": "Output voltage PH",
+     "symbol": null,
+     "section": "6.1 Absolute Maximum Ratings",
+     "group": null,
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#outputVoltagePh",
+     "value": {
+      "lower": -0.6,
+      "typical": null,
+      "upper": 30.0,
+      "unit": "V",
+      "text": null
+     },
+     "regime": "absoluteMaximum",
+     "conditions": {
+      "row": null,
+      "completeness": "unknown",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 4,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cf72dfd0ac69eec6#evidence=ds-cf72dfd0ac69eec6-spec_rows-7"
+    },
+    {
+     "id": "ds-cf72dfd0ac69eec6-spec_rows-8",
+     "kind": "specRow",
+     "parameter": "PH (10-ns transient from ground to negative peak)",
+     "symbol": null,
+     "section": "6.1 Absolute Maximum Ratings",
+     "group": null,
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#ph10NsTransientFromGroundToNegativePeak",
+     "value": {
+      "lower": null,
+      "typical": null,
+      "upper": -5.0,
+      "unit": "V",
+      "text": null
+     },
+     "regime": "absoluteMaximum",
+     "conditions": {
+      "row": null,
+      "completeness": "unknown",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 4,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cf72dfd0ac69eec6#evidence=ds-cf72dfd0ac69eec6-spec_rows-8"
+    },
+    {
+     "id": "ds-cf72dfd0ac69eec6-spec_rows-9",
+     "kind": "specRow",
+     "parameter": "EN",
+     "symbol": null,
+     "section": "6.1 Absolute Maximum Ratings",
+     "group": null,
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#en",
+     "value": {
+      "lower": null,
+      "typical": null,
+      "upper": 100.0,
+      "unit": "\u00b5A",
+      "text": null
+     },
+     "regime": "absoluteMaximum",
+     "conditions": {
+      "row": null,
+      "completeness": "unknown",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 4,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cf72dfd0ac69eec6#evidence=ds-cf72dfd0ac69eec6-spec_rows-9"
+    },
+    {
+     "id": "ds-cf72dfd0ac69eec6-spec_rows-10",
+     "kind": "specRow",
+     "parameter": "Source current BOOT",
+     "symbol": null,
+     "section": "6.1 Absolute Maximum Ratings",
+     "group": null,
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#sourceCurrentBoot",
+     "value": {
+      "lower": null,
+      "typical": null,
+      "upper": 100.0,
+      "unit": "mA",
+      "text": null
+     },
+     "regime": "absoluteMaximum",
+     "conditions": {
+      "row": null,
+      "completeness": "unknown",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 4,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cf72dfd0ac69eec6#evidence=ds-cf72dfd0ac69eec6-spec_rows-10"
+    },
+    {
+     "id": "ds-cf72dfd0ac69eec6-spec_rows-11",
+     "kind": "specRow",
+     "parameter": "VSENSE",
+     "symbol": null,
+     "section": "6.1 Absolute Maximum Ratings",
+     "group": null,
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#vsense",
+     "value": {
+      "lower": null,
+      "typical": null,
+      "upper": 10.0,
+      "unit": "\u00b5A",
+      "text": null
+     },
+     "regime": "absoluteMaximum",
+     "conditions": {
+      "row": null,
+      "completeness": "unknown",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 4,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cf72dfd0ac69eec6#evidence=ds-cf72dfd0ac69eec6-spec_rows-11"
+    },
+    {
+     "id": "ds-cf72dfd0ac69eec6-spec_rows-12",
+     "kind": "specRow",
+     "parameter": "PH",
+     "symbol": null,
+     "section": "6.1 Absolute Maximum Ratings",
+     "group": null,
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#ph",
+     "value": {
+      "lower": null,
+      "typical": null,
+      "upper": 9.0,
+      "unit": "A",
+      "text": null
+     },
+     "regime": "absoluteMaximum",
+     "conditions": {
+      "row": null,
+      "completeness": "unknown",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 4,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "low",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [
+      "unit_maybe_micro"
+     ],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cf72dfd0ac69eec6#evidence=ds-cf72dfd0ac69eec6-spec_rows-12"
+    },
+    {
+     "id": "ds-cf72dfd0ac69eec6-spec_rows-13",
+     "kind": "specRow",
+     "parameter": "VIN",
+     "symbol": null,
+     "section": "6.1 Absolute Maximum Ratings",
+     "group": null,
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#vin",
+     "value": {
+      "lower": null,
+      "typical": null,
+      "upper": 9.0,
+      "unit": "A",
+      "text": null
+     },
+     "regime": "absoluteMaximum",
+     "conditions": {
+      "row": null,
+      "completeness": "unknown",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 4,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "low",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [
+      "unit_maybe_micro"
+     ],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cf72dfd0ac69eec6#evidence=ds-cf72dfd0ac69eec6-spec_rows-13"
+    },
+    {
+     "id": "ds-cf72dfd0ac69eec6-spec_rows-14",
+     "kind": "specRow",
+     "parameter": "Sink current COMP",
+     "symbol": null,
+     "section": "6.1 Absolute Maximum Ratings",
+     "group": null,
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#sinkCurrentComp",
+     "value": {
+      "lower": null,
+      "typical": null,
+      "upper": 100.0,
+      "unit": "\u00b5A",
+      "text": null
+     },
+     "regime": "absoluteMaximum",
+     "conditions": {
+      "row": null,
+      "completeness": "unknown",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 4,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cf72dfd0ac69eec6#evidence=ds-cf72dfd0ac69eec6-spec_rows-14"
+    },
+    {
+     "id": "ds-cf72dfd0ac69eec6-spec_rows-15",
+     "kind": "specRow",
+     "parameter": "SS",
+     "symbol": null,
+     "section": "6.1 Absolute Maximum Ratings",
+     "group": null,
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#ss",
+     "value": {
+      "lower": null,
+      "typical": null,
+      "upper": 200.0,
+      "unit": "\u00b5A",
+      "text": null
+     },
+     "regime": "absoluteMaximum",
+     "conditions": {
+      "row": null,
+      "completeness": "unknown",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 4,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cf72dfd0ac69eec6#evidence=ds-cf72dfd0ac69eec6-spec_rows-15"
+    },
+    {
+     "id": "ds-cf72dfd0ac69eec6-spec_rows-16",
+     "kind": "specRow",
+     "parameter": "Operating junction temperature, TJ Operating junction temperature, TJ",
+     "symbol": null,
+     "section": "6.1 Absolute Maximum Ratings",
+     "group": null,
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#operatingJunctionTemperatureTjOperatingJunctionTemperatureTj",
+     "value": {
+      "lower": -40.0,
+      "typical": null,
+      "upper": 150.0,
+      "unit": "\u00b0C",
+      "text": null
+     },
+     "regime": "absoluteMaximum",
+     "conditions": {
+      "row": null,
+      "completeness": "unknown",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 4,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cf72dfd0ac69eec6#evidence=ds-cf72dfd0ac69eec6-spec_rows-16"
+    },
+    {
+     "id": "ds-cf72dfd0ac69eec6-spec_rows-17",
+     "kind": "specRow",
+     "parameter": "Storage temperature range, Tstg Storage temperature range, Tstg",
+     "symbol": null,
+     "section": "6.1 Absolute Maximum Ratings",
+     "group": null,
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#storageTemperatureRangeTstgStorageTemperatureRangeTstg",
+     "value": {
+      "lower": -65.0,
+      "typical": null,
+      "upper": 150.0,
+      "unit": "\u00b0C",
+      "text": null
+     },
+     "regime": "absoluteMaximum",
+     "conditions": {
+      "row": null,
+      "completeness": "unknown",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 4,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cf72dfd0ac69eec6#evidence=ds-cf72dfd0ac69eec6-spec_rows-17"
+    },
+    {
+     "id": "ds-cf72dfd0ac69eec6-spec_rows-18",
+     "kind": "specRow",
+     "parameter": "V(ESD) Electrostatic discharge Human body model (HBM), per ANSI/ESDA/JEDEC JS-001, all pins (1)",
+     "symbol": null,
+     "section": "6.2 ESD Ratings",
+     "group": null,
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#vEsdElectrostaticDischargeHumanBodyModelHbmPerAnsiEsdaJedecJs",
+     "value": {
+      "lower": -2.0,
+      "typical": null,
+      "upper": 2.0,
+      "unit": "kV",
+      "text": null
+     },
+     "regime": "otherRegime",
+     "conditions": {
+      "row": null,
+      "completeness": "unknown",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 4,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cf72dfd0ac69eec6#evidence=ds-cf72dfd0ac69eec6-spec_rows-18"
+    },
+    {
+     "id": "ds-cf72dfd0ac69eec6-spec_rows-19",
+     "kind": "specRow",
+     "parameter": "V(ESD) Electrostatic discharge Charged device model (CDM), per JEDEC specification JESD22- C101, all pins (2)",
+     "symbol": null,
+     "section": "6.2 ESD Ratings",
+     "group": null,
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#vEsdElectrostaticDischargeChargedDeviceModelCdmPerJedecSpecification",
+     "value": {
+      "lower": -500.0,
+      "typical": null,
+      "upper": 500.0,
+      "unit": "V",
+      "text": null
+     },
+     "regime": "otherRegime",
+     "conditions": {
+      "row": null,
+      "completeness": "unknown",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 4,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cf72dfd0ac69eec6#evidence=ds-cf72dfd0ac69eec6-spec_rows-19"
+    },
+    {
+     "id": "ds-cf72dfd0ac69eec6-spec_rows-20",
+     "kind": "specRow",
+     "parameter": "Operating input voltage on (VIN pin)",
+     "symbol": null,
+     "section": "6.3 Recommended Operating Conditions",
+     "group": null,
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#operatingInputVoltageOnVinPin",
+     "value": {
+      "lower": 3.5,
+      "typical": null,
+      "upper": 28.0,
+      "unit": "V",
+      "text": null
+     },
+     "regime": "recommendedOperating",
+     "conditions": {
+      "row": null,
+      "completeness": "unknown",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 4,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cf72dfd0ac69eec6#evidence=ds-cf72dfd0ac69eec6-spec_rows-20"
+    },
+    {
+     "id": "ds-cf72dfd0ac69eec6-spec_rows-21",
+     "kind": "specRow",
+     "parameter": "TJ Operating junction temperature",
+     "symbol": null,
+     "section": "6.3 Recommended Operating Conditions",
+     "group": null,
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#tjOperatingJunctionTemperature",
+     "value": {
+      "lower": -40.0,
+      "typical": null,
+      "upper": 150.0,
+      "unit": "\u00b0C",
+      "text": null
+     },
+     "regime": "recommendedOperating",
+     "conditions": {
+      "row": null,
+      "completeness": "unknown",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 4,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cf72dfd0ac69eec6#evidence=ds-cf72dfd0ac69eec6-spec_rows-21"
+    },
+    {
+     "id": "ds-cf72dfd0ac69eec6-spec_rows-22",
+     "kind": "specRow",
+     "parameter": "Internal undervoltage lockout threshold",
+     "symbol": null,
+     "section": "TJ = -40\u00b0C to 150\u00b0C, VIN = 3.5 to 28 V (unless otherwise noted)",
+     "group": "SUPPLY VOLTAGE (VIN PIN)",
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#internalUndervoltageLockoutThreshold",
+     "value": {
+      "lower": null,
+      "typical": null,
+      "upper": 3.5,
+      "unit": "V",
+      "text": null
+     },
+     "regime": "otherRegime",
+     "conditions": {
+      "row": "Rising and falling",
+      "completeness": "proseOnly",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 5,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cf72dfd0ac69eec6#evidence=ds-cf72dfd0ac69eec6-spec_rows-22"
+    },
+    {
+     "id": "ds-cf72dfd0ac69eec6-spec_rows-23",
+     "kind": "specRow",
+     "parameter": "Shutdown supply current",
+     "symbol": null,
+     "section": "TJ = -40\u00b0C to 150\u00b0C, VIN = 3.5 to 28 V (unless otherwise noted)",
+     "group": "SUPPLY VOLTAGE (VIN PIN)",
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#shutdownSupplyCurrent",
+     "value": {
+      "lower": null,
+      "typical": 1.0,
+      "upper": 4.0,
+      "unit": "\u00b5A",
+      "text": null
+     },
+     "regime": "otherRegime",
+     "conditions": {
+      "row": "EN = 0 V, VIN = 12 V, -40\u00b0C to 85\u00b0C",
+      "completeness": "proseOnly",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 5,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cf72dfd0ac69eec6#evidence=ds-cf72dfd0ac69eec6-spec_rows-23"
+    },
+    {
+     "id": "ds-cf72dfd0ac69eec6-spec_rows-24",
+     "kind": "specRow",
+     "parameter": "Operating - non-switching supply current",
+     "symbol": null,
+     "section": "TJ = -40\u00b0C to 150\u00b0C, VIN = 3.5 to 28 V (unless otherwise noted)",
+     "group": "SUPPLY VOLTAGE (VIN PIN)",
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#operatingNonSwitchingSupplyCurrent",
+     "value": {
+      "lower": null,
+      "typical": 110.0,
+      "upper": 190.0,
+      "unit": "\u00b5A",
+      "text": null
+     },
+     "regime": "otherRegime",
+     "conditions": {
+      "row": "VSENSE = 0.85 V",
+      "completeness": "proseOnly",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 5,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cf72dfd0ac69eec6#evidence=ds-cf72dfd0ac69eec6-spec_rows-24"
+    },
+    {
+     "id": "ds-cf72dfd0ac69eec6-spec_rows-25",
+     "kind": "specRow",
+     "parameter": "Enable threshold",
+     "symbol": null,
+     "section": "TJ = -40\u00b0C to 150\u00b0C, VIN = 3.5 to 28 V (unless otherwise noted)",
+     "group": "ENABLE AND UVLO (EN PIN)",
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#enableThreshold",
+     "value": {
+      "lower": null,
+      "typical": 1.25,
+      "upper": 1.35,
+      "unit": "V",
+      "text": null
+     },
+     "regime": "otherRegime",
+     "conditions": {
+      "row": "Rising and falling",
+      "completeness": "proseOnly",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 5,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cf72dfd0ac69eec6#evidence=ds-cf72dfd0ac69eec6-spec_rows-25"
+    },
+    {
+     "id": "ds-cf72dfd0ac69eec6-spec_rows-26",
+     "kind": "specRow",
+     "parameter": "Input current",
+     "symbol": null,
+     "section": "TJ = -40\u00b0C to 150\u00b0C, VIN = 3.5 to 28 V (unless otherwise noted)",
+     "group": "ENABLE AND UVLO (EN PIN)",
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#inputCurrent",
+     "value": {
+      "lower": null,
+      "typical": -1.0,
+      "upper": null,
+      "unit": "\u00b5A",
+      "text": null
+     },
+     "regime": "otherRegime",
+     "conditions": {
+      "row": "Enable threshold - 50 mV",
+      "completeness": "proseOnly",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 5,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cf72dfd0ac69eec6#evidence=ds-cf72dfd0ac69eec6-spec_rows-26"
+    },
+    {
+     "id": "ds-cf72dfd0ac69eec6-spec_rows-27",
+     "kind": "specRow",
+     "parameter": "Input current",
+     "symbol": null,
+     "section": "TJ = -40\u00b0C to 150\u00b0C, VIN = 3.5 to 28 V (unless otherwise noted)",
+     "group": "ENABLE AND UVLO (EN PIN)",
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#inputCurrent",
+     "value": {
+      "lower": null,
+      "typical": -4.0,
+      "upper": null,
+      "unit": "\u00b5A",
+      "text": null
+     },
+     "regime": "otherRegime",
+     "conditions": {
+      "row": "Enable threshold + 50 mV",
+      "completeness": "proseOnly",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 5,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cf72dfd0ac69eec6#evidence=ds-cf72dfd0ac69eec6-spec_rows-27"
+    },
+    {
+     "id": "ds-cf72dfd0ac69eec6-spec_rows-28",
+     "kind": "specRow",
+     "parameter": "Voltage reference",
+     "symbol": null,
+     "section": "TJ = -40\u00b0C to 150\u00b0C, VIN = 3.5 to 28 V (unless otherwise noted)",
+     "group": "VOLTAGE REFERENCE",
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#voltageReference",
+     "value": {
+      "lower": 0.772,
+      "typical": 0.8,
+      "upper": 0.828,
+      "unit": "V",
+      "text": null
+     },
+     "regime": "otherRegime",
+     "conditions": {
+      "row": null,
+      "completeness": "unknown",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 5,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cf72dfd0ac69eec6#evidence=ds-cf72dfd0ac69eec6-spec_rows-28"
+    },
+    {
+     "id": "ds-cf72dfd0ac69eec6-spec_rows-29",
+     "kind": "specRow",
+     "parameter": "On resistance",
+     "symbol": null,
+     "section": "TJ = -40\u00b0C to 150\u00b0C, VIN = 3.5 to 28 V (unless otherwise noted)",
+     "group": "HIGH-SIDE MOSFET",
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#onResistance",
+     "value": {
+      "lower": null,
+      "typical": 115.0,
+      "upper": 200.0,
+      "unit": "m\u03a9",
+      "text": null
+     },
+     "regime": "otherRegime",
+     "conditions": {
+      "row": "BOOT-PH = 3 V, VIN = 3.5 V",
+      "completeness": "proseOnly",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 5,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cf72dfd0ac69eec6#evidence=ds-cf72dfd0ac69eec6-spec_rows-29"
+    },
+    {
+     "id": "ds-cf72dfd0ac69eec6-spec_rows-30",
+     "kind": "specRow",
+     "parameter": "On resistance",
+     "symbol": null,
+     "section": "TJ = -40\u00b0C to 150\u00b0C, VIN = 3.5 to 28 V (unless otherwise noted)",
+     "group": "HIGH-SIDE MOSFET",
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#onResistance",
+     "value": {
+      "lower": null,
+      "typical": 80.0,
+      "upper": 150.0,
+      "unit": null,
+      "text": null
+     },
+     "regime": "otherRegime",
+     "conditions": {
+      "row": "BOOT-PH = 6 V, VIN = 12 V",
+      "completeness": "proseOnly",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 5,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cf72dfd0ac69eec6#evidence=ds-cf72dfd0ac69eec6-spec_rows-30"
+    },
+    {
+     "id": "ds-cf72dfd0ac69eec6-spec_rows-31",
+     "kind": "specRow",
+     "parameter": "Error amplifier transconductance (gm)",
+     "symbol": null,
+     "section": "TJ = -40\u00b0C to 150\u00b0C, VIN = 3.5 to 28 V (unless otherwise noted)",
+     "group": "ERROR AMPLIFIER",
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#errorAmplifierTransconductanceGm",
+     "value": {
+      "lower": null,
+      "typical": 92.0,
+      "upper": null,
+      "unit": "\u00b5mhos",
+      "text": null
+     },
+     "regime": "otherRegime",
+     "conditions": {
+      "row": "-2 \u03bcA < I(COMP) < 2 \u03bcA, V(COMP) = 1 V",
+      "completeness": "proseOnly",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 5,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cf72dfd0ac69eec6#evidence=ds-cf72dfd0ac69eec6-spec_rows-31"
+    },
+    {
+     "id": "ds-cf72dfd0ac69eec6-spec_rows-32",
+     "kind": "specRow",
+     "parameter": "Error amplifier DC gain (1)",
+     "symbol": null,
+     "section": "TJ = -40\u00b0C to 150\u00b0C, VIN = 3.5 to 28 V (unless otherwise noted)",
+     "group": "ERROR AMPLIFIER",
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#errorAmplifierDcGain1",
+     "value": {
+      "lower": null,
+      "typical": 800.0,
+      "upper": null,
+      "unit": "V/V",
+      "text": null
+     },
+     "regime": "otherRegime",
+     "conditions": {
+      "row": "VSENSE = 0.8 V",
+      "completeness": "proseOnly",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 5,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cf72dfd0ac69eec6#evidence=ds-cf72dfd0ac69eec6-spec_rows-32"
+    },
+    {
+     "id": "ds-cf72dfd0ac69eec6-spec_rows-33",
+     "kind": "specRow",
+     "parameter": "Error amplifier unity gain bandwidth (1)",
+     "symbol": null,
+     "section": "TJ = -40\u00b0C to 150\u00b0C, VIN = 3.5 to 28 V (unless otherwise noted)",
+     "group": "ERROR AMPLIFIER",
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#errorAmplifierUnityGainBandwidth1",
+     "value": {
+      "lower": null,
+      "typical": 2.7,
+      "upper": null,
+      "unit": "MHz",
+      "text": null
+     },
+     "regime": "otherRegime",
+     "conditions": {
+      "row": "5-pF capacitance from COMP to GND pins",
+      "completeness": "proseOnly",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 5,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cf72dfd0ac69eec6#evidence=ds-cf72dfd0ac69eec6-spec_rows-33"
+    },
+    {
+     "id": "ds-cf72dfd0ac69eec6-spec_rows-34",
+     "kind": "specRow",
+     "parameter": "Error amplifier source and sink current",
+     "symbol": null,
+     "section": "TJ = -40\u00b0C to 150\u00b0C, VIN = 3.5 to 28 V (unless otherwise noted)",
+     "group": "ERROR AMPLIFIER",
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#errorAmplifierSourceAndSinkCurrent",
+     "value": {
+      "lower": null,
+      "typical": null,
+      "upper": null,
+      "unit": "\u00b5A",
+      "text": null
+     },
+     "regime": "otherRegime",
+     "conditions": {
+      "row": "V(COMP) = 1 V, 100-mV overdrive",
+      "completeness": "proseOnly",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 5,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "low",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [
+      "value_not_numeric"
+     ],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cf72dfd0ac69eec6#evidence=ds-cf72dfd0ac69eec6-spec_rows-34"
+    },
+    {
+     "id": "ds-cf72dfd0ac69eec6-spec_rows-35",
+     "kind": "specRow",
+     "parameter": "Switch current to COMP transconductance",
+     "symbol": null,
+     "section": "TJ = -40\u00b0C to 150\u00b0C, VIN = 3.5 to 28 V (unless otherwise noted)",
+     "group": "ERROR AMPLIFIER",
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#switchCurrentToCompTransconductance",
+     "value": {
+      "lower": null,
+      "typical": 12.0,
+      "upper": null,
+      "unit": "A/V",
+      "text": null
+     },
+     "regime": "otherRegime",
+     "conditions": {
+      "row": "VIN = 12 V",
+      "completeness": "proseOnly",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 5,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cf72dfd0ac69eec6#evidence=ds-cf72dfd0ac69eec6-spec_rows-35"
+    },
+    {
+     "id": "ds-cf72dfd0ac69eec6-spec_rows-36",
+     "kind": "specRow",
+     "parameter": "Pulse skipping Eco-mode switch current threshold",
+     "symbol": null,
+     "section": "TJ = -40\u00b0C to 150\u00b0C, VIN = 3.5 to 28 V (unless otherwise noted)",
+     "group": "PULSE SKIPPING ECO-MODE",
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#pulseSkippingEcoModeSwitchCurrentThreshold",
+     "value": {
+      "lower": null,
+      "typical": 160.0,
+      "upper": null,
+      "unit": "mA",
+      "text": null
+     },
+     "regime": "otherRegime",
+     "conditions": {
+      "row": null,
+      "completeness": "unknown",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 5,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cf72dfd0ac69eec6#evidence=ds-cf72dfd0ac69eec6-spec_rows-36"
+    },
+    {
+     "id": "ds-cf72dfd0ac69eec6-spec_rows-37",
+     "kind": "specRow",
+     "parameter": "Current-limit threshold",
+     "symbol": null,
+     "section": "TJ = -40\u00b0C to 150\u00b0C, VIN = 3.5 to 28 V (unless otherwise noted)",
+     "group": "CURRENT LIMIT",
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#currentLimitThreshold",
+     "value": {
+      "lower": 3.5,
+      "typical": 5.8,
+      "upper": null,
+      "unit": "A",
+      "text": null
+     },
+     "regime": "otherRegime",
+     "conditions": {
+      "row": "VIN = 12 V",
+      "completeness": "proseOnly",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 5,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "low",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [
+      "unit_maybe_micro"
+     ],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cf72dfd0ac69eec6#evidence=ds-cf72dfd0ac69eec6-spec_rows-37"
+    },
+    {
+     "id": "ds-cf72dfd0ac69eec6-spec_rows-38",
+     "kind": "specRow",
+     "parameter": "Thermal shutdown",
+     "symbol": null,
+     "section": "TJ = -40\u00b0C to 150\u00b0C, VIN = 3.5 to 28 V (unless otherwise noted)",
+     "group": "THERMAL SHUTDOWN",
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#thermalShutdown",
+     "value": {
+      "lower": null,
+      "typical": 165.0,
+      "upper": null,
+      "unit": "\u00b0C",
+      "text": null
+     },
+     "regime": "otherRegime",
+     "conditions": {
+      "row": null,
+      "completeness": "unknown",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 5,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cf72dfd0ac69eec6#evidence=ds-cf72dfd0ac69eec6-spec_rows-38"
+    },
+    {
+     "id": "ds-cf72dfd0ac69eec6-spec_rows-39",
+     "kind": "specRow",
+     "parameter": "Charge current",
+     "symbol": null,
+     "section": "TJ = -40\u00b0C to 150\u00b0C, VIN = 3.5 to 28 V (unless otherwise noted)",
+     "group": "SLOW START (SS PIN)",
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#chargeCurrent",
+     "value": {
+      "lower": null,
+      "typical": 2.0,
+      "upper": null,
+      "unit": "\u00b5A",
+      "text": null
+     },
+     "regime": "otherRegime",
+     "conditions": {
+      "row": "V(SS) = 0.4 V",
+      "completeness": "proseOnly",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 5,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cf72dfd0ac69eec6#evidence=ds-cf72dfd0ac69eec6-spec_rows-39"
+    },
+    {
+     "id": "ds-cf72dfd0ac69eec6-spec_rows-40",
+     "kind": "specRow",
+     "parameter": "SS to VSENSE matching",
+     "symbol": null,
+     "section": "TJ = -40\u00b0C to 150\u00b0C, VIN = 3.5 to 28 V (unless otherwise noted)",
+     "group": "SLOW START (SS PIN)",
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#ssToVsenseMatching",
+     "value": {
+      "lower": null,
+      "typical": 10.0,
+      "upper": null,
+      "unit": "mV",
+      "text": null
+     },
+     "regime": "otherRegime",
+     "conditions": {
+      "row": "V(SS) = 0.4 V",
+      "completeness": "proseOnly",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 5,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cf72dfd0ac69eec6#evidence=ds-cf72dfd0ac69eec6-spec_rows-40"
+    },
+    {
+     "id": "ds-cf72dfd0ac69eec6-spec_rows-41",
+     "kind": "specRow",
+     "parameter": "Switching frequency",
+     "symbol": null,
+     "section": "TJ = -40\u00b0C to 150\u00b0C, VIN = 3.5 to 28 V (unless otherwise noted)",
+     "group": "SWITCHING FREQUENCY",
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#switchingFrequency",
+     "value": {
+      "lower": 456.0,
+      "typical": 570.0,
+      "upper": 684.0,
+      "unit": "kHz",
+      "text": null
+     },
+     "regime": "otherRegime",
+     "conditions": {
+      "row": "VIN = 12 V, 25\u00b0C",
+      "completeness": "proseOnly",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 6,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cf72dfd0ac69eec6#evidence=ds-cf72dfd0ac69eec6-spec_rows-41"
+    },
+    {
+     "id": "ds-cf72dfd0ac69eec6-spec_rows-42",
+     "kind": "specRow",
+     "parameter": "Minimum controllable on time",
+     "symbol": null,
+     "section": "TJ = -40\u00b0C to 150\u00b0C, VIN = 3.5 to 28 V (unless otherwise noted)",
+     "group": "SWITCHING FREQUENCY",
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#minimumControllableOnTime",
+     "value": {
+      "lower": null,
+      "typical": 105.0,
+      "upper": 130.0,
+      "unit": "ns",
+      "text": null
+     },
+     "regime": "otherRegime",
+     "conditions": {
+      "row": "VIN = 12 V, 25\u00b0C",
+      "completeness": "proseOnly",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 6,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cf72dfd0ac69eec6#evidence=ds-cf72dfd0ac69eec6-spec_rows-42"
+    },
+    {
+     "id": "ds-cf72dfd0ac69eec6-spec_rows-43",
+     "kind": "specRow",
+     "parameter": "Maximum controllable duty ratio (1)",
+     "symbol": null,
+     "section": "TJ = -40\u00b0C to 150\u00b0C, VIN = 3.5 to 28 V (unless otherwise noted)",
+     "group": "SWITCHING FREQUENCY",
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#maximumControllableDutyRatio1",
+     "value": {
+      "lower": null,
+      "typical": null,
+      "upper": null,
+      "unit": null,
+      "text": null
+     },
+     "regime": "otherRegime",
+     "conditions": {
+      "row": "BOOT-PH = 6 V",
+      "completeness": "proseOnly",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 6,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "low",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [
+      "value_not_numeric"
+     ],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cf72dfd0ac69eec6#evidence=ds-cf72dfd0ac69eec6-spec_rows-43"
+    }
+   ],
+   "truncated": false
+  }
+ ]
+}

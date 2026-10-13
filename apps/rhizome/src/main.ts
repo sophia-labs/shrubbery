@@ -28,7 +28,7 @@
 import '@shrubbery/tokens/tokens.css'
 import {
   applySkinTheme,
-  nextVisualIdentitySkin,
+  isVisualIdentitySkin,
   type Theme,
   type VisualIdentitySkin,
 } from '@shrubbery/tokens'
@@ -122,8 +122,10 @@ if (bar) {
   bar.badge = GRAPH_ID
   bar.activeSkin = activeSkin
   bar.isDark = false
-  bar.addEventListener('mn-skin-toggle', () => {
-    activeSkin = nextVisualIdentitySkin(activeSkin)
+  bar.addEventListener('mn-skin-select', (event) => {
+    const chosen = (event as CustomEvent<{ skin?: unknown }>).detail?.skin
+    if (!isVisualIdentitySkin(chosen)) return
+    activeSkin = chosen
     applySkinTheme({ skin: activeSkin, theme: activeTheme })
     bar.activeSkin = activeSkin
   })

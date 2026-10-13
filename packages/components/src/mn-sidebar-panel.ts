@@ -28,13 +28,17 @@ import type {
   FilePaneSortChangeDetail,
   FilePaneStorage,
 } from '@shrubbery/nucleus'
+import { rovingToolbar } from '@shrubbery/nucleus/roving-toolbar'
 import { SkinAware } from './skin-aware.js'
-import { icon, iconStyles, type IconName } from './icons.js'
+import { BEVELLED, WINDOW_LISTED } from './bevelled-skins.js'
+import { icon, iconStyles, type IconName, type IconResult } from './icons.js'
 import './mn-badge.js'
+import './mn-file-glyph.js'
 import {
   DEFAULT_FILE_PANE_GROUPING,
   DEFAULT_FILE_PANE_SORT,
   deriveFilePaneColumns,
+  filePaneLifecycle,
   filterFilePaneNodes,
   findFilePaneNode,
   groupFilePaneSections,
@@ -98,6 +102,26 @@ function defaultIcon(kind: MnSidebarNodeKind | undefined): IconName {
   }
 }
 
+/** The icon that says each lifecycle word. A word the table does not know gets the generic `info`. */
+const STATE_ICON: Readonly<Record<string, IconName>> = {
+  uploading: 'loader-circle',
+  processing: 'loader-circle',
+  error: 'alert-circle',
+  failed: 'alert-circle',
+  unavailable: 'file-x',
+}
+
+/** The states that REPLACE a row's leading icon (the loader or the alert stands where the glyph would). */
+const LEADING_STATES = new Set(['uploading', 'processing', 'error'])
+
+const sentenceCase = (word: string) => word.charAt(0).toUpperCase() + word.slice(1)
+
+/** The type a file glyph captions: the producer's file type, else the mime subtype, else none. */
+function fileTypeOf(node: MnSidebarNode): string {
+  const subtype = (node.mimeType ?? node.sourceFile?.mimeType)?.split('/')[1]?.split(/[+;]/)[0]
+  return node.fileType ?? node.sourceFile?.fileType ?? (subtype && subtype !== 'octet-stream' ? subtype : '')
+}
+
 @customElement('mn-sidebar-panel')
 export class MnSidebarPanel extends SkinAware(LitElement) {
   static styles = css`
@@ -113,6 +137,10 @@ export class MnSidebarPanel extends SkinAware(LitElement) {
       background: var(--mn-color-panel-bg, var(--mn-color-surface-panel, #fff));
       font-family: var(--mn-font-utility, system-ui, sans-serif);
       font-size: var(--mn-text-sm, 13px);
+      /* Layout knobs this panel owns. Declared here so the names are defined
+         (a consumer may still set them on the element), not read from nowhere. */
+      --mn-tree-indent: 14px;
+      --mn-section-gap: 16px;
     }
 
     .sidebar-header {
@@ -121,7 +149,7 @@ export class MnSidebarPanel extends SkinAware(LitElement) {
       gap: var(--mn-space-2, 8px);
       min-height: var(--mn-y-slice-1-height, 44px);
       padding: 0 var(--mn-space-3, 12px);
-      border-bottom: var(--mn-panel-header-rule, 1px solid var(--mn-color-rule, #e5e7eb));
+      border-bottom: 1px solid var(--mn-color-rule, #e5e7eb);
       background: color-mix(in srgb, var(--mn-color-surface-chrome, #f3f4f6) 46%, transparent);
       box-sizing: border-box;
       flex: 0 0 auto;
@@ -517,6 +545,26 @@ export class MnSidebarPanel extends SkinAware(LitElement) {
         color var(--mn-transition-fast, 120ms ease);
     }
 
+    .section-head {
+      display: flex;
+      align-items: center;
+      gap: 2px;
+      margin: 0 var(--mn-space-1, 4px) var(--mn-space-1, 4px);
+    }
+
+    .section-head > .section-header {
+      flex: 1 1 auto;
+      min-width: 0;
+      width: auto;
+      margin: 0;
+    }
+
+    .section-head > .section-action {
+      flex: 0 0 auto;
+      width: var(--mn-row-height, 28px);
+      height: var(--mn-row-height, 28px);
+    }
+
     .section-header:hover {
       background: var(--mn-color-surface-hover, #f3f4f6);
       color: var(--mn-color-text-primary, #111827);
@@ -584,7 +632,7 @@ export class MnSidebarPanel extends SkinAware(LitElement) {
       background: var(--mn-color-surface-hover, #f3f4f6);
     }
 
-    .tree-row.focused:not(.selected):not(.active) {
+    .tree:focus-within .tree-row.focused:not(.selected):not(.active) {
       background: color-mix(in srgb, var(--mn-color-surface-hover, #f3f4f6) 72%, transparent);
       box-shadow: inset 0 0 0 1px var(--mn-color-border-focus, #2563eb);
     }
@@ -692,8 +740,12 @@ export class MnSidebarPanel extends SkinAware(LitElement) {
       color: var(--mn-color-info, #2563eb);
     }
 
+    /* A spinner in progress is information, whatever kind of row it is on (the
+       kind rules above colour a folder amber and a file blue; those were for the
+       glyphs they replaced). Error is danger, below. */
     .tree-row[data-status='uploading'] .node-icon,
     .tree-row[data-status='processing'] .node-icon {
+      color: var(--mn-color-info, #2563eb);
       animation: sidebarNodePulse 1.2s ease-in-out infinite;
     }
 
@@ -705,9 +757,29 @@ export class MnSidebarPanel extends SkinAware(LitElement) {
       50% { opacity: 0.45; }
     }
 
+    /* P0.2: the tree guarantees the name. The label never drops below twelve
+       characters (the width the review promised at the default 236px panel),
+       and what follows it, not the name, is what gives way. A ready file draws
+       nothing after its name (see _renderTrail).
+
+       The trail is the name and what follows it, and it is the container a
+       state is judged against: its width is what the row leaves them, whatever
+       the indent, so it asks the right question at every depth. It carries the
+       label's font so its twelve characters are the label's twelve characters. */
+    .trail {
+      display: flex;
+      align-items: center;
+      flex: 1 1 0;
+      min-width: 12ch;
+      container-type: inline-size;
+      container-name: tree-trail;
+      font-family: var(--mn-font-prose, Georgia, serif);
+      letter-spacing: -0.005em;
+    }
+
     .label {
-      flex: 1 1 auto;
-      min-width: 0;
+      flex: 1 1 0;
+      min-width: 12ch;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
@@ -719,7 +791,70 @@ export class MnSidebarPanel extends SkinAware(LitElement) {
        sizing) via its shadow DOM; this host-level rule is spacing only. */
     .badge {
       margin-left: var(--mn-space-2, 8px);
-      flex-shrink: 0;
+      flex: 0 1 auto;
+      min-width: 0;
+      max-width: 45%;
+      overflow: hidden;
+    }
+
+    /* mn-badge's pill is an inline-flex box, which cannot ellipsize its text;
+       as a block it can. The line height is the pill's inner height. */
+    .badge::part(badge) {
+      display: block;
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      line-height: 14px;
+    }
+
+    /* A lifecycle state is two things, and exactly one SHOWS. Wide: the word,
+       whole (it is only shown where it fits beside the name's floor, so it never
+       truncates). Narrow: an icon that names the state in its aria-label and its
+       tooltip. The icon is always in the accessibility tree: where the word
+       shows it is only visually hidden (clipped, not display: none), because the
+       word itself is aria-hidden and the state must be heard in either layout.
+
+       The threshold is the name's floor (twelve characters of the prose face,
+       90 to 98px by skin) plus the gap plus the longest state word as a small
+       badge (up to 91px, 85 to 91 in the widest skins), measured at 191px in
+       Mithras and rounded up with margin. Container queries cannot read custom
+       properties, so it is a literal; the witness measures both sides of it. */
+    .state {
+      display: contents;
+    }
+
+    .badge.state-text {
+      max-width: none;
+      overflow: visible;
+    }
+
+    .state-icon {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      margin: -1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+      color: var(--mn-color-text-secondary, #4b5563);
+      line-height: 0;
+    }
+
+    @container tree-trail (max-width: 204px) {
+      .badge.state-text {
+        display: none;
+      }
+
+      .state-icon {
+        position: static;
+        display: inline-flex;
+        flex: 0 1 auto;
+        width: auto;
+        height: auto;
+        min-width: 0;
+        margin: 0 0 0 var(--mn-space-2, 8px);
+        clip-path: none;
+      }
     }
 
     .node-menu {
@@ -752,25 +887,50 @@ export class MnSidebarPanel extends SkinAware(LitElement) {
       border-radius: var(--mn-radius-control, 0);
     }
 
-    :host([data-skin='98']) {
+    :host(${BEVELLED}) {
       border-right: 2px groove var(--mn-98-face);
       background: var(--mn-98-face);
     }
-    :host([data-skin='98']) :is(.search-input, .sort-select) {
+    :host(${BEVELLED}) :is(.search-input, .sort-select) {
       border: 0;
       border-radius: 0;
       background: var(--mn-color-surface-sunken);
       box-shadow: var(--mn-98-sunken);
     }
-    :host([data-skin='98']) :is(.icon-button, .section-header, .node-menu, .column-row) {
+    :host(${BEVELLED}) :is(.icon-button, .section-header, .node-menu, .column-row) {
       border-radius: 0;
       background: var(--mn-98-face);
       box-shadow: var(--mn-98-raised);
     }
-    :host([data-skin='98']) :is(.tree-row, .column-row):is(:hover, [data-selected='true'], [aria-pressed='true']) {
+    :host(${BEVELLED}) :is(.tree-row, .column-row):is(:hover, [data-selected='true'], [aria-pressed='true']) {
       border-radius: 0;
       background: var(--mn-98-selection);
-      color: #fff;
+      color: var(--mn-98-selection-text, #fff);
+    }
+    /* Windows 3.1 drew lists as list boxes — Window on Window Text — on silver chrome. A listed skin
+       paints its lists from --mn-list-* and the ink inside them follows (folder, artifact and error
+       glyphs, counts, empty text), selection is Highlight on Highlighted Text. */
+    :host(${WINDOW_LISTED}) :is(.section-body, .column-list) {
+      background: var(--mn-list-surface);
+      color: var(--mn-list-ink);
+      --mn-color-text-primary: var(--mn-list-ink);
+      --mn-color-text-secondary: var(--mn-list-ink);
+      --mn-color-text-tertiary: var(--mn-list-ink);
+      --mn-color-text-warning: var(--mn-list-ink);
+      --mn-color-info: var(--mn-list-ink);
+      --mn-color-danger: var(--mn-list-ink);
+      --mn-color-surface-hover: var(--mn-list-hover);
+      --mn-color-surface-sunken: var(--mn-list-hover);
+      --mn-color-surface-accent-strong: var(--mn-list-selected-surface);
+      --mn-color-text-accent: var(--mn-list-selected-ink);
+      --mn-color-border-accent: var(--mn-list-selected-ink);
+      --mn-color-border-focus: var(--mn-list-ink);
+      --mn-98-selection: var(--mn-list-selected-surface);
+      --mn-98-selection-text: var(--mn-list-selected-ink);
+    }
+    /* The highlight would swallow a state icon drawn in its colour: on a highlighted row they take its ink. */
+    :host(${BEVELLED}) :is(.tree-row, .column-row):is(:hover, [data-selected='true'], [aria-pressed='true']) :is(.node-icon, .state-icon) {
+      color: inherit;
     }
     :host([data-skin='glass']) {
       border-right: 1px solid var(--mn-color-border-default);
@@ -897,6 +1057,12 @@ export class MnSidebarPanel extends SkinAware(LitElement) {
     return section.collapsed ?? this.locallyCollapsed.has(section.id)
   }
 
+  protected override updated(changed: PropertyValues<this>): void {
+    super.updated(changed)
+    // The sidebar's action and organization controls are one toolbar, one Tab stop (arrows move inside it).
+    rovingToolbar(...Array.from(this.renderRoot.querySelectorAll('[role="toolbar"]')) as [Element, ...Element[]])
+  }
+
   protected override willUpdate(changed: PropertyValues<this>): void {
     super.willUpdate(changed)
     const changedKeys = changed as ReadonlyMap<PropertyKey, unknown>
@@ -934,7 +1100,7 @@ export class MnSidebarPanel extends SkinAware(LitElement) {
     const visible: VisibleSidebarNode[] = []
     const sections = this._displaySections()
     if (this._resolvedPresentation() === 'columns') {
-      for (const section of sections.filter(candidate => candidate.id === 'documents' || candidate.id === 'artifacts')) {
+      for (const section of sections.filter(candidate => candidate.id === 'documents' || candidate.id === 'artifacts' || candidate.id === 'tree')) {
         for (const [level, column] of deriveFilePaneColumns(section, this._columnPath(section.id), this.sort).entries()) {
           column.nodes.forEach((node, siblingIndex) => {
             visible.push({ node, level, siblingIndex, siblingCount: column.nodes.length })
@@ -1087,6 +1253,7 @@ export class MnSidebarPanel extends SkinAware(LitElement) {
 
   private _onNodeKeyDown(event: KeyboardEvent, node: MnSidebarNode): void {
     if (event.target !== event.currentTarget) return
+    if (this._onNodeMenuKeyDown(event, node)) return
     switch (event.key) {
       case 'ArrowDown':
         event.preventDefault()
@@ -1182,8 +1349,15 @@ export class MnSidebarPanel extends SkinAware(LitElement) {
     this._emit<MnSidebarNodeDetail>('mn-sidebar-node-toggle', { id: node.id, node })
   }
 
-  private _nodeMenu(event: MouseEvent, node: MnSidebarNode): void {
+  private _nodeMenu(event: MouseEvent | KeyboardEvent, node: MnSidebarNode): void {
     event.stopPropagation()
+    // A context-menu pointer names a viewport point; a button or keyboard
+    // activation names an element. Do not turn an Enter click's (0,0) into
+    // an invented cursor, or center the menu on the ellipsis button.
+    const pointer = event instanceof MouseEvent && event.type === 'contextmenu'
+      && (event.button === 2 || event.clientX !== 0 || event.clientY !== 0)
+    const rect = event.currentTarget instanceof HTMLElement
+      ? event.currentTarget.getBoundingClientRect() : null
     const selected = this._selectedIdSet()
     const nodes = selected.has(node.id) && selected.size > 1
       ? this._selectionNodes(selected)
@@ -1194,9 +1368,19 @@ export class MnSidebarPanel extends SkinAware(LitElement) {
       node,
       nodeIds: nodes.map(candidate => candidate.id),
       nodes,
-      clientX: event.clientX,
-      clientY: event.clientY,
+      clientX: pointer ? event.clientX : rect?.left,
+      clientY: pointer ? event.clientY : rect?.bottom,
     })
+  }
+
+  private _onNodeMenuKeyDown(event: KeyboardEvent, node: MnSidebarNode): boolean {
+    if (event.key !== 'ContextMenu' && !(event.key === 'F10' && event.shiftKey)) return false
+    if (node.disabled || !this._hasCapability('contextMenu')) return false
+    event.preventDefault()
+    this.focusedNodeId = node.id
+    if (!this._selectedIdSet().has(node.id)) this._commitSelection(new Set([node.id]), node.id)
+    this._nodeMenu(event, node)
+    return true
   }
 
   private _nodeAction(action: 'rename' | 'delete', node: MnSidebarNode): void {
@@ -1275,7 +1459,7 @@ export class MnSidebarPanel extends SkinAware(LitElement) {
     return this._hasCapability('dragDrop')
       && !node.disabled
       && !node.readOnly
-      && (node.kind === 'document' || node.kind === 'folder')
+      && (node.kind === 'document' || node.kind === 'folder' || (node.kind === 'artifact' && !node.id.startsWith('zot-')))
   }
 
   private _onDragStart(event: DragEvent, node: MnSidebarNode): void {
@@ -1371,7 +1555,11 @@ export class MnSidebarPanel extends SkinAware(LitElement) {
     })
   }
 
-  private _toggleGrouping(key: keyof MnSidebarGrouping): void {
+  private _setKindFilter(kind: 'all' | 'documents' | 'files'): void {
+    this._emit<MnSidebarGroupingChangeDetail>('mn-sidebar-grouping-change', { grouping: { ...this.grouping, kind } })
+  }
+
+  private _toggleGrouping(key: 'separateArtifacts' | 'showFolders'): void {
     this._emit<MnSidebarGroupingChangeDetail>('mn-sidebar-grouping-change', {
       grouping: { ...this.grouping, [key]: !this.grouping[key] },
     })
@@ -1423,6 +1611,7 @@ export class MnSidebarPanel extends SkinAware(LitElement) {
     columnIndex: number,
   ): void {
     if (event.target !== event.currentTarget) return
+    if (this._onNodeMenuKeyDown(event, node)) return
     if (event.key === 'Enter' || (event.key === 'ArrowRight' && node.kind === 'folder')) {
       event.preventDefault()
       this._onColumnNodeClick(new MouseEvent('click'), section, node, columnIndex)
@@ -1437,6 +1626,60 @@ export class MnSidebarPanel extends SkinAware(LitElement) {
     }
   }
 
+  /**
+   * The leading icon cell of a row, and the state it stands for when it is one.
+   * A state that replaces the glyph (uploading and processing draw the spinner,
+   * error the alert) IS the row's state icon, so it carries the name and the
+   * tooltip. Otherwise a folder or a file is the one glyph the Files tree, list
+   * and canvas share, selected in accent and never decorated in it. A producer's
+   * own icon choice still wins: only the generic defaults (the diamond, the
+   * plain folder) give way to the glyph.
+   */
+  private _leadingIcon(
+    node: MnSidebarNode, kind: MnSidebarNodeKind, selected: boolean, size: number,
+  ): { readonly icon: TemplateResult | IconResult; readonly state: string | null } {
+    const state = filePaneLifecycle(node)
+    const word = state?.toLowerCase() ?? ''
+    if (state && LEADING_STATES.has(word)) return { icon: icon(STATE_ICON[word]!, { size }), state: sentenceCase(state) }
+    const generic = !node.icon || node.icon === defaultIcon(kind)
+    if (generic && (kind === 'folder' || kind === 'artifact')) {
+      return { icon: html`<mn-file-glyph kind=${kind === 'folder' ? 'folder' : 'file'} type=${fileTypeOf(node)} size="16"
+        ?selected=${selected}></mn-file-glyph>`, state: null }
+    }
+    return { icon: icon((node.icon ?? defaultIcon(kind)) as IconName, { size }), state: null }
+  }
+
+  /**
+   * What follows a row's name. A lifecycle state is drawn twice, and CSS picks
+   * one (see `.trail`): the word in a badge where the trail is wide enough for
+   * the whole word beside the name's twelve-character floor, otherwise an icon
+   * that names the state (aria-label and tooltip), never a word cut to "UN…".
+   * The badge is aria-hidden: the icon is the one thing assistive technology
+   * hears, in either layout. Where the state already replaced the leading icon
+   * there is no second icon; the leading one is the state.
+   *
+   * A badge a producer chose (a document's Pending or Parked, a type) is its own
+   * text: it shrinks and ellipsizes, and its whole word rides in its title. When
+   * production sends a state as both `status` and `badge` (artifactBadge does),
+   * that is one state, not two things to show.
+   */
+  private _renderTrail(node: MnSidebarNode, leadingIsState: boolean): TemplateResult | typeof nothing {
+    const state = filePaneLifecycle(node)
+    const explicit = node.badge && node.badge.trim().toLowerCase() !== state?.toLowerCase() ? node.badge : null
+    if (explicit) {
+      return html`<mn-badge class="badge" part="badge" size="sm" state=${node.badgeTone ?? 'neutral'} label=${explicit}
+        title=${explicit} data-source-state=${node.sourceState ?? nothing}></mn-badge>`
+    }
+    if (!state) return nothing
+    const name = sentenceCase(state)
+    // One wrapping element, not two bare siblings: a template that ends in a binding is mis-parsed by
+    // happy-dom (this package's test engine, and the SSR face), which drops the part. `.state` is
+    // display: contents, so the pair still lays out in the trail.
+    return html`<span class="state"><mn-badge class="badge state-text" part="badge" size="sm" state=${node.badgeTone ?? 'neutral'}
+      label=${state} aria-hidden="true" data-source-state=${node.sourceState ?? nothing}></mn-badge>${leadingIsState ? nothing
+      : html`<span class="state-icon" role="img" aria-label=${name} title=${name}>${icon(STATE_ICON[state.toLowerCase()] ?? 'info', { size: 14 })}</span>`}</span>`
+  }
+
   private _renderColumnNode(
     section: MnSidebarSection,
     node: MnSidebarNode,
@@ -1446,11 +1689,7 @@ export class MnSidebarPanel extends SkinAware(LitElement) {
     const active = node.active || node.id === this.activeId
     const pathSelected = this._columnPath(section.id)[columnIndex] === node.id
     const kind = node.kind ?? 'document'
-    const nodeIcon = node.status === 'uploading' || node.status === 'processing'
-      ? 'loader'
-      : node.status === 'error'
-        ? 'alert-circle'
-        : node.icon ?? defaultIcon(kind)
+    const lead = this._leadingIcon(node, kind, selected || active, 15)
     return html`
       <button
         type="button"
@@ -1477,18 +1716,9 @@ export class MnSidebarPanel extends SkinAware(LitElement) {
         @dragleave=${(event: DragEvent) => this._onDragLeave(event, node)}
         @drop=${(event: DragEvent) => this._onDrop(event, node)}
       >
-        <span class="node-icon" aria-hidden="true">${icon(nodeIcon as IconName, { size: 15 })}</span>
-        <span class="column-label">${node.label}</span>
-        ${node.badge || node.status
-          ? html`<mn-badge
-              class="badge"
-              part="badge"
-              size="sm"
-              state=${node.badgeTone ?? 'neutral'}
-              label=${node.badge ?? node.status ?? ''}
-              data-source-state=${node.sourceState ?? nothing}
-            ></mn-badge>`
-          : nothing}
+        <span class="node-icon" role=${lead.state ? 'img' : nothing} aria-label=${lead.state ?? nothing}
+          title=${lead.state ?? nothing} aria-hidden=${lead.state ? nothing : 'true'}>${lead.icon}</span>
+        <span class="trail"><span class="column-label">${node.label}</span>${this._renderTrail(node, lead.state !== null)}</span>
         ${node.kind === 'folder'
           ? html`<span class="column-chevron" aria-hidden="true">${icon('chevron-right', { size: 14 })}</span>`
           : nothing}
@@ -1525,7 +1755,7 @@ export class MnSidebarPanel extends SkinAware(LitElement) {
   private _renderControls(): TemplateResult | typeof nothing {
     if (!this._hasCapability('sort') && !this._hasCapability('group')) return nothing
     return html`
-      <div class="sidebar-controls" aria-label="File organization controls">
+      <div class="sidebar-controls" role="toolbar" aria-label="File organization controls">
         ${this._hasCapability('sort')
           ? html`
               <select
@@ -1553,14 +1783,17 @@ export class MnSidebarPanel extends SkinAware(LitElement) {
           : nothing}
         ${this._hasCapability('group')
           ? html`
-              <button
-                type="button"
-                class="icon-button control-toggle"
-                aria-label="Separate artifacts"
-                title="Separate artifacts"
-                aria-pressed=${String(this.grouping.separateArtifacts)}
-                @click=${() => this._toggleGrouping('separateArtifacts')}
-              >${icon('layers', { size: 15 })}</button>
+              <select
+                class="sort-select kind-select"
+                aria-label="Show"
+                title="Show"
+                .value=${this.grouping.kind ?? 'all'}
+                @change=${(event: Event) => this._setKindFilter((event.target as HTMLSelectElement).value as 'all' | 'documents' | 'files')}
+              >
+                <option value="all">All</option>
+                <option value="documents">Documents</option>
+                <option value="files">Files</option>
+              </select>
               <button
                 type="button"
                 class="icon-button control-toggle"
@@ -1658,7 +1891,7 @@ export class MnSidebarPanel extends SkinAware(LitElement) {
     return html`
       <div class="state-surface" data-sidebar-state=${this.status} role=${this.status === 'error' ? 'alert' : 'status'}>
         <div class="state-card">
-          ${icon(this.status === 'error' ? 'alert-circle' : this.status === 'idle' ? 'folder' : 'loader', { size: 22 })}
+          ${icon(this.status === 'error' ? 'alert-circle' : this.status === 'idle' ? 'folder' : 'loader-circle', { size: 22 })}
           <div class="state-title">${title}</div>
           <div>${copy}</div>
           ${this.status === 'error' && this._hasCapability('refresh')
@@ -1697,11 +1930,7 @@ export class MnSidebarPanel extends SkinAware(LitElement) {
     const dropBefore = node.id === this.dropTargetId && this.dropPosition === 'before'
     const dropInside = node.id === this.dropTargetId && this.dropPosition === 'inside'
     const dropAfter = node.id === this.dropTargetId && this.dropPosition === 'after'
-    const nodeIcon = node.status === 'uploading' || node.status === 'processing'
-      ? 'loader'
-      : node.status === 'error'
-        ? 'alert-circle'
-        : node.icon ?? defaultIcon(kind)
+    const lead = this._leadingIcon(node, kind, selected || active, 16)
     const row = html`
       <div
         class=${classMap({
@@ -1758,25 +1987,17 @@ export class MnSidebarPanel extends SkinAware(LitElement) {
         >
           ${icon('chevron-right', { size: 14 })}
         </button>
-        <span class="node-icon" aria-hidden="true">
-          ${icon(nodeIcon as IconName, { size: 16 })}
+        <span class="node-icon" role=${lead.state ? 'img' : nothing} aria-label=${lead.state ?? nothing}
+          title=${lead.state ?? nothing} aria-hidden=${lead.state ? nothing : 'true'}>
+          ${lead.icon}
         </span>
-        <span class="label">${node.label}</span>
-        ${node.badge || node.status
-          ? html`<mn-badge
-              class="badge"
-              part="badge"
-              size="sm"
-              state=${node.badgeTone ?? 'neutral'}
-              label=${node.badge ?? node.status ?? ''}
-              data-source-state=${node.sourceState ?? nothing}
-            ></mn-badge>`
-          : nothing}
+        <span class="trail"><span class="label">${node.label}</span>${this._renderTrail(node, lead.state !== null)}</span>
         ${typeof node.count === 'number' ? html`<span class="node-count">${node.count}</span>` : nothing}
         ${this._hasCapability('contextMenu')
           ? html`<button
               type="button"
               class="node-menu icon-button"
+              tabindex="-1"
               aria-label="Node actions"
               @click=${(event: MouseEvent) => this._nodeMenu(event, node)}
             >
@@ -1798,9 +2019,7 @@ export class MnSidebarPanel extends SkinAware(LitElement) {
     const nodes = filterFilePaneNodes(section.nodes ?? [], query)
     const collapsed = this._sectionCollapsed(section)
     const count = this._sectionCount(section, nodes)
-    return html`
-      <section class="section" data-section-id=${section.id}>
-        <button
+    const header = html`<button
           type="button"
           class="section-header"
           aria-expanded=${collapsed ? 'false' : 'true'}
@@ -1811,7 +2030,24 @@ export class MnSidebarPanel extends SkinAware(LitElement) {
             <span>${section.label}</span>
           </span>
           ${count === null ? nothing : html`<span class="section-count">${count}</span>`}
-        </button>
+        </button>`
+    // A section's one action sits beside its header, never inside it (a button may not hold a button).
+    const action = section.action
+    return html`
+      <section class="section" data-section-id=${section.id}>
+        ${action
+          ? html`<div class="section-head">${header}<button
+              type="button"
+              class="icon-button section-action"
+              data-action-id=${action.id}
+              aria-label=${action.label}
+              title=${action.label}
+              @click=${(event: Event) => {
+                event.stopPropagation()
+                this._emit('mn-sidebar-section-action', { sectionId: section.id, actionId: action.id, section })
+              }}
+            >${icon((action.icon ?? 'external-link') as IconName, { size: 14 })}</button></div>`
+          : header}
         <div class="section-body" ?hidden=${collapsed}>
           ${nodes.length > 0
             ? html`<div class="tree" role="tree">
@@ -1832,7 +2068,7 @@ export class MnSidebarPanel extends SkinAware(LitElement) {
     const resolvedPresentation = this._resolvedPresentation()
     const unavailable = this._renderUnavailableState()
     const columnSections = sections.filter(section =>
-      section.id === 'documents' || (section.id === 'artifacts' && this.grouping.separateArtifacts),
+      section.id === 'documents' || section.id === 'tree' || (section.id === 'artifacts' && this.grouping.separateArtifacts),
     )
     const controls = this._renderControls()
     const operationalBanner = this._renderOperationalBanner()
@@ -1866,7 +2102,7 @@ export class MnSidebarPanel extends SkinAware(LitElement) {
         </label>
         ${this.showHeaderActions
           ? html`
-              <div class="header-actions">
+              <div class="header-actions" role="toolbar" aria-label="File actions">
                 ${this._hasCapability('createDocument')
                   ? html`<button
                       type="button"

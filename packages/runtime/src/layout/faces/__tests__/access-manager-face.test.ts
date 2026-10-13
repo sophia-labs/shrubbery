@@ -14,7 +14,7 @@
  * `AccessGrantService`. The real component's own rendering is proven by a
  * real-Chromium proof, not here.
  */
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { deepFreeze, type LayoutDocument } from '@shrubbery/nucleus/layout'
 import { FaceRegistry } from '../../face-registry.js'
 import { LayoutResourceBroker } from '../../resource-broker.js'
@@ -44,34 +44,26 @@ interface MnAccessManagerLike extends HTMLElement {
 
 /** A real, in-memory-backed HTTP fake — genuine `fetch`/`Response`/status-code semantics (this file's own header), not a stubbed return value. Mirrors `apps/organism/src/harness/access-main.ts`'s own `backendFetch` pattern. */
 function realAccessBackend(seed: readonly AccessGrantEntry[]) {
-  const grants = new Map(seed.map((grant) => [grant.userId, grant]))
+  const grants = new Map(seed.filter(row => row.role !== 'owner').map(row => [row.userId, row]))
   const calls: { method: string; url: string; body?: unknown }[] = []
-  const fetchImpl: typeof fetch = (async (input, init = {}) => {
+  const fetchImpl: typeof fetch = async (input, init = {}) => {
     const url = new URL(String(input))
     const method = init.method ?? 'GET'
-    calls.push({ method, url: url.pathname, body: init.body ? JSON.parse(String(init.body)) : undefined })
-    const match = url.pathname.match(/^\/graphs\/([^/]+)\/access(?:\/([^/]+))?$/u)
-    if (!match) return new Response('{"error":"unhandled"}', { status: 404 })
-    const userId = match[2] ? decodeURIComponent(match[2]) : null
-    if (method === 'GET' && !userId) return new Response(JSON.stringify([...grants.values()]), { status: 200 })
-    if (method === 'PUT' && userId) {
-      const body = JSON.parse(String(init.body ?? '{}')) as { role: 'viewer' | 'editor'; email?: string; displayName?: string }
-      grants.set(userId, {
-        userId,
-        role: body.role,
-        grantedAt: '2026-07-17T00:00:00Z',
-        grantedBy: 'owner-1',
-        ...(body.email ? { email: body.email } : {}),
-        ...(body.displayName ? { displayName: body.displayName } : {}),
-      })
-      return new Response(null, { status: 204 })
-    }
-    if (method === 'DELETE' && userId) {
-      grants.delete(userId)
-      return new Response(null, { status: 204 })
-    }
-    return new Response('{"error":"method not allowed"}', { status: 405 })
-  }) as typeof fetch
+    const body = init.body ? JSON.parse(String(init.body)) : undefined
+    calls.push({ method, url: url.pathname, body })
+    if (url.pathname === '/graphs') return Response.json(['graph-a', 'graph-b'].map(graphId => ({ graphId, owner: 'user:owner-1', role: 'owner', title: graphId, cellState: 'running' })))
+    if (url.pathname !== '/control/mcp' || method !== 'POST') return Response.json({ error: 'unhandled route' }, { status: 404 })
+    const args = body.params.arguments
+    const wire = (row: AccessGrantEntry) => ({ graph: { owner: args.owner, graphId: args.graphId }, generation: 1, principal: row.userId, role: row.role, grantedAtMs: Date.parse(row.grantedAt), grantedBy: row.grantedBy })
+    let value: unknown
+    if (args.action === 'list') value = [...grants.values()].map(wire)
+    else if (args.action === 'grant') {
+      const row = { userId: args.principal, role: args.role, grantedAt: '2026-09-06T00:00:00.000Z', grantedBy: 'user:owner-1' }
+      grants.set(row.userId, row)
+      value = wire(row)
+    } else { grants.delete(args.principal); value = { revoked: true } }
+    return Response.json({ jsonrpc: '2.0', id: body.id, result: { structuredContent: value, isError: false } })
+  }
   const transport: WorkspaceGatewayTransport = { resolveGatewayBaseUrl: () => 'https://gw.test', headers: () => ({}) }
   return { service: createAccessGrantService(transport, fetchImpl), calls, grants }
 }
@@ -84,7 +76,7 @@ async function waitFor(predicate: () => boolean, timeoutMs = 2000): Promise<void
   }
 }
 
-function accessLeaf(graphId: string, graphTitle?: string): LayoutDocument {
+function accessLeaf(graphId: string, graphTitle?: string, descriptorRevision = 0): LayoutDocument {
   return deepFreeze({
     schemaVersion: 1,
     layoutId: 'access-manager-only',
@@ -101,7 +93,7 @@ function accessLeaf(graphId: string, graphTitle?: string): LayoutDocument {
           resource: { kind: 'graph', graphId },
           ...(graphTitle ? { params: { graphTitle } } : {}),
         },
-        descriptorRevision: 0,
+        descriptorRevision,
       },
     },
     createdAt: '2026-07-17T00:00:00.000Z',
@@ -109,8 +101,8 @@ function accessLeaf(graphId: string, graphTitle?: string): LayoutDocument {
   })
 }
 
-const OWNER: AccessGrantEntry = { userId: 'owner-1', role: 'owner', grantedAt: '2026-07-10T12:00:00Z', grantedBy: 'owner-1', displayName: 'Vera Owner' }
-const EDITOR: AccessGrantEntry = { userId: 'editor-2', role: 'editor', grantedAt: '2026-07-10T12:01:00Z', grantedBy: 'owner-1', displayName: 'Eddie Editor' }
+const OWNER: AccessGrantEntry = { userId: 'user:owner-1', role: 'owner', grantedAt: '2026-07-10T12:00:00Z', grantedBy: 'user:owner-1', displayName: 'Vera Owner' }
+const EDITOR: AccessGrantEntry = { userId: 'user:editor-2', role: 'editor', grantedAt: '2026-07-10T12:01:00Z', grantedBy: 'user:owner-1', displayName: 'Eddie Editor' }
 
 let root: HTMLElement
 
@@ -155,7 +147,7 @@ describe('access.manager — mounted via the real LayoutInterpreter', () => {
 
   it('mounts the real <mn-access-manager> in embedded mode with real fetched grants and a resolved owner role', async () => {
     const { service } = realAccessBackend([OWNER, EDITOR])
-    const interpreter = buildVehicle(service, () => 'owner-1')
+    const interpreter = buildVehicle(service, () => 'user:owner-1')
 
     const result = await interpreter.reconcile(accessLeaf('graph-a', 'Research Garden'), { width: 800, height: 600 })
     expect(result.ok).toBe(true)
@@ -167,14 +159,14 @@ describe('access.manager — mounted via the real LayoutInterpreter', () => {
     expect(el.model?.graphTitle).toBe('Research Garden')
     expect(el.model?.status).toBe('ready')
     expect(el.model?.currentRole).toBe('owner')
-    expect(el.model?.grants.map((g) => g.userId)).toEqual(['owner-1', 'editor-2'])
+    expect(el.model?.grants.map((g) => g.userId)).toEqual(['user:editor-2'])
 
     await interpreter.dispose()
   })
 
   it('falls back to graphId when no graphTitle param is supplied', async () => {
     const { service } = realAccessBackend([OWNER])
-    const interpreter = buildVehicle(service, () => 'owner-1')
+    const interpreter = buildVehicle(service, () => 'user:owner-1')
     await interpreter.reconcile(accessLeaf('graph-b'), { width: 800, height: 600 })
     const el = interpreter.leafWrapperElement('access')!.querySelector('mn-access-manager') as MnAccessManagerLike
     expect(el.model?.graphTitle).toBe('graph-b')
@@ -190,35 +182,35 @@ describe('access.manager — mounted via the real LayoutInterpreter', () => {
     await interpreter.dispose()
   })
 
-  it('a real mn-access-add round-trips through PUT + refetch, driven by a real dispatched panel event', async () => {
+  it('a real mn-access-add round-trips through canonical grant + refetch, driven by a real dispatched panel event', async () => {
     const { service, calls } = realAccessBackend([OWNER])
-    const interpreter = buildVehicle(service, () => 'owner-1')
+    const interpreter = buildVehicle(service, () => 'user:owner-1')
     await interpreter.reconcile(accessLeaf('graph-a'), { width: 800, height: 600 })
     const el = interpreter.leafWrapperElement('access')!.querySelector('mn-access-manager') as MnAccessManagerLike
 
     el.dispatchEvent(new CustomEvent('mn-access-add', {
       bubbles: true,
-      detail: { userId: 'viewer-3', role: 'viewer', email: 'v@example.test' },
+      detail: { userId: 'user:viewer-3', role: 'viewer' },
     }))
-    await waitFor(() => (el.model?.grants.length ?? 0) === 2)
+    await waitFor(() => (el.model?.grants.length ?? 0) === 1)
 
-    expect(el.model?.grants.map((g) => g.userId)).toEqual(['owner-1', 'viewer-3'])
+    expect(el.model?.grants.map((g) => g.userId)).toEqual(['user:viewer-3'])
     expect(el.model?.notice).toMatch(/Added/)
-    expect(calls.some((c) => c.method === 'PUT' && c.url === '/graphs/graph-a/access/viewer-3')).toBe(true)
+    expect(calls.some(c => c.method === 'POST' && c.url === '/control/mcp' && JSON.stringify(c.body).includes('"action":"grant"'))).toBe(true)
 
     await interpreter.dispose()
   })
 
-  it('a real mn-access-remove round-trips through DELETE + refetch', async () => {
+  it('a real mn-access-remove round-trips through canonical revoke + refetch', async () => {
     const { service } = realAccessBackend([OWNER, EDITOR])
-    const interpreter = buildVehicle(service, () => 'owner-1')
+    const interpreter = buildVehicle(service, () => 'user:owner-1')
     await interpreter.reconcile(accessLeaf('graph-a'), { width: 800, height: 600 })
     const el = interpreter.leafWrapperElement('access')!.querySelector('mn-access-manager') as MnAccessManagerLike
-    await waitFor(() => (el.model?.grants.length ?? 0) === 2)
-
-    el.dispatchEvent(new CustomEvent('mn-access-remove', { bubbles: true, detail: { userId: 'editor-2' } }))
     await waitFor(() => (el.model?.grants.length ?? 0) === 1)
-    expect(el.model?.grants.map((g) => g.userId)).toEqual(['owner-1'])
+
+    el.dispatchEvent(new CustomEvent('mn-access-remove', { bubbles: true, detail: { userId: 'user:editor-2' } }))
+    await waitFor(() => (el.model?.grants.length ?? 0) === 0)
+    expect(el.model?.grants.map((g) => g.userId)).toEqual([])
     expect(el.model?.notice).toMatch(/Removed/)
 
     await interpreter.dispose()
@@ -227,15 +219,15 @@ describe('access.manager — mounted via the real LayoutInterpreter', () => {
   it('a REQUIRED confirmRemove gate blocks removal when it resolves false', async () => {
     const { service } = realAccessBackend([OWNER, EDITOR])
     let confirmCalls = 0
-    const interpreter = buildVehicle(service, () => 'owner-1', async () => { confirmCalls += 1; return false })
+    const interpreter = buildVehicle(service, () => 'user:owner-1', async () => { confirmCalls += 1; return false })
     await interpreter.reconcile(accessLeaf('graph-a'), { width: 800, height: 600 })
     const el = interpreter.leafWrapperElement('access')!.querySelector('mn-access-manager') as MnAccessManagerLike
-    await waitFor(() => (el.model?.grants.length ?? 0) === 2)
+    await waitFor(() => (el.model?.grants.length ?? 0) === 1)
 
-    el.dispatchEvent(new CustomEvent('mn-access-remove', { bubbles: true, detail: { userId: 'editor-2' } }))
+    el.dispatchEvent(new CustomEvent('mn-access-remove', { bubbles: true, detail: { userId: 'user:editor-2' } }))
     await new Promise((resolve) => setTimeout(resolve, 20))
     expect(confirmCalls).toBe(1)
-    expect(el.model?.grants.map((g) => g.userId)).toEqual(['owner-1', 'editor-2'])
+    expect(el.model?.grants.map((g) => g.userId)).toEqual(['user:editor-2'])
 
     await interpreter.dispose()
   })
@@ -243,13 +235,13 @@ describe('access.manager — mounted via the real LayoutInterpreter', () => {
   it('a non-owner mutation attempt is rejected client-side with an honest error, no request sent (checked BEFORE the owner-grant guard, matching real remove() ordering)', async () => {
     const { service, calls } = realAccessBackend([OWNER, EDITOR])
     let confirmCalls = 0
-    const interpreter = buildVehicle(service, () => 'editor-2', async () => { confirmCalls += 1; return true })
+    const interpreter = buildVehicle(service, () => 'user:editor-2', async () => { confirmCalls += 1; return true })
     await interpreter.reconcile(accessLeaf('graph-a'), { width: 800, height: 600 })
     const el = interpreter.leafWrapperElement('access')!.querySelector('mn-access-manager') as MnAccessManagerLike
-    await waitFor(() => (el.model?.grants.length ?? 0) === 2)
+    await waitFor(() => (el.model?.grants.length ?? 0) === 1)
     const priorCalls = calls.length
 
-    el.dispatchEvent(new CustomEvent('mn-access-remove', { bubbles: true, detail: { userId: 'owner-1' } }))
+    el.dispatchEvent(new CustomEvent('mn-access-remove', { bubbles: true, detail: { userId: 'user:owner-1' } }))
     await new Promise((resolve) => setTimeout(resolve, 20))
     expect(el.model?.error).toMatch(/Only the workspace owner/)
     expect(calls.length).toBe(priorCalls)
@@ -261,13 +253,13 @@ describe('access.manager — mounted via the real LayoutInterpreter', () => {
   it('an owner CURRENT USER still cannot remove the owner grant itself — the owner-grant guard, distinct from the current-user guard (wave1 review r1 WRONG fix)', async () => {
     const { service, calls } = realAccessBackend([OWNER, EDITOR])
     let confirmCalls = 0
-    const interpreter = buildVehicle(service, () => 'owner-1', async () => { confirmCalls += 1; return true })
+    const interpreter = buildVehicle(service, () => 'user:owner-1', async () => { confirmCalls += 1; return true })
     await interpreter.reconcile(accessLeaf('graph-a'), { width: 800, height: 600 })
     const el = interpreter.leafWrapperElement('access')!.querySelector('mn-access-manager') as MnAccessManagerLike
-    await waitFor(() => (el.model?.grants.length ?? 0) === 2)
+    await waitFor(() => (el.model?.grants.length ?? 0) === 1)
     const priorCalls = calls.length
 
-    el.dispatchEvent(new CustomEvent('mn-access-remove', { bubbles: true, detail: { userId: 'owner-1' } }))
+    el.dispatchEvent(new CustomEvent('mn-access-remove', { bubbles: true, detail: { userId: 'user:owner-1' } }))
     await new Promise((resolve) => setTimeout(resolve, 20))
     expect(el.model?.error).toBe('The owner grant cannot be removed.')
     expect(calls.length).toBe(priorCalls)
@@ -278,17 +270,56 @@ describe('access.manager — mounted via the real LayoutInterpreter', () => {
 
   it('an owner role-change attempt on the owner grant is rejected client-side, no request sent (wave1 review r1 WRONG fix)', async () => {
     const { service, calls } = realAccessBackend([OWNER, EDITOR])
-    const interpreter = buildVehicle(service, () => 'owner-1')
+    const interpreter = buildVehicle(service, () => 'user:owner-1')
     await interpreter.reconcile(accessLeaf('graph-a'), { width: 800, height: 600 })
     const el = interpreter.leafWrapperElement('access')!.querySelector('mn-access-manager') as MnAccessManagerLike
-    await waitFor(() => (el.model?.grants.length ?? 0) === 2)
+    await waitFor(() => (el.model?.grants.length ?? 0) === 1)
     const priorCalls = calls.length
 
-    el.dispatchEvent(new CustomEvent('mn-access-role-change', { bubbles: true, detail: { userId: 'owner-1', role: 'viewer' } }))
+    el.dispatchEvent(new CustomEvent('mn-access-role-change', { bubbles: true, detail: { userId: 'user:owner-1', role: 'viewer' } }))
     await new Promise((resolve) => setTimeout(resolve, 20))
     expect(el.model?.error).toBe('The owner grant cannot be changed through the member access API.')
     expect(calls.length).toBe(priorCalls)
 
+    await interpreter.dispose()
+  })
+
+  it.each(['stale', 'refused'] as const)('does not publish success for an accepted grant followed by a %s reload', async kind => {
+    const { service, grants } = realAccessBackend([])
+    const interpreter = buildVehicle(service, () => 'owner-1')
+    await interpreter.reconcile(accessLeaf('graph-a'), { width: 800, height: 600 })
+    const el = interpreter.leafWrapperElement('access')!.querySelector('mn-access-manager') as MnAccessManagerLike
+    expect(el.model?.currentRole).toBe('owner')
+    const list = vi.spyOn(service, 'list')
+    if (kind === 'stale') list.mockResolvedValueOnce([])
+    else list.mockRejectedValueOnce(new Error('synthetic reload refusal'))
+    el.dispatchEvent(new CustomEvent('mn-access-add', { detail: { userId: 'user:reader', role: 'viewer' } }))
+    await waitFor(() => el.model?.status === 'error')
+    expect(grants.has('user:reader')).toBe(true)
+    expect(el.model?.notice).toBeNull()
+    expect(el.model?.error).toContain('accepted, but current membership could not be confirmed')
+    const put = vi.spyOn(service, 'put')
+    el.dispatchEvent(new CustomEvent('mn-access-add', { detail: { userId: 'user:other', role: 'viewer' } }))
+    await Promise.resolve()
+    expect(put).not.toHaveBeenCalled()
+    await interpreter.dispose()
+  })
+
+  it('does not revoke after an old leaf confirmation resolves in a different workspace', async () => {
+    const { service } = realAccessBackend([EDITOR])
+    let resolveConfirm!: (value: boolean) => void
+    const interpreter = buildVehicle(service, () => 'owner-1', () => new Promise(resolve => { resolveConfirm = resolve }))
+    await interpreter.reconcile(accessLeaf('graph-a'), { width: 800, height: 600 })
+    const old = interpreter.leafWrapperElement('access')!.querySelector('mn-access-manager') as MnAccessManagerLike
+    const remove = vi.spyOn(service, 'remove')
+    old.dispatchEvent(new CustomEvent('mn-access-remove', { detail: { userId: 'user:editor-2' } }))
+    // A changed descriptor must increment the real interpreter's revision.
+    await interpreter.reconcile(accessLeaf('graph-b', undefined, 1), { width: 800, height: 600 })
+    const current = interpreter.leafWrapperElement('access')!.querySelector('mn-access-manager') as MnAccessManagerLike
+    expect(current.model?.graphId).toBe('graph-b')
+    resolveConfirm(true)
+    await Promise.resolve()
+    expect(remove).not.toHaveBeenCalled()
     await interpreter.dispose()
   })
 
@@ -298,7 +329,7 @@ describe('access.manager — mounted via the real LayoutInterpreter', () => {
       headers: () => ({}),
     }
     const service = createAccessGrantService(transport, (async () => new Response('{"error":"forbidden"}', { status: 403 })) as typeof fetch)
-    const interpreter = buildVehicle(service, () => 'owner-1')
+    const interpreter = buildVehicle(service, () => 'user:owner-1')
     await interpreter.reconcile(accessLeaf('graph-a'), { width: 800, height: 600 })
     const el = interpreter.leafWrapperElement('access')!.querySelector('mn-access-manager') as MnAccessManagerLike
     expect(el.model?.status).toBe('error')

@@ -3,9 +3,11 @@
  *
  * This is the backend-free half of Garden's members panel. It owns only the
  * popover and form state; a shell owns authentication, gateway reads/writes,
- * permissions, confirmation, and error handling. Cloud-2 currently exposes
- * member grants but no public share-token API, so this component deliberately
- * has no link tab or fabricated share URL.
+ * permissions, confirmation, and error handling. When the host supplies
+ * `model.sharing` (the hosted gateway's owner sharing view), the owner also
+ * gets "Anyone signed in can view" and share links (create / copy / revoke).
+ * Without it the component shows member grants only and never fabricates a
+ * link. A link URL is displayed only as the host hands it over, once.
  *
  * `embedded` (Wave 1, north star §2.2/§3: access manager is the second clean
  * "data-driven ≠ face" illustration) is an ADDITIVE, opt-in mode — default
@@ -36,6 +38,52 @@ export interface MnAccessGrant {
   readonly displayName?: string
 }
 
+export type MnSharingBusyAction = 'everyone' | 'link-create' | 'link-revoke'
+
+export interface MnShareLink {
+  readonly linkId: string
+  readonly role: Exclude<MnAccessRole, 'owner'>
+  readonly createdAt: string
+  readonly expiresAt: string | null
+  readonly label: string | null
+  readonly live: boolean
+}
+
+export interface MnAccessSharing {
+  readonly status: MnAccessStatus
+  readonly everyone: boolean
+  readonly links: readonly MnShareLink[]
+  readonly createdLinkUrl?: string | null
+  readonly busyAction?: MnSharingBusyAction | null
+  readonly error?: string | null
+}
+
+export interface MnEveryoneChangeDetail {
+  readonly enabled: boolean
+}
+
+export interface MnShareLinkCreateDetail {
+  readonly role: Exclude<MnAccessRole, 'owner'>
+  readonly expiresInSeconds: number | null
+}
+
+export interface MnShareLinkRevokeDetail {
+  readonly linkId: string
+}
+
+const LINK_EXPIRY_CHOICES: readonly { readonly value: string, readonly label: string, readonly seconds: number | null }[] = [
+  { value: '7d', label: '7 days', seconds: 7 * 24 * 60 * 60 },
+  { value: '30d', label: '30 days', seconds: 30 * 24 * 60 * 60 },
+  { value: 'never', label: 'Until revoked', seconds: null },
+]
+
+function shortDate(iso: string): string {
+  const date = new Date(iso)
+  return Number.isFinite(date.getTime())
+    ? date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+    : iso
+}
+
 export interface MnAccessManagerModel {
   readonly graphId: string
   readonly graphTitle: string
@@ -46,6 +94,8 @@ export interface MnAccessManagerModel {
   readonly notice?: string | null
   readonly busyUserId?: string | null
   readonly busyAction?: MnAccessBusyAction | null
+  /** Owner sharing controls; absent when the host has no sharing capability. */
+  readonly sharing?: MnAccessSharing | null
 }
 
 export interface MnAccessAddDetail {
@@ -415,6 +465,106 @@ export class MnAccessManager extends SkinAware(LitElement) {
       margin-block-start: var(--mn-space-3, 8px);
     }
 
+    .sharing-section {
+      margin-block-start: var(--mn-space-3, 8px);
+      padding-block-start: var(--mn-space-3, 8px);
+      border-block-start: 1px solid var(--mn-color-border-subtle, #e5e7eb);
+    }
+
+    .section-title {
+      margin-block-end: var(--mn-space-2, 6px);
+      font-size: var(--mn-text-xs, 12px);
+      font-weight: 700;
+    }
+
+    .everyone-row {
+      display: flex;
+      align-items: flex-start;
+      gap: var(--mn-space-2, 6px);
+      font-size: var(--mn-text-xs, 12px);
+      line-height: 1.4;
+    }
+
+    .everyone-row input {
+      margin: 2px 0 0;
+    }
+
+    .hint {
+      color: var(--mn-color-text-muted, #6b7280);
+      font-size: var(--mn-text-2xs, 10px);
+    }
+
+    .link-form {
+      display: grid;
+      grid-template-columns: 1fr 1fr auto;
+      align-items: end;
+      gap: var(--mn-space-2, 6px);
+    }
+
+    .link-create {
+      min-height: 32px;
+      padding: 0 var(--mn-space-3, 8px);
+      border: 1px solid var(--mn-color-border-accent, #356b50);
+      border-radius: var(--mn-radius-control, 5px);
+      background: var(--mn-color-action-primary, #356b50);
+      color: var(--mn-color-text-on-accent, #fff);
+      cursor: pointer;
+      font-size: var(--mn-text-xs, 12px);
+      font-weight: 700;
+    }
+
+    .created-link {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto auto;
+      gap: var(--mn-space-2, 6px);
+      margin-block-start: var(--mn-space-2, 6px);
+    }
+
+    .created-link input {
+      min-width: 0;
+      height: 30px;
+      box-sizing: border-box;
+      padding: 0 var(--mn-space-2, 6px);
+      border: 1px solid var(--mn-color-border-default, #d1d5db);
+      border-radius: var(--mn-radius-control, 5px);
+      background: var(--mn-color-surface-subtle, #f8fafc);
+      color: var(--mn-color-text-primary, #111827);
+      font-family: var(--mn-font-mono, ui-monospace, monospace);
+      font-size: var(--mn-text-2xs, 10px);
+    }
+
+    .copy,
+    .dismiss {
+      min-height: 30px;
+      padding: 0 var(--mn-space-2, 6px);
+      border: 1px solid var(--mn-color-border-default, #d1d5db);
+      border-radius: var(--mn-radius-control, 5px);
+      background: var(--mn-color-surface-base, #fff);
+      color: var(--mn-color-text-primary, #111827);
+      cursor: pointer;
+      font-size: var(--mn-text-2xs, 10px);
+      font-weight: 650;
+    }
+
+    .link-list {
+      margin: var(--mn-space-2, 6px) 0 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .link-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto auto;
+      align-items: center;
+      gap: var(--mn-space-2, 6px);
+      min-height: 34px;
+      font-size: var(--mn-text-2xs, 10px);
+    }
+
+    .link-row.expired {
+      opacity: 0.6;
+    }
+
     :host([data-skin='emporium']) .panel,
     :host([data-skin='emporium']) .member-list {
       border-radius: var(--mn-radius-surface, 0);
@@ -463,10 +613,11 @@ export class MnAccessManager extends SkinAware(LitElement) {
 
   @state() private panelOpen = false
   @state() private addUserId = ''
-  @state() private addEmail = ''
-  @state() private addDisplayName = ''
   @state() private addRole: 'viewer' | 'editor' = 'editor'
   @state() private validationError = ''
+  @state() private linkRole: 'viewer' | 'editor' = 'viewer'
+  @state() private linkExpiry = '30d'
+  @state() private copied = false
   private pendingAddUserId: string | null = null
 
   private readonly onDocumentPointerDown = (event: PointerEvent): void => {
@@ -497,8 +648,6 @@ export class MnAccessManager extends SkinAware(LitElement) {
     if (previous?.graphId && previous.graphId !== this.model?.graphId) this.closePanel()
     if (this.pendingAddUserId && this.model?.grants.some(grant => grant.userId === this.pendingAddUserId)) {
       this.addUserId = ''
-      this.addEmail = ''
-      this.addDisplayName = ''
       this.pendingAddUserId = null
       this.validationError = ''
     } else if (this.pendingAddUserId && this.model?.error) {
@@ -521,7 +670,7 @@ export class MnAccessManager extends SkinAware(LitElement) {
     this.emit('mn-access-open')
     await this.updateComplete
     this.renderRoot.querySelector<HTMLElement>(
-      this.model.currentRole === 'owner' ? '[name="access-user-id"]' : '.close',
+      this.model.currentRole === 'owner' && this.model.status === 'ready' ? '[name="access-user-id"]' : '.close',
     )?.focus()
   }
 
@@ -541,20 +690,14 @@ export class MnAccessManager extends SkinAware(LitElement) {
   private add(event: SubmitEvent): void {
     event.preventDefault()
     const model = this.model
-    if (!model || model.currentRole !== 'owner' || model.busyAction) return
+    if (!model || model.currentRole !== 'owner' || model.status !== 'ready' || model.busyAction) return
     const userId = this.addUserId.trim()
-    const email = this.addEmail.trim()
-    const displayName = this.addDisplayName.trim()
-    if (!userId) {
-      this.validationError = 'Enter the member’s stable user ID.'
+    if (!/^user:[^\s]+$/u.test(userId)) {
+      this.validationError = 'Enter an existing typed user ID: user:<subject>. Emails and bare subject IDs are not resolved.'
       return
     }
     if (model.grants.some(grant => grant.userId === userId)) {
       this.validationError = 'This user already has access. Change their role in the member list.'
-      return
-    }
-    if (email && !email.includes('@')) {
-      this.validationError = 'Enter a valid email address or leave the email field empty.'
       return
     }
     this.validationError = ''
@@ -562,15 +705,128 @@ export class MnAccessManager extends SkinAware(LitElement) {
     this.emit('mn-access-add', {
       userId,
       role: this.addRole,
-      ...(email ? { email } : {}),
-      ...(displayName ? { displayName } : {}),
     } satisfies MnAccessAddDetail)
+  }
+
+  private async copyLink(url: string): Promise<void> {
+    try {
+      await navigator.clipboard.writeText(url)
+      this.copied = true
+    } catch {
+      // Clipboard can be denied; the field stays selectable for manual copy.
+      this.renderRoot.querySelector<HTMLInputElement>('[name="share-link-url"]')?.select()
+    }
+  }
+
+  private createLink(event: SubmitEvent): void {
+    event.preventDefault()
+    const sharing = this.model?.sharing
+    if (!sharing || sharing.busyAction || this.model?.currentRole !== 'owner') return
+    const choice = LINK_EXPIRY_CHOICES.find(item => item.value === this.linkExpiry) ?? LINK_EXPIRY_CHOICES[1]
+    this.copied = false
+    this.emit('mn-access-link-create', {
+      role: this.linkRole,
+      expiresInSeconds: choice.seconds,
+    } satisfies MnShareLinkCreateDetail)
+  }
+
+  private renderSharing(model: MnAccessManagerModel) {
+    const sharing = model.sharing
+    if (!sharing || model.currentRole !== 'owner') return nothing
+    const busy = Boolean(sharing.busyAction) || sharing.status === 'loading'
+    const now = Date.now()
+    return html`<div class="sharing-body">
+      <div class="sharing-section" aria-label="General access" role="group">
+        <div class="section-title">General access</div>
+        <label class="everyone-row">
+          <input
+            type="checkbox"
+            name="access-everyone"
+            .checked=${sharing.everyone}
+            ?disabled=${busy || sharing.status !== 'ready'}
+            @change=${(event: Event) => this.emit('mn-access-everyone-change', {
+              enabled: (event.currentTarget as HTMLInputElement).checked,
+            } satisfies MnEveryoneChangeDetail)}
+          />
+          <span>
+            Anyone signed in can view
+            <div class="hint">Every Garden account can find and read this workspace. They cannot edit it.</div>
+          </span>
+        </label>
+      </div>
+
+      <div class="sharing-section" aria-label="Share links" role="group">
+        <div class="section-title">Share links</div>
+        <form class="link-form" @submit=${this.createLink} novalidate>
+          <label class="field">
+            <span>Link gives</span>
+            <select
+              name="share-link-role"
+              .value=${this.linkRole}
+              ?disabled=${busy}
+              @change=${(event: Event) => { this.linkRole = (event.currentTarget as HTMLSelectElement).value as 'viewer' | 'editor' }}
+            >
+              <option value="viewer">Viewer</option>
+              <option value="editor">Editor</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Expires</span>
+            <select
+              name="share-link-expiry"
+              .value=${this.linkExpiry}
+              ?disabled=${busy}
+              @change=${(event: Event) => { this.linkExpiry = (event.currentTarget as HTMLSelectElement).value }}
+            >
+              ${LINK_EXPIRY_CHOICES.map(choice => html`<option value=${choice.value}>${choice.label}</option>`)}
+            </select>
+          </label>
+          <button class="link-create" type="submit" ?disabled=${busy || sharing.status !== 'ready'}>
+            ${sharing.busyAction === 'link-create' ? 'Creating…' : 'Create link'}
+          </button>
+        </form>
+        ${sharing.createdLinkUrl ? html`<div class="created-link" role="status" aria-live="polite">
+          <input name="share-link-url" readonly .value=${sharing.createdLinkUrl} aria-label="New share link" data-private="true" />
+          <button class="copy" type="button" @click=${() => void this.copyLink(sharing.createdLinkUrl!)}>
+            ${this.copied ? 'Copied' : 'Copy'}
+          </button>
+          <button class="dismiss" type="button" aria-label="Hide link" @click=${() => {
+            this.copied = false
+            this.emit('mn-access-link-dismiss')
+          }}>Done</button>
+        </div>
+        <div class="hint">Copy it now: the link is shown only once. Anyone who opens it and signs in joins with the link's role.</div>` : nothing}
+        ${sharing.error ? html`<div class="error" role="alert">${sharing.error}</div>` : nothing}
+        ${sharing.links.length ? html`<ul class="link-list" aria-label="Share links">
+          ${sharing.links.map(link => {
+            const expired = !link.live || (link.expiresAt !== null && Date.parse(link.expiresAt) <= now)
+            return html`<li class="link-row ${expired ? 'expired' : ''}" data-link-id=${link.linkId}>
+              <span>
+                ${link.label ? html`${link.label} · ` : nothing}created ${shortDate(link.createdAt)}
+                <span class="hint">${expired ? '· expired' : link.expiresAt ? `· until ${shortDate(link.expiresAt)}` : '· until revoked'}</span>
+              </span>
+              <span class="role ${link.role}">${link.role}</span>
+              <button
+                class="remove"
+                type="button"
+                aria-label=${`Revoke ${link.role} link created ${shortDate(link.createdAt)}`}
+                title="Revoke link"
+                ?disabled=${busy}
+                @click=${() => this.emit('mn-access-link-revoke', { linkId: link.linkId } satisfies MnShareLinkRevokeDetail)}
+              >${icon('x', { size: 14 })}</button>
+            </li>`
+          })}
+        </ul>` : sharing.status === 'ready'
+          ? html`<div class="hint">No share links yet.</div>`
+          : nothing}
+      </div>
+    </div>`
   }
 
   private renderGrant(grant: MnAccessGrant) {
     const model = this.model!
     const canManage = model.currentRole === 'owner' && grant.role !== 'owner'
-    const busy = Boolean(model.busyAction)
+    const busy = Boolean(model.busyAction) || model.status !== 'ready'
     const label = identity(grant)
     return html`<li class="member-row" data-user-id=${grant.userId} data-private="true">
       <span class="avatar" aria-hidden="true">${initials(grant)}</span>
@@ -610,14 +866,14 @@ export class MnAccessManager extends SkinAware(LitElement) {
   private renderAddForm() {
     const model = this.model!
     if (model.currentRole !== 'owner') return nothing
-    const busy = Boolean(model.busyAction)
+    const busy = Boolean(model.busyAction) || model.status !== 'ready'
     return html`<form class="add-form" @submit=${this.add} novalidate>
       <label class="field">
-        <span>Member user ID</span>
+        <span>Member user ID (user:&lt;subject&gt;)</span>
         <input
           name="access-user-id"
           autocomplete="off"
-          placeholder="Platform subject / user ID"
+          placeholder="user:<subject>"
           .value=${this.addUserId}
           ?disabled=${busy}
           @input=${(event: Event) => {
@@ -638,32 +894,6 @@ export class MnAccessManager extends SkinAware(LitElement) {
           <option value="viewer">Viewer</option>
         </select>
       </label>
-      <div class="optional-fields">
-        <label class="field">
-          <span>Email (optional metadata)</span>
-          <input
-            name="access-email"
-            type="email"
-            autocomplete="off"
-            .value=${this.addEmail}
-            ?disabled=${busy}
-            @input=${(event: Event) => {
-              this.addEmail = (event.currentTarget as HTMLInputElement).value
-              this.validationError = ''
-            }}
-          />
-        </label>
-        <label class="field">
-          <span>Display name (optional)</span>
-          <input
-            name="access-display-name"
-            autocomplete="off"
-            .value=${this.addDisplayName}
-            ?disabled=${busy}
-            @input=${(event: Event) => { this.addDisplayName = (event.currentTarget as HTMLInputElement).value }}
-          />
-        </label>
-      </div>
       ${this.validationError
         ? html`<div class="validation" role="alert">${this.validationError}</div>`
         : nothing}
@@ -688,6 +918,10 @@ export class MnAccessManager extends SkinAware(LitElement) {
    * `.header`/`.member-list`/etc being a DIRECT child of `.panel`.
    */
   private renderPanelBody(model: MnAccessManagerModel, closeButton: boolean) {
+    const count = `${model.grants.length} access ${model.grants.length === 1 ? 'grant' : 'grants'}`
+    const membership = model.status === 'ready' ? count
+      : model.grants.length ? `Last known: ${count}`
+        : model.status === 'error' ? 'Membership unavailable' : 'Loading members…'
     return html`<div class="panel-body">
       <div class="header">
         <div class="heading">
@@ -700,7 +934,7 @@ export class MnAccessManager extends SkinAware(LitElement) {
       </div>
 
       <div class="toolbar">
-        <span>${model.grants.length} ${model.grants.length === 1 ? 'member' : 'members'}</span>
+        <span>${membership}</span>
         <button
           class="refresh"
           type="button"
@@ -738,8 +972,12 @@ export class MnAccessManager extends SkinAware(LitElement) {
 
       ${this.renderAddForm()}
 
+      ${this.renderSharing(model)}
+
       <div class="capability-note">
-        Member grants only. Public share links are unavailable because this gateway does not expose share-token creation or revocation.
+        ${model.sharing
+          ? 'The workspace owner is not a delegated grant. Share links and general access only ever admit signed-in accounts; revoking a link stops new joins, and people who already joined stay listed above until removed.'
+          : 'Member grants only; the workspace owner is not a delegated grant. Use an existing typed user ID; this is not an email invitation. Public-link controls are not available in this interface.'}
       </div>
     </div>`
   }

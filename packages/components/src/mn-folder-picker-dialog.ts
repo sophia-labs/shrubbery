@@ -356,7 +356,7 @@ export class MnFolderPickerDialog extends SkinAware(LitElement) {
   @property({ attribute: false }) folders: readonly MnFolderPickerOption[] = []
   @property({ type: String, attribute: 'current-parent-id' }) currentParentId: string | null = null
   @property({ attribute: false }) excludeIds: readonly string[] = []
-  @property({ type: String }) section: 'documents' | 'artifacts' = 'documents'
+  @property({ type: String }) section: 'documents' | 'artifacts' | 'tree' = 'documents'
 
   @state() private selectedFolderId: string | null = null
 
@@ -486,10 +486,14 @@ export class MnFolderPickerDialog extends SkinAware(LitElement) {
     else this.ownerDocument.dispatchEvent(event)
   }
 
+  private rootName(): string {
+    return this.section === 'artifacts' ? 'Artifacts' : this.section === 'tree' ? 'Workspace' : 'Documents'
+  }
+
   private buildFolderTree(): readonly FolderTreeNode[] {
     const byParent = new Map<string | null, MnFolderPickerOption[]>()
     for (const folder of this.folders) {
-      if (folder.section !== this.section) continue
+      if (this.section !== 'tree' && folder.section !== this.section) continue
       const siblings = byParent.get(folder.parentId) ?? []
       siblings.push(folder)
       byParent.set(folder.parentId, siblings)
@@ -584,12 +588,12 @@ export class MnFolderPickerDialog extends SkinAware(LitElement) {
                 role="option"
                 aria-selected=${rootSelected ? 'true' : 'false'}
                 aria-label=${rootCurrent
-                  ? `${this.section === 'artifacts' ? 'Artifacts' : 'Documents'} root, current destination`
-                  : `${this.section === 'artifacts' ? 'Artifacts' : 'Documents'} root`}
+                  ? `${this.rootName()} root, current destination`
+                  : `${this.rootName()} root`}
                 @click=${() => this.selectFolder(null)}
               >
                 <span class="folder-icon" aria-hidden="true">${icon('home', { size: 16 })}</span>
-                <span class="folder-name">${this.section === 'artifacts' ? 'Artifacts root' : 'Documents root'}</span>
+                <span class="folder-name">${this.rootName()} root</span>
                 ${rootCurrent ? html`<span class="status-badge current-badge">Current</span>` : nothing}
               </button>
               ${tree.length > 0

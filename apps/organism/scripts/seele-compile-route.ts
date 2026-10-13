@@ -181,6 +181,19 @@ function runNatureCompile(natureBin: string, sourcePath: string, timeoutMs: numb
     const timer = setTimeout(() => {
       timedOut = true
       child.kill('SIGKILL')
+      // Resolve NOW rather than waiting for 'close'. SIGKILL reaps the process
+      // we spawned, but 'close' additionally waits for every writer on the
+      // inherited stdout/stderr pipes — and a grandchild the compiler spawned
+      // survives its parent's death still holding them. Measured: a child that
+      // shells out to `sleep 5` emits 'exit' at 304ms and 'close' at 5184ms
+      // under a 300ms kill. Waiting on 'close' therefore makes `timeoutMs` a
+      // suggestion that any subprocess-spawning compiler can ignore, which is
+      // the one thing a timeout may not be. Destroy our read ends so this
+      // process stops holding the pipes too; `finish` is idempotent, so the
+      // late 'close' that eventually arrives is a no-op.
+      child.stdout?.destroy()
+      child.stderr?.destroy()
+      finish()
     }, timeoutMs)
     // The child's own EventEmitter typing is loose enough across Node
     // versions that TS wants a cast for stdout/stderr — both are always

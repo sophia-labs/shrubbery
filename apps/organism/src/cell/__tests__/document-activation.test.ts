@@ -573,8 +573,8 @@ describe('DocumentActivationManager', () => {
     // settleRenderable (no cache hit, no live sync). Second+ calls (the
     // fence monitor's own background poll, not gated on rendering): the
     // projection has now materialized, handing back a real incarnation —
-    // `permittedIncarnation` is set DIRECTLY inside that poll (:1449, not
-    // via `settlePermit`), so `rendered` stays false while
+    // `permittedIncarnation` is set DIRECTLY inside that poll (not via
+    // `settlePermit`), so `rendered` stays false while
     // `permittedIncarnation` becomes non-null. An edit landing AFTER that
     // point is real, addressable offline work with nowhere yet to paint it.
     const fetchSnapshot = vi.fn(async () => {
@@ -587,48 +587,71 @@ describe('DocumentActivationManager', () => {
     const manager = new DocumentActivationManager({
       storage,
       fetchSnapshot,
-      validationRetryMs: 10,
+      validationRetryMs: 25,
     })
     const doc = new Y.Doc()
     // No lifecycle, and a `whenSynced` that never resolves: this binding
     // never becomes `synchronized`, so `handleSynchronized` (the OTHER path
     // that would set `rendered`) never fires either.
+    vi.useFakeTimers()
     const activation = manager.activateVisible(KEY, doc, new Promise<void>(() => {}))
+    try {
+      await expect(activation.connectionPermit).resolves.toEqual({ status: 'allowed', incarnation: null })
+      expect(fetchSnapshot).toHaveBeenCalledOnce()
 
-    await expect(activation.connectionPermit).resolves.toEqual({ status: 'allowed', incarnation: null })
+      let rendered = false
+      void activation.whenRenderable.then(() => { rendered = true })
 
-    let rendered = false
-    void activation.whenRenderable.then(() => { rendered = true })
+      // Own the retry clock: a wall-clock waitFor sampling every 50 ms can
+      // miss call 2 entirely because this unsynchronized monitor keeps
+      // polling every 25 ms. Advance through exactly one completed poll,
+      // then observe its durable fence rather than just the fetch entry.
+      await vi.advanceTimersByTimeAsync(25)
+      expect(fetchSnapshot).toHaveBeenCalledTimes(2)
+      await activation.flush()
+      expect(await storage.get(documentActivationKey(KEY))).toMatchObject({
+        incarnation: 'incarnation-new',
+        authority: 'offline',
+      })
 
-    await vi.waitFor(() => expect(fetchSnapshot).toHaveBeenCalledTimes(2))
-    // Let the fence monitor's own continuation (the `permittedIncarnation =`
-    // assignment right after the awaited fetchSnapshot call) actually run.
-    await new Promise(resolve => setTimeout(resolve, 0))
-    await new Promise(resolve => setTimeout(resolve, 0))
-    expect(rendered).toBe(false)
+      // A later observation still has the same never-painted binding; call
+      // count 2 was a transient scheduling detail, not the recovery contract.
+      await vi.advanceTimersByTimeAsync(50)
+      expect(fetchSnapshot).toHaveBeenCalledTimes(4)
+      expect(rendered).toBe(false)
+      expect(activation.state.get().renderSource).toBeNull()
 
-    doc.getText('body').insert(0, 'never painted but real')
-    // Give the CRDT's own synchronous 'update' event a turn to reach
-    // `onUpdate` (it does — Y.Doc emits synchronously — this is just
-    // matching the file's own existing await style around edits).
-    await Promise.resolve()
+      doc.getText('body').insert(0, 'never painted but real')
+      // Y.Doc emits the update synchronously. Keep the original regression's
+      // single-microtask gap, without requiring this edit to finish caching.
+      await Promise.resolve()
 
-    await expect(manager.pruneGraph(KEY.userId, KEY.graphId, [])).resolves.toBe(1)
-    expect(activation.state.get()).toMatchObject({
-      phase: 'conflict',
-      conflict: 'deleted',
-      durability: 'durable',
-    })
+      await expect(manager.pruneGraph(KEY.userId, KEY.graphId, [])).resolves.toBe(1)
+      expect(activation.state.get()).toMatchObject({
+        phase: 'conflict',
+        conflict: 'deleted',
+        durability: 'durable',
+      })
 
-    const recoveries = await manager.recoveries(KEY)
-    expect(recoveries).toHaveLength(1)
-    const recovered = new Y.Doc()
-    Y.applyUpdate(recovered, recoveries[0]!.update)
-    expect(recovered.getText('body').toString()).toBe('never painted but real')
-    recovered.destroy()
-
-    activation.dispose()
-    doc.destroy()
+      const recoveries = await manager.recoveries(KEY)
+      expect(recoveries).toHaveLength(1)
+      expect(recoveries[0]).toMatchObject({
+        incarnation: 'incarnation-new',
+        reason: 'deleted',
+      })
+      expect(rendered).toBe(false)
+      const recovered = new Y.Doc()
+      try {
+        Y.applyUpdate(recovered, recoveries[0]!.update)
+        expect(recovered.getText('body').toString()).toBe('never painted but real')
+      } finally {
+        recovered.destroy()
+      }
+    } finally {
+      activation.dispose()
+      doc.destroy()
+      vi.useRealTimers()
+    }
   })
 
   it('C6 regression — an untouched binding (never rendered, never dirtied) produces no recovery at all', async () => {

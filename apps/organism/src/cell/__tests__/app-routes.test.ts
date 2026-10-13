@@ -13,17 +13,16 @@ import type {
   MnLifetimeBannerState,
   MnOpsHealthPage,
   MnSettingsPage,
-  WfStudioShell,
+  ChoreoModesSurface,
 } from '@shrubbery/components'
 import type { ShChatHost } from '@shrubbery/runtime'
-import type { ShrubberyContract } from '@shrubbery/nucleus'
 import {
   detectOrganismAppRoute,
   mountOrganismAppRoute,
   type OrganismAppRoute,
 } from '../app-routes.js'
 import { makeLocalChatService } from '@shrubbery/runtime'
-import { ChoreographStudioService } from '../choreograph-studio-service.js'
+import { OxigraphMcpCell } from './choreograph-modes-cell.js'
 import { PhanesControlApi } from '../phanes-control-api.js'
 
 describe('Organism app route mounts', () => {
@@ -71,6 +70,11 @@ describe('Organism app route mounts', () => {
       screen: 'run',
       graphId: 'graph-a',
       runId: 'run-7',
+    })
+    // `?graph=` is the suite-wide workspace parameter (Hoja → Choreograph).
+    expect(detectOrganismAppRoute(new URL('https://example.test/choreograph?graph=angels'))).toMatchObject({
+      kind: 'choreograph',
+      graphId: 'angels',
     })
     expect(detectOrganismAppRoute(new URL('https://example.test/public/wiki'))).toBeNull()
   })
@@ -448,7 +452,8 @@ describe('Organism app route mounts', () => {
     await mount!.ready
     const banner = host.querySelector('mn-lifetime-banner') as MnLifetimeBanner
     expect(banner.state).toEqual(bannerState)
-    expect(host.querySelector('mn-top-bar')).toBeNull()
+    // The Choreograph route wears the shared Sophia top bar (it had none).
+    expect(host.querySelector('mn-top-bar')).not.toBeNull()
 
     mount!.destroy()
     host.remove()
@@ -880,7 +885,7 @@ describe('Organism app route mounts', () => {
     host.remove()
   })
 
-  it('mounts Choreograph Studio route with screen/run params', async () => {
+  it('mounts the Choreograph route as the modes surface, idle without a contract', async () => {
     const host = document.createElement('div')
     document.body.appendChild(host)
 
@@ -889,108 +894,93 @@ describe('Organism app route mounts', () => {
     })
 
     await mount!.ready
-    const studio = host.querySelector('wf-studio-shell') as WfStudioShell
-    await studio.updateComplete
-
-    expect(mount?.route).toEqual({
-      kind: 'choreograph',
-      screen: 'run',
-      graphId: 'graph-a',
-      runId: 'run-7',
-    })
-    expect(studio.screen).toBe('run')
-    expect(studio.graphId).toBe('graph-a')
-    expect(studio.runId).toBe('run-7')
+    const surface = host.querySelector('choreo-modes-surface') as ChoreoModesSurface
+    await surface.updateComplete
+    expect(mount?.route).toMatchObject({ kind: 'choreograph', graphId: 'graph-a' })
+    expect(host.querySelector('wf-studio-shell')).toBeNull()
+    expect(surface.port).toBeNull()
+    expect(surface.shadowRoot?.querySelector('[data-state="idle"]')).not.toBeNull()
 
     mount!.destroy()
     host.remove()
   })
 
-  it('drives the Studio run table, row selection, provenance, and telemetry through real shadow-DOM interactions', async () => {
+  it('the Choreograph route wears the Sophia top bar: Choreograph checked, Garden/Hoja links in the same workspace', async () => {
     const host = document.createElement('div')
     document.body.appendChild(host)
-    const requests: string[] = []
-    const fetchMock = vi.fn<typeof fetch>(async (input) => {
-      const url = String(input)
-      requests.push(url)
-      if (url.endsWith('/workflows')) {
-        return new Response(JSON.stringify({ workflows: [{ name: 'survey-synthesize' }] }), {
-          headers: { 'content-type': 'application/json' },
-        })
-      }
-      if (url.includes('/workflows/runs?')) {
-        return new Response(JSON.stringify({
-          runs: [{
-            runId: 'wfr-dom-1',
-            workflowName: 'Browser survey',
-            status: 'running',
-            startedAt: 1_720_000_000_000,
-          }],
-        }), { headers: { 'content-type': 'application/json' } })
-      }
-      const event = {
-        type: 'run.finished',
-        runId: 'wfr-dom-1',
-        workflowName: 'Browser survey',
-        seq: 0,
-        phaseIndex: 0,
-        phaseTitle: '',
-        nodeId: '',
-        status: 'finished',
-      }
-      return new Response(`event: run.finished\nid: 0\ndata: ${JSON.stringify(event)}\n\n`, {
-        headers: { 'content-type': 'text/event-stream' },
-      })
-    })
-    const restQuery = vi.fn(async (_graphId: string, sparql: string) => sparql.includes('SELECT DISTINCT ?run ')
-      ? { rows: [{ runId: '"wfr-dom-1"', workflowName: '"Browser survey"', status: '"finished"' }] }
-      : { rows: [] })
-    const contract = {
-      auth: {
-        token: () => 'dom-token',
-        userId: () => 'dom-user',
-        isAuthenticated: () => true,
-        whenReady: async () => {},
-        onChange: () => () => {},
-      },
-      runtime: {
-        mode: () => 'hosted' as const,
-        isGateway: () => true,
-        graphBaseUrl: (graphId: string) => `https://gateway.test/g/${graphId}`,
-      },
-      rest: {
-        graphs: async () => [],
-        query: restQuery,
-        update: async () => {},
-      },
-    } satisfies Pick<ShrubberyContract, 'auth' | 'runtime' | 'rest'>
+    const asked: string[] = []
     const mount = mountOrganismAppRoute(host, {
-      location: new URL('https://example.test/choreograph/runs?g=graph-a'),
-      choreographStudioService: new ChoreographStudioService(contract, { fetch: fetchMock }),
+      location: new URL('https://example.test/choreograph?graph=angels'),
+      choreographAppLinks: graphId => {
+        asked.push(graphId)
+        return [
+          { id: 'garden', label: 'Garden', icon: 'sprout', href: `/?graph=${graphId}` },
+          { id: 'hoja', label: 'Hoja', icon: 'leaf', href: `/hoja/?graph=${graphId}` },
+        ]
+      },
     })
-
     await mount!.ready
-    const studio = host.querySelector('wf-studio-shell') as WfStudioShell
-    await studio.updateComplete
-    const history = studio.shadowRoot?.querySelector('wf-choreograph-view') as HTMLElement & {
-      updateComplete: Promise<unknown>
-    }
-    await history.updateComplete
-    const row = history.shadowRoot?.querySelector('[data-run-id="wfr-dom-1"]') as HTMLElement
-    expect(row?.textContent).toContain('Browser survey')
+    expect(mount?.route).toMatchObject({ kind: 'choreograph', graphId: 'angels' })
+    const bar = host.querySelector('[data-organism-route="choreograph"] > mn-top-bar') as HTMLElement & { updateComplete: Promise<unknown> }
+    expect(bar).not.toBeNull()
+    await bar.updateComplete
+    expect(asked).toEqual(['angels'])
+    const rows = [...bar.shadowRoot!.querySelectorAll<HTMLElement>('.app-switcher-btn')]
+    expect(rows.map(row => row.dataset.appId)).toEqual(['garden', 'choreograph', 'hoja'])
+    expect(rows.filter(row => row.getAttribute('aria-checked') === 'true').map(row => row.dataset.appId)).toEqual(['choreograph'])
+    expect(rows[0].getAttribute('href')).toBe('/?graph=angels')
+    expect(rows[2].getAttribute('href')).toBe('/hoja/?graph=angels')
+    const toolbar = [...bar.shadowRoot!.querySelectorAll<HTMLElement>('.app-toolbar button')].map(b => b.dataset.appAction)
+    expect(toolbar).toEqual(['overview', 'new-mode'])
+    // No live document on this route: no Custom CSS menu.
+    expect(bar.shadowRoot!.querySelector<HTMLElement>('.appearance-btn')!.hidden).toBe(true)
+    expect(bar.shadowRoot!.querySelector<HTMLElement>('[data-action="theme"]')!.hidden).toBe(false)
 
-    row.click()
-    await vi.waitFor(() => {
-      expect(studio.monitorStatus).toBe('ready')
-      expect(studio.provenance?.runId).toBe('wfr-dom-1')
-      expect(studio.telemetry).toMatchObject({ runId: 'wfr-dom-1', status: 'finished' })
+    // The toolbar drives the modes surface on the same page.
+    const surface = host.querySelector('choreo-modes-surface') as ChoreoModesSurface
+    await surface.updateComplete
+    bar.shadowRoot!.querySelector<HTMLButtonElement>('[data-app-action="new-mode"]')!.click()
+    await surface.updateComplete
+    expect(surface.shadowRoot!.querySelector('.studio-nav-item[aria-current="page"]')?.getAttribute('data-screen')).toBe('modes')
+
+    mount!.destroy()
+    host.remove()
+  })
+
+  it('without shell links the route bar still leads back to Garden', async () => {
+    const host = document.createElement('div')
+    document.body.appendChild(host)
+    const mount = mountOrganismAppRoute(host, { location: new URL('https://example.test/choreograph') })
+    await mount!.ready
+    const bar = host.querySelector('mn-top-bar') as HTMLElement & { updateComplete: Promise<unknown> }
+    await bar.updateComplete
+    expect([...bar.shadowRoot!.querySelectorAll<HTMLElement>('.app-switcher-btn')].map(row => row.dataset.appId)).toEqual(['garden', 'choreograph'])
+    mount!.destroy()
+    host.remove()
+  })
+
+  it('binds the Choreograph route to the contract MCP for the URL graph and reads its modes', async () => {
+    const cell = new OxigraphMcpCell()
+    cell.store.update(`INSERT DATA { GRAPH <urn:mnemosyne:local:graph:graph-a:user:rdf> {
+      <urn:sophia:mode:reader> a <http://mnemosyne.dev/agent#Mode> ;
+        <http://www.w3.org/2000/01/rdf-schema#label> "Reader" ;
+        <http://mnemosyne.dev/agent#access> "read" ;
+        <http://mnemosyne.dev/agent#allowsTool> "read_document" .
+    } }`)
+    const host = document.createElement('div')
+    document.body.appendChild(host)
+    const mount = mountOrganismAppRoute(host, {
+      location: new URL('https://example.test/choreograph?g=graph-a'),
+      choreographContract: { rawMcp: cell },
+      choreographGraphId: 'ignored-when-url-names-one',
     })
-    expect(requests).toEqual([
-      'https://gateway.test/g/graph-a/workflows',
-      'https://gateway.test/g/graph-a/workflows/runs?graph_id=graph-a&limit=200',
-      'https://gateway.test/g/graph-a/workflows/runs/wfr-dom-1/events?since=0',
-    ])
-    expect(restQuery).toHaveBeenCalledTimes(2)
+    await mount!.ready
+    const surface = host.querySelector('choreo-modes-surface') as ChoreoModesSurface
+    expect(surface.port?.graphId).toBe('graph-a')
+    await vi.waitFor(() => {
+      expect(surface.shadowRoot?.querySelector('[data-mode="reader"]')?.textContent).toContain('Reader')
+    })
+    expect(cell.calls.filter(call => call.name !== 'tools/list').every(call => call.args.graphId === 'graph-a')).toBe(true)
 
     mount!.destroy()
     expect(host.childElementCount).toBe(0)

@@ -3,7 +3,7 @@ import type { ShrubberyContract } from '@shrubbery/nucleus'
 import { generateArtifactImage } from '../image-generation-flow.js'
 import { TauriImageProviderKeySource } from '../image-generation-service.js'
 
-function contract(): Pick<ShrubberyContract, 'auth' | 'runtime'> {
+function contract(mode: 'local' | 'hosted' = 'hosted'): Pick<ShrubberyContract, 'auth' | 'runtime'> {
   return {
     auth: {
       token: () => 'token',
@@ -13,8 +13,8 @@ function contract(): Pick<ShrubberyContract, 'auth' | 'runtime'> {
       onChange: () => () => {},
     },
     runtime: {
-      mode: () => 'hosted',
-      isGateway: () => true,
+      mode: () => mode,
+      isGateway: () => mode === 'hosted',
       graphBaseUrl: graphId => `https://gateway.test/g/${graphId}`,
     },
   }
@@ -30,9 +30,15 @@ describe('image generation shell flow', () => {
     await expect(new TauriImageProviderKeySource().getProviderKey('openrouter')).resolves.toBeNull()
   })
 
-  it('persists generated versions on the source artifact', async () => {
-    const fetch = vi.fn(async () => new Response('{}', { status: 201 })) as unknown as typeof globalThis.fetch
-    const generated = await generateArtifactImage(contract(), {
+  it.each(['local', 'hosted'] as const)('persists generated %s versions on the source artifact with mode-correct identity', async mode => {
+    const fetch = vi.fn<typeof globalThis.fetch>(async (_input, init) => {
+      const headers = new Headers(init?.headers)
+      expect(headers.get('Authorization')).toBe('Bearer token')
+      expect(headers.get('X-User-ID')).toBe(mode === 'local' ? 'user' : null)
+      expect(headers.get('Content-Type')).toBe('application/json')
+      return new Response('{}', { status: 201 })
+    })
+    const generated = await generateArtifactImage(contract(mode), {
       generateEdit: async () => 'data:image/png;base64,aW1hZ2U=',
     }, {
       graphId: 'g',

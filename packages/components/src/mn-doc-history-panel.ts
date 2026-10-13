@@ -913,7 +913,7 @@ export class MnDocHistoryPanel extends SkinAware(LitElement) {
       </header>
       <div class="body-host">${this._renderBody()}</div>
       <footer class="footer">
-        <span class="hint">Restoring replaces the current document with the selected older snapshot. The shell owns confirmation and persistence.</span>
+        <span class="hint">Restoring replaces the current document with this older snapshot.</span>
         <span class="footer-action">${this._renderRestoreButton(restoreDisabled)}</span>
       </footer>
     `

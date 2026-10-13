@@ -36,6 +36,7 @@
 
 import { Extension } from '@tiptap/core'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
+import { randomUUID } from '@shrubbery/nucleus/web-crypto'
 
 /**
  * Standard block types that should receive data-block-id attributes — the
@@ -78,10 +79,12 @@ export interface BlockIdOptions {
 
 /**
  * Generate a unique block ID.
- * Uses crypto.randomUUID() for uniqueness, truncated for readability.
+ * Uses randomUUID() for uniqueness, truncated for readability: the native
+ * crypto.randomUUID() where the page has it, a getRandomValues-built v4 UUID on a
+ * plain-HTTP page, which has no crypto.randomUUID (@shrubbery/nucleus/web-crypto).
  */
 function generateBlockId(): string {
-  return `block-${crypto.randomUUID().slice(0, 8)}`
+  return `block-${randomUUID().slice(0, 8)}`
 }
 
 export const BlockId = Extension.create<BlockIdOptions>({

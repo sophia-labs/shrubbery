@@ -151,3 +151,12 @@ describe('runtime Mermaid renderer — production host seam', () => {
     expect(listener).toHaveBeenCalledOnce()
   })
 })
+
+describe('mermaid engine config — labels survive strict SVG admission', () => {
+  it('asks Mermaid 11 for SVG-text labels at the TOP level (flowchart.htmlLabels alone still emits <foreignObject>, which admission strips → empty boxes)', async () => {
+    const { mermaidEngineConfig } = await import('../mermaid-renderer.js')
+    const config = mermaidEngineConfig(null)
+    expect(config.htmlLabels).toBe(false)
+    expect((config.flowchart as { htmlLabels?: boolean }).htmlLabels).toBe(false)
+  })
+})

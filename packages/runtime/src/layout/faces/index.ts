@@ -114,6 +114,85 @@ export {
   type ConfirmRemoveOptions,
 } from './access-manager-face.js'
 
+// el Despacho W1 (plans/2026-09-15-despacho-design.md §7): one cuentas bead
+// as a chapter with one act — the first face with a WRITE path (the closed
+// verb union in ../../despacho/), threaded through `CuentaVerbSeam`.
+export {
+  CARD_CUENTA_FACE_ID,
+  NO_CUENTA_VERB_SEAM,
+  createCardCuentaFace,
+  createCardCuentaResourceAdapter,
+  focusHrefFrom,
+  type CardCuentaParams,
+  type CuentaQueryHandle,
+  type CuentaVerbSeam,
+} from './card-cuenta-face.js'
+export type {
+  CuentaChapterMode,
+  CuentaChapterViewStatus,
+  CuentaVerbViewState,
+  CuentaWordDetail,
+} from './cuenta-chapter-view-element.js'
+
+// el Despacho W2: a seat as a character with a heartbeat, a letter as a page,
+// and the focus as what it is (bead | seat | letter) — the delegating face a
+// focus-driven layout names once and a mixed collection grid renders through.
+export {
+  CARD_SEAT_FACE_ID,
+  createCardSeatFace,
+  createCardSeatResourceAdapter,
+  isSubjectLocator,
+  subjectAndGraphOfLocator,
+  type CardSeatParams,
+  type SeatQueryHandle,
+} from './card-seat-face.js'
+export { formatAgo, type SeatViewMode, type SeatViewStatus } from './seat-character-view-element.js'
+export {
+  CARD_LETTER_FACE_ID,
+  createCardLetterFace,
+  createCardLetterResourceAdapter,
+  type CardLetterParams,
+  type LetterQueryHandle,
+} from './card-letter-face.js'
+export type { LetterViewMode, LetterViewStatus } from './letter-page-view-element.js'
+export {
+  CARD_AGENT_FACE_ID,
+  createCardAgentFace,
+  createCardAgentResourceAdapter,
+  type AgentQueryHandle,
+  type CardAgentParams,
+} from './card-agent-face.js'
+export { entrySlug, type AgentViewMode, type AgentViewStatus } from './agent-entry-view-element.js'
+export {
+  CARD_FOCUS_FACE_ID,
+  createCardFocusFace,
+  createCardFocusResourceAdapter,
+  type CardFocusParams,
+  type FocusQueryHandle,
+  type FocusResolution,
+} from './card-focus-face.js'
+
+// el Despacho W4: the inbox room (gates awaiting a word, unanswered letters,
+// unread accounts) with its one act `read`, and the work an office holds.
+export {
+  CARD_INBOX_FACE_ID,
+  DEFAULT_INBOX_OWNER,
+  convenedSeats,
+  createCardInboxFace,
+  createCardInboxResourceAdapter,
+  type CardInboxParams,
+  type InboxQueryHandle,
+} from './card-inbox-face.js'
+export type { InboxReadDetail, InboxReadState, InboxRoomViewStatus } from './inbox-room-view-element.js'
+export {
+  CARD_MY_WORK_FACE_ID,
+  createCardMyWorkFace,
+  createCardMyWorkResourceAdapter,
+  type CardMyWorkParams,
+  type MyWorkQueryHandle,
+} from './card-my-work-face.js'
+export type { MyWorkViewStatus } from './my-work-view-element.js'
+
 export {
   SPARQL_BINDINGS_TABLE_FACE_ID,
   createSparqlBindingsTableFace,

@@ -30,6 +30,11 @@ published in [`THIRD-PARTY-NPM.md`](THIRD-PARTY-NPM.md), generated via
 for missing or unusual upstream license metadata — see that file's own
 "Flagged" section. Regenerate it whenever `pnpm-lock.yaml` changes.
 
+One file of third-party source is vendored rather than installed:
+`packages/nucleus/src/workspace/files-canvas/vendor/excalidraw/snapping.ts`, Excalidraw's snapping module (MIT, Copyright (c) 2020
+Excalidraw), taken at upstream commit `4ce38fbe5266` with its licence beside it. The Files canvas engine
+(`engine-excalidraw.ts`) also depends on the exact-pinned `@excalidraw/{element,math,common}@0.18.0-4ce38fb`.
+
 An off-main Rust/loom subsystem (a wasm-bindgen projector plus several
 `loom-*` crates, plus a Rust `prebuild` step for `apps/organism`) currently
 declares `MIT OR Apache-2.0` in its Cargo metadata. It exists only on agent

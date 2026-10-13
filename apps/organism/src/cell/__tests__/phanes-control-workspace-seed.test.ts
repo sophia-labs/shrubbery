@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   parseNT,
   parseTriplesToConfig,
@@ -24,7 +24,7 @@ function seedConfig() {
   return parseTriplesToConfig(parseNT(readFileSync(seedPath, 'utf8')))
 }
 
-function context(host: HTMLElement, graphId: string, rawMcp: object) {
+function context(host: HTMLElement, graphId: string, rawMcp: object, subject = 'operator-fixture') {
   return createShellContext({
     host,
     graphId,
@@ -32,11 +32,16 @@ function context(host: HTMLElement, graphId: string, rawMcp: object) {
     app: 'garden',
     source: 'CELL_LIVE',
     deploymentMode: 'hosted',
-    contract: { rawMcp },
+    contract: { rawMcp,
+      auth: { token: () => 'synthetic-token', userId: () => subject },
+      gateway: { gatewayBaseUrl: 'https://gateway.example.test', graphs: async () => [] },
+    },
     location: new URL(`https://canary.test/g/${graphId}`),
     rerender: vi.fn(),
   })
 }
+
+afterEach(() => vi.unstubAllGlobals())
 
 describe('Phanes control graph-authored Shrubbery workspace', () => {
   it('parses through the production path and plans top bar + full control body + bottom bar', () => {
@@ -59,7 +64,10 @@ describe('Phanes control graph-authored Shrubbery workspace', () => {
     expect(parseTriplesToConfig(serializeConfigToTriples(config))).toEqual(config)
   })
 
-  it('keeps its configured center over hosted Garden home and binds authority only in phanes-control', async () => {
+  it('keeps its configured center and binds only a server-admitted operator in phanes-control', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
+      schema: 'sophia.me.capabilities.v1', subject: 'operator-fixture', capabilities: { phanesControl: true },
+    }))))
     const container = renderWorkspace(seedConfig(), {
       surface: true,
       home: { graphId: 'phanes-control', graphTitle: 'Phanes control' },
@@ -74,10 +82,31 @@ describe('Phanes control graph-authored Shrubbery workspace', () => {
     const feature = createPhanesControlWorkspaceFeature()
     feature.afterWorkspaceRender!(context(container, 'phanes-control', rawMcp), {})
     expect(editor!.workspaceSurface).toBe(true)
-    expect(editor!.api).not.toBeNull()
+    expect(editor!.api).toBeNull()
+    expect(editor!.hidden).toBe(true)
+    await vi.waitFor(() => expect(editor!.api).not.toBeNull())
+    expect(editor!.hidden).toBe(false)
 
     feature.afterWorkspaceRender!(context(container, 'copied-control-shape', rawMcp), {})
     expect(editor!.api).toBeNull()
+    expect(editor!.hidden).toBe(true)
+  })
+
+  it('withholds the configured Phanes surface and authority from an ordinary subject', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
+      schema: 'sophia.me.capabilities.v1', subject: 'ordinary-fixture', capabilities: { phanesControl: false },
+    }))))
+    const container = renderWorkspace(seedConfig(), { surface: true, home: { graphId: 'phanes-control', graphTitle: 'Phanes control' } })
+    await workspaceSurfaceReady(container)
+    const rawMcp = { callTool: vi.fn(async () => ({})) }
+    const feature = createPhanesControlWorkspaceFeature()
+    feature.afterWorkspaceRender!(context(container, 'phanes-control', rawMcp, 'ordinary-fixture'), {})
+    await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(1))
+    const editor = container.querySelector<MnPhanesControlEditor>('mn-phanes-control-editor')!
+    expect(editor.api).toBeNull()
+    expect(editor.hidden).toBe(true)
+    expect(editor.style.getPropertyValue('display')).toBe('none')
+    expect(rawMcp.callTool).not.toHaveBeenCalled()
   })
 
   it('keeps the same configured-center ownership on the legacy render path', () => {

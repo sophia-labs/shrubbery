@@ -12,6 +12,7 @@ import type {
   MnSettingsSection,
 } from '@shrubbery/components'
 import type { ShrubberyContract } from '@shrubbery/nucleus'
+import { cellAuthHeaders } from './cell-auth-headers.js'
 import {
   GardendDocumentTransferService,
   pickDocumentFiles,
@@ -362,12 +363,7 @@ export class GardendSettingsOperations {
   }
 
   private headers(extra: Record<string, string> = {}): Headers {
-    const headers = new Headers(extra)
-    const token = this.contract.auth.token()
-    if (token) headers.set('Authorization', `Bearer ${token}`)
-    const userId = this.contract.auth.userId()
-    if (userId) headers.set('X-User-ID', userId)
-    return headers
+    return new Headers(cellAuthHeaders(this.contract, extra))
   }
 
   private async request(path: string, init: RequestInit = {}, label = 'Settings operation'): Promise<unknown> {

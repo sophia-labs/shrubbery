@@ -151,57 +151,45 @@ describe('createWorkspaceCatalogService — real request construction', () => {
   })
 })
 
-describe('createAccessGrantService — real request construction', () => {
-  it('GETs the exact gateway /graphs/{id}/access route and parses grant rows', async () => {
-    const { fetch, calls } = fetchQueue({
-      body: [
-        { userId: 'owner-1', role: 'owner', grantedAt: '2026-07-10T12:00:00Z', grantedBy: 'owner-1', email: 'o@example.test' },
-      ],
-    })
+describe('createAccessGrantService — canonical request construction', () => {
+  const owner = 'user:owner-1'
+  const graphId = 'graph-a'
+  const grant = { graph: { owner, graphId }, generation: 1, principal: 'user:reader', role: 'viewer', grantedAtMs: 1788678000000, grantedBy: owner }
+  const directory = { body: [{ owner, graphId, title: 'A', role: 'owner', cellState: 'running' }] }
+  const result = (value: unknown) => ({ body: { jsonrpc: '2.0', id: 'access-1', result: { structuredContent: value, isError: false } } })
+
+  it('reads exact owner then POSTs canonical list without a fabricated owner row', async () => {
+    const { fetch, calls } = fetchQueue(directory, result([grant]))
     const service = createAccessGrantService(transport(), fetch)
-
-    const grants = await service.list('graph-a')
-
-    expect(calls[0]?.url).toBe('https://api.canary.sophia-labs.com/graphs/graph-a/access')
-    expect(calls[0]?.init.method).toBe('GET')
-    expect(grants).toEqual([
-      { userId: 'owner-1', role: 'owner', grantedAt: '2026-07-10T12:00:00Z', grantedBy: 'owner-1', email: 'o@example.test' },
+    const grants = await service.list(graphId)
+    expect(calls.map(c => [c.init.method, c.url])).toEqual([
+      ['GET', 'https://api.canary.sophia-labs.com/graphs'],
+      ['POST', 'https://api.canary.sophia-labs.com/control/mcp'],
     ])
+    expect(JSON.parse(String(calls[1]?.init.body)).params.arguments).toEqual({ owner, graphId, action: 'list' })
+    expect(grants).toEqual([{ userId: 'user:reader', role: 'viewer', grantedAt: new Date(grant.grantedAtMs).toISOString(), grantedBy: owner }])
   })
 
-  it('PUTs a role grant to the exact per-user route with a JSON body, URI-encoding both ids', async () => {
-    const { fetch, calls } = fetchQueue({ body: { graphId: 'graph-a', userId: 'user/two', role: 'editor' } })
-    const service = createAccessGrantService(transport(), fetch)
-
-    await service.put('graph a', 'user/two', { role: 'editor', email: 'two@example.test' })
-
-    expect(calls[0]?.url).toBe(
-      'https://api.canary.sophia-labs.com/graphs/graph%20a/access/user%2Ftwo',
-    )
-    expect(calls[0]?.init.method).toBe('PUT')
-    expect(JSON.parse(String(calls[0]?.init.body))).toEqual({ role: 'editor', email: 'two@example.test' })
+  it('grants and verifies a canonical typed-principal acknowledgement', async () => {
+    const { fetch, calls } = fetchQueue(directory, result(grant))
+    await createAccessGrantService(transport(), fetch).put(graphId, 'user:reader', { role: 'viewer' })
+    expect(JSON.parse(String(calls[1]?.init.body)).params.arguments).toEqual({ owner, graphId, action: 'grant', principal: 'user:reader', role: 'viewer' })
   })
 
-  it('rejects put() with an owner role rather than silently sending it', async () => {
-    const { fetch } = fetchQueue()
-    const service = createAccessGrantService(transport(), fetch)
-    await expect(service.put('graph-a', 'u1', { role: 'owner' as never })).rejects.toThrow(/viewer or editor/)
+  it('rejects an owner role before any request', async () => {
+    const { fetch, calls } = fetchQueue()
+    await expect(createAccessGrantService(transport(), fetch).put(graphId, 'user:reader', { role: 'owner' as never })).rejects.toThrow(/viewer or editor/)
+    expect(calls).toHaveLength(0)
   })
 
-  it('DELETEs the exact per-user route', async () => {
-    const { fetch, calls } = fetchQueue({ raw: '' })
-    const service = createAccessGrantService(transport(), fetch)
-    await service.remove('graph-a', 'user-1')
-    expect(calls[0]?.url).toBe('https://api.canary.sophia-labs.com/graphs/graph-a/access/user-1')
-    expect(calls[0]?.init.method).toBe('DELETE')
+  it('revokes through the control plane and requires revoked:true', async () => {
+    const { fetch, calls } = fetchQueue(directory, result({ revoked: true }))
+    await createAccessGrantService(transport(), fetch).remove(graphId, 'user:reader')
+    expect(JSON.parse(String(calls[1]?.init.body)).params.arguments).toEqual({ owner, graphId, action: 'revoke', principal: 'user:reader' })
   })
 
-  it('throws a typed WorkspaceGatewayHttpError on a non-2xx response', async () => {
+  it('preserves HTTP errors from directory discovery', async () => {
     const { fetch } = fetchQueue({ status: 404, raw: '{"error":"not found"}' })
-    const service = createAccessGrantService(transport(), fetch)
-    await expect(service.list('graph-missing')).rejects.toMatchObject({
-      constructor: WorkspaceGatewayHttpError,
-      status: 404,
-    })
+    await expect(createAccessGrantService(transport(), fetch).list('missing')).rejects.toMatchObject({ constructor: WorkspaceGatewayHttpError, status: 404 })
   })
 })

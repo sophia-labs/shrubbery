@@ -51,6 +51,13 @@ function outboxRow(overrides: Partial<SourceOutboxRecord> & { operation: SourceO
 }
 
 describe('sourceStatusModel — the bottom-bar mirror badges (copy deck §7.2)', () => {
+  it('names a paused capacity refusal without claiming freshness or discarding prior pending work', () => {
+    const refused = sourceStatusModel(state({ complete: false, errorCode: 'source_bundle_too_large' }))
+    expect(refused.badges[0].label).toBe('offline sync paused')
+    expect(refused.badges[0].hint).toContain('freshness is not confirmed')
+    const prior = sourceStatusModel(state({ complete: true, pending: 2, errorCode: 'source_bundle_too_large' }))
+    expect(prior.badges.map(b => b.kind)).toEqual(['unknown', 'pending'])
+  })
   it('null state (never opened) shows the unknown badge ALONE', () => {
     expect(sourceStatusModel(null)).toEqual({ badges: [expect.objectContaining({ kind: 'unknown' })] })
   })
@@ -67,7 +74,7 @@ describe('sourceStatusModel — the bottom-bar mirror badges (copy deck §7.2)',
   })
 
   it('a genuinely all-clear complete mirror publishes EMPTY badges — no "0 contested" badge', () => {
-    expect(sourceStatusModel(state())).toEqual({ badges: [] })
+    expect(sourceStatusModel(state())).toEqual({ badges: [], scopeKey: '["graph-1","epoch-1"]' })
   })
 
   it('contested — singular copy at count 1, matching §7.2 exactly', () => {

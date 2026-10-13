@@ -17,7 +17,15 @@ const UNKNOWN_BADGE: ChromeSourceBadge = {
   glyph: '—',
   label: 'local copy unknown',
   accessibleName: 'This device has no verified copy of this graph yet.',
-  hint: 'Opening the local copy.',
+  hint: 'A complete local copy has not been verified on this device. This is not a cloud-save failure signal.',
+}
+
+const CAPACITY_BADGE: ChromeSourceBadge = {
+  kind: 'unknown',
+  glyph: '⚠',
+  label: 'offline sync paused',
+  accessibleName: 'This graph exceeds the current complete offline transfer capacity. No source data was removed.',
+  hint: 'Automatic full-copy retries are paused. Online access is separate; any previously verified local copy is retained, but freshness is not confirmed.',
 }
 
 const NEEDS_REPAIR_BADGE: ChromeSourceBadge = {
@@ -73,10 +81,12 @@ function parkedBadge(count: number): ChromeSourceBadge {
  * from the durable outbox and are unaffected.
  */
 export function sourceStatusModel(state: SourceMirrorState | null): ChromeSourceStatus {
+  const scope = state ? { scopeKey: JSON.stringify([state.graphIncarnation, state.epoch]) } : {}
   if (state === null || !state.complete) {
-    return { badges: [UNKNOWN_BADGE] }
+    return { ...scope, badges: [state?.errorCode === 'source_bundle_too_large' ? CAPACITY_BADGE : UNKNOWN_BADGE] }
   }
   const badges: ChromeSourceBadge[] = []
+  if (state.errorCode === 'source_bundle_too_large') badges.push(CAPACITY_BADGE)
   if (state.repairNeeded) {
     badges.push(NEEDS_REPAIR_BADGE)
   } else if (state.contestedObjects > 0) {
@@ -84,7 +94,7 @@ export function sourceStatusModel(state: SourceMirrorState | null): ChromeSource
   }
   if (state.pending > 0) badges.push(pendingBadge(state.pending))
   if (state.parked > 0) badges.push(parkedBadge(state.parked))
-  return { badges }
+  return { ...scope, badges }
 }
 
 // ── sidebar per-document decoration ─────────────────────────────────────

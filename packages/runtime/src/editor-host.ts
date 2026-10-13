@@ -56,12 +56,17 @@ import { LitElement, html, css, nothing, type TemplateResult } from 'lit'
 import { classMap } from 'lit/directives/class-map.js'
 import { unsafeHTML } from 'lit/directives/unsafe-html.js'
 import { customElement, property, state } from 'lit/decorators.js'
+import { PDF_SOURCE_ANCHOR_ATTRIBUTE, pdfSourceText } from '@shrubbery/nucleus'
 import type { EditorHostState, EditorHostBinding } from './editor-host-binding.js'
+import { installOutlinerGutter } from './outliner-gutter.js'
 // The CRDT plane is quarantined to the collab/ SUBDIR (not island-scanned). The
 // host knows only this factory + a structural Editor handle — no collab runtime
 // or @tiptap import here.
 import {
   collaborationCursorStyles,
+  captureEditorSelection,
+  editorBlockContext,
+  placeCaretInBlock,
   createLiveCollabEditor,
   editorSemanticStyles,
   liveHeadingOutline,
@@ -74,6 +79,8 @@ import {
   type LiveTagChipAttrs,
   type LiveWikiLinkAttrs,
   type LiveZoomSnapshot,
+  setLiveWireHighlight,
+  setLiveWiredBlocks,
 } from './collab/live-editor.js'
 import type { WireBundle, WireSummary } from './editor-services/wire-bundle-service.js'
 import type { SalienceBundle } from './editor-services/salience-bundle-service.js'
@@ -99,6 +106,7 @@ import {
   type WirePinWireRequestDetail,
 } from './wire-events.js'
 import { OPEN_DOCUMENT_EVENT, type OpenDocumentDetail } from './editor-services/navigation-service.js'
+import { randomUUID } from '@shrubbery/nucleus/web-crypto'
 
 /** Controlled graph projections listen for invalidation; no editor state leaks. */
 export const EDITOR_STRUCTURE_CHANGE_EVENT = 'mn-editor-structure-change'
@@ -363,6 +371,28 @@ export interface EditorOriginalFileChapter {
   readonly text?: string | null
 }
 
+/** Captured from this live editor, never inferred from a filename or viewer URL. */
+export interface EditorPdfSourceLocation {
+  readonly blockId: string
+  readonly rawAnchor: unknown
+  readonly text: string
+  readonly pageNumber: number | null
+}
+
+export interface EditorOriginalPdfPage {
+  readonly pageNumber: number
+  readonly width: number
+  readonly height: number
+  readonly imageUrl: string
+  readonly rectangles: readonly { left: number; top: number; width: number; height: number }[]
+}
+
+export interface EditorPdfSourceMapping {
+  readonly status: 'mapped' | 'edited' | 'unmapped' | 'invalid' | 'unsupported' | 'source-mismatch'
+  readonly message: string
+  readonly pages: readonly number[]
+}
+
 /**
  * Shell-owned original-file state reflected into the persistent editor host.
  * Auth, fetch, Blob/object-URL lifetime, and downloads remain outside runtime.
@@ -385,6 +415,10 @@ export interface EditorOriginalFileView {
   readonly downloadable: boolean
   readonly externalOpenable: boolean
   readonly chapters: readonly EditorOriginalFileChapter[]
+  readonly pdfPages?: readonly EditorOriginalPdfPage[]
+  readonly pdfPageCount?: number
+  readonly pdfPageNumber?: number
+  readonly pdfSourceMapping?: EditorPdfSourceMapping | null
   readonly annotations: readonly {
     readonly id: string
     readonly label?: string | null
@@ -624,6 +658,8 @@ interface RawLiveEditor {
     readonly selection: RawSelection
   }
   readonly view?: {
+    focus(): void
+    nodeDOM(pos: number): Node | null
     dispatch(tr: RawTransaction): void
     readonly dom: HTMLElement
     posAtDOM(node: Node, offset: number, bias?: number): number
@@ -644,6 +680,8 @@ interface RawLiveEditor {
   on(event: 'transaction' | 'selectionUpdate' | 'focus', cb: () => void): void
   off(event: 'transaction' | 'selectionUpdate' | 'focus', cb: () => void): void
   readonly commands: {
+    increaseIndent(): boolean
+    decreaseIndent(): boolean
     focus(): boolean
     setTextSelection(position: number | { from: number; to: number }): boolean
     toggleBold(): boolean
@@ -831,6 +869,7 @@ export class ShEditorHost extends LitElement {
       display: flex;
       flex-direction: column;
     }
+    :host([hidden]) { display: none !important; }
     :host([layout-mode='contained']) {
       position: absolute;
       left: 0;
@@ -1004,9 +1043,9 @@ export class ShEditorHost extends LitElement {
         --mn-color-surface-warm: #faf6ec;
         --mn-color-surface-sunken: #eeeae2;
         --mn-color-surface-hover: var(--mn-editor-sheet-hover, rgba(79, 134, 107, 0.065));
-        --mn-color-surface-active: rgba(var(--mn-editor-paper-accent-ch, 55 109 87), 0.11);
+        --mn-color-surface-active: rgb(var(--mn-editor-paper-accent-ch, 55 109 87) / 0.11);
         --mn-color-surface-accent: var(--mn-editor-paper-accent-soft, #eff6f2);
-        --mn-color-surface-accent-subtle: rgba(var(--mn-editor-paper-accent-ch, 55 109 87), 0.08);
+        --mn-color-surface-accent-subtle: rgb(var(--mn-editor-paper-accent-ch, 55 109 87) / 0.08);
         --mn-color-text-primary: var(--mn-editor-sheet-ink, #292723);
         --mn-color-text-secondary: var(--mn-editor-sheet-secondary, #5a564f);
         --mn-color-text-tertiary: var(--mn-editor-sheet-tertiary, #716c64);
@@ -1053,13 +1092,81 @@ export class ShEditorHost extends LitElement {
           inset 0 -1px rgba(255, 255, 255, 0.62);
       }
     }
+    /* Hotdog Stand's page is a Window — Window Text on Window — not a silver panel with a paper
+       on it. The page's descendants read the SHARED roles (title, link, muted, code, hover, rules),
+       so without a re-scope a black heading sits over white paragraphs on a red page. The skin names
+       the page's colours as --mn-editor-sheet-* roles; this block — keyed the way the physical-page
+       materials are, by a host attribute (editor-skin, beside editor-material) and not :host-context —
+       makes every shared role inside the
+       page answer from them. Continuous material only: paper and classic-word keep their own block
+       above, and never see this one. */
+    :host([editor-skin='hotdog-stand']:not([editor-material])) .editor-mount .ProseMirror {
+      --mn-color-surface-base: var(--mn-editor-sheet-surface);
+      --mn-color-surface-editor: var(--mn-editor-sheet-surface);
+      --mn-color-surface-raised: var(--mn-editor-sheet-raised);
+      --mn-color-surface-elevated: var(--mn-editor-sheet-raised);
+      --mn-color-surface-overlay: var(--mn-editor-sheet-raised);
+      --mn-color-surface-subtle: var(--mn-editor-sheet-sunken);
+      --mn-color-surface-warm: var(--mn-editor-sheet-sunken);
+      --mn-color-surface-sunken: var(--mn-editor-sheet-sunken);
+      --mn-color-surface-code: var(--mn-editor-sheet-sunken);
+      --mn-color-surface-hover: var(--mn-editor-sheet-hover);
+      --mn-color-surface-active: var(--mn-editor-sheet-wash);
+      --mn-color-surface-accent: var(--mn-editor-sheet-wash);
+      --mn-color-surface-accent-subtle: var(--mn-editor-sheet-wash);
+      --mn-color-surface-accent-strong: var(--mn-editor-sheet-wash);
+      --mn-color-text-primary: var(--mn-editor-sheet-ink);
+      --mn-color-text-secondary: var(--mn-editor-sheet-secondary);
+      --mn-color-text-tertiary: var(--mn-editor-sheet-tertiary);
+      --mn-color-text-muted: var(--mn-editor-sheet-tertiary);
+      --mn-color-text-quiet: var(--mn-editor-sheet-tertiary);
+      --mn-color-text-title: var(--mn-editor-sheet-title);
+      --mn-color-text-link: var(--mn-editor-sheet-link);
+      --mn-color-text-link-hover: var(--mn-editor-sheet-link-hover);
+      --mn-color-text-accent: var(--mn-editor-sheet-accent);
+      --mn-color-text-accent-strong: var(--mn-editor-sheet-accent);
+      --mn-color-text-on-accent: var(--mn-editor-sheet-on-accent);
+      --mn-color-text-success: var(--mn-editor-sheet-accent);
+      --mn-color-success-strong: var(--mn-editor-sheet-accent);
+      --mn-color-danger-strong: var(--mn-editor-sheet-accent);
+      --mn-color-warning-strong: var(--mn-editor-sheet-accent);
+      --mn-color-warning-border: var(--mn-editor-sheet-accent);
+      --mn-color-warning-surface: var(--mn-editor-sheet-wash);
+      --mn-color-warning-surface-strong: var(--mn-editor-sheet-wash);
+      --mn-color-search-match: var(--mn-editor-sheet-raised);
+      --mn-color-search-current: var(--mn-editor-sheet-sunken);
+      --mn-color-border-subtle: var(--mn-editor-sheet-rule);
+      --mn-color-border-default: var(--mn-editor-sheet-rule);
+      --mn-color-border-strong: var(--mn-editor-sheet-rule);
+      --mn-color-border-accent: var(--mn-editor-sheet-accent);
+      --mn-color-border-focus: var(--mn-editor-sheet-accent);
+      --mn-color-accent: var(--mn-editor-sheet-accent);
+      --mn-color-accent-hover: var(--mn-editor-sheet-accent);
+      --mn-color-accent-active: var(--mn-editor-sheet-accent);
+      --mn-focus-ring-color: var(--mn-editor-sheet-accent);
+    }
+    :host([editor-skin='hotdog-stand']:not([editor-material])) .editor-mount .ProseMirror a { color: var(--mn-editor-sheet-link); text-decoration: underline; }
+    :host([editor-skin='hotdog-stand']:not([editor-material])) .editor-mount .ProseMirror a:hover { color: var(--mn-editor-sheet-link-hover); }
+    /* The shared phone rule (further down) runs every page edge to edge with no frame. Hotdog Stand's page is a
+       Window on the yellow desk, and Vera asked for the desk to show around it at every width: below 760px it keeps a
+       gutter (8px at the sides and the top, 16px at the foot for the frame's offset shadow) and its frame. Keyed to the
+       skin's own host attribute, so no other skin's phone layout moves. */
+    @media (max-width: 760px) {
+      :host([editor-skin='hotdog-stand']:not([editor-material])) .editor-mount .ProseMirror {
+        width: calc(100% - 16px);
+        min-height: calc(100% - 24px);
+        margin: 8px auto 16px;
+        border: var(--mn-editor-sheet-border);
+        box-shadow: var(--mn-editor-sheet-shadow);
+      }
+    }
     .editor-mount .ProseMirror > p,
     .editor-mount .ProseMirror > h1,
     .editor-mount .ProseMirror > h2,
     .editor-mount .ProseMirror > h3,
     .editor-mount .ProseMirror > blockquote,
     .editor-mount .ProseMirror > li,
-    .editor-mount .ProseMirror > table {
+    .editor-mount .ProseMirror > .tableWrapper {
       position: relative;
     }
     .editor-mount .ProseMirror > p,
@@ -1094,134 +1201,177 @@ export class ShEditorHost extends LitElement {
     .editor-mount .ProseMirror > blockquote:hover {
       background: var(--mn-color-surface-hover, rgba(61, 127, 95, 0.06));
     }
-    .editor-mount .ProseMirror > blockquote::before {
+    /* ── Tables ─────────────────────────────────────────────────────────────
+       THE WRAPPER IS THE BLOCK, and that is the whole reason this section
+       exists. TipTap's Table extension mounts every table inside its own
+       <div class="tableWrapper">, so a <table> is NEVER a direct child of
+       .ProseMirror. Measured, not assumed — table-dom.test.ts in
+       editor-kernel asserts the wrapper and asserts the table is not a child.
+
+       UNCONDITIONAL, and worth stating because the obvious guess is wrong: the
+       wrapper is NOT a consequence of resizable: true (base.ts:140). Built
+       both ways and compared — wrapper and <colgroup> appear identically with
+       resizable on and off. Anyone turning resizing off later must not expect
+       these selectors to stop applying.
+
+       Two things followed from nobody knowing that:
+         · The one table rule this file had — .ProseMirror > table
+           { position: relative } — matched NOTHING. cloud-1's own table CSS
+           carries the identical dead selector (document-editor.ts:1922), so
+           copying it across would have shipped a second rule that does not
+           run. Fixed above by naming the wrapper.
+         · A table received none of the left gutter every other block carries
+           (> p/> h* pad 2rem for the drag handle and the dot), so it sat
+           flush against the edge while the prose sat an inch in.
+
+       Everything here hangs off .tableWrapper; the table selector is a
+       DESCENDANT, never a child.
+
+       NO border-radius on the table, deliberately. border-collapse: collapse
+       and rounded corners fight each other — the cells are not clipped by the
+       table's radius, so the corners square themselves off again and the
+       border doubles at the join. cloud-1 papers over this with
+       overflow: hidden on the <table>, which is unreliable across browsers.
+       A flat 1px frame is the honest version; doing it properly needs
+       border-collapse: separate plus per-edge cell borders, which is a
+       deliberate pass, not a side effect of this one. */
+    .editor-mount .ProseMirror > .tableWrapper {
+      margin: 0 0 var(--mn-space-1, 0.25rem);
+      padding: var(--mn-space-1-5, 0.375rem) var(--mn-space-2, 0.5rem)
+        var(--mn-space-1-5, 0.375rem) var(--mn-space-8, 2rem);
+      /* A table wider than the text column scrolls ITSELF. Without this the
+         document grows a horizontal scrollbar and every other block starts
+         sliding under it. */
+      overflow-x: auto;
+    }
+    .editor-mount .ProseMirror .tableWrapper table {
+      width: 100%;
+      border: 1px solid var(--mn-color-border-default, #d1d5db);
+      border-collapse: collapse;
+      font-size: var(--mn-text-sm, 13px);
+      table-layout: fixed;
+    }
+    /* position: relative anchors the resize handle; box-sizing: border-box
+       keeps the padding inside the width prosemirror-tables writes onto the
+       <col>, so a dragged column lands where the pointer left it.
+
+       No min-width here on purpose. Under table-layout: fixed a cell's own
+       min-width is ignored — the <colgroup> carries the minimum instead
+       (<col style="min-width: 25px">, present in the rendered DOM either
+       way). A min-width on the cell would read like a guard and enforce
+       nothing. */
+    .editor-mount .ProseMirror .tableWrapper th,
+    .editor-mount .ProseMirror .tableWrapper td {
+      position: relative;
+      box-sizing: border-box;
+      padding: var(--mn-space-2, 0.5rem) var(--mn-space-3, 0.75rem);
+      border: 1px solid var(--mn-color-border-subtle, #e5e7eb);
+      text-align: left;
+      vertical-align: top;
+    }
+    .editor-mount .ProseMirror .tableWrapper th {
+      background: var(--mn-color-surface-subtle, #f7f5f0);
+      border-bottom: 2px solid var(--mn-color-border-default, #d1d5db);
+      color: var(--mn-color-text-primary, #111827);
+      font-weight: var(--mn-font-weight-semibold, 600);
+    }
+    /* Every cell holds a real paragraph node. It is not a direct child of
+       .ProseMirror, so it escapes the block padding above — but not the UA's
+       default margin, which is what opens a gap over each cell's first line. */
+    .editor-mount .ProseMirror .tableWrapper th > p,
+    .editor-mount .ProseMirror .tableWrapper td > p {
+      margin: 0;
+      padding: 0;
+    }
+    /* prosemirror-tables' OWN class names, applied at INTERACTION time — a
+       cell selection and a hovered column edge. Nothing in this tree styled
+       either one, so with resizable: true on (base.ts:140) the column drag
+       target was invisible and a multi-cell selection gave no feedback at all.
+
+       These two are the one part of this section not confirmed against a
+       rendered DOM: both classes appear only mid-gesture, which happy-dom does
+       not produce, so they rest on prosemirror-tables' documented names rather
+       than on a measurement. Worth a real browser pass before trusting the
+       exact geometry below. */
+    .editor-mount .ProseMirror .tableWrapper .selectedCell::after {
       content: '';
       position: absolute;
-      left: var(--mn-space-2, 0.5rem);
-      top: calc(var(--mn-space-1-5, 0.375rem) + 0.5lh);
-      width: 5px;
-      height: 5px;
-      border-radius: 999px;
-      background: var(--mn-color-border-strong, #7a869a);
-      transform: translateY(-50%);
-      transition:
-        background var(--mn-transition-fast, 120ms ease),
-        transform var(--mn-transition-fast, 120ms ease),
-        box-shadow var(--mn-transition-fast, 120ms ease);
-      cursor: pointer;
+      z-index: 2;
+      inset: 0;
+      background: var(--mn-color-surface-accent-subtle, rgba(61, 127, 95, 0.12));
+      pointer-events: none;
     }
-    .editor-mount .ProseMirror > blockquote:hover::before {
-      background: var(--mn-color-accent, #3d7f5f);
-      transform: translateY(-50%) scale(1.3);
-      box-shadow: var(--mn-focus-ring, 0 0 0 2px rgba(61, 127, 95, 0.22));
-    }
-    /* Garden outliner node affordances. Direct-child selectors are
-       load-bearing: paragraphs nested inside flat list/task items keep the
-       list item's one semantic marker instead of receiving a duplicate dot. */
-    .editor-mount .ProseMirror > p::before,
-    .editor-mount .ProseMirror > h1::before,
-    .editor-mount .ProseMirror > h2::before,
-    .editor-mount .ProseMirror > h3::before {
-      content: '';
+    .editor-mount .ProseMirror .tableWrapper .column-resize-handle {
       position: absolute;
+      z-index: 3;
+      top: 0;
+      right: -2px;
+      bottom: 0;
+      width: 3px;
+      background: var(--mn-color-border-accent, var(--mn-color-accent, #3d7f5f));
+      pointer-events: none;
+    }
+    /* The plugin puts this class on the editable root, not on a cell. */
+    .editor-mount .ProseMirror.resize-cursor {
+      cursor: col-resize;
+    }
+    /* THE TABLE'S DRAG HANDLE, which is a genuine mess and is only half fixed
+       here. 'table' is in OUTLINER_NODE_TYPES (outliner-tree.ts:27), so
+       BlockDnd mints a handle widget for a top-level table like any other
+       block — at block.pos + 1, which for a table is inside the table node but
+       before its first row. The browser therefore renders that span as a child
+       of <tbody>, a sibling of the <tr>s. Invalid table structure, and visible
+       in the rendered DOM.
+
+       It is survivable only because the handle is position: absolute, which
+       takes it out of the table box model entirely — no anonymous row boxes,
+       no phantom cell. Move it back into flow and it WILL misrender.
+
+       Two real defects follow, one fixed here and one not:
+         · The reveal list below (> p:hover, > h1:hover, …) never named a
+           table, so the handle sat at opacity 0 permanently: a table could be
+           dragged, but the grip could not be found. Drag itself works —
+           applyDrop moves a table cleanly and the doc stays valid, asserted in
+           table-drag.test.ts, which is also the first coverage tables have had
+           in block-dnd at all.
+         · Where the handle is BORN is still wrong, and belongs to BlockDnd
+           rather than to a stylesheet. Fixing it properly means not emitting a
+           widget inside the table node.
+
+       The left offset is overridden because this wrapper is both the handle's
+       containing block (position: relative, above) AND an overflow-x: auto
+       scroller. The shared -1.15rem would put the handle outside the padding
+       box, where the scroller clips it and may open a spurious scrollbar. So
+       it moves into the wrapper's own left gutter instead, at the offset the
+       outliner dots already use. Exact geometry wants a real browser: happy-dom
+       computes no layout, so nothing here is screenshot-verified. */
+    .editor-mount .ProseMirror > .tableWrapper .block-drag-handle {
       left: var(--mn-space-2, 0.5rem);
-      top: calc(var(--mn-space-1-5, 0.375rem) + 0.5lh);
-      border-radius: 999px;
-      transform: translateY(-50%);
-      transition:
-        background var(--mn-transition-fast, 120ms ease),
-        transform var(--mn-transition-fast, 120ms ease),
-        box-shadow var(--mn-transition-fast, 120ms ease);
-      cursor: pointer;
+      top: calc(var(--mn-space-1-5, 0.375rem) + 0.75rem);
     }
-    .editor-mount .ProseMirror > p::before {
-      width: 5px;
-      height: 5px;
-      background: var(--mn-color-border-strong, #7a869a);
+    .editor-mount .ProseMirror > .tableWrapper:hover .block-drag-handle {
+      opacity: 0.6;
     }
-    .editor-mount .ProseMirror > h1::before,
-    .editor-mount .ProseMirror > h2::before,
-    .editor-mount .ProseMirror > h3::before {
-      width: 8px;
-      height: 8px;
-      background: var(--mn-color-accent, #3d7f5f);
-    }
-    .editor-mount .ProseMirror > p:hover::before {
-      background: var(--mn-color-accent, #3d7f5f);
-      transform: translateY(-50%) scale(1.3);
-      box-shadow: var(--mn-focus-ring, 0 0 0 2px rgba(61, 127, 95, 0.22));
-    }
-    .editor-mount .ProseMirror > h1:hover::before,
-    .editor-mount .ProseMirror > h2:hover::before,
-    .editor-mount .ProseMirror > h3:hover::before {
-      background: var(--mn-color-accent-hover, #2f6f4f);
-      transform: translateY(-50%) scale(1.2);
-      box-shadow: var(--mn-focus-ring, 0 0 0 2px rgba(61, 127, 95, 0.22));
-    }
-    .editor-mount .ProseMirror > p:active::before {
-      background: var(--mn-color-accent, #3d7f5f);
-      transform: translateY(-50%) scale(1.1);
-    }
-    .editor-mount .ProseMirror > h1:active::before,
-    .editor-mount .ProseMirror > h2:active::before,
-    .editor-mount .ProseMirror > h3:active::before {
-      background: var(--mn-color-accent-hover, #2f6f4f);
-      transform: translateY(-50%) scale(1.05);
-    }
-    /* ProseMirror focuses one contenteditable root, not each child block. The
-       transaction projection marks the selected top-level block; gating its
-       treatment on the root's real focus keeps toolbar/blur state honest. */
-    .editor-mount .ProseMirror:focus > p[data-block-focused],
-    .editor-mount .ProseMirror:focus > h1[data-block-focused],
-    .editor-mount .ProseMirror:focus > h2[data-block-focused],
-    .editor-mount .ProseMirror:focus > h3[data-block-focused] {
-      box-shadow: inset 2px 0 0 var(--mn-color-border-accent, #3d7f5f);
-    }
-    .editor-mount .ProseMirror:focus > p[data-block-focused]::before,
-    .editor-mount .ProseMirror:focus > h1[data-block-focused]::before,
-    .editor-mount .ProseMirror:focus > h2[data-block-focused]::before,
-    .editor-mount .ProseMirror:focus > h3[data-block-focused]::before {
-      background: var(--mn-color-accent, #3d7f5f);
-      box-shadow: var(--mn-focus-ring, 0 0 0 2px rgba(61, 127, 95, 0.22));
-    }
-    @keyframes node-wire-pulse {
-      0%, 100% {
-        opacity: 0.72;
-        box-shadow: 0 0 0 2px rgba(61, 127, 95, 0.16);
-      }
-      50% {
-        opacity: 1;
-        box-shadow: 0 0 0 3px rgba(61, 127, 95, 0.3);
-      }
-    }
-    .editor-mount .ProseMirror > p[data-block-wired]::before,
-    .editor-mount .ProseMirror > h1[data-block-wired]::before,
-    .editor-mount .ProseMirror > h2[data-block-wired]::before,
-    .editor-mount .ProseMirror > h3[data-block-wired]::before {
-      background: var(--mn-color-accent, #3d7f5f);
-      animation: node-wire-pulse 2s ease-in-out infinite;
-    }
-    .editor-mount .ProseMirror > p[data-block-wired]:hover::before,
-    .editor-mount .ProseMirror > h1[data-block-wired]:hover::before,
-    .editor-mount .ProseMirror > h2[data-block-wired]:hover::before,
-    .editor-mount .ProseMirror > h3[data-block-wired]:hover::before {
-      background: var(--mn-color-accent-hover, #2f6f4f);
-      animation: none;
-      box-shadow: var(--mn-focus-ring, 0 0 0 2px rgba(61, 127, 95, 0.22));
-    }
-    @media (prefers-reduced-motion: reduce) {
-      .editor-mount .ProseMirror > p[data-block-wired]::before,
-      .editor-mount .ProseMirror > h1[data-block-wired]::before,
-      .editor-mount .ProseMirror > h2[data-block-wired]::before,
-      .editor-mount .ProseMirror > h3[data-block-wired]::before {
-        animation: none;
-      }
-    }
-    .editor-mount .ProseMirror > p:hover,
-    .editor-mount .ProseMirror > h1:hover,
-    .editor-mount .ProseMirror > h2:hover,
-    .editor-mount .ProseMirror > h3:hover,
-    .editor-mount .ProseMirror > li:hover {
+
+    /* HOVER IS A POINTER AFFORDANCE, so it goes quiet while you type.
+       ProseMirror replaces the block you are editing on every keystroke. The
+       replacement is a NEW element: it is born un-hovered, the browser hands
+       it :hover on the next hit-test, and the 120ms transition on background
+       and box-shadow (see the block rule above) animates the wash back in --
+       once per character. Measured with a stationary pointer: 151 visual
+       transitions across 241 frames, the background ramping 0 -> 0.02 -> 0.03
+       -> 0.043 and collapsing again, over and over. That is the blink.
+       Suppressing the TRANSITION alone would only shorten it; the wash would
+       still drop out for a frame each time. So the wash itself stands down
+       while typing, which is also what it means: you are not pointing at this
+       block, you are writing in it. data-typing is cleared by the first
+       pointer movement over the editor, so the affordance returns exactly when
+       it starts being true again -- no timer, nothing to poll. */
+    .editor-mount:not([data-typing]) .ProseMirror > p:hover,
+    .editor-mount:not([data-typing]) .ProseMirror > h1:hover,
+    .editor-mount:not([data-typing]) .ProseMirror > h2:hover,
+    .editor-mount:not([data-typing]) .ProseMirror > h3:hover,
+    .editor-mount:not([data-typing]) .ProseMirror > li:hover {
       background: var(--mn-color-surface-hover, rgba(15, 23, 42, 0.05));
     }
     .editor-mount .ProseMirror .tts-reading-highlight {
@@ -1751,7 +1901,9 @@ export class ShEditorHost extends LitElement {
        the mirror-image affordance on the right. Excluded on coarse pointers
        (touch), where hover has no meaning and there is no popover trigger. */
     @media (hover: hover) and (pointer: fine) {
-      .editor-mount .ProseMirror > :is(p, h1, h2, h3, li, blockquote, .code-block-wrapper):hover {
+      /* Same reasoning as the background wash above: this is the other half of
+         the blink, and the greener half — it is the bar the report named. */
+      .editor-mount:not([data-typing]) .ProseMirror > :is(p, h1, h2, h3, li, blockquote, .code-block-wrapper):hover {
         box-shadow: inset -3px 0 0 color-mix(in srgb, var(--mn-color-accent, #16a34a) 55%, transparent);
       }
     }
@@ -1859,83 +2011,397 @@ export class ShEditorHost extends LitElement {
     .editor-mount .ProseMirror .block-selected::selection {
       background: transparent;
     }
-    .editor-mount .ProseMirror .block-drag-handle {
+    /* One structural control owns the gutter. The first-line anchor and both
+       targets stay still while the node's context changes. */
+    .editor-mount .ProseMirror > :is(p, h1, h2, h3, blockquote, li) {
+      padding-left: 56px;
+    }
+    .editor-mount .ProseMirror .tableWrapper {
+      position: relative;
+      padding-left: 56px;
+    }
+    /* Embeds (query blocks, figures, kept-as-stored placeholders) sit in the
+       text column beside the outline, not across its gutter; the gutter's
+       guide line stops at them (outliner-gutter.ts). */
+    .editor-mount .ProseMirror > [data-block-embed] {
+      margin-left: 56px;
+    }
+    .editor-mount .ProseMirror .tableWrapper :is(td, th) > p:first-child { margin-top: 0; }
+    .editor-mount .ProseMirror > blockquote > p:first-of-type { margin-top: 0; }
+    .editor-mount .ProseMirror > :is(p, h1, h2, h3, blockquote, li)::before,
+    .editor-mount .ProseMirror [data-block-wired]:has(.outliner-control)::after {
+      content: none !important;
+      animation: none !important;
+    }
+    .editor-mount .ProseMirror .outliner-control {
       position: absolute;
-      left: -1.15rem;
+      left: 0;
       top: calc(var(--mn-space-1-5, 0.375rem) + 0.5lh);
       transform: translateY(-50%);
-      width: 0.85rem;
-      height: 1.1rem;
-      border-radius: var(--mn-radius-sm, 4px);
-      cursor: grab;
-      opacity: 0;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      width: 48px;
+      height: 26px;
+      border-radius: 7px;
+      background: transparent;
       color: var(--mn-color-text-tertiary, #697386);
-      background-image: radial-gradient(currentColor 1px, transparent 1.4px);
-      background-size: 4px 4px;
-      background-position: center;
-      transition: opacity 0.15s ease, color 0.15s ease;
+      z-index: 2;
+      font: inherit;
       user-select: none;
     }
-    .editor-mount .ProseMirror > p:hover .block-drag-handle,
-    .editor-mount .ProseMirror > h1:hover .block-drag-handle,
-    .editor-mount .ProseMirror > h2:hover .block-drag-handle,
-    .editor-mount .ProseMirror > h3:hover .block-drag-handle,
-    .editor-mount .ProseMirror > blockquote:hover .block-drag-handle,
-    .editor-mount .ProseMirror > li:hover .block-drag-handle {
-      opacity: 0.6;
-    }
-    .editor-mount .ProseMirror .block-drag-handle:hover {
+    .editor-mount .ProseMirror .outliner-control:not(:has(.outliner-fold-button)) { width: 24px; left: 24px; }
+    .editor-mount .ProseMirror .outliner-control > button {
+      position: relative;
+      inset: auto;
+      transform: none;
+      flex: 0 0 24px;
+      width: 24px;
+      height: 26px;
+      margin: 0;
+      padding: 0;
+      border: 0;
+      border-radius: 6px;
+      background: transparent;
+      color: inherit;
       opacity: 1;
+      cursor: pointer;
+    }
+    .editor-mount .ProseMirror .outliner-control > .outliner-node-button {
+      cursor: grab;
+    }
+    .editor-mount .ProseMirror .outliner-node-button::before {
+      content: '';
+      display: block;
+      width: 6px;
+      height: 6px;
+      margin: auto;
+      box-sizing: border-box;
+      border: 1px solid currentColor;
+      border-radius: 50%;
+      background: var(--mn-color-surface-editor, #fffdf8);
+    }
+    .editor-mount .ProseMirror .outliner-control > .outliner-fold-button::before {
+      left: 9px;
+      opacity: 0.6;
+      border-left-color: currentColor;
+    }
+    .editor-mount .ProseMirror .outliner-control > button:hover {
+      background: var(--mn-color-surface-hover, #e9ece7);
+      color: var(--mn-color-text-primary, #1f2933);
+    }
+    .editor-mount .ProseMirror .outliner-control > button:focus-visible {
+      outline: 2px solid var(--mn-color-border-accent, #3d7f5f);
+      outline-offset: 1px;
+    }
+    .editor-mount .ProseMirror .block-selected .outliner-control,
+    .editor-mount .ProseMirror .outliner-control[data-block-focused],
+    .editor-mount .ProseMirror .outliner-control:focus-within {
       color: var(--mn-color-text-accent, #3d7f5f);
     }
-    .editor-mount .ProseMirror .block-drag-handle:active {
-      cursor: grabbing;
+    .editor-mount .ProseMirror .block-selected .outliner-node-button::before,
+    .editor-mount .ProseMirror .outliner-control[data-block-focused] .outliner-node-button::before,
+    .editor-mount .ProseMirror .outliner-control:focus-within .outliner-node-button::before {
+      background: currentColor;
+      transform: scale(1.5);
+      box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 16%, transparent);
     }
-    /* Paragraph/heading wires promote their node marker above. Other block
-       kinds retain the separate wire dot — same pulse treatment, so a wired
-       blockquote/list-item/code-block reads as alive too, not just flagged.
-       The dot keeps its static surface-color separator ring at rest; the
-       pulse animates a second, outer accent ring layered alongside it
-       (reusing node-wire-pulse's box-shadow directly would clobber the
-       separator ring rather than layer with it). */
-    @keyframes node-wire-pulse-dot {
-      0%, 100% {
-        opacity: 0.72;
-        box-shadow: 0 0 0 2px var(--mn-color-surface-editor, #fffdf8), 0 0 0 4px rgba(61, 127, 95, 0.16);
-      }
-      50% {
-        opacity: 1;
-        box-shadow: 0 0 0 2px var(--mn-color-surface-editor, #fffdf8), 0 0 0 5px rgba(61, 127, 95, 0.3);
-      }
+    .editor-mount .ProseMirror .outliner-control:is(:hover, :focus-within, [data-block-focused]) > .outliner-fold-button::before {
+      opacity: 1;
     }
-    .editor-mount .ProseMirror [data-block-wired]:not(p):not(h1):not(h2):not(h3)::after {
+    /* ── Reading faces (senderos polish, 2026-09-25) ────────────────────
+       A figure or formula that scrolls sideways fades out on the side with
+       more to see: the kernel's scroll-edge sheet (editor-styles.ts), a mask
+       keyed on data-scroll-edges, adopted into this shadow root. (The
+       background-attachment shadow it replaces was painted under a diagram's
+       opaque boxes and did not show in dark mode.) */
+    /* Display math stays in the text column: it scales down a little or
+       scrolls inside its block (katex-math-renderer.ts fitDisplayMath); a
+       centred formula never overflows to the left, out of reach. */
+    .editor-mount .ProseMirror > .math-block {
+      box-sizing: border-box;
+      max-width: 100%;
+      padding-left: 56px;
+    }
+    .editor-mount .ProseMirror .math-block .math-rendered {
+      display: flex;
+      justify-content: safe center;
+      max-width: 100%;
+      overflow-x: auto;
+      overflow-y: hidden;
+      padding-block: 2px;
+      scrollbar-width: thin;
+    }
+    .editor-mount .ProseMirror .math-block .math-rendered > math { flex: none; margin: 0; }
+    .editor-mount .ProseMirror .math-inline { max-width: 100%; }
+    .editor-mount .ProseMirror .math-inline .math-rendered {
+      display: inline-block;
+      max-width: 100%;
+      overflow-x: auto;
+      overflow-y: hidden;
+      vertical-align: bottom;
+      scrollbar-width: none;
+    }
+    /* Mermaid by stance. read: the figure alone; draft: the header chrome on
+       hover, focus, the ⋯ affordance, or whenever the source is open. */
+    .editor-mount .ProseMirror .mermaid-code-block-wrapper { position: relative; }
+    .editor-mount .ProseMirror .mermaid-code-block-wrapper[data-face-stance='read'] {
+      border-color: transparent;
+      background: transparent;
+    }
+    .editor-mount .ProseMirror .mermaid-code-block-wrapper[data-face-stance='read'] .mermaid-preview {
+      padding: var(--mn-space-2, 0.5rem) 0;
+      background-color: transparent;
+    }
+    .editor-mount .ProseMirror .mermaid-preview { place-items: safe center; overflow-x: auto; }
+    .editor-mount .ProseMirror .mermaid-code-block-wrapper[data-face-stance='read'] .mermaid-code-block-header {
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      z-index: 3;
+      min-height: 0;
+      padding: 2px 4px 2px 10px;
+      border: 1px solid var(--mn-color-border-subtle, rgba(15, 23, 42, 0.12));
+      border-radius: var(--mn-radius-md, 8px);
+      background: var(--mn-color-surface-raised, #fffdf8);
+      box-shadow: var(--mn-shadow-card, 0 8px 24px -16px rgba(0, 0, 0, 0.35));
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 120ms ease, visibility 0s linear 120ms;
+    }
+    .editor-mount .ProseMirror .mermaid-code-block-wrapper[data-face-stance='read']:is(:hover, :focus-within, [data-chrome-open]) .mermaid-code-block-header {
+      opacity: 1;
+      visibility: visible;
+      transition: opacity 120ms ease;
+    }
+    /* Phones and touch screens: the ⋯ lives in the slim bar ABOVE the
+       figure (kernel sheet, copyable-code-block.ts MERMAID_FIGURE_CSS); the
+       chrome it opens drops into the flow under that bar, never over the
+       diagram. Keep this media query in step with FIGURE_TOUCH_MEDIA. */
+    @media (max-width: 760px), (hover: none), (pointer: coarse) {
+      .editor-mount .ProseMirror .mermaid-code-block-wrapper[data-face-stance='read']:is(:hover, :focus-within):not([data-chrome-open]) .mermaid-code-block-header {
+        opacity: 0;
+        visibility: hidden;
+      }
+      .editor-mount .ProseMirror .mermaid-code-block-wrapper[data-face-stance='read']:not([data-chrome-open]) .mermaid-code-block-header {
+        display: none;
+      }
+      .editor-mount .ProseMirror .mermaid-code-block-wrapper[data-face-stance='read'][data-chrome-open] .mermaid-code-block-header {
+        position: static;
+        margin: 0 0 var(--mn-space-2, 0.5rem);
+        box-shadow: none;
+      }
+      .editor-mount .ProseMirror .mermaid-code-block-wrapper[data-face-stance='read'] .mermaid-preview { cursor: zoom-in; }
+    }
+    /* List items read as a list, not as paragraphs: a solid bullet (the
+       outline handle, filled) and tight spacing between neighbouring items.
+       Ordered and task items keep their number / checkbox. */
+    .editor-mount .ProseMirror > li[data-list-type] {
+      margin-bottom: 0;
+      padding-top: 2px;
+      padding-bottom: 2px;
+    }
+    .editor-mount .ProseMirror > li[data-list-type] .outliner-control {
+      top: calc(2px + 0.5lh);
+    }
+    .editor-mount .ProseMirror > li[data-list-type] + :not(li[data-list-type]) {
+      margin-top: var(--mn-space-3, 0.75rem);
+    }
+    .editor-mount .ProseMirror > li[data-list-type='bullet'] .outliner-node-button::before {
+      width: 6px;
+      height: 6px;
+      border-color: var(--mn-color-text-secondary, #475467);
+      background: var(--mn-color-text-secondary, #475467);
+    }
+    /* Phones: the outline gutter gives the text its width back. The bullet
+       handle keeps a 32px tap target, overlapping the page margin. Keyed on
+       a coarse pointer as well as width: a phone in landscape is 844px wide
+       and still wants the touch-sized handle and the narrow gutter. */
+    /* (The 09-13 touch gutter further down — 72px text inset, 44px-tall
+       paragraphs — is for tablet-sized touch screens only; on a phone it
+       used to override this block, putting portrait text at 92px.) */
+    @media (max-width: 760px), (pointer: coarse) and (max-width: 1023px) {
+      .editor-mount .ProseMirror { padding-left: 20px; }
+      .editor-mount .ProseMirror > :is(p, h1, h2, h3, blockquote, li),
+      .editor-mount .ProseMirror .tableWrapper,
+      .editor-mount .ProseMirror > .math-block {
+        padding-left: 28px;
+      }
+      .editor-mount .ProseMirror > [data-block-embed] { margin-left: 0; }
+      .editor-mount .ProseMirror .outliner-control {
+        left: -20px;
+        width: 48px;
+        height: 32px;
+      }
+      .editor-mount .ProseMirror .outliner-control:not(:has(.outliner-fold-button)) { left: -4px; width: 32px; }
+      .editor-mount .ProseMirror .outliner-control > button { flex: 0 0 16px; width: 16px; height: 32px; }
+      .editor-mount .ProseMirror .outliner-control > .outliner-node-button { flex-basis: 32px; width: 32px; }
+      .editor-mount .ProseMirror [data-indent='1'] { margin-left: 1rem; }
+      .editor-mount .ProseMirror [data-indent='2'] { margin-left: 2rem; }
+      .editor-mount .ProseMirror [data-indent='3'] { margin-left: 3rem; }
+      .editor-mount .ProseMirror [data-indent='4'] { margin-left: 4rem; }
+      .editor-mount .ProseMirror [data-indent='5'] { margin-left: 5rem; }
+    }
+    .outliner-gutter {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      overflow: visible;
+      pointer-events: none;
+      z-index: 1;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1;
+      opacity: 0.3;
+    }
+    .editor-mount .ProseMirror [data-block-wired] > .outliner-control .outliner-node-button::after {
       content: '';
       position: absolute;
-      left: var(--mn-space-5, 1.25rem);
-      top: calc(var(--mn-space-1-5, 0.375rem) + 0.52lh);
-      width: 0.45rem;
-      height: 0.45rem;
-      border-radius: 999px;
+      right: 3px;
+      top: 3px;
+      width: 4px;
+      height: 4px;
+      border-radius: 50%;
+      background: currentColor;
+    }
+    .editor-mount .ProseMirror [data-block-id][data-block-wired]:not(:has(.outliner-control))::after {
+      content: '';
+      position: absolute;
+      left: 1.25rem;
+      top: calc(var(--mn-space-1-5, 0.375rem) + 0.5lh);
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
       background: var(--mn-color-text-accent, #3d7f5f);
-      box-shadow: 0 0 0 2px var(--mn-color-surface-editor, #fffdf8);
       pointer-events: none;
-      animation: node-wire-pulse-dot 2s ease-in-out infinite;
     }
-    .editor-mount .ProseMirror [data-block-wired]:not(p):not(h1):not(h2):not(h3):hover::after {
-      background: var(--mn-color-accent-hover, #2f6f4f);
-      animation: none;
-      box-shadow: 0 0 0 2px var(--mn-color-surface-editor, #fffdf8), var(--mn-focus-ring, 0 0 0 2px rgba(61, 127, 95, 0.22));
+    .outliner-menu {
+      position: fixed;
+      margin: 0;
+      padding: 6px;
+      width: 228px;
+      max-width: calc(100vw - 16px);
+      max-height: calc(100dvh - 16px);
+      overflow: auto;
+      border: 1px solid var(--mn-color-border-subtle, #d8ded8);
+      border-radius: 10px;
+      background: var(--mn-color-surface-base, #fffdf8);
+      color: var(--mn-color-text-primary, #1f2933);
+      box-shadow: 0 8px 24px #0002;
+      font: 13px/1.4 var(--mn-font-chrome, system-ui);
     }
-    @media (prefers-reduced-motion: reduce) {
-      .editor-mount .ProseMirror [data-block-wired]:not(p):not(h1):not(h2):not(h3)::after {
-        animation: none;
-      }
+    .outliner-menu-title { padding: 5px 8px 8px; color: var(--mn-color-text-secondary, #536159); }
+    .outliner-menu button {
+      display: block; width: 100%; border: 0; border-radius: 5px;
+      background: transparent; color: inherit; text-align: left;
+      padding: 8px; font: inherit; cursor: pointer;
     }
+    .outliner-menu button:hover, .outliner-menu button:focus-visible {
+      background: var(--mn-color-surface-hover, #e9ece7); outline: none;
+    }
+    .outliner-menu button:disabled { opacity: 0.45; cursor: default; }
+    /* Touch screens wider than a phone (tablets). Phones — portrait, or a
+       coarse pointer under 1024px, i.e. landscape — take the phone gutter
+       above; this block used to win there too, being later in the sheet. */
+    @media (pointer: coarse) and (min-width: 1024px) {
+      .editor-mount .ProseMirror > :is(p, h1, h2, h3, blockquote, li) { min-height: 44px; padding-left: 72px; }
+      .editor-mount .ProseMirror .tableWrapper { padding-left: 72px; }
+      .editor-mount .ProseMirror .outliner-control { width: 64px; height: 36px; }
+      .editor-mount .ProseMirror .outliner-control:not(:has(.outliner-fold-button)) { width: 32px; left: 32px; }
+      .editor-mount .ProseMirror .outliner-control > button { flex-basis: 32px; width: 32px; height: 36px; }
+      .editor-mount .ProseMirror .outliner-control > .outliner-fold-button::before { left: 13px; }
+      .outliner-menu button { min-height: 44px; }
+    }
+    /* ── Wire highlight ─────────────────────────────────────────────────────
+       TWO TREATMENTS, because hovering and arriving are different events.
+       Ported from cloud-1, which drew them apart and felt right for it; this
+       frontend had collapsed both onto one hard on/off outline.
+
+         hover   — steady and quiet, eased in under the pointer. You are
+                   browsing a list; the document answers without shouting.
+         arrival — a one-shot pulse. You were carried here from somewhere else
+                   and the block says which one it is.
+
+       Cloud-1 got its pulse by animating opacity and transform: scale() on a
+       position: fixed overlay div appended to document.body and kept aligned
+       by a scroll listener. NOT ported, on purpose: that overlay needs
+       re-measuring on every scroll, resize and reflow, and being a body-level
+       singleton it cannot represent two panes at once — which is a fair
+       suspect for why this kept breaking there. Same reason the pulse below
+       animates box-shadow rather than transform: scaling a real block would
+       shove the text around it. The expanding ring reads as the swell without
+       touching layout.
+
+       The value selector is deliberate and load-bearing — see the note on
+       _syncWireHighlight, and the guard in wire-highlight-contract.test.ts
+       that couples this string to the writer. */
     .editor-mount .ProseMirror [data-wire-highlighted='true'] {
       border-radius: 6px;
       outline: 1px solid var(--mn-color-border-accent, #3d7f5f);
       background: var(--mn-color-surface-accent, #eef8f2);
       box-shadow: 0 0 0 3px rgba(61, 127, 95, 0.16);
+      /* Kept for the case where the element PERSISTS and only its attributes
+         change — moving the highlight between blocks can mutate rather than
+         replace. It does nothing on the common path; see the note on the
+         hover animation below. */
+      transition:
+        background var(--mn-transition-fast, 110ms ease),
+        outline-color var(--mn-transition-fast, 110ms ease),
+        box-shadow var(--mn-transition-fast, 110ms ease);
+    }
+    /* HOVER FADES IN WITH AN ANIMATION, NOT A TRANSITION, and the difference is
+       forced by decorations rather than chosen.
+
+       Applying a decoration makes ProseMirror REPLACE the block element —
+       measured: elementReplacedByDecoration: true. The replacement is born
+       already carrying the highlight, so there is no earlier value for a
+       transition to run from, and the fade never fires. The declaration above
+       was valid the whole time (0.11s, correct easing) and simply had nothing
+       to animate; on screen it read as instant.
+
+       An animation runs when the element is rendered, which is exactly what a
+       decoration produces. The arrival pulse below was already an animation,
+       which is why it worked while this did not — the same file, the same
+       state, one mechanism compatible with decorations and one not.
+
+       The keyframes carry only a from: the implicit to is the element's own
+       computed style, so the fade lands on whatever the rule above says without
+       restating those values here and letting them drift. */
+    @keyframes mn-wire-hover-in {
+      from {
+        outline-color: transparent;
+        background: transparent;
+        box-shadow: 0 0 0 0 rgba(61, 127, 95, 0);
+      }
+    }
+    .editor-mount .ProseMirror [data-wire-highlight-mode='hover'] {
+      animation: mn-wire-hover-in 190ms ease-out 1;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .editor-mount .ProseMirror [data-wire-highlight-mode='hover'] {
+        animation: none;
+      }
+    }
+    @keyframes mn-wire-arrival-pulse {
+      0% {
+        box-shadow: 0 0 0 0 rgba(61, 127, 95, 0.45);
+      }
+      40% {
+        box-shadow: 0 0 0 6px rgba(61, 127, 95, 0.26);
+      }
+      100% {
+        box-shadow: 0 0 0 12px rgba(61, 127, 95, 0);
+      }
+    }
+    .editor-mount .ProseMirror [data-wire-highlight-mode='arrival'] {
+      animation: mn-wire-arrival-pulse 950ms ease-out 1;
+    }
+    /* The tint still fades in and out; only the ring's flourish is dropped. */
+    @media (prefers-reduced-motion: reduce) {
+      .editor-mount .ProseMirror [data-wire-highlight-mode='arrival'] {
+        animation: none;
+      }
     }
     .mg-widget {
       position: absolute;
@@ -2001,9 +2467,10 @@ export class ShEditorHost extends LitElement {
       background: var(--mn-color-search-current, #ffd166);
       box-shadow: 0 0 0 1px var(--mn-color-border-accent, #3d7f5f);
     }
-    .editor-mount .ProseMirror[contenteditable='false'] .block-drag-handle {
+    .editor-mount .ProseMirror[contenteditable='false'] .block-drag-handle:not(.outliner-node-button) {
       display: none;
     }
+    .editor-mount .ProseMirror[contenteditable='false'] .outliner-node-button { cursor: pointer; }
     .editor-mount .ProseMirror .block-dragging {
       opacity: 0.4;
     }
@@ -2328,11 +2795,20 @@ export class ShEditorHost extends LitElement {
   private _ghostTimeout: ReturnType<typeof setTimeout> | null = null
   private _zoomUnsub: (() => void) | null = null
   private _wireClickUnsub: (() => void) | null = null
+  private _outlinerGutterUnsub: (() => void) | null = null
   private _headingObserver: IntersectionObserver | null = null
   private _headingObservedIds: string[] = []
   private _headingIntersecting = new Map<string, boolean>()
   private _currentHeadingId: string | null = null
   private _highlightedWireBlockId: string | null = null
+  /**
+   * WHY the highlight has a mode: hovering a wire card and ARRIVING on a block
+   * are different events and cloud-1 drew them differently — a steady, quiet
+   * outline that eases in under the pointer, versus a one-shot pulse that
+   * announces where you just landed. Shrubbery had collapsed both onto one
+   * hard on/off treatment, which reads as blunt even once it is visible.
+   */
+  private _wireHighlightMode: 'hover' | 'arrival' = 'hover'
   private _activeCommentId: string | null = null
   private _lastFocusRequestToken: number | null = null
   private _blockFocusRetryToken = 0
@@ -2343,9 +2819,41 @@ export class ShEditorHost extends LitElement {
   private _salienceOverlayHoverTimer: ReturnType<typeof setTimeout> | null = null
   private _salienceOverlayCloseTimer: ReturnType<typeof setTimeout> | null = null
 
+  /**
+   * ACTIVE PANE ONLY. The event is dispatched on `ownerDocument`, so every
+   * mounted host hears it — with the same document open in two panes (a real
+   * thing to do on something long: top in one, bottom in the other), an
+   * ungated handler lights the block up in both.
+   *
+   * The arrival path already had this right: `main.ts` hands `focusRequest` to
+   * the active pane and null to the rest, so only one pane ever scrolls. Hover
+   * had no equivalent gate. Eschaton's rule, and it generalizes: the highlight
+   * does not merely light up, it MOVES you — and only the pane you are working
+   * in should move.
+   */
   private _onWireHighlightEvent = (event: Event): void => {
     const detail = (event as CustomEvent<WireHighlightBlockDetail>).detail
-    this._setWireHighlight(detail?.blockId ?? null)
+    const blockId = detail?.blockId ?? null
+    // A CLEAR ALWAYS LANDS, whatever pane this is. The gate below is right for
+    // a highlight — the event goes to ownerDocument so every mounted host hears
+    // it, and only the pane being worked in should light up — but gating the
+    // CLEAR too was a bug I shipped in d5fce23 and Beta caught in review.
+    //
+    // `blockId: null` is the wires panel's mouse-leave (wires-panel.ts's
+    // `clearHighlight`), carried on the same event. Dropping it stranded the
+    // highlight: hover a card while pane A is active, click into pane B, then
+    // leave the card — the clear arrives at an inactive pane A, is discarded,
+    // and A keeps a highlight nothing will remove until its next hover.
+    //
+    // A clear can only ever REMOVE, so honouring it in an inactive pane costs
+    // nothing and is strictly safer than the alternative. Only the positive
+    // case needs the gate.
+    if (blockId === null) {
+      this._setWireHighlight(null, 'hover')
+      return
+    }
+    if (!this.paneActive) return
+    this._setWireHighlight(blockId, 'hover')
   }
 
   private _onDocumentKeyDown = (event: KeyboardEvent): void => {
@@ -2394,12 +2902,21 @@ export class ShEditorHost extends LitElement {
   private _editorMaterialObserver: MutationObserver | null = null
 
   private _syncEditorMaterial(): void {
-    const material = this.ownerDocument.documentElement?.dataset.editorMaterial
+    const root = this.ownerDocument.documentElement
+    const material = root?.dataset.editorMaterial
     if (material === 'paper' || material === 'classic-word') {
       this.setAttribute('editor-material', material)
     } else {
       this.removeAttribute('editor-material')
     }
+    // The ambient skin rides the same observer: a skin whose page is a coloured surface
+    // (Hotdog Stand) re-scopes the page's roles by `:host([editor-skin=…])`, without :host-context.
+    // It is deliberately NOT named data-skin: a host carrying data-skin would itself match the
+    // skin's own [data-skin=…] blocks and re-declare the palette at the host (the light one, if
+    // data-theme were not mirrored too), shadowing what it inherits from the root.
+    const skin = root?.dataset.skin
+    if (skin) this.setAttribute('editor-skin', skin)
+    else this.removeAttribute('editor-skin')
   }
 
   private _observeEditorMaterial(): void {
@@ -2412,7 +2929,7 @@ export class ShEditorHost extends LitElement {
     this._editorMaterialObserver = new Observer(() => this._syncEditorMaterial())
     this._editorMaterialObserver.observe(root, {
       attributes: true,
-      attributeFilter: ['data-editor-material'],
+      attributeFilter: ['data-editor-material', 'data-skin'],
     })
   }
 
@@ -2815,11 +3332,14 @@ export class ShEditorHost extends LitElement {
       throw error
     }
     this._editor = editor
+    const editorRoot = el.querySelector<HTMLElement>('.ProseMirror')
+    if (editorRoot) this._outlinerGutterUnsub = installOutlinerGutter(el, editorRoot)
     this._editorEditable = editable
     this._syncDocumentAccess()
     const onGutterMouseDown = (event: MouseEvent): void => this._onEditorGutterMouseDown(event)
     const onWireClick = (event: MouseEvent): void => this._onEditorWireClick(event)
     const onTextClick = (event: MouseEvent): void => this._onEditorTextClick(event)
+    const onTypingRelease = (): void => this._markTyping(false)
     const onWireMouseMove = (event: MouseEvent): void => this._onEditorWireMouseMove(event)
     const onWireMouseOver = (event: MouseEvent): void => this._onEditorWireMouseMove(event)
     const onSalienceMouseMove = (event: MouseEvent): void => this._onEditorSalienceMouseMove(event)
@@ -2830,6 +3350,7 @@ export class ShEditorHost extends LitElement {
     el.addEventListener('mousedown', onGutterMouseDown)
     el.addEventListener('click', onWireClick)
     el.addEventListener('click', onTextClick)
+    el.addEventListener('mousemove', onTypingRelease)
     el.addEventListener('mousemove', onWireMouseMove)
     el.addEventListener('mouseover', onWireMouseOver)
     el.addEventListener('mousemove', onSalienceMouseMove)
@@ -2841,6 +3362,7 @@ export class ShEditorHost extends LitElement {
       el.removeEventListener('mousedown', onGutterMouseDown)
       el.removeEventListener('click', onWireClick)
       el.removeEventListener('click', onTextClick)
+      el.removeEventListener('mousemove', onTypingRelease)
       el.removeEventListener('mousemove', onWireMouseMove)
       el.removeEventListener('mouseover', onWireMouseOver)
       el.removeEventListener('mousemove', onSalienceMouseMove)
@@ -2849,7 +3371,13 @@ export class ShEditorHost extends LitElement {
       el.removeEventListener('mouseover', onImageMouseOver)
       el.removeEventListener('mouseout', onImageMouseOut)
     }
-    const onTransaction = (): void => {
+    const onTransaction = (event?: { transaction?: { docChanged?: boolean } }): void => {
+      // Tables have no persisted block ID: a document edit invalidates an open
+      // positional menu rather than silently retargeting it.
+      if (this._outlinerMenuId === '' && event?.transaction?.docChanged) this._closeOutlinerMenu(false)
+      // A transaction that changed the document is typing; a bare selection
+      // move is not, which is why this is here and not in onSelectionUpdate.
+      this._markTyping(true)
       this._syncZoomSnapshot()
       this._syncSearchState()
       this._syncFormatState()
@@ -2864,13 +3392,17 @@ export class ShEditorHost extends LitElement {
       this._syncFocusedBlock()
       this._emitStructureChange('selection')
     }
+    const onEditorFocus = (): void => {
+      this._discardToolbarSelection()
+      onSelectionUpdate()
+    }
     editor.on('transaction', onTransaction)
     editor.on('selectionUpdate', onSelectionUpdate)
-    editor.on('focus', onSelectionUpdate)
+    editor.on('focus', onEditorFocus)
     this._zoomUnsub = () => {
       editor.off('transaction', onTransaction)
       editor.off('selectionUpdate', onSelectionUpdate)
-      editor.off('focus', onSelectionUpdate)
+      editor.off('focus', onEditorFocus)
     }
     // Build the public handle ONCE, held by stable reference (identity = the EditorView's
     // lifetime). getText()/destroy() pass straight through; insertWikiLink delegates to
@@ -3160,7 +3692,8 @@ export class ShEditorHost extends LitElement {
     editor.commands.setTextSelection(selectionPosition)
     editor.commands.focus()
     this._blockElement(blockId)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-    this._setWireHighlight(blockId)
+    // An arrival: the caller navigated us here, so it gets the pulse.
+    this._setWireHighlight(blockId, 'arrival')
     return true
   }
 
@@ -3179,6 +3712,44 @@ export class ShEditorHost extends LitElement {
       const id = node?.attrs?.['data-block-id']
       if (typeof id === 'string' && id.length > 0) return id
     }
+    return null
+  }
+
+  /** Prefer the selected visible source block, then the first visible source block. */
+  getPdfSourceLocation(): EditorPdfSourceLocation | null {
+    const editor = this._editor
+    if (!editor) return null
+    const candidates = new Map<string, EditorPdfSourceLocation>()
+    const visit = (value: unknown): void => {
+      if (!value || typeof value !== 'object') return
+      const node = value as { attrs?: Record<string, unknown>; content?: unknown[] }
+      const attrs = node.attrs
+      const id = attrs?.['data-block-id']
+      const rawAnchor = attrs?.[PDF_SOURCE_ANCHOR_ATTRIBUTE]
+      const rawPage = attrs?.['data-source-page'] ?? attrs?.['data-pdf-page']
+      if (typeof id === 'string' && id && (rawAnchor != null || rawPage != null)) {
+        const page = Number(rawPage)
+        candidates.set(id, {
+          blockId: id, rawAnchor, text: pdfSourceText(node),
+          pageNumber: Number.isSafeInteger(page) && page > 0 ? page : null,
+        })
+      }
+      for (const child of node.content ?? []) visit(child)
+    }
+    visit(editor.getJSON())
+    const mount = this.renderRoot.querySelector<HTMLElement>('.editor-mount')
+    const bounds = mount?.getBoundingClientRect()
+    const visible = (id: string): boolean => {
+      const rect = this._blockElement(id)?.getBoundingClientRect()
+      // Synthetic DOMs have no layout. The browser path always uses the actual viewport.
+      return !bounds?.height || Boolean(rect?.height && rect.bottom > bounds.top && rect.top < bounds.bottom)
+    }
+    const { $from } = editor.state.selection
+    for (let depth = $from.depth; depth >= 0; depth--) {
+      const id = $from.node(depth).attrs?.['data-block-id']
+      if (typeof id === 'string' && candidates.has(id) && visible(id)) return candidates.get(id)!
+    }
+    for (const [id, candidate] of candidates) if (visible(id)) return candidate
     return null
   }
 
@@ -3233,9 +3804,24 @@ export class ShEditorHost extends LitElement {
     return { left: x, right: x, top: y, bottom: y }
   }
 
-  /** Project the current ProseMirror selection onto one real block element.
-   * CSS combines this marker with `.ProseMirror:focus`, so it remains an
-   * honest focus affordance rather than a permanently painted decoration. */
+  /**
+   * Mark the editor as being typed in, so pointer-only affordances stand down.
+   *
+   * Set from `transaction` (a real document change) and cleared by the first
+   * mouse movement over the editor. Deliberately NOT a timer: "am I typing"
+   * has an exact answer in the events themselves, and a timer here would be a
+   * repeating wake-up in the editor's hot path — the shell has already paid
+   * for one of those once.
+   */
+  private _markTyping(typing: boolean): void {
+    const mount = this.renderRoot?.querySelector('.editor-mount') as HTMLElement | null
+    if (!mount) return
+    if (mount.hasAttribute('data-typing') === typing) return
+    mount.toggleAttribute('data-typing', typing)
+  }
+
+  /** Keep the active block's context visible while a menu borrows focus.
+   * The widget owns this presentation; the document node remains untouched. */
   private _syncFocusedBlock(): void {
     const mount = this.renderRoot?.querySelector('.editor-mount') as HTMLElement | null
     if (!mount) return
@@ -3244,7 +3830,8 @@ export class ShEditorHost extends LitElement {
     for (const block of Array.from(mount.querySelectorAll('[data-block-id]'))) {
       const element = block as HTMLElement
       const id = element.getAttribute('data-block-id')
-      element.toggleAttribute('data-block-focused', Boolean(candidates && id && candidates.has(id)))
+      const target = element.querySelector('.outliner-control') ?? element
+      target.toggleAttribute('data-block-focused', Boolean(candidates && id && candidates.has(id)))
     }
   }
 
@@ -3431,31 +4018,70 @@ export class ShEditorHost extends LitElement {
     )
   }
 
+  /**
+   * DRIVES THE PLUGIN; DOES NOT TOUCH THE DOM — same move, and the same
+   * reason, as _syncWireHighlight below.
+   *
+   * This used to walk the mount and `toggleAttribute('data-block-wired', …)`
+   * on each block. Those elements belong to ProseMirror, which replaces them on
+   * redraw, so the bubbles went dark and stayed dark: measured in the running
+   * app, a document whose bundle named a wired block still reported
+   * `blocksMarkedWired: []`. The indicator and the highlight were never two
+   * bugs; they were one mechanism failing twice.
+   *
+   * Hover is still handled by the container-level mousemove/mouseover/
+   * mouseleave bindings set up once at mount, NOT per block — moving the
+   * pointer from wired block A straight to wired block B fires mouseleave on A
+   * alone (it does not bubble), and a per-block close timer for A had no way to
+   * know B had since opened its own overlay, so it fired ~450ms later and shut
+   * the overlay B was still under. That reasoning is unchanged by this port;
+   * only the attribute writing moved.
+   */
   private _syncWireIndicators(): void {
+    this._syncOutlinerControlLabels()
+    if (!this._editor) return
+    const bundle = this.wireBundle
+    const wired = new Map<string, number>()
+    for (const blockId of bundle?.wiredBlockIds ?? []) {
+      if (blockId) wired.set(blockId, Math.max(1, this._wiresForBlock(blockId).length))
+    }
+    // A wire whose local block is not in `wiredBlockIds` still wears a bubble —
+    // the old DOM walk took the union of the two, and dropping that here would
+    // be a silent behaviour change hiding inside a mechanical port.
+    for (const wire of [...(bundle?.outgoingWires ?? []), ...(bundle?.incomingWires ?? [])]) {
+      const blockId = wire.localBlockId
+      if (!blockId || wired.has(blockId)) continue
+      wired.set(blockId, Math.max(1, this._wiresForBlock(blockId).length))
+    }
+    setLiveWiredBlocks(
+      this._editor,
+      [...wired].map(([blockId, count]) => ({ blockId, count })),
+    )
+  }
+
+  /**
+   * Accessible names for the outliner controls. The controls are ignored
+   * widgets (outliner.ts), so writing attributes onto them does not make
+   * ProseMirror reparse the block. The wired / count presentation that used to
+   * be written here too now comes from the wire-decorations plugin, as node
+   * attributes on the block itself (see _syncWireIndicators).
+   */
+  private _syncOutlinerControlLabels(): void {
     const mount = this.renderRoot?.querySelector('.editor-mount') as HTMLElement | null
     if (!mount) return
     const wiredBlockIds = new Set(this.wireBundle?.wiredBlockIds ?? [])
     for (const block of Array.from(mount.querySelectorAll('[data-block-id]'))) {
       const el = block as HTMLElement
+      const control = el.querySelector('.outliner-node-button')
+      if (!control) continue
       const blockId = el.getAttribute('data-block-id')
       const wires = blockId ? this._wiresForBlock(blockId) : []
       const isWired = !!blockId && (wiredBlockIds.has(blockId) || wires.length > 0)
-      // Hover is handled entirely by the container-level mousemove/mouseover
-      // /mouseleave bindings (_onEditorWireMouseMove/_onEditorMouseLeave, set
-      // up once when the editor mounts) via coordinate-based hit-testing —
-      // no per-block listener is needed here, and one used to be bound per
-      // block. That created a real bug: moving the pointer from wired block A
-      // straight to wired block B fires mouseleave on A alone (mouseleave
-      // doesn't bubble), scheduling a close timer for A's departure; that
-      // timer had no way to know block B's hover had since opened its own
-      // overlay, so it would fire ~450ms later and silently close the
-      // overlay for B while the pointer was still resting on it.
-      el.toggleAttribute('data-block-wired', isWired)
-      if (isWired) {
-        el.setAttribute('data-wire-count', String(Math.max(1, wires.length)))
-      } else {
-        el.removeAttribute('data-wire-count')
-      }
+      const copy = el.cloneNode(true) as HTMLElement
+      copy.querySelectorAll('[contenteditable="false"]').forEach(widget => widget.remove())
+      const excerpt = (copy.textContent ?? '').trim().replace(/\s+/g, ' ').slice(0, 64)
+      control.setAttribute('aria-label', `Block actions: ${excerpt || 'Empty block'}`)
+      control.setAttribute('aria-description', `Level ${Number(el.getAttribute('data-indent') || 0) + 1}${isWired ? `; ${Math.max(1, wires.length)} connections` : ''}.`)
     }
   }
 
@@ -3515,6 +4141,7 @@ export class ShEditorHost extends LitElement {
   }
 
   private _onEditorWireMouseMove(event: MouseEvent): void {
+    if (this._outlinerMenuId !== null) return
     const hit = this._gutterHitForEvent(event)
     if (!hit || hit.zone !== 'wire') {
       this._clearWireOverlayHoverTimer()
@@ -3667,25 +4294,36 @@ export class ShEditorHost extends LitElement {
     )
   }
 
-  private _setWireHighlight(blockId: string | null): void {
-    if (this._highlightedWireBlockId === blockId) return
+  private _setWireHighlight(blockId: string | null, mode: 'hover' | 'arrival' = 'hover'): void {
     this._highlightedWireBlockId = blockId
+    this._wireHighlightMode = mode
     this._syncWireHighlight()
   }
 
+  /**
+   * DRIVES THE PLUGIN; DOES NOT TOUCH THE DOM. This method used to walk the
+   * mount and setAttribute onto each block element, and that is precisely why
+   * wire highlighting never worked: those elements belong to ProseMirror, and
+   * it replaces them on redraw. Measured in the running app — the attribute
+   * went 1 -> 0 across a 1.5s window while block-dnd's decoration-based drag
+   * handles went 3 -> 3 through the same replacement.
+   *
+   * The decoration in editor-kernel/extensions/wire-decorations.ts emits the
+   * SAME two attributes, so the stylesheet and its contract guard are unchanged
+   * — ProseMirror is simply the one applying them now, on every render, which
+   * is the only way they survive.
+   *
+   * Historical note worth keeping, because it is a second bug the first one was
+   * hiding: the DOM writer previously used `toggleAttribute`, which cannot
+   * write a value and produced `data-wire-highlighted=""` against a stylesheet
+   * asking for `'true'`. So even before the redraw ate it, it painted nothing.
+   * Four surfaces route through here — wires-panel hover, travelling a wire,
+   * a block result from global search, and the graph panel's node focus — and
+   * all four were dark for that one reason.
+   */
   private _syncWireHighlight(): void {
-    const mount = this.renderRoot?.querySelector('.editor-mount') as HTMLElement | null
-    if (!mount) return
-    const highlightedBlockId = this._highlightedWireBlockId
-    const candidates = highlightedBlockId ? new Set(this._blockIdCandidates(highlightedBlockId)) : null
-    for (const block of Array.from(mount.querySelectorAll('[data-block-id]'))) {
-      const el = block as HTMLElement
-      const id = el.getAttribute('data-block-id')
-      el.toggleAttribute(
-        'data-wire-highlighted',
-        !!candidates && !!id && candidates.has(id),
-      )
-    }
+    if (!this._editor) return
+    setLiveWireHighlight(this._editor, this._highlightedWireBlockId, this._wireHighlightMode)
   }
 
   private _commentMarkMatches(mark: RawMark, commentId: string): boolean {
@@ -3793,7 +4431,7 @@ export class ShEditorHost extends LitElement {
       if (blockEl) {
         blockEl.scrollIntoView({ behavior: 'smooth', block: 'center' })
         const focusedId = blockEl.getAttribute('data-block-id') ?? blockId
-        this._setWireHighlight(focusedId)
+        this._setWireHighlight(focusedId, 'arrival')
         if (this._blockFocusHighlightTimer) clearTimeout(this._blockFocusHighlightTimer)
         this._blockFocusHighlightTimer = setTimeout(() => {
           if (this._highlightedWireBlockId === focusedId) this._setWireHighlight(null)
@@ -3810,6 +4448,8 @@ export class ShEditorHost extends LitElement {
 
   /** Destroy the live editor (if any) and clear its provider marker. */
   private _teardownEditor(): void {
+    this._discardToolbarSelection()
+    this._closeOutlinerMenu(false)
     this._blockFocusRetryToken += 1
     if (this._blockFocusHighlightTimer) {
       clearTimeout(this._blockFocusHighlightTimer)
@@ -3820,6 +4460,8 @@ export class ShEditorHost extends LitElement {
     this._closeSalienceOverlay()
     this._wireClickUnsub?.()
     this._wireClickUnsub = null
+    this._outlinerGutterUnsub?.()
+    this._outlinerGutterUnsub = null
     this._zoomUnsub?.()
     this._zoomUnsub = null
     this._teardownHeadingObserver()
@@ -4055,55 +4697,77 @@ export class ShEditorHost extends LitElement {
   }
 
   private _onToolbarFormat(event: CustomEvent<EditorToolbarFormatDetail>): void {
+    if (!this._restoreToolbarSelection()) return
     this._toggleInlineFormat(event.detail.command)
   }
 
   private _toggleInlineFormat(format: 'bold' | 'italic' | 'strike' | 'code' | 'highlight'): void {
     const editor = this._editor
     if (!editor) return
-    editor.commands.focus()
     if (format === 'bold') editor.commands.toggleBold()
     else if (format === 'italic') editor.commands.toggleItalic()
     else if (format === 'strike') editor.commands.toggleStrike()
     else if (format === 'code') editor.commands.toggleCode()
     else editor.commands.toggleHighlight()
+    editor.view?.focus()
     this._syncFormatState()
   }
 
   private _onFontFamilyChange(event: CustomEvent<EditorToolbarTextStyleDetail>): void {
+    if (!this._restoreToolbarSelection()) return
     this._setFontFamily(event.detail.value)
   }
 
   private _setFontFamily(value: string): void {
     const editor = this._editor
     if (!editor) return
-    editor.commands.focus()
     if (value) editor.commands.setFontFamily(value)
     else editor.commands.unsetFontFamily()
+    editor.view?.focus()
     this._syncFormatState()
   }
 
   private _onFontSizeChange(event: CustomEvent<EditorToolbarTextStyleDetail>): void {
+    if (!this._restoreToolbarSelection()) return
     this._setFontSize(event.detail.value)
   }
 
   private _setFontSize(value: string): void {
     const editor = this._editor
     if (!editor) return
-    editor.commands.focus()
     if (value) editor.commands.setFontSize(value)
     else editor.commands.unsetFontSize()
+    editor.view?.focus()
     this._syncFormatState()
   }
 
   private _onBlockTypeChange(event: CustomEvent<EditorToolbarBlockTypeDetail>): void {
+    if (!this._restoreToolbarSelection()) return
     this._setBlockType(event.detail.blockType)
+  }
+
+  private _toolbarSelection: ReturnType<typeof captureEditorSelection> | null = null
+
+  private _discardToolbarSelection(): void {
+    this._toolbarSelection?.destroy()
+    this._toolbarSelection = null
+  }
+
+  private _captureToolbarSelection(): void {
+    if (!this._toolbarSelection && this._editor) {
+      this._toolbarSelection = captureEditorSelection(this._editor)
+    }
+  }
+
+  private _restoreToolbarSelection(): boolean {
+    const lease = this._toolbarSelection
+    this._toolbarSelection = null
+    return lease ? lease.restore() : true
   }
 
   private _setBlockType(type: BlockToolbarValue): void {
     const editor = this._editor
     if (!editor) return
-    editor.commands.focus()
     if (type === 'paragraph') {
       editor.commands.setParagraph()
       editor.commands.unsetAllMarks()
@@ -4124,22 +4788,28 @@ export class ShEditorHost extends LitElement {
     } else if (type === 'codeBlock') {
       editor.commands.toggleCodeBlock()
     }
+    // Flush the transformed selection to the DOM now. Deferring focus through
+    // TipTap's animation frame leaves the old DOM range on a replaced node and
+    // lets the browser move it into the following block before focus returns.
+    editor.view?.focus()
     this._syncFormatState()
   }
 
   private _clearFormatting(): void {
+    if (!this._restoreToolbarSelection()) return
     this._setBlockType('paragraph')
   }
 
   private _setTextAlign(alignment: TextAlignment): void {
     const editor = this._editor
     if (!editor) return
-    editor.commands.focus()
     editor.commands.setTextAlign(alignment)
+    editor.view?.focus()
     this._syncFormatState()
   }
 
   private _onToolbarAlign(event: CustomEvent<EditorToolbarAlignDetail>): void {
+    if (!this._restoreToolbarSelection()) return
     this._setTextAlign(event.detail.alignment)
   }
 
@@ -4363,8 +5033,7 @@ export class ShEditorHost extends LitElement {
   }
 
   private _fallbackCommentId(): string {
-    const randomUUID = this.ownerDocument.defaultView?.crypto?.randomUUID
-    return `comment-${randomUUID ? randomUUID.call(this.ownerDocument.defaultView.crypto) : Date.now().toString(36)}`
+    return `comment-${randomUUID()}`
   }
 
   private async _insertCommentFromToolbar(): Promise<void> {
@@ -4574,6 +5243,8 @@ export class ShEditorHost extends LitElement {
     const original = this.originalFileView
     const showOriginal = Boolean(original?.active)
     return html`<mn-editor-toolbar
+        @pointerdown=${this._captureToolbarSelection}
+        @focusin=${this._captureToolbarSelection}
         .formatState=${fs}
         .fontFamily=${fs.fontFamily}
         .fontSize=${fs.fontSize}
@@ -4648,6 +5319,10 @@ export class ShEditorHost extends LitElement {
               .externalOpenable=${original.externalOpenable}
               .chapters=${original.chapters}
               .annotations=${original.annotations}
+              .pages=${original.pdfPages ?? []}
+              .pageCount=${original.pdfPageCount ?? 0}
+              .selectedPageNumber=${original.pdfPageNumber ?? 1}
+              .sourceMapping=${original.pdfSourceMapping ?? null}
             ></mn-original-viewer>`
           : nothing}
       </div>
@@ -4870,6 +5545,13 @@ export class ShEditorHost extends LitElement {
     const block = this._topLevelGutterBlockForEvent(event)
     if (!block) return null
 
+    if (block.querySelector('.outliner-control')) {
+      const target = event.target instanceof Element ? event.target : null
+      if (target?.closest('.outliner-fold-button')) return { block, zone: 'fold' }
+      if (target?.closest('.outliner-node-button')) return { block, zone: 'wire' }
+      return null
+    }
+
     const rect = block.getBoundingClientRect()
     const clickX = event.clientX - rect.left
     const hotspotWidth = block.matches('li[data-list-type="ordered"]') ? 40 : 28
@@ -5016,6 +5698,7 @@ export class ShEditorHost extends LitElement {
   }
 
   private _onEditorGutterMouseDown(event: MouseEvent): void {
+    if (event.target instanceof Element && event.target.closest('.outliner-control')) return
     if (!event.shiftKey) return
     const hit = this._gutterHitForEvent(event)
     if (!hit || hit.zone !== 'wire') return
@@ -5150,6 +5833,7 @@ export class ShEditorHost extends LitElement {
   }
 
   private _onEditorWireClick(event: MouseEvent): void {
+    if (event.target instanceof Element && event.target.closest('.outliner-node-button')) return
     const hit = this._gutterHitForEvent(event)
     if (!hit) return
 
@@ -5169,6 +5853,12 @@ export class ShEditorHost extends LitElement {
 
     event.preventDefault()
     event.stopPropagation()
+    this._requestBlockConnections(block, event)
+  }
+
+  private _requestBlockConnections(block: HTMLElement, event: Pick<MouseEvent, 'clientX' | 'clientY' | 'shiftKey' | 'altKey' | 'metaKey' | 'ctrlKey'>): void {
+    const blockId = block.getAttribute('data-block-id')
+    if (!blockId) return
     const baseDetail = {
       graphId: this.hostState?.graphId ?? null,
       documentId: this.hostState?.documentId ?? null,
@@ -5200,11 +5890,124 @@ export class ShEditorHost extends LitElement {
     )
   }
 
+  @state() private _outlinerMenuId: string | null = null
+  private _outlinerMenuPos: number | null = null
+  private _outlinerMenuPoint = { x: 0, y: 0 }
+  private _outlinerMenuInvoker: HTMLElement | null = null
+  private readonly _outlinerOutside = (event: Event): void => {
+    if (this._outlinerMenuInvoker && event.composedPath().includes(this._outlinerMenuInvoker)) return
+    if (event.composedPath().some(node => node instanceof Element && node.matches('.outliner-menu'))) return
+    this._closeOutlinerMenu(false)
+  }
+
+  private _outlinerMenuBlock(): HTMLElement | null {
+    if (this._outlinerMenuId) return this._findBlockElement(this._outlinerMenuId)
+    const node = this._outlinerMenuPos === null ? null : this._editor?.view?.nodeDOM(this._outlinerMenuPos)
+    return node instanceof HTMLElement ? node : null
+  }
+
+  private async _openOutlinerMenu(event: CustomEvent<{ blockId: string | null; blockPos: number }>): Promise<void> {
+    event.stopPropagation()
+    if (this._outlinerMenuId === (event.detail.blockId ?? '') && this._outlinerMenuPos === event.detail.blockPos) {
+      this._closeOutlinerMenu()
+      return
+    }
+    this._closeWireOverlay()
+    this._outlinerMenuId = event.detail.blockId ?? ''
+    this._outlinerMenuPos = event.detail.blockPos
+    const block = this._outlinerMenuBlock()
+    const invoker = block?.querySelector<HTMLElement>('.outliner-node-button')
+    if (!invoker) return
+    this._outlinerMenuInvoker = invoker
+    invoker.setAttribute('aria-expanded', 'true')
+    invoker.setAttribute('aria-controls', 'outliner-block-menu')
+    const rect = invoker.getBoundingClientRect()
+    this._outlinerMenuPoint = { x: Math.min(rect.left, window.innerWidth - 244), y: Math.min(rect.bottom + 4, window.innerHeight - 380) }
+    await this.updateComplete
+    if (this._outlinerMenuInvoker !== invoker || !this.isConnected) return
+    const menu = this.renderRoot.querySelector<HTMLElement>('.outliner-menu')
+    menu?.showPopover?.()
+    menu?.querySelector<HTMLElement>('button:not(:disabled)')?.focus()
+    this.ownerDocument.addEventListener('pointerdown', this._outlinerOutside, true)
+  }
+
+  private _closeOutlinerMenu(restore = true): void {
+    const invoker = this._outlinerMenuBlock()?.querySelector<HTMLElement>('.outliner-node-button') ?? this._outlinerMenuInvoker
+    invoker?.setAttribute('aria-expanded', 'false')
+    this.renderRoot.querySelector<HTMLElement>('.outliner-menu')?.hidePopover?.()
+    this._outlinerMenuId = null
+    this._outlinerMenuPos = null
+    this.ownerDocument.removeEventListener('pointerdown', this._outlinerOutside, true)
+    if (restore) invoker?.focus()
+    this._outlinerMenuInvoker = null
+  }
+
+  private _outlinerMenuKey(event: KeyboardEvent): void {
+    if (event.key === 'Escape') {
+      event.preventDefault(); event.stopPropagation(); this._closeOutlinerMenu(); return
+    }
+    if (event.key === 'Tab') { this._closeOutlinerMenu(); return }
+    if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return
+    event.preventDefault()
+    const items = Array.from(this.renderRoot.querySelectorAll<HTMLButtonElement>('.outliner-menu button:not(:disabled)'))
+    const index = items.indexOf(event.target as HTMLButtonElement)
+    const next = event.key === 'Home' ? 0 : event.key === 'End' ? items.length - 1 : (index + (event.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length
+    items[next]?.focus()
+  }
+
+  private _runOutlinerMenuAction(action: string): void {
+    const id = this._outlinerMenuId
+    const editor = this._editor
+    const block = this._outlinerMenuBlock()
+    const pos = id ? this._blockPosForId(id) : this._outlinerMenuPos
+    const invoker = this._outlinerMenuInvoker
+    this._closeOutlinerMenu(false)
+    if (id === null || !editor || !block || pos === null) return
+    if (action === 'connections') {
+      const rect = invoker?.getBoundingClientRect() ?? block.getBoundingClientRect()
+      this._requestBlockConnections(block, { clientX: rect.left, clientY: rect.bottom, shiftKey: false, altKey: false, metaKey: false, ctrlKey: false })
+      return
+    }
+    if (action === 'zoom' && id) { this._editorHandle?.zoomIntoBlock(id); editor.commands.focus(); return }
+    if (action === 'select') {
+      invoker?.dispatchEvent(new MouseEvent('click', { bubbles: true, metaKey: true }))
+      editor.commands.focus(); return
+    }
+    if (this._effectiveReadOnly()) return
+    placeCaretInBlock(editor, pos)
+    if (action === 'up') editor.commands.moveBlockUp()
+    if (action === 'down') editor.commands.moveBlockDown()
+    if (action === 'indent') editor.commands.increaseIndent()
+    if (action === 'outdent') editor.commands.decreaseIndent()
+    editor.commands.focus()
+  }
+
+  private _renderOutlinerMenu(): TemplateResult | typeof nothing {
+    if (this._outlinerMenuId === null) return nothing
+    const context = this._editor ? editorBlockContext(this._editor, this._outlinerMenuId, this._outlinerMenuPos) : null
+    const connections = this._wiresForBlock(this._outlinerMenuId).length
+    const actions = [
+      ...(this._outlinerMenuId ? [['connections', `Connections${connections ? ` (${connections})` : ''}`], ['zoom', 'Focus on this block']] : []),
+      ['select', 'Select block'], ['up', 'Move up'], ['down', 'Move down'], ['indent', 'Indent'], ['outdent', 'Outdent'],
+    ]
+    return html`<div id="outliner-block-menu" class="outliner-menu" role="menu" aria-label="Block actions" popover="manual"
+      style=${`left:${Math.max(8, this._outlinerMenuPoint.x)}px;top:${Math.max(8, this._outlinerMenuPoint.y)}px`}
+      @keydown=${this._outlinerMenuKey}>
+      <div class="outliner-menu-title">${context?.type ?? 'Block'} · level ${context?.level ?? 1}${context?.children ? ` · ${context.children} nested` : ''}</div>
+      ${actions.map(([id, label]) => html`<button type="button" role="menuitem" data-outliner-action=${id}
+        ?disabled=${['up', 'down', 'indent', 'outdent'].includes(id) && (this._effectiveReadOnly() || !context?.[id as 'up' | 'down' | 'indent' | 'outdent'])}
+        @click=${() => this._runOutlinerMenuAction(id)}>${label}</button>`)}
+    </div>`
+  }
+
   override render(): TemplateResult {
     // Graduate from the honest placeholder to a live body ONLY when an open
     // provider is present on a ready document center. Every other state stays the
     // honest labelled placeholder (no-binding/error/loading/idle-no-provider).
-    return this._wantsLiveBody ? this.renderLiveBody() : this.renderPlaceholder()
+    return html`<div style="display:contents" @mn-outliner-menu-request=${this._openOutlinerMenu}>
+      ${this._wantsLiveBody ? this.renderLiveBody() : this.renderPlaceholder()}
+      ${this._renderOutlinerMenu()}
+    </div>`
   }
 }
 

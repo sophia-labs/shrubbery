@@ -14,6 +14,50 @@ export function isEmbeddableGraphId(graphId: string): boolean {
   return EMBEDDABLE_GRAPH_ID_PATTERN.test(graphId)
 }
 
+/**
+ * The FOCUS placeholder (el Despacho, plans/2026-09-15-despacho-design.md
+ * §4/§7). A focus-driven surface's queries name the subject under the cursor
+ * as `{{focus}}`; the SESSION supplies the IRI (`QueryLocator.focus`, stamped
+ * by the shell's focus binding at load time) and this module substitutes it —
+ * exactly the `{{graphId}}` discipline, with its own embeddability gate.
+ */
+export const FOCUS_PLACEHOLDER = '{{focus}}'
+/**
+ * An embeddable focus is an ABSOLUTE IRI (scheme + `:` + non-empty rest) with
+ * none of the characters that could close or perturb the `<…>` it is spliced
+ * into: no whitespace, quotes, angle brackets, backslashes, braces, pipes,
+ * carets or backticks (RFC 3987's excluded set plus the placeholder braces).
+ * Bounded so a hostile query string cannot smuggle a megabyte into SPARQL.
+ */
+export const EMBEDDABLE_FOCUS_IRI_PATTERN = /^[A-Za-z][A-Za-z0-9+.-]*:[^\s"'<>\\{}|^`]{1,2000}$/
+export function isEmbeddableFocusIri(focus: string): boolean {
+  return EMBEDDABLE_FOCUS_IRI_PATTERN.test(focus)
+}
+
+/** True when `text` (raw SPARQL or a named definition's body) carries the focus placeholder. */
+export function queryTextUsesFocus(text: string): boolean {
+  return text.includes(FOCUS_PLACEHOLDER)
+}
+
+/**
+ * Splice `focus` into every `{{focus}}` in `text` — the ONE substitution site
+ * for both resolver paths (named and raw), so the gate cannot be bypassed by
+ * either. Throws the same typed `NamedQueryResolutionError` the graph-id gate
+ * throws: a focus-bearing query with NO focus is `missing-focus` (an honest
+ * "this room has no cursor" error, never a query over the literal
+ * placeholder); an unsafe one is `unsafe-focus`.
+ */
+export function substituteFocus(text: string, focus: string | undefined): string {
+  if (!queryTextUsesFocus(text)) return text
+  if (focus === undefined) {
+    throw new NamedQueryResolutionError('missing-focus', 'this query needs a focus, but the session supplied none')
+  }
+  if (!isEmbeddableFocusIri(focus)) {
+    throw new NamedQueryResolutionError('unsafe-focus', `focus '${focus}' is not an embeddable absolute IRI`)
+  }
+  return text.replaceAll(FOCUS_PLACEHOLDER, focus)
+}
+
 export interface NamedQueryDefinition {
   readonly name: string
   readonly text: string
@@ -43,7 +87,12 @@ export class InvalidNamedQueryDefinitionError extends Error {
   }
 }
 
-export type NamedQueryResolutionFailure = 'unknown-name' | 'raw-text-refused' | 'unsafe-graph-id'
+export type NamedQueryResolutionFailure =
+  | 'unknown-name'
+  | 'raw-text-refused'
+  | 'unsafe-graph-id'
+  | 'missing-focus'
+  | 'unsafe-focus'
 
 export class NamedQueryResolutionError extends Error {
   constructor(readonly reason: NamedQueryResolutionFailure, message: string) {
@@ -51,6 +100,9 @@ export class NamedQueryResolutionError extends Error {
     this.name = 'NamedQueryResolutionError'
   }
 }
+
+/** The closed set of placeholders a named definition may carry. */
+const KNOWN_PLACEHOLDERS: ReadonlySet<string> = new Set(['graphId', 'focus'])
 
 export class NamedQueryRegistry {
   private readonly byName = new Map<string, NamedQueryDefinition>()
@@ -71,7 +123,7 @@ export class NamedQueryRegistry {
     const placeholders = /\{\{([^}]*)\}\}/g
     let match: RegExpExecArray | null
     while ((match = placeholders.exec(definition.text)) !== null) {
-      if (match[1] !== 'graphId') {
+      if (!KNOWN_PLACEHOLDERS.has(match[1])) {
         throw new InvalidNamedQueryDefinitionError(definition.name, 'unknown-placeholder')
       }
     }
@@ -86,6 +138,12 @@ export class NamedQueryRegistry {
     return this.byName.get(name)
   }
 
+  /** True when the registered definition carries `{{focus}}` (false for an unknown name — `resolve` is the gate that reports that). */
+  usesFocus(name: string): boolean {
+    const definition = this.byName.get(name)
+    return definition ? queryTextUsesFocus(definition.text) : false
+  }
+
   names(): readonly string[] {
     return [...this.byName.keys()].sort()
   }
@@ -98,7 +156,7 @@ export class NamedQueryRegistry {
     return this.sealed
   }
 
-  resolve(name: string, graphId: string): string {
+  resolve(name: string, graphId: string, focus?: string): string {
     if (!isEmbeddableGraphId(graphId)) {
       throw new NamedQueryResolutionError('unsafe-graph-id', `graph id '${graphId}' cannot be embedded in a named query`)
     }
@@ -106,7 +164,7 @@ export class NamedQueryRegistry {
     if (!definition) {
       throw new NamedQueryResolutionError('unknown-name', `named query '${name}' is not registered`)
     }
-    return definition.text.replaceAll(GRAPH_ID_PLACEHOLDER, graphId)
+    return substituteFocus(definition.text.replaceAll(GRAPH_ID_PLACEHOLDER, graphId), focus)
   }
 }
 
@@ -125,10 +183,15 @@ export interface QueryTextResolver {
 export function createQueryTextResolver(options: QueryTextResolverOptions): QueryTextResolver {
   return {
     resolve(locator) {
-      if (isNamedQueryRef(locator.queryId)) return options.registry.resolve(locator.queryId, locator.graphId)
+      if (isNamedQueryRef(locator.queryId)) {
+        return options.registry.resolve(locator.queryId, locator.graphId, locator.focus)
+      }
       if (options.rawTextPolicy === 'allow-raw') {
         options.onRawText?.(locator)
-        return locator.queryId
+        // Raw text already flows verbatim under this policy; splicing a
+        // GATED absolute IRI into it is strictly narrower than what the
+        // policy admits, so the focus placeholder is honoured here too.
+        return substituteFocus(locator.queryId, locator.focus)
       }
       throw new NamedQueryResolutionError('raw-text-refused', 'raw SPARQL text is not allowed by this query resolver')
     },

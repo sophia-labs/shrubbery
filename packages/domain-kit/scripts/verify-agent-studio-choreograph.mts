@@ -4,6 +4,7 @@ import { pathToFileURL } from 'node:url'
 import {
   compileAgentStudioProfile,
   createSophiaClusterLeadProfile,
+  SOPHIA_1_GARDEN_TOOL_POLICY,
 } from '../src/agent-studio.js'
 
 const repository = process.env.SOPHIA_CHOREOGRAPH_REPO?.trim()
@@ -64,7 +65,7 @@ assert.equal(resolved.definition.schema, 'sophia.domain-agent-definition.v2')
 assert.equal(resolved.definition.agentId, publication.agentId)
 assert.equal(resolved.runtimes.pilot.kind, 'prime')
 assert.equal(resolved.runtimes.emanation.kind, 'simple')
-assert.deepEqual(resolved.pilotToolInclude, ['recall', 'remember', 'search_documents'])
+assert.deepEqual(resolved.pilotToolInclude, SOPHIA_1_GARDEN_TOOL_POLICY.map(([name]) => name).sort())
 assert.equal(resolved.prompt.systemPrompt, profile.prompt.trim())
 process.stdout.write(`${JSON.stringify({
   schema: 'sophia.agent-studio-choreograph-verification.v1',

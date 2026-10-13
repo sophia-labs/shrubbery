@@ -205,13 +205,15 @@ describe('sidebar document projection', () => {
       ],
     )
 
-    expect(sections.map((section) => section.id)).toEqual(['documents', 'artifacts', 'tags'])
-    expect(sections[0].count).toBe(2)
+    expect(sections.map((section) => section.id)).toEqual(['tree', 'tags'])
+    // One tree: documents and files together; the section's own born-in label is not a thing.
+    expect(sections[0].count).toBe(3)
     expect(sections[0].nodes?.map((node) => [node.id, node.kind, node.expanded])).toEqual([
+      ['folder-artifacts', 'folder', false],
       ['folder-root', 'folder', true],
       ['doc-b', 'document', undefined],
     ])
-    const root = sections[0].nodes?.[0]
+    const root = sections[0].nodes?.[1]
     expect(root?.children?.[0]).toMatchObject({ id: 'folder-child', kind: 'folder', expanded: true })
     expect(root?.children?.[0].children?.[0]).toMatchObject({
       id: 'doc-a',
@@ -221,16 +223,14 @@ describe('sidebar document projection', () => {
       icon: 'book-open',
       sourceFile: { originalFilename: 'a.pdf' },
     })
-    expect(sections[1].count).toBe(1)
-    expect(sections[1].nodes?.[0]).toMatchObject({ id: 'folder-artifacts', kind: 'folder' })
-    expect(sections[1].nodes?.[0].children?.[0]).toMatchObject({
+    expect(sections[0].nodes?.[0].children?.[0]).toMatchObject({
       id: 'artifact-a',
       kind: 'artifact',
       badge: 'png',
       mimeType: 'image/png',
     })
-    expect(sections[2].count).toBe(6)
-    expect(sections[2].nodes?.map((node) => [node.id, node.label, node.kind, node.count])).toEqual([
+    expect(sections[1].count).toBe(6)
+    expect(sections[1].nodes?.map((node) => [node.id, node.label, node.kind, node.count])).toEqual([
       ['tag:event', 'event', 'tag', undefined],
       ['tag:todo', 'todo', 'tag', undefined],
       ['tag:decision', 'decision', 'tag', undefined],
@@ -416,12 +416,12 @@ describe('sidebar document projection', () => {
       active: true,
       selected: true,
     })
-    expect(sections[1].nodes?.find((node) => node.id === 'artifact-a')).toMatchObject({
+    expect(sections[0].nodes?.find((node) => node.id === 'artifact-a')).toMatchObject({
       id: 'artifact-a',
       kind: 'artifact',
       badge: 'png',
     })
-    expect(sections[2].nodes?.find((node) => node.id === 'tag:pragma')).toMatchObject({
+    expect(sections[1].nodes?.find((node) => node.id === 'tag:pragma')).toMatchObject({
       label: 'pragma',
       count: 2,
     })

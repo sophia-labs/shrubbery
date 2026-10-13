@@ -174,4 +174,38 @@ describe('mn-garden-home', () => {
     expect(root.textContent).toContain('new graph starts empty')
     expect(root.querySelector('.recent-list')).toBeNull()
   })
+
+  it('offers an explicit tour only when the host supplies it and explains the new workspace', async () => {
+    const element = await mount({ workspaces: [] })
+    expect(element.shadowRoot!.querySelector('.start-onboarding')).toBeNull()
+    element.onboardingAvailable = true
+    element.requestUpdate()
+    await element.updateComplete
+    const button = element.shadowRoot!.querySelector<HTMLButtonElement>('.start-onboarding')
+    expect(button).not.toBeNull()
+    expect(button?.textContent).toContain('Start the Garden tour')
+    expect(element.shadowRoot!.textContent).toContain('one workspace slot')
+    let starts = 0
+    element.addEventListener('mn-garden-home-start-onboarding', () => { starts += 1 })
+    button!.click()
+    expect(starts).toBe(1)
+  })
+
+  it('disables both creation actions during tour preparation and preserves failure text', async () => {
+    const element = await mount()
+    element.onboardingAvailable = true
+    element.onboardingStatus = 'creating'
+    await element.updateComplete
+    const buttons = [...element.shadowRoot!.querySelectorAll<HTMLButtonElement>('.create-toggle')]
+    expect(buttons).toHaveLength(2)
+    expect(buttons.every(button => button.disabled)).toBe(true)
+    expect(element.shadowRoot!.querySelector('.start-onboarding')?.getAttribute('aria-busy')).toBe('true')
+    element.onboardingStatus = 'error'
+    element.onboardingError = 'Graph tour-partial is retained; no retry or deletion.'
+    await element.updateComplete
+    expect(element.shadowRoot!.querySelector('[role="alert"]')?.textContent).toContain('tour-partial')
+    element.onboardingAvailable = false
+    await element.updateComplete
+    expect(element.shadowRoot!.querySelector('.start-onboarding')).toBeNull()
+  })
 })

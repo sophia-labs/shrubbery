@@ -1,0 +1,36 @@
+/* ═══ REFERENCE: Mithras Flow (GENERATED — do not edit by hand) ══════════════
+ * Flow's own design values, lifted verbatim for skin-mithras.css. The skin
+ * reads ONLY these; it never types a Flow value itself.
+ *
+ *   source:  apps/flow/vendor/flow/src/styles.css
+ *   fork:    mithras-flow-fork @ 62170e4 (apps/flow/vendor/flow/VENDOR.md)
+ *   sha256:  c537db49f8a3e1699876995577414dbc6645ebe8e72cce8a5e2880eacaffac23
+ *
+ * Regenerate: node packages/tokens/scripts/generate-flow-tokens.mts
+ * The token test regenerates this from the source and fails on any drift.
+ * Font stacks drop GT Eesti / GT Pantheon: their licence is unresolved and
+ * Shrubbery's Flow build ships neither (apps/flow DIVERGENCE.md PIX-002), so
+ * the stack below is exactly what Flow itself renders on mithras.local.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+:root {
+  --mn-ref-flow-ink: #111;
+  --mn-ref-flow-ink-soft: #555;
+  --mn-ref-flow-ink-faint: #999;
+  --mn-ref-flow-line: #d9d9d9;
+  --mn-ref-flow-paper: #fff;
+  --mn-ref-flow-paper-dim: #fafafa;
+  --mn-ref-flow-warn: #b91c1c;
+  --mn-ref-flow-font: 'Segoe UI', system-ui, sans-serif;
+  --mn-ref-flow-font-display: 'Segoe UI', system-ui, sans-serif;
+  --mn-ref-flow-weight-body: 300;
+  --mn-ref-flow-weight-strong: 500;
+  --mn-ref-flow-shadow-hard: 2px 2px 0 rgb(0 0 0 / 12%);
+  --mn-ref-flow-control-edge-width: 1.5px;
+  --mn-ref-flow-toolbar-padding: 8px 12px;
+  --mn-ref-flow-label-size: 11px;
+  --mn-ref-flow-label-tracking: 0.05em;
+  --mn-ref-flow-focus-width: 2px;
+  --mn-ref-flow-focus-offset: 2px;
+  --mn-ref-flow-selection-wash: 5%;
+}

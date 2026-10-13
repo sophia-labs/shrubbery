@@ -1,5 +1,6 @@
 /** Hosted implementation of the runtime's private `obs.filmstrip` byte seam. */
 import type { FilmstripEvidenceRef, FilmstripEvidenceService } from '@shrubbery/runtime/layout'
+import { sha256Digest } from '@shrubbery/nucleus/web-crypto'
 
 const SHA256 = /^[a-f0-9]{64}$/
 const FETCH_TIMEOUT_MS = 30_000
@@ -77,6 +78,6 @@ function validateRef(ref: FilmstripEvidenceRef): void {
 }
 
 async function sha256Hex(bytes: ArrayBuffer): Promise<string> {
-  const digest = await crypto.subtle.digest('SHA-256', bytes)
+  const digest = await sha256Digest(bytes)
   return Array.from(new Uint8Array(digest), value => value.toString(16).padStart(2, '0')).join('')
 }

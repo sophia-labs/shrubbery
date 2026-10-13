@@ -179,6 +179,19 @@
   --mn-editor-paper-accent-soft:  #e8e8f8;
   --mn-editor-paper-accent-ch:    0 0 128;
 
+  /* Files canvas, the period idiom: desktop icons (see component.css). No card;
+     white captions on the desktop (white on the teal is 4.78:1, where black was
+     4.4:1, below AA); a navy highlight behind the selected caption, in white ink;
+     the glyph outlined in the system frame colour, black on the teal (4.40:1) and
+     white on the black (the quiet ink would be 2.5:1 on the teal). The dark
+     composition keeps the same five (white on black, the same navy), so this one
+     block serves both. */
+  --mn-files-card-surface:         transparent;
+  --mn-files-label-ink:            var(--mn-98-highlight);
+  --mn-files-label-selected-wash:  var(--mn-98-selection);
+  --mn-files-label-selected-ink:   var(--mn-color-text-on-accent);
+  --mn-files-glyph-stroke:         var(--mn-color-border-strong);
+
   font-family: var(--mn-font-chrome);
   letter-spacing: 0;
   scrollbar-color: var(--mn-scrollbar-thumb-solid) var(--mn-scrollbar-track);

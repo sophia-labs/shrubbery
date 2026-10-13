@@ -234,7 +234,7 @@ function getOwnNode(nodes: Readonly<Record<string, unknown>>, id: string): unkno
 const RESOURCE_LOCATOR_KEYS: Readonly<Record<(typeof RESOURCE_LOCATOR_KINDS)[number], readonly string[]>> = {
   document: ['kind', 'graphId', 'documentId'],
   graph: ['kind', 'graphId', 'subjectIri'],
-  query: ['kind', 'graphId', 'queryId', 'revision'],
+  query: ['kind', 'graphId', 'queryId', 'revision', 'focus'],
   chat: ['kind', 'graphId', 'sessionId'],
   iri: ['kind', 'iri'],
 }
@@ -265,7 +265,10 @@ export function isWellShapedResourceLocator(value: unknown): value is ResourceLo
       return (
         isNonEmptyString(value.graphId) &&
         isNonEmptyString(value.queryId) &&
-        isOptionalString(value.revision)
+        isOptionalString(value.revision) &&
+        // `focus` is shape-checked here only (a string); the RUNTIME query
+        // resolver is the gate that decides whether it is an embeddable IRI.
+        isOptionalString(value.focus)
       )
     case 'chat':
       return isNonEmptyString(value.graphId) && isNonEmptyString(value.sessionId)

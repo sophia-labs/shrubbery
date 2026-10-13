@@ -61,6 +61,30 @@ import {
   type QueryBlockService,
 } from './query-block-service.js'
 import { defaultMermaidRenderHost } from './mermaid-renderer.js'
+import { katexMathRenderer } from './katex-math-renderer.js'
+import { makeValueDictionarySource, type ValueDictionarySource } from './value-face-view.js'
+import type { FaceStance } from '@shrubbery/nucleus/value-faces'
+
+/** One value dictionary per query service (= per editor services bundle), cached per graph. */
+const valueDictionaries = new WeakMap<QueryBlockService, ValueDictionarySource>()
+function valueDictionaryFor(queryBlocks: QueryBlockService | undefined): ValueDictionarySource | undefined {
+  if (!queryBlocks || typeof queryBlocks !== 'object') return undefined
+  let source = valueDictionaries.get(queryBlocks)
+  if (!source) {
+    source = makeValueDictionarySource(async (graphId, sparql) => {
+      const result = await queryBlocks.run(graphId, sparql, 500)
+      return result.resultKind === 'bindings' ? result.rows : []
+    })
+    valueDictionaries.set(queryBlocks, source)
+  }
+  return source
+}
+
+/** The reader's stance from the address bar (`?stance=read|draft|review`); read by default. */
+export function stanceFromLocation(): FaceStance {
+  const value = typeof location === 'undefined' ? null : new URLSearchParams(location.search).get('stance')
+  return value === 'draft' || value === 'review' ? value : 'read'
+}
 
 /** The editor-shaped service bundle the host consumes (the projection over the contract). */
 export interface EditorServices {
@@ -120,6 +144,7 @@ export function buildKernelOptions(
   | 'renderQueryBlock'
   | 'getGraphId'
   | 'mermaid'
+  | 'renderMath'
 > {
   return {
     onWikiLinkClick: (attrs: WikiLinkAttrs): void => {
@@ -138,8 +163,12 @@ export function buildKernelOptions(
     onMarginGlossOpen: (target: MarginGlossOpenTarget): void => {
       services.navigation.openDocument(target.graphId, target.documentId, target.blockId)
     },
-    renderQueryBlock: makeQueryBlockRenderer(services.queryBlocks) as QueryBlockRenderer,
+    renderQueryBlock: makeQueryBlockRenderer(services.queryBlocks, {
+      valueDictionary: valueDictionaryFor(services.queryBlocks),
+      stance: stanceFromLocation,
+    }) as QueryBlockRenderer,
     getGraphId: () => scope.graphId,
     mermaid: defaultMermaidRenderHost,
+    renderMath: katexMathRenderer,
   }
 }

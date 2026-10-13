@@ -220,8 +220,12 @@ try {
 
   // The page is orthogonal to skin: Emporium recolors the room and page
   // affordances purple without allowing Garden's green canvas to leak through.
-  const skinButton = page.locator('mn-top-bar button[data-action="skin"]')
-  await skinButton.click()
+  // The skin control is a picker (a drop-down listing every skin): open it and choose from the list.
+  const chooseSkin = async (id: string): Promise<void> => {
+    await page.locator('mn-top-bar mn-skin-picker button.trigger').click()
+    await page.locator(`mn-top-bar mn-skin-picker [data-menu-item-id="${id}"]`).click()
+  }
+  await chooseSkin('emporium')
   await page.waitForFunction(() => document.documentElement.dataset.skin === 'emporium'
     && window.__organism?.state.skin === 'emporium')
   await page.evaluate(() => new Promise<void>(resolve => {
@@ -251,8 +255,8 @@ try {
   )
   await page.screenshot({ path: `${artifactDir}/shrubbery-art-paper-emporium.png`, fullPage: false })
 
-  // The same global control advances through 98 and Glass before Garden.
-  await skinButton.click()
+  // The same global control chooses 98 and Glass, then Garden.
+  await chooseSkin('98')
   await page.waitForFunction(() => document.documentElement.dataset.skin === '98'
     && window.__organism?.state.skin === '98')
   await page.waitForFunction(() => {
@@ -262,7 +266,7 @@ try {
   })
   await page.screenshot({ path: `${artifactDir}/shrubbery-art-paper-98.png`, fullPage: false })
 
-  await skinButton.click()
+  await chooseSkin('glass')
   await page.waitForFunction(() => document.documentElement.dataset.skin === 'glass'
     && window.__organism?.state.skin === 'glass')
   await page.waitForFunction(() => {
@@ -272,7 +276,7 @@ try {
   })
   await page.screenshot({ path: `${artifactDir}/shrubbery-art-paper-glass.png`, fullPage: false })
 
-  await skinButton.click()
+  await chooseSkin('garden')
   await page.waitForFunction(() => !document.documentElement.hasAttribute('data-skin')
     && window.__organism?.state.skin === 'garden')
 

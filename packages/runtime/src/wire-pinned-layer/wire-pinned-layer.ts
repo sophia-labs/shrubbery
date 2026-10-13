@@ -112,7 +112,7 @@ export class ShWirePinnedLayer extends LitElement {
     .pinned-layer {
       position: fixed;
       inset: 0;
-      z-index: 900;
+      z-index: var(--mn-z-wire-overlay, 800);
       pointer-events: none;
     }
 

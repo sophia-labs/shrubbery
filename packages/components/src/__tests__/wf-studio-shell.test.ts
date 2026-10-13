@@ -31,10 +31,10 @@ describe('wf-studio-shell - real custom element', () => {
     expect(customElements.get('wf-studio-shell')).toBeDefined()
   })
 
-  it('renders the history child for home/runs with controlled props', async () => {
+  it('renders the history child for runs with controlled props', async () => {
     const runs = [{ runId: 'run-a', workflowName: 'Draft review', status: 'finished' }]
     const el = await mount((node) => {
-      node.screen = 'home'
+      node.screen = 'runs'
       node.graphId = 'graph-a'
       node.historyStatus = 'ready'
       node.historyRuns = runs
@@ -146,7 +146,7 @@ describe('wf-studio-shell - real custom element', () => {
     expect(sr(el).querySelectorAll('.phase-card')).toHaveLength(2)
     expect(sr(el).querySelector('[data-node-id="map-doc"]')?.textContent).toContain('graph-surveyor')
     expect(sr(el).querySelector('[data-node-id="map-doc"]')?.textContent).toContain('mnemosyne')
-    expect(sr(el).textContent).toContain('does not expose agent-node detail')
+    expect(sr(el).textContent).toContain('no agent-node detail to show')
 
     const picker = sr(el).querySelector('select[aria-label="Workflow anatomy"]') as HTMLSelectElement
     picker.value = 'browser-audit'

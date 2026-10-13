@@ -39,11 +39,13 @@ import {
   type WorkspaceFragmentsOptions,
 } from '@shrubbery/runtime'
 import {
+  bindLayoutFocus,
   createFragmentFaceRegistry,
   type FaceRegistry,
   type FilmstripEvidenceService,
   type SourceObjectService,
 } from '@shrubbery/runtime/layout'
+import type { CuentaVerbPort } from '@shrubbery/runtime'
 import {
   OBSERVATORY_UX_SURFACE_IRI,
   ObservatoryLayoutSourceError,
@@ -96,6 +98,16 @@ export interface WorkspaceFragmentSession {
   readonly objectService?: SourceObjectService
   /** Hosted, authenticated resolver for private Observatory evidence. */
   readonly evidenceService?: FilmstripEvidenceService
+  /**
+   * el Despacho W1: the bead under the cursor. Bound into every loaded
+   * fragment (`bindLayoutFocus`) before it reaches the Surface; a change
+   * reloads the region so the new focus is bound. Null = no cursor.
+   */
+  readonly focus?: string | null
+  /** The tool port `card.cuenta`'s verbs travel through (the contract's unwrapped MCP caller). Null = this session cannot write. */
+  readonly verbPort?: CuentaVerbPort | null
+  /** The viewer's identity — the witness of a word given on this surface. */
+  readonly witness?: string | null
 }
 
 export interface WorkspaceFragmentsControllerOptions {
@@ -103,6 +115,8 @@ export interface WorkspaceFragmentsControllerOptions {
   readonly requestRender: () => void
   /** A durable persist REJECTED. The in-memory doc is NOT reverted; the shell decides how to surface it. */
   readonly onPersistError?: (error: unknown, detail: FragmentRegionDeclaration) => void
+  /** Does the named query `name` carry `{{focus}}`? (the shell registry's `usesFocus`) — needed to bind focus into named-ref locators. Absent = only raw-text and subject placeholders bind. */
+  readonly namedQueryUsesFocus?: (name: string) => boolean
 }
 
 interface RegionRuntime {
@@ -120,6 +134,8 @@ export class WorkspaceFragmentsController {
   #queryService: QueryBlockService | null = null
   #objectService: SourceObjectService | null = null
   #evidenceService: FilmstripEvidenceService | null = null
+  #verbPort: CuentaVerbPort | null = null
+  #witness: string | null = null
   #regions = new Map<string, RegionRuntime>()
   #persisters = new Map<string, LayoutPersister>()
   /** Bumped on every session reset — a settling load from a dead session must never write state or render. */
@@ -154,12 +170,18 @@ export class WorkspaceFragmentsController {
       // fragment documents and persisters; only rotate the live services the
       // next Surface build receives.
       const previousExplicitQueryService = this.#session.queryService
-      configRevisionChanged = this.#session.configRevision !== session.configRevision
+      // A focus change is a reload boundary exactly like a config revision:
+      // the held documents carry the OLD focus bound into them.
+      configRevisionChanged =
+        this.#session.configRevision !== session.configRevision
+        || (this.#session.focus ?? null) !== (session.focus ?? null)
       this.#session = session
       if (session.queryService) this.#queryService = session.queryService
       else if (previousExplicitQueryService) this.#queryService = makeQueryBlockService(session.rest)
       this.#objectService = session.objectService ?? null
       this.#evidenceService = session.evidenceService ?? null
+      this.#verbPort = session.verbPort ?? null
+      this.#witness = session.witness ?? null
     }
 
     const regions: Record<string, WorkspaceFragmentRegion> = {}
@@ -179,6 +201,8 @@ export class WorkspaceFragmentsController {
       queryService: this.#queryService,
       objectService: this.#objectService,
       evidenceService: this.#evidenceService,
+      verbPort: this.#verbPort,
+      witness: this.#witness,
       regions,
       onFragmentChange: (detail) => this.#onFragmentChange(detail),
     }
@@ -202,6 +226,8 @@ export class WorkspaceFragmentsController {
       : null
     this.#objectService = session?.objectService ?? null
     this.#evidenceService = session?.evidenceService ?? null
+    this.#verbPort = session?.verbPort ?? null
+    this.#witness = session?.witness ?? null
     this.#regions = new Map()
     this.#persisters = new Map()
   }
@@ -252,10 +278,16 @@ export class WorkspaceFragmentsController {
       // per-region themes against the surface root, and each chart resolves
       // its OWN region's theme at mount (`resolveVegaThemeOverride`). A
       // session reset simply drops this region (and its theme) with it.
+      // el Despacho W1: bind the session's focus into the authored document
+      // (a no-op identity when nothing names the focus). The AUTHORED literal
+      // in the graph keeps its `{{focus}}`; only this session's copy is bound.
+      const doc = bindLayoutFocus(loaded.doc, session.focus ?? null, {
+        namedQueryUsesFocus: this.#options.namedQueryUsesFocus ?? (() => false),
+      })
       runtime.state = {
         surfaceIri: runtime.declaration.surfaceIri,
         vegaTheme: theme.theme,
-        state: { status: 'ready', doc: loaded.doc },
+        state: { status: 'ready', doc },
       }
     } catch (error) {
       if (epoch !== this.#epoch || loadGeneration !== runtime.loadGeneration) return

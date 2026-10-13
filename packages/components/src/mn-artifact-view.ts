@@ -10,6 +10,9 @@
 
 import { LitElement, css, html, nothing, unsafeCSS, type TemplateResult } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
+import { keyed } from 'lit/directives/keyed.js'
+import { guard } from 'lit/directives/guard.js'
+import { artifactHtmlSandbox, artifactHtmlSrcdoc } from './artifact-html-preview.js'
 import { SkinAware } from './skin-aware.js'
 import { icon, iconStyles, type IconName } from './icons.js'
 import './mn-empty-state.js'
@@ -17,7 +20,7 @@ import './mn-loading.js'
 import './mn-excalidraw-canvas.js'
 
 export type MnArtifactViewStatus = 'idle' | 'loading' | 'ready' | 'error'
-export type MnArtifactViewKind = 'image' | 'pdf' | 'audio' | 'video' | 'scene' | 'text' | 'binary'
+export type MnArtifactViewKind = 'image' | 'pdf' | 'audio' | 'video' | 'scene' | 'html' | 'text' | 'binary'
 
 export interface MnArtifactIntentDetail {
   readonly graphId: string
@@ -36,8 +39,9 @@ export function artifactKindFromMime(
   mimeType: string | null | undefined,
   fileType?: string | null,
 ): MnArtifactViewKind {
-  const mime = trimmed(mimeType).toLowerCase()
+  const mime = trimmed(mimeType).split(';', 1)[0]!.trim().toLowerCase()
   const type = trimmed(fileType).toLowerCase()
+  if (mime === 'text/html') return 'html'
   if (mime.startsWith('image/')) return 'image'
   if (mime === 'application/pdf' || type === 'pdf') return 'pdf'
   if (mime.startsWith('audio/')) return 'audio'
@@ -59,6 +63,7 @@ function kindIcon(kind: MnArtifactViewKind): IconName {
     case 'image':
       return 'image-plus'
     case 'pdf':
+    case 'html':
     case 'text':
       return 'file-text'
     case 'scene':
@@ -83,6 +88,8 @@ function kindLabel(kind: MnArtifactViewKind): string {
       return 'Video'
     case 'scene':
       return 'Scene'
+    case 'html':
+      return 'HTML'
     case 'text':
       return 'Text'
     case 'binary':
@@ -253,8 +260,46 @@ export class MnArtifactView extends SkinAware(LitElement) {
       background: var(--mn-color-surface-base, #fff);
     }
 
+    .surface-html {
+      padding: 0;
+      overflow: hidden;
+      align-items: stretch;
+      justify-content: stretch;
+    }
+
+    .html-preview {
+      display: block;
+      flex: 1 1 auto;
+      width: 100%;
+      height: 100%;
+      min-width: 0;
+      min-height: 0;
+      border: 0;
+      background: #fff;
+    }
+
+    .html-preview-frame {
+      display: flex;
+      flex: 1 1 auto;
+      min-width: 0;
+      min-height: 0;
+    }
+
+    @media (max-width: 480px) {
+      .header { padding-inline: 10px; gap: 8px; }
+      .actions { gap: 4px; }
+    }
+
     .state {
       width: min(460px, 100%);
+    }
+
+    .refresh-warning {
+      padding: 8px 16px;
+      color: var(--mn-color-text-secondary, #624818);
+      background: var(--mn-color-surface-warning, #fff6da);
+      overflow-wrap: anywhere;
+      flex: 0 0 auto;
     }
 
     :host([data-skin='emporium']) .glyph,
@@ -271,6 +316,10 @@ export class MnArtifactView extends SkinAware(LitElement) {
   @property({ type: String }) artifactStatus = ''
   @property({ type: String }) ingestedDocumentId = ''
   @property({ type: String }) previewUrl = ''
+  // Committed, caller-owned source. Null means unavailable; '' is valid HTML.
+  @property({ attribute: false }) previewHtml: string | null = null
+  @property({ attribute: false }) previewIdentity: string | null = null
+  @property({ attribute: false }) allowHtmlScripts = false
   @property({ type: String }) status: MnArtifactViewStatus = 'idle'
   @property({ type: String }) error = ''
 
@@ -322,6 +371,28 @@ export class MnArtifactView extends SkinAware(LitElement) {
           ></mn-empty-state>
         </div>
       `
+    }
+    if (kind === 'html' && this.previewHtml !== null) {
+      // Retain one frame for an unchanged artifact/commit/policy. Lit also
+      // avoids writing an unchanged srcdoc, so unrelated host renders do not
+      // restart scripts. A new identity or script policy gets a fresh context.
+      const allowScripts = this.allowHtmlScripts === true
+      const identity = JSON.stringify([this.graphId, this.artifactId, this.previewIdentity, allowScripts])
+      return html`<div class="html-preview-frame">${keyed(identity, html`
+        <iframe
+          class="html-preview"
+          title=${`HTML preview: ${trimmed(this.title) || trimmed(this.artifactId) || 'Artifact'}`}
+          sandbox=${artifactHtmlSandbox(allowScripts)}
+          referrerpolicy="no-referrer"
+          .srcdoc=${guard([this.previewHtml, allowScripts], () => artifactHtmlSrcdoc(this.previewHtml!, allowScripts))}
+        ></iframe>
+      `)}</div>`
+    }
+    if (kind === 'html') {
+      return html`<div class="state"><mn-empty-state
+        icon="file-text" title="HTML preview unavailable"
+        description="No committed HTML source is available."
+      ></mn-empty-state></div>`
     }
     if (kind === 'image' && trimmed(this.previewUrl)) {
       return html`<div class="preview-frame"><img src=${this.previewUrl} alt=${this.title || 'Artifact preview'} /></div>`
@@ -431,7 +502,8 @@ export class MnArtifactView extends SkinAware(LitElement) {
               : nothing}
           </span>
         </header>
-        <div class="surface">${this._renderSurface(kind, label)}</div>
+        ${this.status === 'ready' && this.error ? html`<div class="refresh-warning" role="status">${this.error}</div>` : nothing}
+        <div class=${kind === 'html' ? 'surface surface-html' : 'surface'}>${this._renderSurface(kind, label)}</div>
       </section>
     `
   }

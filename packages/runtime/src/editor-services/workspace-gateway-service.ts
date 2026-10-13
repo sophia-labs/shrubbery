@@ -1,43 +1,12 @@
 /**
- * workspace-gateway-service.ts — the gateway CONTROL-PLANE REST transport
- * for `workspace.picker` (`GET`/`POST /graphs`, `DELETE /graphs/{id}`) and
- * `access.manager` (`GET`/`PUT`/`DELETE /graphs/{id}/access`) (Wave 1, north
- * star §2.2/§3: elevate the 5 trapped faces).
- *
- * WHY THIS FILE EXISTS: `apps/organism/src/cell/gateway-transport.ts`
- * (`GatewayTransport`) already implements this EXACT route surface —
- * `.graphs()`, `.createGraph()`, `.deleteGraph()`, `.access()`,
- * `.putAccess()`, `.deleteAccess()` — real, validated production traffic
- * against the gateway CONTROL plane (`{gatewayRoot}/graphs`, NOT a per-graph
- * CELL route — that file's own header: "control plane: GET
- * {gatewayRoot}/graphs") — but only as a class closed over an app-level
- * `AuthProvider` + `fetch` inside `apps/organism`, an app `packages/runtime`
- * cannot import (wrong dependency direction — apps depend on packages, never
- * the reverse; `hosted-viewer-rest-client.ts`'s own header documents the
- * identical constraint for its own transport). The two P2 faces this module
- * backs need the SAME transport from inside `@shrubbery/runtime`, so this
- * file hoists it — same real routes, same response validation
- * (`catalogEntry`/`createdGraph`/`accessGrantEntry` below mirror
- * `gateway-transport.ts`'s own `graphInfo`/`createdGraph`/`accessGrant`
- * row-shape guards field-for-field) — decoupled from any one app's
- * `AuthProvider`/contract type via a minimal `WorkspaceGatewayTransport` (a
- * base-URL resolver + a headers() supplier), exactly mirroring
- * `document-snapshot-service.ts`'s own `DocumentSnapshotTransport` seam
- * (that file's header: "any caller ... can satisfy it without a new nucleus
- * contract field").
- *
- * `WorkspaceCatalogService.create`/`.remove` (wave1 review r1 WRONG fix):
- * the wave-1 review found `workspace.picker` was silently missing these two
- * routes even though `GatewayTransport.createGraph`/`.deleteGraph` — the
- * exact production routes this file already hoists validation for on the
- * access side — were sitting right there unused. Added here, same
- * validation/error-envelope tolerance as every other method in this file.
- *
- * `apps/organism/src/cell/gateway-transport.ts` is UNTOUCHED by this file
- * (this wave's rule is "change of mount, not rewrite" — de-duplicating the
- * app's own copy is a later cleanup, not attempted here, same disclaimer
- * `document-snapshot-service.ts` itself carries).
+ * Gateway services for the reusable workspace picker and access-manager face.
+ * Catalog operations retain the gateway /graphs REST surface. Member grants
+ * use the shared canonical POST /control/mcp manage_access decoder, with exact
+ * owner discovery and fresh authentication supplied by the host. The owner is
+ * graph identity, not a synthetic ACL row; email invitations are not provided.
  */
+
+import { accessOwnerFromDirectory, createControlAccessClient } from '@shrubbery/source/access-control'
 
 export interface WorkspaceGatewayTransport {
   /** Gateway control-plane root, e.g. https://api.canary.sophia-labs.com — NO trailing slash guaranteed by the caller. */
@@ -84,7 +53,7 @@ export interface WorkspaceCatalogService {
   remove(graphId: string): Promise<void>
 }
 
-/** One `GET /graphs/{id}/access` grant row — mirrors `GatewayAccessGrant` field-for-field. */
+/** UI projection of a canonical control-MCP grant; compatibility metadata may be displayed, not written. */
 export interface AccessGrantEntry {
   readonly userId: string
   readonly role: WorkspaceGraphRole
@@ -101,6 +70,8 @@ export interface PutAccessGrantRequest {
 }
 
 export interface AccessGrantService {
+  /** Canonical owner is graph identity, never a fabricated member-grant row. */
+  owner?(graphId: string): Promise<string>
   list(graphId: string): Promise<readonly AccessGrantEntry[]>
   put(graphId: string, userId: string, request: PutAccessGrantRequest): Promise<void>
   remove(graphId: string, userId: string): Promise<void>
@@ -171,29 +142,6 @@ function catalogList(value: unknown): readonly WorkspaceCatalogEntry[] {
   return rows.map(catalogEntry)
 }
 
-function accessGrantEntry(value: unknown, index: number): AccessGrantEntry {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    throw new Error(`Gateway GET /graphs/{id}/access row ${index} is not an object`)
-  }
-  const row = value as Record<string, unknown>
-  if (
-    typeof row.userId !== 'string' || !row.userId.trim()
-    || (row.role !== 'viewer' && row.role !== 'editor' && row.role !== 'owner')
-    || typeof row.grantedAt !== 'string'
-    || typeof row.grantedBy !== 'string'
-    || (row.email !== undefined && typeof row.email !== 'string')
-    || (row.displayName !== undefined && typeof row.displayName !== 'string')
-  ) {
-    throw new Error(`Gateway GET /graphs/{id}/access row ${index} has an invalid grant shape`)
-  }
-  return row as unknown as AccessGrantEntry
-}
-
-function accessGrantList(value: unknown): readonly AccessGrantEntry[] {
-  if (!Array.isArray(value)) throw new Error('Gateway GET /graphs/{id}/access returned a non-array')
-  return value.map(accessGrantEntry)
-}
-
 async function requestJson(
   transport: WorkspaceGatewayTransport,
   fetchImpl: typeof fetch,
@@ -246,40 +194,17 @@ export function createWorkspaceCatalogService(
   }
 }
 
-/** Build the real `access.manager` `AccessGrantService` over `transport` — real `GET`/`PUT`/`DELETE /graphs/{id}/access`, no caching. */
+/** Canonical control-MCP grants; resolve exact owner from the directory, with fresh request headers. */
 export function createAccessGrantService(
   transport: WorkspaceGatewayTransport,
   fetchImpl: typeof fetch = fetch,
 ): AccessGrantService {
-  function accessUrl(graphId: string, userId?: string): string {
-    const base = trimTrailingSlash(transport.resolveGatewayBaseUrl())
-    const id = graphId.trim()
-    if (!id) throw new Error('AccessGrantService: graphId must not be empty')
-    const suffix = userId ? `/${encodeURIComponent(userId.trim())}` : ''
-    return `${base}/graphs/${encodeURIComponent(id)}/access${suffix}`
-  }
-  return {
-    async list(graphId) {
-      return accessGrantList(await requestJson(transport, fetchImpl, 'GET', accessUrl(graphId)))
-    },
-    async put(graphId, userId, request) {
-      const user = userId.trim()
-      if (!user) throw new Error('AccessGrantService: userId must not be empty')
-      if (request.role !== 'viewer' && request.role !== 'editor') {
-        throw new Error('AccessGrantService: role must be viewer or editor')
-      }
-      const email = request.email?.trim()
-      const displayName = request.displayName?.trim()
-      await requestJson(transport, fetchImpl, 'PUT', accessUrl(graphId, user), {
-        role: request.role,
-        ...(email ? { email } : {}),
-        ...(displayName ? { displayName } : {}),
-      })
-    },
-    async remove(graphId, userId) {
-      const user = userId.trim()
-      if (!user) throw new Error('AccessGrantService: userId must not be empty')
-      await requestJson(transport, fetchImpl, 'DELETE', accessUrl(graphId, user))
-    },
-  }
+  return createControlAccessClient({
+    resolveOwner: async graphId => accessOwnerFromDirectory(await requestJson(
+      transport, fetchImpl, 'GET', `${trimTrailingSlash(transport.resolveGatewayBaseUrl())}/graphs`,
+    ), graphId),
+    request: body => requestJson(
+      transport, fetchImpl, 'POST', `${trimTrailingSlash(transport.resolveGatewayBaseUrl())}/control/mcp`, body,
+    ),
+  })
 }

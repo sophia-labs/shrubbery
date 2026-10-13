@@ -58,7 +58,7 @@ export class MnPresenceInspector extends LitElement {
       position: absolute;
       right: var(--mn-space-3, 8px);
       bottom: calc(100% + 7px);
-      z-index: 1000;
+      z-index: var(--mn-z-popover, 1100);
       display: grid;
       width: min(320px, calc(100vw - 16px));
       max-height: min(440px, calc(100vh - 48px));

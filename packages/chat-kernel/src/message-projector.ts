@@ -25,6 +25,7 @@
  */
 
 import type { ChatMessage, ToolCall, TokenUsage } from './types.js'
+import { randomUUID } from '@shrubbery/nucleus/web-crypto'
 
 /** The slice of chat state the projector owns. The streaming/loading/error
  * flags on `ChatState` stay with `ChatStore` — they're lifecycle, not
@@ -49,10 +50,7 @@ export function createProjectorState(messages: ChatMessage[] = []): ProjectorSta
 }
 
 export function uuid(): string {
-  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
-    return (crypto as { randomUUID(): string }).randomUUID()
-  }
-  return `${Date.now().toString(16)}-${Math.random().toString(16).slice(2)}`
+  return randomUUID()
 }
 
 /** Tolerant token parser: accepts both `{input, output, cache:{read,write}}`

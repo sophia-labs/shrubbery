@@ -14,7 +14,7 @@ A pure **RDF → UI** interpreter and a vetted component library. Render a works
 
 | Package | One line |
 |---|---|
-| **`nucleus`** | The engine: `planFor → LayoutPlan` (`interpreter.ts` + persistence taxonomy), the RDF↔config codec (`rdf-model.ts`/`ux-rdf.ts`, N-Triples), the class→component manifest, and `contract.ts` — the ONE injected backend interface (+ the `TripleSource` read seam). Deps: `lit`. |
+| **`nucleus`** | The engine: `planFor → LayoutPlan` (`interpreter.ts` + persistence taxonomy), the RDF↔config codec (`rdf-model.ts`/`ux-rdf.ts`, N-Triples), the class→component manifest, and `contract.ts` — the ONE injected backend interface (+ the `TripleSource` read seam). Also `web-crypto`: `randomUUID`/`sha256Digest` that fall back when a plain-HTTP page has no `crypto.randomUUID`/`crypto.subtle`. Deps: `lit`. |
 | **`runtime`** | The render host: `planFor → LayoutPlan → Lit DOM` (the `dom` face). `renderWorkspace(config)`. Deps: `nucleus`, `chat-kernel`, `editor-kernel`, `lit` (`source` is a *test-only* devDep). |
 | **`render`** | The Lit-free render-target core: `turtle` / compacted-JSON-LD / beautiful-markdown faces + FAIR-Signposting links + the ONE pure `negotiate`. Deps: `nucleus`, `jsonld`. |
 | **`components`** | Backend-free, skin-aware Lit components: chrome (`mn-top-bar`, `mn-app-bar`, …) + primitives (`mn-chip`, `mn-card`, `mn-graph`, `mn-relations`, …). Deps: `nucleus`, `lit`, plus canvas/graph libs (`three`, `fabric`, `lucide`) — never stores/auth/tauri. Catalogued in Storybook. |
@@ -22,8 +22,8 @@ A pure **RDF → UI** interpreter and a vetted component library. Render a works
 | **`tokens`** | The layered design-token CSS (reference → semantic → component → theme → skin) + a tiny `{skin,theme} → root-attributes` map. Six skins: **garden** (fern, default), **emporium** (purple `#9472CE`, Diatype), **98** (classic desktop), **glass** (translucent desktop), **research** (SRS scholar desk), **greenhouse** (sans research workspace); theme light/dark orthogonal. No backend/stores/lit. |
 | **`source`** | Where triples come from: `TripleSource` adapter factories (static-nt fossil now; gardend-local / hosted-gateway / sparql-http), the boot factory + auth union, the config store, and the conformance kit. The `.` entry is browser-safe and depends on `nucleus` ONLY. |
 | **`site`** | Declarative Shrubbery product bundles — routes, faces, appearance, and feature posture over a canonical RDF workspace layout (Garden is the first). Deps: `nucleus`, `tokens`. |
-| **`chat-kernel`** | Pure chat render kernel — Garden's chat projector + render-data types + the `ChatEvent` union, relocated verbatim with their couplings severed. No stores/SSE/yjs/auth/tauri. Leaf. |
-| **`editor-kernel`** | Pure TipTap/ProseMirror editor kernel — custom Garden extensions ported verbatim, couplings severed. No yjs/collab/stores/fetchers/UI pickers. Leaf. |
+| **`chat-kernel`** | Pure chat render kernel — Garden's chat projector + render-data types + the `ChatEvent` union, relocated verbatim with their couplings severed. No stores/SSE/yjs/auth/tauri. From `nucleus` it takes only the dependency-free `web-crypto` subpath. |
+| **`editor-kernel`** | Pure TipTap/ProseMirror editor kernel — custom Garden extensions ported verbatim, couplings severed. No yjs/collab/stores/fetchers/UI pickers. From `nucleus` it takes only the dependency-free `web-crypto` subpath. |
 
 ### Apps (shells — backend lives here, behind the contract) — `apps/`
 

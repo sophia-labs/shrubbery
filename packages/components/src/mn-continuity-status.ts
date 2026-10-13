@@ -11,6 +11,7 @@
 import { LitElement, css, html, nothing } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 import { SkinAware } from './skin-aware.js'
+import { BEVELLED } from './bevelled-skins.js'
 
 export type MnContinuityState =
   | 'ready'
@@ -143,7 +144,7 @@ export class MnContinuityStatus extends SkinAware(LitElement) {
       outline-offset: -3px;
     }
 
-    :host([data-skin='98']) .status {
+    :host(${BEVELLED}) .status {
       border-radius: 0;
     }
 

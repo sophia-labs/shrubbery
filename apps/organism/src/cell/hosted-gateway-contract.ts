@@ -235,6 +235,13 @@ export class HostedGatewayMcpClient {
     const text = gatewayMcpText(result)
     return text ? JSON.parse(text) as unknown : undefined
   }
+
+  /** The graph cell's advertised MCP tool surface (`tools/list`). */
+  toolsList(graphId: string): Promise<readonly Record<string, unknown>[]> {
+    const graph = graphId.trim()
+    if (!graph) throw new Error('HostedGatewayMcpClient.toolsList(): graphId is required')
+    return this.gateway.toolsList(graph)
+  }
 }
 
 export interface HostedGatewayContractOptions {

@@ -9,6 +9,8 @@
 import { LitElement, css, html, nothing, type PropertyValues } from 'lit'
 import { customElement, property, state } from 'lit/decorators.js'
 import { SkinAware } from './skin-aware.js'
+import { BEVELLED } from './bevelled-skins.js'
+import { PopoverController } from './popover.js'
 import type { MenuEntry } from '@shrubbery/nucleus'
 import type { MnDropdownSelectDetail } from './mn-dropdown-button.js'
 import './mn-button.js'
@@ -315,13 +317,13 @@ export class MnEditorToolbar extends SkinAware(LitElement) {
       font-weight: 650;
     }
 
-    :host([data-skin='98']) {
+    :host(${BEVELLED}) {
       border-bottom: 2px groove var(--mn-98-face);
       background: var(--mn-98-face);
       box-shadow: inset 0 1px 0 var(--mn-98-highlight);
     }
-    :host([data-skin='98']) [data-read-only-badge],
-    :host([data-skin='98']) [data-document-sync-badge] {
+    :host(${BEVELLED}) [data-read-only-badge],
+    :host(${BEVELLED}) [data-document-sync-badge] {
       border-radius: 0;
       box-shadow: var(--mn-98-sunken);
     }
@@ -361,9 +363,9 @@ export class MnEditorToolbar extends SkinAware(LitElement) {
     }
 
     .find-bar {
-      position: absolute;
-      top: calc(100% + 4px);
-      right: 0;
+      position: fixed;
+      inset: unset;
+      margin: 0;
       z-index: var(--mn-z-popover, 1100);
       box-sizing: border-box;
       display: flex;
@@ -376,6 +378,10 @@ export class MnEditorToolbar extends SkinAware(LitElement) {
       border-radius: var(--mn-radius-md, 8px);
       background: var(--mn-color-surface-base, #fff);
       box-shadow: var(--mn-shadow-raised, 0 8px 24px rgba(15, 23, 42, 0.16));
+    }
+
+    [popover]:not([popover-open]):not(:popover-open) {
+      display: none;
     }
 
     .find-row,
@@ -451,7 +457,7 @@ export class MnEditorToolbar extends SkinAware(LitElement) {
       .toolbar-disclosure[data-compact-capable='true'][data-compact-open='true'] {
         position: fixed;
         inset: auto max(0.5rem, env(safe-area-inset-right)) max(0.5rem, env(safe-area-inset-bottom)) max(0.5rem, env(safe-area-inset-left));
-        z-index: var(--mn-z-modal, 1150);
+        z-index: var(--mn-z-modal, 1400);
         box-sizing: border-box;
         display: flex;
         max-height: min(72dvh, 38rem);
@@ -466,7 +472,7 @@ export class MnEditorToolbar extends SkinAware(LitElement) {
       .compact-sheet-backdrop[data-open='true'] {
         position: fixed;
         inset: 0;
-        z-index: calc(var(--mn-z-modal, 1150) - 1);
+        z-index: var(--mn-z-modal-backdrop, 1300);
         display: block;
         background: color-mix(in srgb, var(--mn-color-text-primary, #17202a) 34%, transparent);
       }
@@ -549,6 +555,8 @@ export class MnEditorToolbar extends SkinAware(LitElement) {
       .find-bar {
         position: fixed;
         inset: auto max(0.75rem, env(safe-area-inset-right)) max(0.75rem, env(safe-area-inset-bottom)) max(0.75rem, env(safe-area-inset-left));
+        left: unset;
+        top: unset;
         width: auto;
         min-width: 0;
       }
@@ -614,6 +622,21 @@ export class MnEditorToolbar extends SkinAware(LitElement) {
     if (!event.matches) this.closeCompactTools(false)
   }
 
+  /**
+   * Promotes `.find-bar` into the native top layer. The toolbar renders inside
+   * a center pane whose `overflow: hidden` clipped the old absolutely
+   * positioned panel; the top layer escapes that ancestor entirely. On the
+   * compact breakpoint the bar is a bottom sheet placed by CSS `inset`, so
+   * positioning is skipped there.
+   */
+  private readonly findPopover = new PopoverController(this, {
+    anchor: () => this.renderRoot.querySelector('[data-search-open]'),
+    popover: () => this.renderRoot.querySelector<HTMLElement>('.find-bar'),
+    placement: 'bottom-end',
+    gap: 4,
+    shouldPosition: () => this.compactMedia?.matches !== true,
+  })
+
   protected override firstUpdated(changed: PropertyValues<this>): void {
     super.firstUpdated(changed)
     this.compactMedia = this.ownerDocument.defaultView?.matchMedia?.('(max-width: 719px)')
@@ -628,6 +651,10 @@ export class MnEditorToolbar extends SkinAware(LitElement) {
   }
 
   override disconnectedCallback(): void {
+    // Hide before the controller's own hostDisconnected() runs, so a
+    // disconnected-while-open toolbar cannot be reinserted still showing a
+    // stale, unpositioned find bar.
+    this.findPopover.hide()
     if (this.compactToolsOpen) this.announceModalState(false)
     this.compactMedia?.removeEventListener('change', this.onCompactMediaChange)
     this.compactMedia = undefined
@@ -651,8 +678,13 @@ export class MnEditorToolbar extends SkinAware(LitElement) {
     ) {
       this.closeCompactTools(false)
     }
-    if (changed.has('searchOpen') && this.searchOpen) {
-      queueMicrotask(() => this.focusSearchInput())
+    if (changed.has('searchOpen')) {
+      if (this.searchOpen) {
+        this.findPopover.show()
+        queueMicrotask(() => this.focusSearchInput())
+      } else {
+        this.findPopover.hide()
+      }
     }
     this.observeCurrentToolbar()
     this.scheduleToolbarMeasure()
@@ -771,6 +803,9 @@ export class MnEditorToolbar extends SkinAware(LitElement) {
   }
 
   private emitDetail<T>(type: string, detail: T): void {
+    if (['mn-editor-format', 'mn-editor-align', 'mn-editor-block-type', 'mn-editor-font-family', 'mn-editor-font-size'].includes(type)) {
+      this.closeCompactTools(false)
+    }
     this.dispatchEvent(new CustomEvent<T>(type, { bubbles: true, composed: true, detail }))
   }
 
@@ -854,6 +889,7 @@ export class MnEditorToolbar extends SkinAware(LitElement) {
   }
 
   private onToolbarMouseDown(event: MouseEvent): void {
+    if (event.composedPath().some(node => node instanceof Element && node.localName === 'mn-dropdown-button')) return
     if (event.composedPath().some((node) => node instanceof HTMLButtonElement)) {
       event.preventDefault()
     }
@@ -1040,7 +1076,7 @@ export class MnEditorToolbar extends SkinAware(LitElement) {
           class="original-view-note"
           data-original-annotation-unavailable
           role="status"
-        >Original-file highlights and comments are unavailable; return to Document View to annotate.</span>
+        >To add highlights or comments, return to Document View. Source-region highlights are read-only.</span>
         <span class="toolbar-spacer" aria-hidden="true"></span>
         <mn-toolbar-group label="Annotations">
           <mn-icon-button
@@ -1288,7 +1324,7 @@ export class MnEditorToolbar extends SkinAware(LitElement) {
           ></mn-icon-button>
           <mn-icon-button
             data-document-wire-command
-            .icon=${'git-merge'}
+            .icon=${'wire'}
             .label=${'Wire document'}
             .size=${'sm'}
             .keepFocus=${true}
@@ -1457,7 +1493,7 @@ export class MnEditorToolbar extends SkinAware(LitElement) {
           ></mn-icon-button>
           ${this.searchOpen
             ? html`
-                <div class="find-bar" data-open="true">
+                <div class="find-bar" popover="manual" data-open="true">
                   <div class="find-row">
                     <input
                       data-search-input

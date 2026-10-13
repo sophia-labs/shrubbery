@@ -35,6 +35,11 @@ async function createDocumentViaDialog(page: Page, home: Locator, title: string)
   await dialog.locator('button.confirm-button').click()
 }
 
+/** Home is the Garden toolbar's Home button (declared in components/src/app-toolbar.ts). */
+async function goHome(page: Page): Promise<void> {
+  await page.locator('mn-top-bar [data-app-action="home"]').click()
+}
+
 async function bridgeState(page: Page): Promise<Record<string, unknown>> {
   return page.evaluate(() => {
     const bridge = (window as unknown as {
@@ -265,7 +270,7 @@ try {
   })
   state = await bridgeState(page)
   const firstCreatedDocumentId = String(state.activeDocumentId)
-  await page.locator('mn-top-bar .masthead').click()
+  await goHome(page)
   await home.waitFor({ state: 'visible' })
   await home.locator('button.resume').click()
   await page.waitForFunction((documentId) => {
@@ -274,14 +279,14 @@ try {
   }, firstCreatedDocumentId)
 
   // Today's row creates a real graph-local document and opens its CRDT room.
-  await page.locator('mn-top-bar .masthead').click()
+  await goHome(page)
   await home.waitFor({ state: 'visible' })
   await home.locator('mn-daily-note-row .row').click()
   await page.waitForFunction(() => {
     const state = (window as unknown as { __organism?: { state: { activeDocumentId?: string | null } } }).__organism?.state
     return state?.activeDocumentId === 'daily-note-2026-07-10'
   })
-  await page.locator('mn-top-bar .masthead').click()
+  await goHome(page)
   await home.waitFor({ state: 'visible' })
 
   // Workspace lifecycle: create/select an empty graph, create and edit a doc,
@@ -314,7 +319,7 @@ try {
     const state = (window as unknown as { __organism?: { state: { editorText?: string } } }).__organism?.state
     return state?.editorText?.includes('Workspace isolation survives a round trip.') === true
   })
-  await page.locator('mn-top-bar .masthead').click()
+  await goHome(page)
   await home.waitFor({ state: 'visible' })
 
   await workspaceTrigger.click()
@@ -341,7 +346,7 @@ try {
       && state.editorText?.includes('Workspace isolation survives a round trip.') === true
   }, createdWorkspaceDocumentId)
 
-  await page.locator('mn-top-bar .masthead').click()
+  await goHome(page)
   await home.waitFor({ state: 'visible' })
   await workspaceTrigger.click()
   const createdWorkspaceRow = workspaceSelector.locator(`[data-graph-id="${createdWorkspaceId}"]`)

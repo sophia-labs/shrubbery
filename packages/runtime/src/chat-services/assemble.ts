@@ -8,14 +8,13 @@
  *
  * THE TWO BRANCHES:
  *   - 'local' = makeLocalChatService (in-process store + injected driver).
- *   - 'hosted' = makeHostedChatService (Choreograph libSQL sessions + SSE).
+ *   - 'hosted' = makeHostedChatService (gateway-bound Agent workflows/Sessions).
  *
  * MODE NOTE (load-bearing): this 'hosted' is the C2/C4 ChatService hosted seam —
  * it is NOT garden chat-store's 'hosted' mode. Garden's 'hosted' = LEGACY OpenCode
- * REST+SSE (dissolves entirely); the gen-2 hosted future is the CHOREOGRAPH remote
- * backend (already conforms to the ChatBackend shape). The factory's 'hosted'
- * branch points at THAT (choreograph /api/sessions* over libSQL + streaming
- * fetch/SSE), with lifecycle and transport kept outside the kernel.
+ * REST+SSE (dissolves entirely); the gen-2 hosted path is a graph-gateway Agent
+ * workflow backed by durable Agent Sessions. Lifecycle and transport remain
+ * outside the kernel.
  *
  * The boundary adapter — like buildKernelOptions — never smuggles a transport
  * implementation through the callback boundary. It projects only render data,
@@ -25,12 +24,17 @@
 
 import type { ShrubberyContract, EditorScope } from '@shrubbery/nucleus'
 import type {
+  ChatAccessNote,
+  ChatAccountNote,
+  ChatComposerNotice,
   ChatConnectionState,
   ChatConversationState,
   ChatContinuityAction,
   ChatKernelOptions,
   ChatMessage,
   ChatModelOption,
+  ChatSeam,
+  ChatSeamAction,
   ChatSendState,
   ChatSendRecovery,
   ChatSessionSlot,
@@ -81,7 +85,10 @@ export function defaultModels(getScope: () => EditorScope): ChatModelOption[] {
  */
 export interface AssembleChatServicesOptions {
   readonly turnDriver?: TurnDriver
-  readonly hosted?: Omit<HostedChatServiceOptions, 'graphId' | 'userId' | 'token'>
+  readonly hosted?: Omit<
+    HostedChatServiceOptions,
+    'graphBaseUrl' | 'graphId' | 'userId' | 'token'
+  >
   /**
    * The conversation's graph. Chat is GRAPH-scoped, not document-scoped: a
    * conversation belongs to the workspace, not to whichever document happens to
@@ -108,7 +115,7 @@ export function assembleChatServices(
       typeof driverOrOptions === 'function' ? undefined : driverOrOptions?.hosted
     if (!connection) {
       throw new Error(
-        'hosted ChatService requires hosted connection options with a Choreograph baseUrl.',
+        'hosted ChatService requires hosted connection options.',
       )
     }
     const graphId =
@@ -116,6 +123,7 @@ export function assembleChatServices(
       ?? ((): string | null => getScope().graphId)
     return makeHostedChatService({
       ...connection,
+      graphBaseUrl: (id: string) => contract.runtime.graphBaseUrl(id),
       graphId,
       userId: () => contract.auth.userId(),
       token: () => contract.auth.token(),
@@ -153,6 +161,16 @@ export interface ChatProjection {
   sessionTitle: string | null
   activeSlot: ChatSessionSlot
   slotSessions: readonly (string | null)[]
+  /** The host's account line beside the picker (the credit balance). Rendered, never computed, by the kernel. */
+  accountNote?: ChatAccountNote | null
+  /** The notice above the composer: a refusal for credit, the size limit. Rendered, never computed, by the kernel. */
+  composerNotice?: ChatComposerNotice | null
+  /** What the picker's prices are and how they are charged, in the host's words. */
+  voiceFootnote?: string | null
+  /** Present when this conversation picked up an earlier one. */
+  seam?: ChatSeam | null
+  /** What the chat may do here (change, or only read), in the host's words. */
+  accessNote?: ChatAccessNote | null
 }
 
 /** What the host store must expose so the boundary adapter can drive a turn. */
@@ -166,6 +184,12 @@ export interface ChatProjectionSource {
   messageAction?(messageId: string, action: 'copy' | 'read' | 'regenerate' | 'save-garden'): void
   /** Retry an operation whose payload/lifecycle remains owned by the host. */
   continuityAction?(action: ChatContinuityAction): void
+  /** The action of the composer notice was chosen. */
+  composerNoticeAction?(id: string): void
+  /** The action beside the balance line was chosen. */
+  accountAction?(id: string): void
+  /** Something on the seam was chosen (opening the original). */
+  seamAction?(action: ChatSeamAction): void
 }
 
 /**
@@ -194,6 +218,10 @@ export function buildChatKernelOptions(
   | 'sessionTitle'
   | 'activeSlot'
   | 'slotSessions'
+  | 'accountNote' | 'composerNotice' | 'onComposerNoticeAction'
+  | 'onAccountAction' | 'voiceFootnote'
+  | 'seam' | 'onSeamAction'
+  | 'accessNote'
 > {
   const p = projection()
   return {
@@ -211,9 +239,17 @@ export function buildChatKernelOptions(
     sessionTitle: p.sessionTitle,
     activeSlot: p.activeSlot,
     slotSessions: p.slotSessions,
+    accountNote: p.accountNote ?? null,
+    composerNotice: p.composerNotice ?? null,
+    voiceFootnote: p.voiceFootnote ?? null,
+    seam: p.seam ?? null,
+    accessNote: p.accessNote ?? null,
     onSend: (text: string): void => source.send(text),
     onModelChange: (modelId: string): void => source.setModel?.(modelId),
     onMessageAction: (messageId, action): void => source.messageAction?.(messageId, action),
     onContinuityAction: (action): void => source.continuityAction?.(action),
+    onComposerNoticeAction: (id): void => source.composerNoticeAction?.(id),
+    onAccountAction: (id): void => source.accountAction?.(id),
+    onSeamAction: (action): void => source.seamAction?.(action),
   }
 }

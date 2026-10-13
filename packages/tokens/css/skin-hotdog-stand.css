@@ -1,0 +1,716 @@
+/* ═══ SKIN: Hotdog Stand ═════════════════════════════════════════════════════
+ * The Windows 3.1 colour scheme of that name — yellow desktop, red windows,
+ * black captions, white menus, silver buttons — as a first-class visual identity
+ * on the same axis as Garden, Sophia, 98, Glass and Mithras.
+ *
+ * GROUND TRUTH. The light composition IS the scheme. This is its CONTROL.INI
+ * [color schemes] entry, exactly as Windows 3.1x installs carry it (the INI
+ * spells the name "Hotdog Stand"). 21 values = the 21 Windows system colours,
+ * in WIN.INI [colors] key order, each a COLORREF (0x00BBGGRR) in hex without
+ * leading zeros:
+ *
+ * Hotdog Stand=FFFF,FFFF,FF,FFFFFF,FFFFFF,0,0,FF,FFFFFF,FF,FF,0,C0C0C0,C0C0C0,808080,0,808080,0,FFFFFF,FFFFFF,FFFFFF
+ *
+ * Decoded (slot as the Windows Color dialog names it · INI value → #rrggbb · the
+ * name this file gives the slot):
+ *    1 Desktop                  FFFF    #ffff00  --mn-hds-desktop
+ *    2 Application Workspace    FFFF    #ffff00  --mn-hds-workspace
+ *    3 Window                   FF      #ff0000  --mn-hds-window
+ *    4 Window Text              FFFFFF  #ffffff  --mn-hds-window-text
+ *    5 Menu Bar                 FFFFFF  #ffffff  --mn-hds-menu
+ *    6 Menu Text                0       #000000  --mn-hds-menu-text
+ *    7 Active Title Bar         0       #000000  --mn-hds-caption
+ *    8 Inactive Title Bar       FF      #ff0000  --mn-hds-caption-inactive
+ *    9 Title Bar Text           FFFFFF  #ffffff  --mn-hds-caption-text
+ *   10 Active Border            FF      #ff0000  --mn-hds-border-active
+ *   11 Inactive Border          FF      #ff0000  --mn-hds-border-inactive
+ *   12 Window Frame             0       #000000  --mn-hds-frame
+ *   13 Scroll Bars              C0C0C0  #c0c0c0  --mn-hds-scrollbar
+ *   14 Button Face              C0C0C0  #c0c0c0  --mn-hds-face
+ *   15 Button Shadow            808080  #808080  --mn-hds-shadow
+ *   16 Button Text              0       #000000  --mn-hds-button-text
+ *   17 Gray Text                808080  #808080  --mn-hds-gray-text
+ *   18 Highlight                0       #000000  --mn-hds-highlight
+ *   19 Highlighted Text         FFFFFF  #ffffff  --mn-hds-highlight-text
+ *   20 Inactive Title Bar Text  FFFFFF  #ffffff  --mn-hds-caption-text-inactive
+ *   21 Button Highlight         FFFFFF  #ffffff  --mn-hds-light
+ * Six distinct colours: yellow, red, white, black, silver, grey. tokens' own test
+ * decodes the line above with an independent decoder, checks every slot against
+ * the Color dialog's R.G.B table, and checks this comment against this file.
+ *
+ * Sources (read 2026-10-02):
+ *   the line, at its origin — CONTROL.SR_ on Windows 3.1 setup Disk 6 (the 5.25-inch
+ *   1.2 MB set; Microsoft KB Q71317 names this as the file that holds the default
+ *   colour schemes), expanded from the Internet Archive's disk image
+ *   archive.org/details/win3_1_DISK01 (win3_1_DISK06.IMG sha256 3312d410…4ea3;
+ *   CONTROL.SR_ sha256 6e259513…bafe). Byte-identical to:
+ *   the line, as installs carry it — identical in all 19 files GitHub code search
+ *   returns for it (18 named CONTROL.INI and one Control.inib, in 17 repositories:
+ *   Windows 3.1/3.11 trees, copies of the shipped file, not independent witnesses
+ *   of it); four, pinned:
+ *     github.com/joncampbell123/win31igdrv/blob/0c00461e7f2470bb68d003e2bb90380e73f5122b/WINDOWS/CONTROL.INI
+ *     github.com/joncampbell123/msdostest/blob/c64ffa47776cc3cc467c9270ca410fb95d9a991a/animation-festival-1994-cdrom-ia/WINDOWS/CONTROL.INI
+ *     github.com/peymanx/msdos-tools/blob/429ee33440d954b7efc112ef639fa0b87268e867/WINDOWS/CONTROL.INI
+ *     github.com/guilt/DOS/blob/d0fab01e6a56e903ac5e60547ee1fb747100c3b1/DOSROOT/WINDOWS/CONTROL.INI
+ *   the slot order — the key order of [colors] in real WIN.INI files (see the round
+ *   README), and independently, the scheme's R.G.B table as the Windows Color dialog
+ *   shows it (comment 51, 2008-03-23):
+ *     discourse.codinghorror.com/t/a-tribute-to-the-windows-3-1-hot-dog-stand-color-scheme/1059?page=3
+ *   the extension palette below — Microsoft Learn, "Default Palette"
+ *   (learn.microsoft.com/en-us/windows/win32/gdi/default-palette) and CompuPhase,
+ *   "The Microsoft Windows Palette Manager" (compuphase.com/palette.htm).
+ * No source disagrees; the round README records the search.
+ *
+ * NO INVENTED COLOUR. Windows 3.1 drew in 16 solid colours; its system palette
+ * reserves 20 (the 16 VGA colours plus four more). Beyond the six scheme colours,
+ * this file uses only: those 20 static colours (--mn-hds-sys-*), the neutral
+ * steps skin-98 already uses (--mn-hds-n-*), and colour-mix() of those. Every hex
+ * is declared once, as a named palette entry; roles reference names and never
+ * retype a colour. Flat, as the period was: no gradients, no blur, hard offset
+ * shadows only. The test holds every literal in this file to those rules.
+ *
+ * LIGHT — the faithful mapping.
+ *   canvas ← Desktop · work surfaces ← Button Face · menus ← Menu Bar · masthead ←
+ *   Active Title Bar with Title Bar Text · ink ← Button Text · frames ← Window
+ *   Frame · accent (primary actions, selection) ← Highlight on Highlighted Text ·
+ *   active borders ← Active Border · the editor's desk ← Application Workspace.
+ *   The Window — Window Text on Window, the pair the scheme is famous for — is worn
+ *   by three surfaces, and only three: the editor's page (inset on the desk, so the
+ *   yellow shows around it at every width), the sidebar lists, and the chat bar
+ *   (the Inactive Title Bar with its text). Silver stays where 3.1 kept it: toolbars,
+ *   the status bar, buttons, scroll bars. Where the scheme has no role (secondary
+ *   ink, status hues, hover washes) the value is a neutral step or a static colour,
+ *   chosen so every text role clears WCAG AA on every chrome surface it can sit on
+ *   (the test computes the table).
+ *
+ *   ONE NAMED AA EXCEPTION. White on red is 4.00:1 — AA for large text and UI
+ *   components (3:1), not for body text. Vera ruled (2026-10-03) that the Window-
+ *   coloured surfaces keep the scheme's own pair, with an asserted 3:1 floor, and
+ *   that every chrome surface stays at 4.5:1. The test names the three surfaces and
+ *   their inks, pins the ratio, closes the set (no other surface may be red), and
+ *   shows the exception absent in dark (white on maroon, 10.95:1) and void under
+ *   prefers-contrast: more (Window and the Inactive Title Bar turn maroon).
+ *
+ * DARK — "Hotdog Stand After Hours", authored here in the same 21-slot form, in the
+ * spirit of skin-98's High Contrast Black rather than a charcoal reskin. Windows
+ * 3.1's own CONTROL.INI has four schemes with a black Desktop (Black Leather Jacket,
+ * Fluorescent, Plasma Power Saver, LCD Reversed - Dark — the last with a maroon Window
+ * under white Window Text), so a black room, and that maroon Window, are period. The
+ * rule is an inversion of the light scheme: what was black (caption, selection,
+ * frame, ink) becomes yellow or white; what was yellow (desktop) becomes black;
+ * silver faces become near-black; red windows become maroon — the same hue, dark
+ * enough to hold white ink. A diner sign: black ground, yellow and red light.
+ *
+ * Hotdog Stand After Hours=0,0,80,FFFFFF,0,FFFFFF,FFFF,80,0,FF,80,FFFFFF,808080,202020,0,FFFFFF,808080,FFFF,0,FFFFFF,C0C0C0
+ *
+ * Structure remains in Shrubbery's components; this file supplies the semantic
+ * roles and the bevel vocabulary (--mn-hds-raised / --mn-hds-sunken) those
+ * components consume.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+[data-skin="hotdog-stand"] {
+  color-scheme: light;
+
+  /* ── The scheme: 21 Windows system colours, named (see the header) ──────── */
+  --mn-hds-desktop:               #ffff00;
+  --mn-hds-workspace:             #ffff00;
+  --mn-hds-window:                #ff0000;
+  --mn-hds-window-text:           #ffffff;
+  --mn-hds-menu:                  #ffffff;
+  --mn-hds-menu-text:             #000000;
+  --mn-hds-caption:               #000000;
+  --mn-hds-caption-inactive:      #ff0000;
+  --mn-hds-caption-text:          #ffffff;
+  --mn-hds-border-active:         #ff0000;
+  --mn-hds-border-inactive:       #ff0000;
+  --mn-hds-frame:                 #000000;
+  --mn-hds-scrollbar:             #c0c0c0;
+  --mn-hds-face:                  #c0c0c0;
+  --mn-hds-shadow:                #808080;
+  --mn-hds-button-text:           #000000;
+  --mn-hds-gray-text:             #808080;
+  --mn-hds-highlight:             #000000;
+  --mn-hds-highlight-text:        #ffffff;
+  --mn-hds-caption-text-inactive: #ffffff;
+  --mn-hds-light:                 #ffffff;
+
+  /* ── Extension: the other static colours Windows reserves ───────────────── */
+  --mn-hds-sys-black:  #000000;
+  --mn-hds-sys-white:  #ffffff;
+  --mn-hds-sys-red:    #ff0000;
+  --mn-hds-sys-yellow: #ffff00;
+  --mn-hds-sys-maroon: #800000;
+  --mn-hds-sys-green:  #008000;
+  --mn-hds-sys-olive:  #808000;
+  --mn-hds-sys-navy:   #000080;
+  --mn-hds-sys-blue:   #0000ff;
+  --mn-hds-sys-lime:   #00ff00;
+  --mn-hds-sys-aqua:   #00ffff;
+  --mn-hds-sys-money:  #c0dcc0;
+  --mn-hds-sys-sky:    #a6caf0;
+  --mn-hds-sys-cream:  #fffbf0;
+  /* Ink for status text on Button Face: the static green and olive darkened toward black
+     until they hold AA on silver (undarkened they read 2.8:1 and 2.3:1 there). */
+  --mn-hds-ink-green:  color-mix(in srgb, var(--mn-hds-sys-green) 62%, var(--mn-hds-sys-black));
+  --mn-hds-ink-olive:  color-mix(in srgb, var(--mn-hds-sys-olive) 62%, var(--mn-hds-sys-black));
+
+  /* Neutral steps — the same ones skin-98 uses, named by lightness. */
+  --mn-hds-n-12: #202020;
+  --mn-hds-n-16: #282828;
+  --mn-hds-n-19: #303030;
+  --mn-hds-n-22: #383838;
+  --mn-hds-n-27: #444444;
+  --mn-hds-n-38: #606060;
+  --mn-hds-n-85: #d8d8d8;
+  --mn-hds-n-88: #e0e0e0;
+  --mn-hds-n-94: #f0f0f0;
+
+  /* ── The bevel vocabulary: Button Highlight top-left, Button Shadow bottom-right.
+        Pressed is the shadow turned over. Components consume the composites. ── */
+  --mn-hds-raised:
+    inset 1px 1px 0 var(--mn-hds-light),
+    inset -1px -1px 0 var(--mn-hds-shadow),
+    inset -2px -2px 0 var(--mn-hds-shadow);
+  --mn-hds-sunken:
+    inset 1px 1px 0 var(--mn-hds-shadow),
+    inset 2px 2px 0 var(--mn-hds-shadow);
+
+  /* ── Type: the compact system voice, deterministic offline (as skin-98) ──── */
+  --mn-font-chrome:  'Public Sans Variable', 'Public Sans', Arial, sans-serif;
+  --mn-font-display: var(--mn-font-chrome);
+  --mn-font-utility: var(--mn-font-chrome);
+  --mn-font-prose:   var(--mn-font-chrome);
+  --mn-font-serif:   var(--mn-font-chrome);
+  --mn-font-sans:    var(--mn-font-chrome);
+  --mn-font-weight-normal:   400;
+  --mn-font-weight-medium:   500;
+  --mn-font-weight-semibold: 700;
+  --mn-font-weight-bold:     700;
+  --mn-tracking-label: 0;
+  --mn-leading-prose: 1.6;
+
+  /* ── Surfaces: the room is the Desktop; the work sits on Button Face ────── */
+  --mn-color-surface-canvas:   var(--mn-hds-desktop);
+  --mn-color-surface-base:     var(--mn-hds-face);
+  --mn-color-surface-editor:   var(--mn-hds-menu);
+  --mn-color-surface-panel:    var(--mn-hds-face);
+  --mn-color-surface-chrome:   var(--mn-hds-face);
+  --mn-color-surface-raised:   var(--mn-hds-face);
+  --mn-color-surface-elevated: var(--mn-hds-menu);
+  --mn-color-surface-overlay:  var(--mn-hds-face);
+  --mn-color-surface-subtle:   var(--mn-hds-light);
+  --mn-color-surface-warm:     var(--mn-hds-workspace);
+  --mn-color-surface-sunken:   var(--mn-hds-light);
+  --mn-color-surface-hover:    color-mix(in srgb, var(--mn-hds-frame) 10%, transparent);
+  --mn-color-surface-active:   color-mix(in srgb, var(--mn-hds-frame) 20%, transparent);
+  --mn-color-surface-accent:   var(--mn-hds-workspace);
+  --mn-color-surface-accent-subtle: color-mix(in srgb, var(--mn-hds-workspace) 40%, transparent);
+  --mn-color-surface-accent-strong: var(--mn-hds-workspace);
+  --mn-color-backdrop: color-mix(in srgb, var(--mn-hds-frame) 46%, transparent);
+  --mn-atmosphere: none;
+
+  /* ── Ink ─────────────────────────────────────────────────────────────────── */
+  --mn-color-text-primary:       var(--mn-hds-button-text);
+  --mn-color-text-secondary:     var(--mn-hds-n-12);
+  --mn-color-text-tertiary:      var(--mn-hds-n-22);
+  --mn-color-text-muted:         var(--mn-hds-n-27);
+  --mn-color-text-inverse:       var(--mn-hds-highlight-text);
+  --mn-color-text-title:         var(--mn-hds-button-text);
+  --mn-color-text-quiet:         var(--mn-hds-n-22);
+  --mn-color-text-link:          var(--mn-hds-sys-navy);
+  --mn-color-text-link-hover:    var(--mn-hds-sys-blue);
+  --mn-color-text-accent:        var(--mn-hds-highlight);
+  --mn-color-text-accent-strong: var(--mn-hds-highlight);
+  --mn-color-text-on-accent:     var(--mn-hds-highlight-text);
+  --mn-color-text-danger:        var(--mn-hds-sys-maroon);
+  --mn-color-text-warning:       var(--mn-hds-ink-olive);
+  /* The hook the chat's "Running low" chip, the sidebar panel and the modes badge read for warning ink (no other
+     skin names it): the skin's own warning text, so none of them is left on a literal brown. */
+  --mn-color-warning-text:       var(--mn-color-text-warning);
+  --mn-color-text-success:       var(--mn-hds-ink-green);
+
+  /* ── Frames: Windows 3.1 outlined everything in black ───────────────────── */
+  --mn-color-border-subtle:  var(--mn-hds-shadow);
+  --mn-color-border-default: var(--mn-hds-frame);
+  --mn-color-border-strong:  var(--mn-hds-frame);
+  --mn-color-border-accent:  var(--mn-hds-border-active);
+  --mn-color-border-focus:   var(--mn-hds-frame);
+  --mn-color-border:         var(--mn-color-border-default);
+  --mn-color-rule:           var(--mn-hds-shadow);
+  --mn-color-rule-strong:    var(--mn-hds-frame);
+
+  /* ── Accent = Highlight (black, on Highlighted Text white) ───────────────── */
+  --mn-color-accent:         var(--mn-hds-highlight);
+  --mn-color-accent-hover:   var(--mn-hds-n-22);
+  --mn-color-accent-active:  var(--mn-hds-highlight);
+  --mn-color-accent-ch:      0 0 0;
+  --mn-color-interactive-hover:    color-mix(in srgb, var(--mn-hds-frame) 8%, transparent);
+  --mn-color-interactive-active:   color-mix(in srgb, var(--mn-hds-frame) 16%, transparent);
+  --mn-color-interactive-selected: color-mix(in srgb, var(--mn-hds-workspace) 60%, transparent);
+
+  --mn-focus-ring-width: 2px;
+  --mn-focus-ring-color: var(--mn-hds-frame);
+  --mn-focus-ring: 0 0 0 1px var(--mn-hds-frame), 0 0 0 2px var(--mn-hds-light);
+
+  /* ── Status: static colours, ink-dark where they must be read as text ───── */
+  --mn-color-success:         var(--mn-hds-ink-green);
+  --mn-color-success-strong:  color-mix(in srgb, var(--mn-hds-sys-green) 40%, var(--mn-hds-sys-black));
+  --mn-color-success-surface: var(--mn-hds-sys-money);
+  --mn-color-success-border:  var(--mn-hds-sys-green);
+  --mn-color-warning:         var(--mn-hds-ink-olive);
+  --mn-color-warning-strong:  color-mix(in srgb, var(--mn-hds-sys-olive) 40%, var(--mn-hds-sys-black));
+  --mn-color-warning-surface: var(--mn-hds-workspace);
+  --mn-color-warning-border:  var(--mn-hds-ink-olive);
+  --mn-color-danger:          var(--mn-hds-sys-maroon);
+  --mn-color-danger-strong:   color-mix(in srgb, var(--mn-hds-sys-maroon) 60%, var(--mn-hds-sys-black));
+  --mn-color-danger-surface:  var(--mn-hds-sys-cream);
+  --mn-color-danger-border:   var(--mn-hds-sys-maroon);
+  --mn-color-info:            var(--mn-hds-sys-navy);
+  --mn-color-info-strong:     var(--mn-hds-highlight);
+  --mn-color-info-surface:    var(--mn-hds-sys-sky);
+  --mn-color-info-border:     var(--mn-hds-sys-navy);
+  --mn-color-action-danger:   var(--mn-hds-sys-maroon);
+  --mn-color-on-danger:       var(--mn-hds-highlight-text);
+  --mn-color-action-warning:  var(--mn-hds-workspace);
+  --mn-color-on-warning:      var(--mn-hds-button-text);
+
+  /* Dataviz (--mn-chart-*) and the contested-stance triple are skin-independent by
+     contract (semantic.css: validated swatches that apply under every skin; theme-dark.css
+     carries their dark values), so this skin states none of them and inherits both. */
+
+  /* ── Bars: the masthead is the active caption; the footer is a status bar ── */
+  --mn-top-bar-height:        40px;
+  --mn-top-bar-bg:            var(--mn-hds-caption);
+  --mn-top-bar-border:        var(--mn-hds-frame);
+  --mn-top-bar-text:          var(--mn-hds-caption-text);
+  --mn-top-bar-text-muted:    var(--mn-hds-face);
+  --mn-bottom-bar-bg:         var(--mn-hds-face);
+  --mn-bottom-bar-border:     var(--mn-hds-light);
+  --mn-bottom-bar-text:       var(--mn-hds-button-text);
+  --mn-bottom-bar-text-muted: var(--mn-hds-n-12);
+  --mn-layout-tab-strip-bg:   var(--mn-hds-face);
+
+  /* ── Geometry: square and compact ───────────────────────────────────────── */
+  --mn-radius-sm:      0;
+  --mn-radius-default: 0;
+  --mn-radius-md:      0;
+  --mn-radius-lg:      0;
+  --mn-radius-xl:      0;
+  --mn-radius-2xl:     0;
+  --mn-radius-control: 0;
+  --mn-radius-surface: 0;
+  --mn-radius-popover: 0;
+  --mn-row-height:     26px;
+  --mn-control-height: 26px;
+  --mn-label-display:  inline;
+  --mn-texture-display: none;
+  --mn-rule-hair:  1px solid var(--mn-hds-shadow);
+  --mn-rule-line:  1px solid var(--mn-hds-frame);
+  --mn-rule-frame: 2px solid var(--mn-hds-frame);
+  --mn-chrome-rule: var(--mn-rule-frame);
+
+  /* ── Depth: bevels at rest, hard black offsets when floating (no blur) ───── */
+  --mn-shadow-xs: var(--mn-hds-raised);
+  --mn-shadow-sm: var(--mn-hds-raised);
+  --mn-shadow-md: var(--mn-hds-raised), 2px 2px 0 var(--mn-hds-frame);
+  --mn-shadow-lg: var(--mn-hds-raised), 3px 3px 0 var(--mn-hds-frame);
+  --mn-shadow-xl: var(--mn-hds-raised), 4px 4px 0 var(--mn-hds-frame);
+  --mn-shadow-chrome: none;
+  --mn-shadow-card: var(--mn-hds-raised);
+  --mn-shadow-raised: var(--mn-hds-raised);
+  --mn-shadow-popover: var(--mn-hds-raised), 2px 2px 0 var(--mn-hds-frame);
+  --mn-shadow-modal: var(--mn-hds-raised), 4px 4px 0 var(--mn-hds-frame);
+  --mn-shadow-primary: var(--mn-hds-raised);
+  --mn-shadow-composer: var(--mn-hds-sunken);
+  --mn-shadow-composer-focus: var(--mn-hds-sunken), var(--mn-focus-ring);
+  --mn-shadow-error-ring: 0 0 0 2px var(--mn-color-danger);
+  --mn-shadow-status-danger: 2px 2px 0 var(--mn-color-danger);
+
+  /* ── Floating chrome: a white menu, a black frame, a hard shadow ────────── */
+  --mn-material-popover-tint:   var(--mn-hds-menu);
+  --mn-material-popover-solid:  var(--mn-hds-menu);
+  --mn-material-popover-bg:     var(--mn-hds-menu);
+  --mn-material-popover-filter: none;
+  --mn-material-popover-edge:   var(--mn-hds-frame);
+  --mn-material-specular:       0 0 0 transparent;
+  --mn-material-lift:           2px 2px 0 var(--mn-hds-frame);
+  --mn-material-popover-shadow: 2px 2px 0 var(--mn-hds-frame);
+  --mn-window-backdrop-filter:  none;
+
+  /* ── Shared structural roles: controls, panes and chat read these ───────── */
+  --mn-control-background:        var(--mn-hds-face);
+  --mn-control-background-hover:  var(--mn-hds-face);
+  --mn-control-background-active: var(--mn-hds-face);
+  --mn-control-border: 1px solid var(--mn-hds-frame);
+  --mn-control-shadow: var(--mn-hds-raised);
+  --mn-control-shadow-active: var(--mn-hds-sunken);
+  --mn-scrollbar-track: var(--mn-hds-scrollbar);
+  --mn-scrollbar-thumb: var(--mn-hds-face);
+  --mn-scrollbar-thumb-solid: var(--mn-hds-shadow);
+  --mn-chat-superbar-bg: var(--mn-hds-caption-inactive);
+  --mn-chat-superbar-text: var(--mn-hds-caption-text-inactive);
+  --mn-chat-superbar-text-muted: var(--mn-hds-caption-text-inactive);
+  --mn-chat-header-bg: var(--mn-hds-face);
+  --mn-chat-transcript-bg: var(--mn-hds-light);
+  --mn-chat-assistant-bg: var(--mn-hds-light);
+  --mn-chat-user-bg: var(--mn-hds-highlight);
+  --mn-chat-control-bg: var(--mn-hds-face);
+  --mn-chat-control-border: 1px solid var(--mn-hds-frame);
+  --mn-chat-control-shadow: var(--mn-hds-raised);
+
+  /* ── Lists: Window on Window Text, selection Highlight on Highlighted Text. The
+        sidebar re-scopes its ink to these inside its lists; silver chrome stays. ── */
+  --mn-list-surface:          var(--mn-hds-window);
+  --mn-list-ink:              var(--mn-hds-window-text);
+  --mn-list-hover:            var(--mn-hds-sys-maroon);
+  --mn-list-selected-surface: var(--mn-hds-highlight);
+  --mn-list-selected-ink:     var(--mn-hds-highlight-text);
+
+  /* ── The vocabulary the shared bevelled-control blocks read (the components' 98
+        blocks are admitted to this skin; they speak --mn-98-*, the skin answers from
+        its own slots). Raised and sunken carry the Window Frame ring: 3.1 outlined
+        every control in black. ───────────────────────────────────────────────── */
+  --mn-98-face:           var(--mn-hds-face);
+  --mn-98-highlight:      var(--mn-hds-light);
+  --mn-98-light:          var(--mn-hds-face);
+  --mn-98-shadow:         var(--mn-hds-shadow);
+  --mn-98-dark:           var(--mn-hds-frame);
+  --mn-98-caption:        var(--mn-hds-caption);
+  --mn-98-selection:      var(--mn-hds-highlight);
+  --mn-98-selection-text: var(--mn-hds-highlight-text);
+  --mn-98-settings-bg:    var(--mn-hds-face);
+  --mn-98-raised: 0 0 0 1px var(--mn-hds-frame), var(--mn-hds-raised);
+  --mn-98-sunken: 0 0 0 1px var(--mn-hds-frame), var(--mn-hds-sunken);
+
+  /* ── Motion: Windows 3.1 repainted at once ──────────────────────────────── */
+  --mn-transition-fast: 0ms linear;
+  --mn-transition-normal: 0ms linear;
+  --mn-transition-slow: 0ms linear;
+
+  /* ── The editor: the pasteboard is the Application Workspace; physical-page
+        modes keep their own paper and take the Highlight ink ────────────────── */
+  --mn-editor-canvas-surface: var(--mn-hds-workspace);
+  --mn-editor-paper-accent:       var(--mn-hds-highlight);
+  --mn-editor-paper-accent-hover: var(--mn-hds-n-22);
+  --mn-editor-paper-accent-soft:  var(--mn-hds-light);
+  --mn-editor-paper-accent-ch:    0 0 0;
+
+  /* ── Files canvas: Program Manager's icons, silver cards on the yellow Desktop.
+        These are the component tier's defaults, stated here because this skin
+        answers every role another skin states (98 states these five to go
+        period); stating them keeps the idiom the skin's, not Garden's. ──────── */
+  --mn-files-card-surface:         var(--mn-color-surface-raised);
+  --mn-files-label-ink:            var(--mn-color-text-primary);
+  --mn-files-label-selected-wash:  var(--mn-color-interactive-selected);
+  --mn-files-label-selected-ink:   var(--mn-color-text-primary);
+  --mn-files-glyph-stroke:         var(--mn-color-text-quiet);
+
+  font-family: var(--mn-font-chrome);
+  letter-spacing: 0;
+  scrollbar-color: var(--mn-scrollbar-thumb-solid) var(--mn-scrollbar-track);
+}
+
+/* ═══ AFTER HOURS ═══════════════════════════════════════════════════════════
+ * Slot for slot, the authored scheme in the header; every role below is mapped
+ * from a slot or from a static colour, exactly as the light block does. */
+[data-theme="dark"][data-skin="hotdog-stand"] {
+  color-scheme: dark;
+
+  --mn-hds-desktop:               #000000;
+  --mn-hds-workspace:             #000000;
+  --mn-hds-window:                #800000;
+  --mn-hds-window-text:           #ffffff;
+  --mn-hds-menu:                  #000000;
+  --mn-hds-menu-text:             #ffffff;
+  --mn-hds-caption:               #ffff00;
+  --mn-hds-caption-inactive:      #800000;
+  --mn-hds-caption-text:          #000000;
+  --mn-hds-border-active:         #ff0000;
+  --mn-hds-border-inactive:       #800000;
+  --mn-hds-frame:                 #ffffff;
+  --mn-hds-scrollbar:             #808080;
+  --mn-hds-face:                  #202020;
+  --mn-hds-shadow:                #000000;
+  --mn-hds-button-text:           #ffffff;
+  --mn-hds-gray-text:             #808080;
+  --mn-hds-highlight:             #ffff00;
+  --mn-hds-highlight-text:        #000000;
+  --mn-hds-caption-text-inactive: #ffffff;
+  --mn-hds-light:                 #c0c0c0;
+
+  /* Surfaces: a black room, near-black faces, a maroon Window, a black menu. */
+  --mn-color-surface-canvas:   var(--mn-hds-desktop);
+  --mn-color-surface-base:     var(--mn-hds-face);
+  --mn-color-surface-editor:   var(--mn-hds-window);
+  --mn-color-surface-panel:    var(--mn-hds-face);
+  --mn-color-surface-chrome:   var(--mn-hds-face);
+  --mn-color-surface-raised:   var(--mn-hds-n-16);
+  --mn-color-surface-elevated: var(--mn-hds-menu);
+  --mn-color-surface-overlay:  var(--mn-hds-face);
+  --mn-color-surface-subtle:   var(--mn-hds-n-19);
+  --mn-color-surface-warm:     color-mix(in srgb, var(--mn-hds-sys-yellow) 16%, var(--mn-hds-n-12));
+  --mn-color-surface-sunken:   var(--mn-hds-desktop);
+  --mn-color-surface-hover:    color-mix(in srgb, var(--mn-hds-sys-white) 12%, transparent);
+  --mn-color-surface-active:   color-mix(in srgb, var(--mn-hds-sys-white) 20%, transparent);
+  --mn-color-surface-accent:   var(--mn-hds-window);
+  --mn-color-surface-accent-subtle: color-mix(in srgb, var(--mn-hds-window) 55%, transparent);
+  --mn-color-surface-accent-strong: var(--mn-hds-window);
+  --mn-color-backdrop: color-mix(in srgb, var(--mn-hds-sys-black) 78%, transparent);
+  --mn-atmosphere: none;
+
+  /* Ink: white, with the neutral steps skin-98's dark also takes; yellow is the link. */
+  --mn-color-text-primary:       var(--mn-hds-button-text);
+  --mn-color-text-secondary:     var(--mn-hds-n-94);
+  --mn-color-text-tertiary:      var(--mn-hds-n-88);
+  --mn-color-text-muted:         var(--mn-hds-n-85);
+  --mn-color-text-inverse:       var(--mn-hds-highlight-text);
+  --mn-color-text-title:         var(--mn-hds-button-text);
+  --mn-color-text-quiet:         var(--mn-hds-n-85);
+  --mn-color-text-link:          var(--mn-hds-sys-yellow);
+  --mn-color-text-link-hover:    var(--mn-hds-sys-white);
+  --mn-color-text-accent:        var(--mn-hds-highlight);
+  --mn-color-text-accent-strong: var(--mn-hds-highlight);
+  --mn-color-text-on-accent:     var(--mn-hds-highlight-text);
+  --mn-color-text-danger:        color-mix(in srgb, var(--mn-hds-sys-red) 40%, var(--mn-hds-sys-white));
+  --mn-color-text-warning:       var(--mn-hds-sys-yellow);
+  --mn-color-warning-text:       var(--mn-color-text-warning);
+  --mn-color-text-success:       var(--mn-hds-sys-lime);
+
+  --mn-color-border-subtle:  var(--mn-hds-n-38);
+  --mn-color-border-default: var(--mn-hds-gray-text);
+  --mn-color-border-strong:  var(--mn-hds-frame);
+  --mn-color-border-accent:  var(--mn-hds-border-active);
+  --mn-color-border-focus:   var(--mn-hds-highlight);
+  --mn-color-border:         var(--mn-color-border-default);
+  --mn-color-rule:           var(--mn-hds-gray-text);
+  --mn-color-rule-strong:    var(--mn-hds-frame);
+
+  /* Accent = Highlight, which the inversion turns yellow (on Highlighted Text black). */
+  --mn-color-accent:         var(--mn-hds-highlight);
+  --mn-color-accent-hover:   var(--mn-hds-sys-white);
+  --mn-color-accent-active:  var(--mn-hds-light);
+  --mn-color-accent-ch:      255 255 0;
+  --mn-color-interactive-hover:    color-mix(in srgb, var(--mn-hds-sys-white) 12%, transparent);
+  --mn-color-interactive-active:   color-mix(in srgb, var(--mn-hds-sys-white) 20%, transparent);
+  --mn-color-interactive-selected: color-mix(in srgb, var(--mn-hds-window) 70%, transparent);
+
+  --mn-focus-ring-color: var(--mn-hds-highlight);
+  --mn-focus-ring: 0 0 0 1px var(--mn-hds-sys-black), 0 0 0 2px var(--mn-hds-highlight);
+
+  --mn-color-success:         var(--mn-hds-sys-lime);
+  --mn-color-success-strong:  color-mix(in srgb, var(--mn-hds-sys-lime) 60%, var(--mn-hds-sys-white));
+  --mn-color-success-surface: color-mix(in srgb, var(--mn-hds-sys-lime) 14%, var(--mn-hds-n-12));
+  --mn-color-success-border:  var(--mn-hds-sys-lime);
+  --mn-color-warning:         var(--mn-hds-sys-yellow);
+  --mn-color-warning-strong:  color-mix(in srgb, var(--mn-hds-sys-yellow) 60%, var(--mn-hds-sys-white));
+  --mn-color-warning-surface: color-mix(in srgb, var(--mn-hds-sys-yellow) 14%, var(--mn-hds-n-12));
+  --mn-color-warning-border:  var(--mn-hds-sys-yellow);
+  --mn-color-danger:          color-mix(in srgb, var(--mn-hds-sys-red) 40%, var(--mn-hds-sys-white));
+  --mn-color-danger-strong:   color-mix(in srgb, var(--mn-hds-sys-red) 25%, var(--mn-hds-sys-white));
+  --mn-color-danger-surface:  color-mix(in srgb, var(--mn-hds-sys-red) 22%, var(--mn-hds-n-12));
+  --mn-color-danger-border:   color-mix(in srgb, var(--mn-hds-sys-red) 40%, var(--mn-hds-sys-white));
+  --mn-color-info:            var(--mn-hds-sys-aqua);
+  --mn-color-info-strong:     color-mix(in srgb, var(--mn-hds-sys-aqua) 60%, var(--mn-hds-sys-white));
+  --mn-color-info-surface:    color-mix(in srgb, var(--mn-hds-sys-aqua) 12%, var(--mn-hds-n-12));
+  --mn-color-info-border:     var(--mn-hds-sys-aqua);
+  --mn-color-action-danger:   var(--mn-hds-sys-maroon);
+  --mn-color-on-danger:       var(--mn-hds-sys-white);
+  --mn-color-action-warning:  var(--mn-hds-sys-yellow);
+  --mn-color-on-warning:      var(--mn-hds-sys-black);
+
+  /* Bars: the active caption lights the masthead; the footer stays a dark status bar. */
+  --mn-top-bar-bg:            var(--mn-hds-caption);
+  --mn-top-bar-border:        var(--mn-hds-desktop);
+  --mn-top-bar-text:          var(--mn-hds-caption-text);
+  --mn-top-bar-text-muted:    var(--mn-hds-n-22);
+  --mn-bottom-bar-bg:         var(--mn-hds-face);
+  --mn-bottom-bar-border:     var(--mn-hds-light);
+  --mn-bottom-bar-text:       var(--mn-hds-button-text);
+  --mn-bottom-bar-text-muted: var(--mn-hds-n-94);
+  --mn-layout-tab-strip-bg:   var(--mn-hds-face);
+
+  /* Depth: bevels read on a dark face; floating things take a grey hard shadow. */
+  --mn-shadow-md: var(--mn-hds-raised), 2px 2px 0 var(--mn-hds-gray-text);
+  --mn-shadow-lg: var(--mn-hds-raised), 3px 3px 0 var(--mn-hds-gray-text);
+  --mn-shadow-xl: var(--mn-hds-raised), 4px 4px 0 var(--mn-hds-gray-text);
+  --mn-shadow-popover: var(--mn-hds-raised), 2px 2px 0 var(--mn-hds-gray-text);
+  --mn-shadow-modal: var(--mn-hds-raised), 4px 4px 0 var(--mn-hds-gray-text);
+  --mn-shadow-status-danger: 2px 2px 0 var(--mn-color-danger);
+  --mn-material-popover-tint:   var(--mn-hds-menu);
+  --mn-material-popover-solid:  var(--mn-hds-menu);
+  --mn-material-popover-bg:     var(--mn-hds-menu);
+  --mn-material-popover-edge:   var(--mn-hds-frame);
+  --mn-material-lift:           2px 2px 0 var(--mn-hds-gray-text);
+  --mn-material-popover-shadow: 2px 2px 0 var(--mn-hds-gray-text);
+
+  --mn-control-border: 1px solid var(--mn-hds-gray-text);
+  --mn-scrollbar-thumb-solid: var(--mn-hds-gray-text);
+  --mn-chat-header-bg: var(--mn-hds-face);
+  --mn-chat-transcript-bg: var(--mn-hds-desktop);
+  --mn-chat-assistant-bg: var(--mn-hds-face);
+  --mn-chat-user-bg: var(--mn-hds-highlight);
+  --mn-chat-control-bg: var(--mn-hds-face);
+  --mn-chat-control-border: 1px solid var(--mn-hds-gray-text);
+
+  --mn-editor-paper-accent-hover: var(--mn-hds-sys-white);
+  --mn-editor-paper-accent-soft:  var(--mn-hds-window);
+  --mn-editor-paper-accent-ch:    255 255 0;
+
+  /* The lists: the maroon Window, hovered black; the selected row is black on white either way
+     (Highlight is yellow after hours, and the shared selection text there is black). */
+  --mn-list-hover:            var(--mn-hds-sys-black);
+  --mn-list-selected-surface: var(--mn-hds-sys-black);
+  --mn-list-selected-ink:     var(--mn-hds-sys-white);
+}
+
+/* The editor's page is a Window: Window Text on Window, in the thick Active Border, outlined in the
+   Window Frame, inset on the Application Workspace desk so the yellow shows around it at every width
+   (a fixed gutter, never the container's edge). The boxes inside it (code, tables, callouts) are
+   maroon or black so white ink holds there too; links and accents are yellow. Scoped to the
+   continuous (default) material: the physical-page modes (paper, classic-word) own their sheet and
+   are left alone. The runtime re-scopes the page's descendants from these roles. */
+[data-skin="hotdog-stand"]:not([data-editor-material]) {
+  --mn-editor-sheet-surface:    var(--mn-hds-window);
+  --mn-editor-sheet-ink:        var(--mn-hds-window-text);
+  --mn-editor-sheet-title:      var(--mn-hds-window-text);
+  --mn-editor-sheet-secondary:  var(--mn-hds-window-text);
+  --mn-editor-sheet-tertiary:   var(--mn-hds-window-text);
+  --mn-editor-sheet-link:       var(--mn-hds-workspace);
+  --mn-editor-sheet-link-hover: var(--mn-hds-window-text);
+  --mn-editor-sheet-accent:     var(--mn-hds-workspace);
+  --mn-editor-sheet-on-accent:  var(--mn-hds-sys-black);
+  --mn-editor-sheet-raised:     var(--mn-hds-sys-maroon);
+  --mn-editor-sheet-sunken:     var(--mn-hds-sys-black);
+  --mn-editor-sheet-wash:       var(--mn-hds-sys-maroon);
+  --mn-editor-sheet-rule:       var(--mn-hds-sys-maroon);
+  --mn-editor-sheet-hover:      color-mix(in srgb, var(--mn-hds-sys-black) 18%, transparent);
+  --mn-editor-sheet-width:      min(calc(100% - 32px), 880px);
+  --mn-editor-sheet-margin:     16px auto 24px;
+  --mn-editor-sheet-min-height: calc(100% - 40px);
+  --mn-editor-sheet-border:     4px solid var(--mn-hds-border-active);
+  --mn-editor-sheet-shadow:     0 0 0 1px var(--mn-hds-frame), 3px 3px 0 1px var(--mn-hds-frame);
+}
+
+/* After hours the Window is maroon and its ink is Window Text; the page's boxes are near-black,
+   links and accents stay yellow (the Application Workspace slot is black here, so they are named
+   from the static colours). Its hard shadow is grey, like the other floating things in the dark
+   composition — a white one reads as a stray bar. */
+[data-theme="dark"][data-skin="hotdog-stand"]:not([data-editor-material]) {
+  --mn-editor-sheet-shadow:    0 0 0 1px var(--mn-hds-frame), 3px 3px 0 1px var(--mn-hds-gray-text);
+  --mn-editor-sheet-ink:       var(--mn-hds-window-text);
+  --mn-editor-sheet-title:     var(--mn-hds-window-text);
+  --mn-editor-sheet-secondary: var(--mn-hds-n-94);
+  --mn-editor-sheet-tertiary:  var(--mn-hds-n-85);
+  --mn-editor-sheet-link:      var(--mn-hds-sys-yellow);
+  --mn-editor-sheet-accent:    var(--mn-hds-sys-yellow);
+  --mn-editor-sheet-raised:    var(--mn-hds-n-12);
+  --mn-editor-sheet-sunken:    var(--mn-hds-sys-black);
+  --mn-editor-sheet-wash:      var(--mn-hds-n-12);
+  --mn-editor-sheet-rule:      var(--mn-hds-gray-text);
+  --mn-editor-sheet-hover:     color-mix(in srgb, var(--mn-hds-sys-white) 12%, transparent);
+}
+
+/* Windows 3.1 had no placeholder greys and no soft focus: selection is Highlight on
+   Highlighted Text everywhere, fields are framed, scrollbars are square. */
+[data-skin="hotdog-stand"] :where(button, input, textarea, select, dialog) {
+  font-family: var(--mn-font-utility);
+}
+
+[data-skin="hotdog-stand"] :where(input, textarea, select) {
+  border: var(--mn-control-border);
+  border-radius: 0;
+  background: var(--mn-color-surface-sunken);
+  color: var(--mn-color-text-primary);
+  box-shadow: var(--mn-hds-sunken);
+}
+
+[data-skin="hotdog-stand"] ::selection {
+  background: var(--mn-hds-highlight);
+  color: var(--mn-hds-highlight-text);
+}
+
+[data-skin="hotdog-stand"] ::-webkit-scrollbar {
+  width: 16px;
+  height: 16px;
+}
+
+[data-skin="hotdog-stand"] ::-webkit-scrollbar-track {
+  border-radius: 0;
+  background: var(--mn-scrollbar-track);
+  box-shadow: var(--mn-hds-sunken);
+}
+
+[data-skin="hotdog-stand"] ::-webkit-scrollbar-thumb {
+  border: 1px solid var(--mn-hds-frame);
+  border-radius: 0;
+  background: var(--mn-scrollbar-thumb);
+  box-shadow: var(--mn-hds-raised);
+}
+
+/* More contrast: every grey ink goes to ink, every hairline to the frame. */
+@media (prefers-contrast: more) {
+  /* The named AA exception ends here: Window and the Inactive Title Bar take the maroon the dark
+     composition already wears (white on maroon, 10.95:1), and the boxes inside them go black. */
+  [data-skin="hotdog-stand"] {
+    --mn-hds-window:           var(--mn-hds-sys-maroon);
+    --mn-hds-caption-inactive: var(--mn-hds-sys-maroon);
+    --mn-list-hover:           var(--mn-hds-sys-black);
+  }
+
+  [data-skin="hotdog-stand"]:not([data-editor-material]) {
+    --mn-editor-sheet-raised: var(--mn-hds-sys-black);
+    --mn-editor-sheet-wash:   var(--mn-hds-sys-black);
+    --mn-editor-sheet-rule:   var(--mn-hds-sys-white);
+  }
+
+  [data-skin="hotdog-stand"] {
+    --mn-color-text-secondary: var(--mn-hds-button-text);
+    --mn-color-text-tertiary:  var(--mn-hds-button-text);
+    --mn-color-text-muted:     var(--mn-hds-button-text);
+    --mn-color-text-quiet:     var(--mn-hds-button-text);
+    --mn-bottom-bar-text-muted: var(--mn-hds-button-text);
+    --mn-color-border-subtle:  var(--mn-hds-frame);
+    --mn-color-rule:           var(--mn-hds-frame);
+  }
+
+  [data-theme="dark"][data-skin="hotdog-stand"] {
+    --mn-color-text-secondary: var(--mn-hds-button-text);
+    --mn-color-text-tertiary:  var(--mn-hds-button-text);
+    --mn-color-text-muted:     var(--mn-hds-button-text);
+    --mn-color-text-quiet:     var(--mn-hds-button-text);
+    --mn-bottom-bar-text-muted: var(--mn-hds-button-text);
+    --mn-color-border-default: var(--mn-hds-frame);
+    --mn-color-border-subtle:  var(--mn-hds-gray-text);
+    --mn-color-rule:           var(--mn-hds-frame);
+  }
+}
+
+/* Reduced transparency: the washes become solid. (The dark selector restates them: the dark
+   composition outranks the light block, so a light-only override would never reach it.) */
+@media (prefers-reduced-transparency: reduce) {
+  [data-skin="hotdog-stand"] {
+    --mn-color-surface-hover:        color-mix(in srgb, var(--mn-hds-frame) 10%, var(--mn-hds-face));
+    --mn-color-surface-active:       color-mix(in srgb, var(--mn-hds-frame) 20%, var(--mn-hds-face));
+    --mn-color-interactive-hover:    color-mix(in srgb, var(--mn-hds-frame) 8%, var(--mn-hds-face));
+    --mn-color-interactive-active:   color-mix(in srgb, var(--mn-hds-frame) 16%, var(--mn-hds-face));
+    --mn-color-interactive-selected: var(--mn-hds-workspace);
+    --mn-color-backdrop:             color-mix(in srgb, var(--mn-hds-frame) 70%, transparent);
+  }
+
+  [data-theme="dark"][data-skin="hotdog-stand"] {
+    --mn-color-surface-hover:        color-mix(in srgb, var(--mn-hds-sys-white) 12%, var(--mn-hds-face));
+    --mn-color-surface-active:       color-mix(in srgb, var(--mn-hds-sys-white) 20%, var(--mn-hds-face));
+    --mn-color-interactive-hover:    color-mix(in srgb, var(--mn-hds-sys-white) 12%, var(--mn-hds-face));
+    --mn-color-interactive-active:   color-mix(in srgb, var(--mn-hds-sys-white) 20%, var(--mn-hds-face));
+    --mn-color-interactive-selected: var(--mn-hds-window);
+    --mn-color-backdrop:             color-mix(in srgb, var(--mn-hds-sys-black) 90%, transparent);
+  }
+}
+
+@media (forced-colors: active) {
+  [data-skin="hotdog-stand"],
+  [data-theme="dark"][data-skin="hotdog-stand"] {
+    --mn-material-popover-bg:   Canvas;
+    --mn-material-popover-edge: CanvasText;
+  }
+}

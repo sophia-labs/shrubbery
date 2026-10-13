@@ -16,6 +16,7 @@
 import { LitElement, css, html, nothing, unsafeCSS, type PropertyValues } from 'lit'
 import { customElement, property, state } from 'lit/decorators.js'
 import { SkinAware } from './skin-aware.js'
+import { BEVELLED } from './bevelled-skins.js'
 import { icon, iconStyles } from './icons.js'
 import { PopoverController } from './popover.js'
 import {
@@ -135,7 +136,7 @@ export class MnWorkspaceSelector extends SkinAware(LitElement) {
     .backdrop {
       display: none;
       position: fixed;
-      z-index: 999;
+      z-index: var(--mn-z-dropdown-backdrop, 900);
       inset: 0;
       background: rgba(17, 24, 20, 0.22);
     }
@@ -157,11 +158,13 @@ export class MnWorkspaceSelector extends SkinAware(LitElement) {
       overflow: auto;
       overscroll-behavior: contain;
       padding: 7px;
-      border: 1px solid var(--mn-color-border-default, #d6dfd8);
+      border: 1px solid var(--mn-material-popover-edge, var(--mn-color-border-default, #d6dfd8));
       border-radius: var(--mn-radius-surface, 10px);
-      background: var(--mn-color-surface-raised, #fffef9);
+      background: var(--mn-material-popover-bg, var(--mn-color-surface-raised, #fffef9));
       color: var(--mn-color-text-primary, #18211b);
-      box-shadow: var(--mn-shadow-raised, 0 14px 34px rgba(25, 40, 31, 0.16));
+      box-shadow: var(--mn-material-popover-shadow, var(--mn-shadow-raised, 0 14px 34px rgba(25, 40, 31, 0.16)));
+      backdrop-filter: var(--mn-material-popover-filter, var(--mn-window-backdrop-filter, none));
+      -webkit-backdrop-filter: var(--mn-material-popover-filter, var(--mn-window-backdrop-filter, none));
     }
 
     .sheet-header { display: none; }
@@ -398,7 +401,7 @@ export class MnWorkspaceSelector extends SkinAware(LitElement) {
     :host([data-skin='emporium']) .create,
     :host([data-skin='emporium']) .progress { border-radius: var(--mn-radius-control, 3px); }
 
-    :host([data-skin='98']) .trigger {
+    :host(${BEVELLED}) .trigger {
       min-height: 24px;
       border-radius: 0;
       padding: 3px 7px;
@@ -407,8 +410,8 @@ export class MnWorkspaceSelector extends SkinAware(LitElement) {
       box-shadow: var(--mn-98-raised, inset -1px -1px #000, inset 1px 1px #fff);
     }
 
-    :host([data-skin='98']) .trigger:active,
-    :host([data-skin='98']) .trigger[aria-expanded='true'] { box-shadow: var(--mn-98-sunken, inset 1px 1px #000); }
+    :host(${BEVELLED}) .trigger:active,
+    :host(${BEVELLED}) .trigger[aria-expanded='true'] { box-shadow: var(--mn-98-sunken, inset 1px 1px #000); }
 
     :host([data-skin='98']) .menu,
     :host([data-skin='98']) .action-menu {
@@ -418,13 +421,13 @@ export class MnWorkspaceSelector extends SkinAware(LitElement) {
       box-shadow: var(--mn-shadow-popover, 2px 2px 0 #000, inset 1px 1px #fff);
     }
 
-    :host([data-skin='98']) :is(.row, .create, .more, .action-item, .retry, .progress) { border-radius: 0; }
-    :host([data-skin='98']) .row:hover,
-    :host([data-skin='98']) .row:focus-within,
-    :host([data-skin='98']) .create:hover:not(:disabled),
-    :host([data-skin='98']) .action-item:hover:not(:disabled) {
+    :host(${BEVELLED}) :is(.row, .create, .more, .action-item, .retry, .progress) { border-radius: 0; }
+    :host(${BEVELLED}) .row:hover,
+    :host(${BEVELLED}) .row:focus-within,
+    :host(${BEVELLED}) .create:hover:not(:disabled),
+    :host(${BEVELLED}) .action-item:hover:not(:disabled) {
       background: var(--mn-98-selection, #000080);
-      color: #fff;
+      color: var(--mn-98-selection-text, #fff);
     }
 
     :host([data-skin='glass']) .menu,
@@ -508,7 +511,7 @@ export class MnWorkspaceSelector extends SkinAware(LitElement) {
       .select { min-height: 48px; padding-block: 9px; }
       .more { width: 40px; min-height: 40px; opacity: 1; }
       .create { min-height: 46px; }
-      .action-menu { position: fixed; z-index: 1002; right: 10px; bottom: max(10px, env(safe-area-inset-bottom)); top: auto; left: 10px; }
+      .action-menu { position: fixed; z-index: var(--mn-z-dropdown, 1000); right: 10px; bottom: max(10px, env(safe-area-inset-bottom)); top: auto; left: 10px; }
 
       :host([data-skin='98']) .menu { border-radius: 0; border: 0; }
       :host([data-skin='glass']) .menu { border-radius: 17px 17px 0 0; }
@@ -668,7 +671,7 @@ export class MnWorkspaceSelector extends SkinAware(LitElement) {
   }
 
   private select(workspace: MnWorkspaceSummary): void {
-    if (workspace.disabled) return
+    if (workspace.disabled || workspace.localCreation) return
     if (workspace.graphId === this.activeGraphId) {
       this.closeAndRestoreFocus()
       return
@@ -718,6 +721,11 @@ export class MnWorkspaceSelector extends SkinAware(LitElement) {
   }
 
   private renderMetadata(workspace: MnWorkspaceSummary) {
+    if (workspace.localCreation) return html`<span class="metadata">
+      <span class="lifecycle" title=${workspace.localCreation.error ?? ''}>
+        ${workspace.localCreation.status === 'conflict' ? 'Saved locally · cloud refused' : 'Saved locally · cloud unconfirmed'}
+      </span>
+    </span>`
     const lifecycle = workspaceLifecycleLabel(workspace.cellState)
     const lifetime = workspaceLifetimeLabel(workspace.lifetime)
     if (workspace.role === 'owner' && !lifecycle && !lifetime) return nothing
@@ -733,13 +741,18 @@ export class MnWorkspaceSelector extends SkinAware(LitElement) {
     const active = workspace.graphId === this.activeGraphId
     const pending = workspace.graphId === this.pendingGraphId
     const operationBusy = Boolean(this.busyGraphId || this.pendingGraphId)
-    const disabled = Boolean(workspace.disabled) || (operationBusy && !active)
+    const disabled = Boolean(workspace.disabled) || Boolean(workspace.localCreation) || (operationBusy && !active)
+    const disabledReason = workspace.localCreation
+      ? 'Retry cloud confirmation before opening this workspace.'
+      : workspace.disabledReason
     const actions = this.managementActions(workspace)
-    const reasonId = workspace.disabledReason ? `workspace-disabled-${disabledIndex}` : ''
+    const reasonId = disabledReason ? `workspace-disabled-${disabledIndex}` : ''
     const lifetimeLabel = workspaceLifetimeLabel(workspace.lifetime)
-    const ariaParts = [title, roleLabel(workspace.role), workspace.cellState]
+    const ariaParts = workspace.localCreation
+      ? [title, 'Saved locally', workspace.localCreation.status === 'conflict' ? 'cloud refused' : 'cloud unconfirmed']
+      : [title, roleLabel(workspace.role), workspace.cellState]
     if (lifetimeLabel) ariaParts.push(lifetimeLabel)
-    if (workspace.disabledReason) ariaParts.push(workspace.disabledReason)
+    if (disabledReason) ariaParts.push(disabledReason)
 
     return html`<div
       class="row"
@@ -755,7 +768,7 @@ export class MnWorkspaceSelector extends SkinAware(LitElement) {
         aria-selected=${active ? 'true' : 'false'}
         aria-label=${ariaParts.join(', ')}
         aria-describedby=${reasonId || nothing}
-        title=${workspace.disabled ? workspace.disabledReason || 'This workspace is unavailable' : ''}
+        title=${workspace.disabled || workspace.localCreation ? disabledReason || 'This workspace is unavailable' : ''}
         ?disabled=${disabled}
         @click=${() => this.select(workspace)}
       >
@@ -764,7 +777,7 @@ export class MnWorkspaceSelector extends SkinAware(LitElement) {
           <span class="name">${title}</span>
           ${this.renderPath(workspace)}
           ${this.renderMetadata(workspace)}
-          ${workspace.disabledReason ? html`<span class="disabled-reason" id=${reasonId}>${workspace.disabledReason}</span>` : nothing}
+          ${disabledReason ? html`<span class="disabled-reason" id=${reasonId}>${disabledReason}</span>` : nothing}
         </span>
       </button>
       ${actions.length > 0 ? html`<button

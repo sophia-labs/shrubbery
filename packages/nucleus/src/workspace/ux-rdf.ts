@@ -200,6 +200,9 @@ export function serializeConfigToTriples(config: WorkspaceConfig): Triple[] {
     })
   }
 
+  // Absence predates interaction edges; explicit [] means intentionally none.
+  // Keep the existing nonempty seed byte-identical while preserving that intent.
+  if (config.edges?.length === 0) add(W, sux('emptyConfigEdges'), Lbool(true))
   return out.sort(compareTriples)
 }
 
@@ -389,6 +392,14 @@ export function parseTriplesToConfig(triples: readonly Triple[]): WorkspaceConfi
     edgeArr[intOf(lit(ep, 'atIndex'))] = { from, to, predicate }
   }
   const edges = edgeArr.filter((x) => x !== undefined)
+  const emptyEdges = wp.get('emptyConfigEdges')
+  if (emptyEdges && (emptyEdges.length !== 1
+    || emptyEdges[0].type !== 'literal'
+    || emptyEdges[0].datatype !== NS.xsd + 'boolean'
+    || !['true', '1'].includes(emptyEdges[0].value)
+    || (wp.get('hasConfigEdge')?.length ?? 0) > 0)) {
+    throw new Error('parseTriplesToConfig: invalid or conflicting emptyConfigEdges marker')
+  }
 
   const config: WorkspaceConfig = {
     id: lit(wp, 'localId') ?? localId(W),
@@ -401,7 +412,7 @@ export function parseTriplesToConfig(triples: readonly Triple[]): WorkspaceConfi
     ...(appKeys.length
       ? { appRootRegions: Object.fromEntries(appKeys.map((k) => [k, appRootRegions[k].filter((x) => x !== undefined)])) }
       : {}),
-    ...(edges.length ? { edges } : {}),
+    ...(edges.length || emptyEdges ? { edges } : {}),
   }
   return config
 }

@@ -35,7 +35,7 @@ import type { MnCrumb } from '@shrubbery/components'
 // Skin/theme applier (the sole programmatic stamp of [data-skin]/[data-theme]).
 import {
   applySkinTheme,
-  nextVisualIdentitySkin,
+  isVisualIdentitySkin,
   type Skin,
   type Theme,
 } from '@shrubbery/tokens'
@@ -98,7 +98,7 @@ export interface EmporiumShell {
  * Boot the Emporium shell against the given DOM mounts. Returns a handle. The
  * shell subscribes to BOTH the store (live read) and the router (nav state) and
  * re-renders on either change. Defaults to the EMPORIUM skin (the product's
- * identity); a shell consumer may flip it via the bar's skin toggle.
+ * identity); a shell consumer may choose another from the bar's skin picker.
  */
 export function bootShell(els: ShellElements, opts: ShellOptions = {}): EmporiumShell {
   let skin: Skin = opts.skin ?? 'emporium'
@@ -171,8 +171,10 @@ export function bootShell(els: ShellElements, opts: ShellOptions = {}): Emporium
       applySkinTheme({ skin, theme })
       rerenderAll()
     })
-    bar.addEventListener('mn-skin-toggle', () => {
-      skin = nextVisualIdentitySkin(skin)
+    bar.addEventListener('mn-skin-select', (event) => {
+      const chosen = (event as CustomEvent<{ skin?: unknown }>).detail?.skin
+      if (!isVisualIdentitySkin(chosen)) return
+      skin = chosen
       applySkinTheme({ skin, theme })
       rerenderAll()
     })

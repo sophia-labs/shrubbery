@@ -6,7 +6,7 @@ import {
   type OriginalFileUrlApi,
 } from '../original-file-controller.js'
 
-function contract(base = 'https://gateway.test/g/graph%20one'): Pick<ShrubberyContract, 'auth' | 'runtime'> {
+function contract(base = 'https://gateway.test/g/graph%20one', mode: 'local' | 'hosted' = 'hosted'): Pick<ShrubberyContract, 'auth' | 'runtime'> {
   return {
     auth: {
       token: () => 'fresh-id-token',
@@ -16,8 +16,8 @@ function contract(base = 'https://gateway.test/g/graph%20one'): Pick<ShrubberyCo
       onChange: () => () => undefined,
     },
     runtime: {
-      mode: () => 'hosted',
-      isGateway: () => true,
+      mode: () => mode,
+      isGateway: () => mode === 'hosted',
       graphBaseUrl: () => base,
     },
   }
@@ -90,7 +90,7 @@ describe('OrganismOriginalFileController', () => {
     expect(controller.snapshot().available).toBe(false)
   })
 
-  it('authenticates against the graph base, decodes text, downloads, and revokes on scope change', async () => {
+  it.each(['local', 'hosted'] as const)('authenticates %s originals, decodes text, downloads, and revokes on scope change', async mode => {
     const urls = urlHarness()
     const calls: Array<{ url: string; init?: RequestInit }> = []
     const fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -107,7 +107,7 @@ describe('OrganismOriginalFileController', () => {
       openExternal: url => opened.push(url),
     })
 
-    controller.setScope(contract(), 'graph one', 'doc/alpha', {
+    controller.setScope(contract(undefined, mode), 'graph one', 'doc/alpha', {
       storageKey: 'local://artifacts/source-notes',
       originalFilename: 'Source Notes.md',
       mimeType: 'text/markdown',
@@ -120,7 +120,7 @@ describe('OrganismOriginalFileController', () => {
     )
     const headers = calls[0]?.init?.headers as Headers
     expect(headers.get('Authorization')).toBe('Bearer fresh-id-token')
-    expect(headers.get('X-User-ID')).toBe('reader-user')
+    expect(headers.get('X-User-ID')).toBe(mode === 'local' ? 'reader-user' : null)
     expect(calls[0]?.init?.credentials).toBe('same-origin')
     expect(controller.snapshot()).toMatchObject({
       active: true,
@@ -178,6 +178,12 @@ describe('OrganismOriginalFileController', () => {
         return binaryResponse('artifact bytes', 'application/pdf', 'paper.pdf')
       },
       url: urlHarness().api,
+      // This is a transport/lifetime unit test, not a PDF rendering witness.
+      pdfPreview: async () => ({
+        pageCount: 1,
+        destroy: async () => undefined,
+        renderPage: async pageNumber => ({ pageNumber, width: 100, height: 200, blob: new Blob(['page']), rectangles: [], geometryMatches: true }),
+      }),
     })
     controller.setScope(contract('/cell'), 'graph a', 'doc-a', {
       storageKey: 'local://artifacts/artifact%2Fa/original/paper.pdf',

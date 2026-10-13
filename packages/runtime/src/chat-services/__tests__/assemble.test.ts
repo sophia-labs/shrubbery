@@ -57,6 +57,9 @@ const contract = {
     token: () => 'token-a',
     userId: () => 'user-a',
   },
+  runtime: {
+    graphBaseUrl: (graphId: string) => `https://gateway.example.test/g/${graphId}`,
+  },
 } as ShrubberyContract
 
 describe('assembleChatServices — local and hosted are real', () => {
@@ -138,21 +141,18 @@ describe('assembleChatServices — local and hosted are real', () => {
     )
   })
 
-  it("'hosted' returns the real Choreograph-backed service", async () => {
+  it("'hosted' returns the graph-gateway service and boot remains local", async () => {
     const requests: string[] = []
     const fetchImpl: typeof fetch = async (input, init = {}) => {
       requests.push(`${init.method ?? 'GET'} ${String(input)}`)
-      return new Response(
-        JSON.stringify({ session: { session_id: 'hosted-1', title: null } }),
-        { status: 201 },
-      )
+      throw new Error('boot must not reach the network')
     }
     const svc = assembleChatServices(contract, () => scope, 'hosted', {
-      hosted: { baseUrl: 'https://choreograph.example.test', fetchImpl },
+      hosted: { fetchImpl },
     })
     const session = await svc.createSession()
-    expect(session.id).toBe('hosted-1')
-    expect(requests).toEqual(['POST https://choreograph.example.test/api/sessions'])
+    expect(session.id).toMatch(/^c2chat-/)
+    expect(requests).toEqual([])
   })
 })
 

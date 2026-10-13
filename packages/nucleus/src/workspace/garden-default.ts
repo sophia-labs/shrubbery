@@ -94,20 +94,21 @@ export const GARDEN_DEFAULT: WorkspaceConfig = deepFreeze({
     // in the SHARED regions map alongside garden's content regions; only the
     // choreograph region-set (appRootRegions.choreograph) walks it. It is the
     // single resizable root of that set (I1), childRegion null (full-panel leaf
-    // spine), order 2 so it sits BETWEEN the shared top-bar (0) and bottom-bar (4)
-    // chrome → topChrome=[top-bar], bottomChrome=[bottom-bar] in planFor. Its
-    // sizeFraction is in (0,1) to satisfy I6 for the choreograph spine.
-    // renderedByComponent 'wf-studio-shell' is the screen-router (P0) the engine
-    // stamps for this region; the garden default spine never references it.
+    // spine), order 2 below the shared top bar. Garden's bottom status bar is
+    // outside Choreograph's region set, so it cannot show Garden panel controls.
+    // Its sizeFraction is in (0,1) to satisfy I6 for the choreograph spine.
+    // renderedByComponent 'choreo-modes-surface' is the Choreograph app (modes
+    // v1, 2026-09-22 — it replaced the wf-studio-shell screen router); the
+    // garden default spine never references it.
     'region-choreo-center': {
       childRegion: null,
       collapsible: false,
       dockState: null,
       docksPanel: [],
       id: 'region-choreo-center',
-      label: 'Choreograph Center (Studio)',
+      label: 'Choreograph Center (Modes)',
       order: 2,
-      renderedByComponent: 'wf-studio-shell',
+      renderedByComponent: 'choreo-modes-surface',
       resizable: true,
       sizeFraction: 0.8,
       splitOrientation: 'vertical',
@@ -298,6 +299,16 @@ export const GARDEN_DEFAULT: WorkspaceConfig = deepFreeze({
           id: 'val-skin-glass',
           literalValue: 'glass',
         },
+        {
+          appliesAttribute: '[data-skin=mithras]',
+          id: 'val-skin-mithras',
+          literalValue: 'mithras',
+        },
+        {
+          appliesAttribute: '[data-skin=hotdog-stand]',
+          id: 'val-skin-hotdog-stand',
+          literalValue: 'hotdog-stand',
+        },
       ],
     },
     'dim-theme': {
@@ -341,11 +352,10 @@ export const GARDEN_DEFAULT: WorkspaceConfig = deepFreeze({
   // byte-identical to `rootRegions` (resolveRootRegions falls back to it), which
   // is the engine-multiapp no-app invariant — planFor(config) === planFor(config,
   // 'garden') === planFor(GARDEN_DEFAULT). The choreograph set reuses the shared
-  // top-bar + bottom-bar chrome and inserts region-choreo-center (the single
-  // resizable spine head, I1) between them. validateConfig checks I1 + I6 on this
-  // set independently of the default set.
+  // top bar and inserts region-choreo-center (the single resizable spine head,
+  // I1). validateConfig checks I1 + I6 on this set independently of the default.
   appRootRegions: {
-    choreograph: ['region-top-bar', 'region-choreo-center', 'region-bottom-bar'],
+    choreograph: ['region-top-bar', 'region-choreo-center'],
   },
 
   // ── Selection-hub edges (semantic edge overlay, slices 1 + 2) ──────────────

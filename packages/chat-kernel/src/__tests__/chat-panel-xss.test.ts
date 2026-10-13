@@ -18,7 +18,8 @@
 import { describe, it, expect, afterEach } from 'vitest'
 
 import { ShChatPanel } from '../chat-panel.js'
-import type { ChatMessage } from '../types.js'
+import type { ChatMessage, ChatSeam } from '../types.js'
+import { unrecordedVoiceMark } from '../voice-roster.js'
 
 void ShChatPanel
 
@@ -82,6 +83,52 @@ describe('<sh-chat-panel> END-TO-END XSS neutralization (real DOMPurify)', () =>
     const code = el.querySelector('.code-block pre code')
     expect(code).not.toBeNull()
     expect(code!.textContent).toContain('const a=1')
+  })
+
+  it('strips a real <img onerror> payload from an earlier conversation carried in a window', async () => {
+    // Defect guarded: the window is "already sent, read-only", and a path that trusted it would
+    // render an old conversation's HTML as it came. An imported conversation is untrusted text:
+    // it goes through the same sanitize seam as every other message. (This guard lives here, under
+    // jsdom, and not in chat-panel-seam.test.ts: happy-dom degrades DOMPurify, so a payload
+    // assertion there would be a false proof. The seam test only holds that the seam is on the path.)
+    delete (window as unknown as { __pwned?: boolean }).__pwned
+    const payload = 'hi <img src=x onerror="window.__pwned = true"> there'
+    const seam: ChatSeam = {
+      omittedCount: 3,
+      originalTitle: 'An old chat',
+      pickedUpAt: '2026-09-28T19:30:00.000Z',
+      voiceLabel: 'Kimi K2.6',
+      providerNotice: 'Continuing sends this conversation to Moonshot through OpenRouter.',
+    }
+    const el = mount()
+    el.seam = seam
+    el.messages = [
+      {
+        id: 'w-evil',
+        role: 'assistant',
+        content: payload,
+        parts: [{ type: 'text', content: payload }],
+        isStreaming: false,
+        toolCalls: [],
+        createdAt: Date.UTC(2026, 7, 2, 15, 0),
+        origin: 'window',
+        voice: unrecordedVoiceMark(),
+      },
+    ]
+    await el.updateComplete
+
+    // It really is on screen as a carried message under the seam (the test cannot pass by rendering nothing).
+    const carried = el.querySelector('.message.assistant.window')
+    expect(carried).not.toBeNull()
+    expect(el.querySelector('[data-seam]')).not.toBeNull()
+    const md = carried!.querySelector('.markdown-content')
+    expect(md).not.toBeNull()
+    // The benign prose survived; the handler did not.
+    expect(md!.textContent).toContain('hi')
+    expect(md!.textContent).toContain('there')
+    expect(el.querySelector('img[onerror]')).toBeNull()
+    expect(el.innerHTML).not.toContain('onerror')
+    expect((window as unknown as { __pwned?: boolean }).__pwned).toBeUndefined()
   })
 
   it('neutralizes a javascript: href in prose', async () => {

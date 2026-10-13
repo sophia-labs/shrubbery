@@ -17,16 +17,14 @@ import { describe, expect, it } from 'vitest'
 import '@shrubbery/components'
 import { GARDEN_DEFAULT } from '@shrubbery/nucleus'
 import { renderWorkspace } from '@shrubbery/runtime'
-import { createSessionStore, type CellContract } from '../session-store.js'
+import { GARDEN_ONLY_DEFAULT, createSessionStore, type CellContract } from '../session-store.js'
 import { configDeclaresDashboardCenter, fragmentRegionsOf } from '../workspace-fragments.js'
 import {
   CELL_ERROR_PANEL_CLASS,
-  DEFAULT_WORKSPACE_NOTICE_ATTR,
-  DEFAULT_WORKSPACE_NOTICE_MESSAGE,
   clearCellErrorPanel,
-  makeDefaultWorkspaceNotice,
   renderCellErrorPanel,
 } from '../default-workspace-ui.js'
+import { withGrapevineWorkspace } from '../grapevine-workspace.js'
 
 /** Closure-seam cell contract: the real read path over a canned :ux:config body. */
 function contractFor(nt: string): CellContract {
@@ -37,10 +35,9 @@ function contractFor(nt: string): CellContract {
   } as unknown as CellContract
 }
 
-const flushTimers = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 0))
 
-describe('no-workspace fallback — renders + notice present', () => {
-  it('an empty triple set reaches ready, renders a real workspace, and shows the notice once', async () => {
+describe('no-workspace fallback — Garden only', () => {
+  it('an empty triple set reaches ready and renders the Garden-only default', async () => {
     // REAL parse path over the empty :ux:config a fresh graph presents.
     const store = createSessionStore({ contract: contractFor(''), graphId: 'fresh-graph' })
     await store.refresh()
@@ -49,42 +46,41 @@ describe('no-workspace fallback — renders + notice present', () => {
     expect(state.read?.defaulted).toBe(true)
 
     // The fallback RENDERS — the same render path the shell drives.
-    const container = renderWorkspace(state.read!.config)
+    const config = state.read!.config
+    expect(config).toBe(GARDEN_ONLY_DEFAULT)
+    const container = renderWorkspace(config)
     expect(container.querySelector('.app-container')).not.toBeNull()
     expect(container.querySelector('.app-container .main')).not.toBeNull()
 
-    // Dashboard-marker / fragment machinery parity with a seeded GardenDefault:
-    // it IS the same config object, so the walks agree exactly.
-    expect(state.read!.config).toBe(GARDEN_DEFAULT)
-    expect(configDeclaresDashboardCenter(state.read!.config)).toBe(
-      configDeclaresDashboardCenter(GARDEN_DEFAULT),
-    )
-    expect(fragmentRegionsOf(state.read!.config)).toEqual(fragmentRegionsOf(GARDEN_DEFAULT))
+    // Garden alone: no Choreograph region-set, no app dimension, and the
+    // host-only Grapevine views decline to attach.
+    expect(config.appRootRegions).toBeUndefined()
+    expect(config.dimensions['dim-app']).toBeUndefined()
+    expect(config.regions['region-choreo-center']).toBeUndefined()
+    expect(withGrapevineWorkspace(config)).toBe(config)
 
-    // The notice appears in the chrome, honest and small.
-    const notice = makeDefaultWorkspaceNotice(document)
-    notice.sync(state.read!.defaulted, 'fresh-graph')
-    const toast = document.querySelector(`mn-toast[${DEFAULT_WORKSPACE_NOTICE_ATTR}="fresh-graph"]`)
-    expect(toast).not.toBeNull()
-    expect((toast as { message?: string }).message).toBe(DEFAULT_WORKSPACE_NOTICE_MESSAGE)
-    expect((toast as { closable?: boolean }).closable).toBe(true)
+    // Same Garden chrome and fragments as the seeded GardenDefault.
+    expect(config.rootRegions).toEqual(GARDEN_DEFAULT.rootRegions)
+    expect(configDeclaresDashboardCenter(config)).toBe(configDeclaresDashboardCenter(GARDEN_DEFAULT))
+    expect(fragmentRegionsOf(config)).toEqual(fragmentRegionsOf(GARDEN_DEFAULT))
 
-    // Idempotent under the poll loop: re-syncing the same graph re-uses the
-    // one toast (no stacking, no re-spawn after dismissal/auto-quiet).
-    notice.sync(true, 'fresh-graph')
-    notice.sync(true, 'fresh-graph')
-    expect(document.querySelectorAll(`mn-toast[${DEFAULT_WORKSPACE_NOTICE_ATTR}]`).length).toBe(1)
-
-    // The moment a real config wins (defaulted=false), the notice is dropped.
-    notice.element()!.animationMs = 0
-    notice.sync(false, 'fresh-graph')
-    await flushTimers()
-    expect(document.querySelector(`mn-toast[${DEFAULT_WORKSPACE_NOTICE_ATTR}]`)).toBeNull()
-    expect(notice.element()).toBeNull()
+    // No "default workspace" toast any more.
+    expect(document.querySelector('mn-toast')).toBeNull()
   })
 })
 
 describe('true-error panel — the honest non-blank failure surface', () => {
+  it('offers the hosted escape route without retrying or fabricating a workspace', () => {
+    const host = document.createElement('div')
+    let returns = 0
+    const panel = renderCellErrorPanel(host, 'HTTP 403', { onBack: () => { returns++ } })
+    const button = panel.querySelector(`.${CELL_ERROR_PANEL_CLASS}__back`) as HTMLButtonElement
+    expect(button.textContent).toBe('Back to workspaces')
+    expect(panel.querySelector(`.${CELL_ERROR_PANEL_CLASS}__retry`)).toBeNull()
+    button.click()
+    expect(returns).toBe(1)
+    expect(host.querySelector('.app-container')).toBeNull()
+  })
   it('paints the verbatim error into the host, replaces (never stacks), and wires retry', () => {
     const host = document.createElement('div')
     // The static pre-module boot shell the panel must retire.

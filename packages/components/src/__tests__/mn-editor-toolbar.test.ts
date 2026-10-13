@@ -268,7 +268,7 @@ describe('mn-editor-toolbar', () => {
     await el.updateComplete
     expect(sr(el).querySelector('mn-toolbar')?.getAttribute('aria-label')).toBe('Original file tools')
     expect(sr(el).querySelector('[data-original-annotation-unavailable]')?.textContent).toContain(
-      'highlights and comments are unavailable',
+      'Source-region highlights are read-only.',
     )
     const documentView = await shadowButton(sr(el).querySelector('[data-original-view-toggle]'))
     expect(documentView.textContent).toContain('Document View')
@@ -546,5 +546,37 @@ describe('mn-editor-toolbar', () => {
       'replace-current',
       'replace-all',
     ])
+  })
+})
+
+describe('mn-editor-toolbar find bar top layer', () => {
+  it('promotes the find bar into the top layer (regression: clipped at the pane edge)', async () => {
+    const el = await mountToolbar()
+    el.searchOpen = true
+    await el.updateComplete
+
+    const bar = sr(el).querySelector('.find-bar') as HTMLElement
+    // BUG: position: absolute under the toolbar, inside a center pane whose
+    // overflow is hidden — the panel was cut off on desktop while the mobile
+    // branch escaped via position: fixed. FIX: one native top-layer surface.
+    expect(bar.getAttribute('popover')).toBe('manual')
+    expect(bar.hasAttribute('popover-open')).toBe(true)
+
+    el.searchOpen = false
+    await el.updateComplete
+    expect(sr(el).querySelector('.find-bar')).toBeNull()
+
+    el.remove()
+  })
+
+  it('keeps every z-layer fallback equal to the contract value', () => {
+    const ctor = customElements.get('mn-editor-toolbar') as unknown as {
+      styles: { cssText: string }
+    }
+    const css = ctor.styles.cssText
+    expect(css).not.toContain('1150')
+    expect(css).toContain('var(--mn-z-modal, 1400)')
+    expect(css).toContain('var(--mn-z-modal-backdrop, 1300)')
+    expect(css).toContain('var(--mn-z-popover, 1100)')
   })
 })

@@ -1,5 +1,7 @@
 import type { ShrubberyContract } from '@shrubbery/nucleus'
 import type { GenerateImageEditRequest } from './image-generation-service.js'
+import { cellAuthHeaders } from './cell-auth-headers.js'
+import { randomUUID } from '@shrubbery/nucleus/web-crypto'
 
 export interface ImageEditGenerator {
   generateEdit(request: GenerateImageEditRequest): Promise<string>
@@ -38,11 +40,7 @@ function trimmedBase(value: string): string {
 }
 
 function headers(contract: ImageCellContract, json = false): Record<string, string> {
-  const value: Record<string, string> = { 'X-User-ID': contract.auth.userId() }
-  const token = contract.auth.token()
-  if (token) value.Authorization = `Bearer ${token}`
-  if (json) value['Content-Type'] = 'application/json'
-  return value
+  return cellAuthHeaders(contract, json ? { 'Content-Type': 'application/json' } : {})
 }
 
 function dataUrlParts(value: string): { mimeType: 'image/png' | 'image/jpeg'; dataBase64: string } {
@@ -52,9 +50,7 @@ function dataUrlParts(value: string): { mimeType: 'image/png' | 'image/jpeg'; da
 }
 
 function defaultId(): string {
-  const suffix = globalThis.crypto?.randomUUID?.()
-    ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
-  return `generated-image-${suffix}`
+  return `generated-image-${randomUUID()}`
 }
 
 async function checked(response: Response, operation: string): Promise<void> {

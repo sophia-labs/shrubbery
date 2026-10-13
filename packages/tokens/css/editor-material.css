@@ -27,6 +27,16 @@
   --mn-editor-sheet-rule: var(--mn-color-rule);
   --mn-editor-sheet-hover: var(--mn-color-surface-hover);
   --mn-editor-sheet-shadow: var(--mn-shadow-xs);
+  /* What lives INSIDE the page. A skin whose page is a coloured surface (Hotdog Stand's red Window)
+     sets these, and the editor host re-scopes the shared roles from them for the page's descendants,
+     the way the physical-page materials do. Unset, they are the shared roles themselves. */
+  --mn-editor-sheet-link: var(--mn-color-text-link);
+  --mn-editor-sheet-link-hover: var(--mn-color-text-link-hover);
+  --mn-editor-sheet-accent: var(--mn-color-text-accent);
+  --mn-editor-sheet-on-accent: var(--mn-color-text-on-accent);
+  --mn-editor-sheet-raised: var(--mn-color-surface-raised);
+  --mn-editor-sheet-sunken: var(--mn-color-surface-sunken);
+  --mn-editor-sheet-wash: var(--mn-color-surface-accent);
   --mn-editor-ruler-display: none;
   --mn-editor-ruler-labels: '';
   --mn-editor-ruler-label-color: transparent;
@@ -47,7 +57,7 @@
   --mn-editor-sheet-secondary: #5a564f;
   --mn-editor-sheet-tertiary: #716c64;
   --mn-editor-sheet-rule: rgba(79, 72, 62, 0.18);
-  --mn-editor-sheet-hover: rgba(79, 134, 107, 0.065);
+  --mn-editor-sheet-hover: rgba(74, 136, 96, 0.065);
   --mn-editor-sheet-shadow:
     0 1px 2px rgba(31, 27, 21, 0.10),
     0 12px 34px rgba(31, 27, 21, 0.13),
@@ -56,9 +66,9 @@
   --mn-editor-ruler-bg: #ece9e1;
   --mn-editor-ruler-tick: rgba(70, 65, 57, 0.32);
   --mn-editor-ruler-edge: rgba(70, 65, 57, 0.22);
-  --mn-editor-paper-accent: #376d57;
-  --mn-editor-paper-accent-hover: #2b5846;
-  --mn-editor-paper-accent-soft: #eff6f2;
+  --mn-editor-paper-accent: #326f4c;
+  --mn-editor-paper-accent-hover: #265a3d;
+  --mn-editor-paper-accent-soft: #eef6f0;
   --mn-editor-paper-accent-ch: 55 109 87;
 }
 
@@ -98,9 +108,9 @@
       rgba(90, 95, 104, 0.30) calc(100% - 96px) 100%
     );
   --mn-editor-vertical-ruler-display: block;
-  --mn-editor-paper-accent: #376d57;
-  --mn-editor-paper-accent-hover: #2b5846;
-  --mn-editor-paper-accent-soft: #eff6f2;
+  --mn-editor-paper-accent: #326f4c;
+  --mn-editor-paper-accent-hover: #265a3d;
+  --mn-editor-paper-accent-soft: #eef6f0;
   --mn-editor-paper-accent-ch: 55 109 87;
   --mn-editor-word-toolbar-surface: #dddfe3;
   --mn-editor-word-toolbar-subtle: #cfd2d8;

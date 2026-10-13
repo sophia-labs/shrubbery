@@ -16,3 +16,13 @@ apps/koch/.koch-garden/
 
 # Local Greenhouse stack supervisor logs/pids.
 apps/vehicle/.greenhouse-stack/
+
+# The voices browser harness writes its screenshots here unless SHOTS_DIR says otherwise.
+apps/organism/.voices-shots/
+apps/organism/.home-shots/
+apps/organism/.files-canvas-shots/
+apps/organism/.files-rudiments-shots/
+apps/organism/.files-shell-shots/
+apps/organism/.files-datasheets-shots/
+apps/organism/.files-quicklook-shots/
+apps/organism/.files-pdf-reader-shots/

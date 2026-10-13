@@ -40,6 +40,28 @@ function combinedStorage(): SourceMirrorStorage & GraphLifecycleStorage {
 }
 
 describe('SourceMirrorRuntime delivery retry', () => {
+  it('retains an incomplete non-fenced mirror and does not retry a permanent capacity refusal', async () => {
+    let attempts = 0
+    const runtime = new SourceMirrorRuntime({
+      auth: new FixedAuth(),
+      caller: { async callTool() {
+        attempts += 1
+        throw Object.assign(new Error('Complete offline source mirror exceeds transfer capacity; online access unchanged'), { code: 'source_bundle_too_large' })
+      } },
+      liveRest: {} as RestClient,
+      documentActivation: new DocumentActivationManager({ storage: new MemoryDocumentActivationStorage() }),
+      storage: combinedStorage(),
+    })
+    const manager = await runtime.open('capacity-refusal')
+    runtime.backgroundSync('capacity-refusal')
+    await vi.waitFor(() => expect(manager.get().errorCode).toBe('source_bundle_too_large'))
+    expect(manager.get()).toMatchObject({ complete: false, fenced: false, phase: 'error', pending: 0 })
+    expect(manager.get().error).toContain('online access unchanged')
+    await new Promise(resolve => setTimeout(resolve, 400))
+    expect(attempts).toBe(1)
+    // An explicit new user/online action can retry; the automatic timer cannot.
+    expect((runtime as unknown as { syncRetryTimers: Map<string, unknown> }).syncRetryTimers.size).toBe(0)
+  })
   it('retries a transient source push until the durable intent has a receipt', async () => {
     const graphId = 'retry-graph'
     const graphIncarnation = '11111111-1111-4111-8111-111111111111'

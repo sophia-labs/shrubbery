@@ -21,17 +21,17 @@
 
 :root {
   /* ── fern (primary green — Garden identity) ───────────────────────────── */
-  --mn-ref-fern-50:  #eff6f2;
-  --mn-ref-fern-100: #dcebe2;
-  --mn-ref-fern-200: #bfd8c9;
-  --mn-ref-fern-300: #99bea9;
-  --mn-ref-fern-400: #72a087;
-  --mn-ref-fern-500: #4f866b;
-  --mn-ref-fern-600: #376d57;
-  --mn-ref-fern-700: #2b5846;
-  --mn-ref-fern-800: #224438;
-  --mn-ref-fern-900: #183128;
-  --mn-ref-fern-950: #0d1c16;
+  --mn-ref-fern-50:  #eef6f0;
+  --mn-ref-fern-100: #dbecde;
+  --mn-ref-fern-200: #bcdac3;
+  --mn-ref-fern-300: #96c0a0;
+  --mn-ref-fern-400: #6da27c;
+  --mn-ref-fern-500: #4a8860;
+  --mn-ref-fern-600: #326f4c;
+  --mn-ref-fern-700: #265a3d;
+  --mn-ref-fern-800: #1e4530;
+  --mn-ref-fern-900: #163223;
+  --mn-ref-fern-950: #0c1d13;
 
   /* ── cobalt (Sophia Blue ink — the structure source, kept for provenance) ─ */
   --mn-ref-cobalt-50:  #f0f5fa;

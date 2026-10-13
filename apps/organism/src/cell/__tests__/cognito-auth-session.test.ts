@@ -25,7 +25,7 @@ interface RecordedCall {
 }
 
 function encoded(value: unknown): string {
-  return btoa(JSON.stringify(value)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
+  return btoa(String.fromCharCode(...new TextEncoder().encode(JSON.stringify(value)))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
 }
 
 function jwt(claims: Record<string, unknown>): string {
@@ -56,6 +56,19 @@ function harness(responses: Record<string, Array<{ status?: number; body: unknow
 }
 
 describe('CognitoAuthSession', () => {
+  it('projects only current Cognito display attributes, including Unicode, and clears on logout', async () => {
+    const storage = new MemoryStorage()
+    storage.setItem('shrubbery.cognito.tokens.v1', JSON.stringify({
+      accessToken: 'private-access', refreshToken: 'private-refresh', expiresAt: 5_000_000,
+      idToken: jwt({ sub: 'subject-1', 'cognito:username': 'vera', name: 'Véra 林', email: 'vera@example.test', email_verified: true, exp: 5000, custom_private: 'omit' }),
+    }))
+    const { session, calls } = harness({}, storage)
+    await session.whenReady()
+    expect(session.profile()).toEqual({ userId: 'subject-1', username: 'vera', name: 'Véra 林', email: 'vera@example.test', emailVerified: true })
+    expect(calls).toEqual([])
+    await session.signOut()
+    expect(session.profile()).toBeNull()
+  })
   it('signs in through USER_PASSWORD_AUTH, persists tokens, and satisfies AuthProvider', async () => {
     const idToken = jwt({ sub: 'user-1', email: 'vera@example.test', exp: 5000 })
     const { session, calls, storage } = harness({

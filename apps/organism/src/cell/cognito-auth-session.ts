@@ -6,7 +6,7 @@
  * narrow AuthProvider shape consumed by a ShrubberyContract.
  */
 
-import type { AuthProvider } from '@shrubbery/nucleus/contract'
+import type { AuthProfile, AuthProvider } from '@shrubbery/nucleus/contract'
 
 export interface CognitoAuthConfig {
   readonly region: string
@@ -83,7 +83,9 @@ interface CognitoEnvelope {
 
 interface JwtClaims {
   readonly sub?: unknown
+  readonly name?: unknown
   readonly email?: unknown
+  readonly email_verified?: unknown
   readonly username?: unknown
   readonly 'cognito:username'?: unknown
   readonly exp?: unknown
@@ -106,6 +108,26 @@ const ERROR_MESSAGES: Readonly<Record<string, string>> = {
   InvalidParameterException: 'Invalid input. Please check your entries.',
 }
 
+/** What a person is told once their account is confirmed and only signing in is left. */
+export const ACCOUNT_CONFIRMED_MESSAGE = 'Your account is confirmed. Sign in.'
+
+/**
+ * Cognito's answers for an account whose confirmation has already happened:
+ * the PostConfirmation trigger failing (on Sirin the idle trigger fails the first
+ * confirmation after a long idle, but the confirmation commits first, so the user
+ * is CONFIRMED afterwards), a second ConfirmSignUp, and a resend to a confirmed
+ * user. Matched on the words Cognito uses, kind by kind: another trigger failing,
+ * or a confirmation refused for some other status, is not "confirmed".
+ */
+function indicatesAlreadyConfirmed(type: string, text: string): boolean {
+  switch (type) {
+    case 'UnexpectedLambdaException': return /PostConfirmation/i.test(text)
+    case 'NotAuthorizedException': return /current status is confirmed\b/i.test(text)
+    case 'InvalidParameterException': return /already confirmed/i.test(text)
+    default: return false
+  }
+}
+
 export class CognitoAuthError extends Error {
   constructor(
     readonly type: string,
@@ -113,9 +135,11 @@ export class CognitoAuthError extends Error {
     readonly originalMessage = message,
   ) {
     super(
-      type === 'NotAuthorizedException' && /not confirmed/i.test(originalMessage)
-        ? ERROR_MESSAGES.UserNotConfirmedException
-        : ERROR_MESSAGES[type] ?? message,
+      indicatesAlreadyConfirmed(type, originalMessage)
+        ? ACCOUNT_CONFIRMED_MESSAGE
+        : type === 'NotAuthorizedException' && /not confirmed/i.test(originalMessage)
+          ? ERROR_MESSAGES.UserNotConfirmedException
+          : ERROR_MESSAGES[type] ?? message,
     )
     this.name = 'CognitoAuthError'
   }
@@ -123,6 +147,11 @@ export class CognitoAuthError extends Error {
   get isUserNotConfirmed(): boolean {
     return this.type === 'UserNotConfirmedException' ||
       (this.type === 'NotAuthorizedException' && /not confirmed/i.test(this.originalMessage))
+  }
+
+  /** The account is confirmed, whatever the answer looked like: the person only has to sign in. */
+  get isAlreadyConfirmed(): boolean {
+    return indicatesAlreadyConfirmed(this.type, this.originalMessage)
   }
 }
 
@@ -137,7 +166,7 @@ function positiveNumber(value: unknown, fallback: number): number {
 function decodeBase64Url(value: string): string {
   const normalized = value.replace(/-/g, '+').replace(/_/g, '/')
   const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=')
-  return atob(padded)
+  return new TextDecoder('utf-8', { fatal: true }).decode(Uint8Array.from(atob(padded), c => c.charCodeAt(0)))
 }
 
 export function decodeJwtClaims(token: string): JwtClaims {
@@ -227,6 +256,18 @@ export class CognitoAuthSession implements AuthProvider {
 
   userId(): string {
     return this.snapshotValue.userId
+  }
+
+  profile(): AuthProfile | null {
+    if (!this.isAuthenticated()) return null
+    const claims = decodeJwtClaims(this.snapshotValue.tokens!.idToken)
+    return {
+      userId: this.userId(),
+      username: stringValue(claims['cognito:username']) || stringValue(claims.username),
+      name: stringValue(claims.name),
+      email: stringValue(claims.email),
+      emailVerified: typeof claims.email_verified === 'boolean' ? claims.email_verified : null,
+    }
   }
 
   isAuthenticated(): boolean {

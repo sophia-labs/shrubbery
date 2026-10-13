@@ -353,66 +353,30 @@ describe('GatewayTransport', () => {
     )
   })
 
-  it('lists and owner-manages graph access through the Cloud-2 grants routes', async () => {
-    const auth = new MutableAuth('owner-token')
-    const network = fetchQueue(
-      { body: [
-        {
-          userId: 'owner-1', role: 'owner', grantedAt: '2026-07-10T12:00:00Z', grantedBy: 'owner-1',
-          email: 'owner@example.com', displayName: 'Owner',
-        },
-        {
-          userId: 'editor/2', role: 'editor', grantedAt: '2026-07-10T12:01:00Z', grantedBy: 'owner-1',
-        },
-      ] },
-      { body: { graphId: 'graph a', userId: 'viewer 3', role: 'viewer' } },
-      { status: 204, raw: '' },
-    )
-    const transport = new GatewayTransport({
-      gatewayBaseUrl: 'https://gateway.test/root',
-      auth,
-      fetch: network.fetch,
-    })
-
-    await expect(transport.access(' graph a ')).resolves.toEqual([
-      {
-        userId: 'owner-1', role: 'owner', grantedAt: '2026-07-10T12:00:00Z', grantedBy: 'owner-1',
-        email: 'owner@example.com', displayName: 'Owner',
-      },
-      {
-        userId: 'editor/2', role: 'editor', grantedAt: '2026-07-10T12:01:00Z', grantedBy: 'owner-1',
-      },
-    ])
-    await expect(transport.putAccess('graph a', ' viewer 3 ', {
-      role: 'viewer',
-      email: ' viewer@example.com ',
-      displayName: ' Viewer Three ',
-    })).resolves.toBeUndefined()
-    await expect(transport.deleteAccess('graph a', 'editor/2')).resolves.toBeUndefined()
-
-    expect(network.calls.map(call => [call.init.method, call.url])).toEqual([
-      ['GET', 'https://gateway.test/root/graphs/graph%20a/access'],
-      ['PUT', 'https://gateway.test/root/graphs/graph%20a/access/viewer%203'],
-      ['DELETE', 'https://gateway.test/root/graphs/graph%20a/access/editor%2F2'],
-    ])
-    expect(requestBody(network.calls[1])).toEqual({
-      role: 'viewer', email: 'viewer@example.com', displayName: 'Viewer Three',
-    })
+  it('lists and owner-manages canonical control-MCP grants with an explicit host binding', async () => {
+    const owner = 'user:owner-1'
+    const graphId = 'graph-a'
+    const grant = { graph: { owner, graphId }, generation: 1, principal: 'user:editor-2', role: 'editor', grantedAtMs: 1788678000000, grantedBy: owner }
+    const envelope = (id: number, value: unknown) => ({ body: { jsonrpc: '2.0', id: `access-${id}`, result: { structuredContent: value, isError: false } } })
+    const network = fetchQueue(envelope(1, [grant]), envelope(2, { ...grant, principal: 'user:viewer-3', role: 'viewer' }), envelope(3, { revoked: true }))
+    const transport = new GatewayTransport({ gatewayBaseUrl: 'https://gateway.test/root', auth: new MutableAuth('owner-token'), fetch: network.fetch })
+    transport.bindGraphOwner(graphId, owner)
+    await expect(transport.access(graphId)).resolves.toEqual([{ userId: 'user:editor-2', role: 'editor', grantedAt: new Date(grant.grantedAtMs).toISOString(), grantedBy: owner }])
+    await transport.putAccess(graphId, 'user:viewer-3', { role: 'viewer' })
+    await transport.deleteAccess(graphId, 'user:editor-2')
+    expect(network.calls.map(call => [call.init.method, call.url])).toEqual(Array.from({ length: 3 }, () => ['POST', 'https://gateway.test/root/control/mcp']))
+    expect(requestBody(network.calls[1]).params).toEqual({ name: 'manage_access', arguments: { owner, graphId, action: 'grant', principal: 'user:viewer-3', role: 'viewer' } })
     expect(new Headers(network.calls[1].init.headers).get('Authorization')).toBe('Bearer owner-token')
   })
 
   it('rejects malformed grants and invalid access mutations locally', async () => {
-    const network = fetchQueue({ body: [{ userId: 'member', role: 'admin' }] })
-    const transport = new GatewayTransport({
-      gatewayBaseUrl: 'https://gateway.test',
-      auth: new MutableAuth(),
-      fetch: network.fetch,
-    })
+    const network = fetchQueue({ body: { jsonrpc: '2.0', id: 'access-1', result: { structuredContent: [{ graph: { owner: 'user:owner', graphId: 'g' }, principal: 'user:member', role: 'admin' }] } } })
+    const transport = new GatewayTransport({ gatewayBaseUrl: 'https://gateway.test', auth: new MutableAuth(), fetch: network.fetch })
+    transport.bindGraphOwner('g', 'user:owner')
     await expect(transport.access('g')).rejects.toThrow('invalid grant shape')
-    await expect(transport.putAccess('g', 'member', { role: 'owner' as never })).rejects.toThrow(
-      'role must be viewer or editor',
-    )
-    await expect(transport.deleteAccess('g', ' ')).rejects.toThrow('user id must not be empty')
+    await expect(transport.putAccess('g', 'user:member', { role: 'owner' as never })).rejects.toThrow('role must be viewer or editor')
+    await expect(transport.deleteAccess('g', ' ')).rejects.toThrow('typed user principal')
+    expect(network.calls).toHaveLength(1)
   })
 
   it('rejects unauthenticated, malformed, HTTP-error, and MCP-error responses loudly', async () => {
@@ -631,7 +595,7 @@ describe('HostedGatewayContract', () => {
       'offline-doc',
     )).resolves.toEqual(expect.arrayContaining([
       expect.objectContaining({
-        id: 'documents',
+        id: 'tree',
         nodes: [expect.objectContaining({
           id: 'offline-doc',
           label: 'Offline Renamed Document',

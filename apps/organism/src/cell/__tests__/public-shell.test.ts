@@ -403,3 +403,20 @@ describe('public-shell adapter', () => {
     host.remove()
   })
 })
+
+describe('trashed documents stay out of the live tree', () => {
+  it('readPublicWorkspaceProjection skips entries the cell marked trashed', () => {
+    const doc = new Y.Doc()
+    const documents = doc.getMap<Y.Map<unknown>>('documents')
+    for (const [id, trashed] of [['doc-live', false], ['doc-gone', true]] as const) {
+      const entry = new Y.Map<unknown>()
+      entry.set('title', id)
+      entry.set('order', 1)
+      if (trashed) entry.set('trashed', true)
+      documents.set(id, entry)
+    }
+    const projection = readPublicWorkspaceProjection('graph-trash', encodeDoc(doc))
+    expect(JSON.stringify(projection)).toContain('doc-live')
+    expect(JSON.stringify(projection)).not.toContain('doc-gone')
+  })
+})

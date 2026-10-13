@@ -101,7 +101,8 @@ jobs:
       # network). These were run-and-verified to pass; kept in their own step so a
       # regression here is attributed distinctly from the shell proof above.
       # Covered: center-panes, file-pane, mobile-parity, pane-parity, wires-panel,
-      # workspace-selector. See apps/organism/package.json `test:browser-verified`.
+      # workspace-selector, context-menu-row-contrast (the highlighted row's shortcut and
+      # glyphs in every bevelled skin). See apps/organism/package.json `test:browser-verified`.
       #
       # NOT gated here: the gardend-dependent browser harnesses (daily-note,
       # presence, keyboard-parity, center-panes-gardend, layout-workbench,

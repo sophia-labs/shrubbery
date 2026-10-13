@@ -44,6 +44,7 @@ import {
   wireRefUri,
   workspaceProjectionGraphIri,
 } from './sparql-terms.js'
+import { randomUUID } from '@shrubbery/nucleus/web-crypto'
 
 /** The default wikilink predicate — garden used 'relatedTo' (wire-store DEFAULT_PREDICATE). */
 export const DEFAULT_WIKILINK_PREDICATE = 'relatedTo'
@@ -126,14 +127,10 @@ export function wireDeleteSparql(graphId: string, wireId: string): string {
 
 /**
  * Mint a host-side wireId. Stable, collision-resistant, and shaped so wire_ref_uri wraps
- * it (a bare id, NOT an already-URN'd one). Uses crypto.randomUUID when available.
+ * it (a bare id, NOT an already-URN'd one). A v4 UUID on any page, plain HTTP included.
  */
 export function mintWireId(): string {
-  const uuid =
-    typeof globalThis.crypto?.randomUUID === 'function'
-      ? globalThis.crypto.randomUUID()
-      : Math.random().toString(36).slice(2) + Date.now().toString(36)
-  return `wire-${uuid}`
+  return `wire-${randomUUID()}`
 }
 
 /**

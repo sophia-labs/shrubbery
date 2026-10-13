@@ -1,3 +1,15 @@
+import {
+  API_KEY_PATH,
+  ApiKeyError,
+  isApiKeyScope,
+  isValidApiKeyIdempotencyKey,
+  validateApiKeyCreateRequest,
+  validateApiKeyGraphKey,
+  type ApiKeyCreateRequest,
+  type ApiKeyCreateResponse,
+  type ApiKeyDeleteResponse,
+  type ApiKeyMetadata,
+} from './api-key-contract.js'
 /**
  * Hosted gateway HTTP/MCP transport.
  *
@@ -11,6 +23,14 @@
  */
 
 import type { AuthProvider } from '@shrubbery/nucleus/contract'
+import {
+  accessUserPrincipal,
+  createControlAccessClient,
+  type ControlMintedShareLink,
+  type ControlRedeemedShareLink,
+  type ControlShareLinkCreate,
+  type ControlSharingState,
+} from '@shrubbery/source/access-control'
 import type { MnWorkspaceLifetimeState } from '@shrubbery/components'
 
 export type GatewayGraphRole = 'viewer' | 'editor' | 'owner'
@@ -20,6 +40,8 @@ export type GatewayCellState = 'running' | 'stopped'
 export interface GatewayGraphInfo {
   /** Stable typed owner from canonical cloud-2 graph metadata. */
   readonly owner?: string
+  /** Canonical gateway generation when the directory supplies it; never inferred. */
+  readonly generation?: number
   readonly graphId: string
   readonly title: string
   readonly cellState: GatewayCellState
@@ -90,6 +112,205 @@ export interface GatewayTransportOptions {
   readonly activationTimeoutMs?: number
   /** Activation polling cadence. Defaults to 500ms; zero is useful in tests. */
   readonly activationPollIntervalMs?: number
+}
+
+function apiKeyInteger(value: unknown): number | null {
+  return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 ? value : null
+}
+
+function exactApiKeyKeys(row: Record<string, unknown>, expected: readonly string[]): void {
+  const actual = Object.keys(row).sort()
+  const canonical = [...expected].sort()
+  if (actual.length !== canonical.length || actual.some((key, index) => key !== canonical[index])) {
+    throw new ApiKeyError('invalid_json', 502)
+  }
+}
+
+/** JSON.parse intentionally collapses duplicate keys. Detect them in the raw
+ * response first so a rolling or compromised gateway cannot smuggle an
+ * ambiguous success envelope into API-key state. JSON.parse remains the
+ * grammar authority; this scanner only classifies already-valid tokens. */
+function parseStrictApiKeyJson(raw: string): unknown {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw) as unknown
+  } catch {
+    throw new ApiKeyError('invalid_json', 502)
+  }
+  type Frame = { kind: 'object'; phase: 'keyOrEnd' | 'colon' | 'value' | 'commaOrEnd'; keys: Set<string> }
+    | { kind: 'array'; phase: 'valueOrEnd' | 'commaOrEnd' }
+  const frames: Frame[] = []
+  const token = /\s*("(?:\\["\\/bfnrt]|\\u[0-9a-fA-F]{4}|[^"\\\u0000-\u001f])*"|[{}\[\],:]|true|false|null|-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?)/gy
+  let offset = 0
+  const beginValue = (value: string): void => {
+    const parent = frames.at(-1)
+    if (parent?.kind === 'object') parent.phase = 'commaOrEnd'
+    if (parent?.kind === 'array') parent.phase = 'commaOrEnd'
+    if (value === '{') frames.push({ kind: 'object', phase: 'keyOrEnd', keys: new Set() })
+    if (value === '[') frames.push({ kind: 'array', phase: 'valueOrEnd' })
+  }
+  while (offset < raw.length) {
+    if (!raw.slice(offset).trim()) break
+    token.lastIndex = offset
+    const match = token.exec(raw)
+    if (!match) throw new ApiKeyError('invalid_json', 502)
+    offset = token.lastIndex
+    const value = match[1]!
+    const frame = frames.at(-1)
+    if (!frame) {
+      beginValue(value)
+      continue
+    }
+    if (frame.kind === 'object') {
+      if (frame.phase === 'keyOrEnd') {
+        if (value === '}') { frames.pop(); continue }
+        if (!value.startsWith('"')) throw new ApiKeyError('invalid_json', 502)
+        const key = JSON.parse(value) as string
+        if (frame.keys.has(key)) throw new ApiKeyError('invalid_json', 502)
+        frame.keys.add(key)
+        frame.phase = 'colon'
+      } else if (frame.phase === 'colon') {
+        if (value !== ':') throw new ApiKeyError('invalid_json', 502)
+        frame.phase = 'value'
+      } else if (frame.phase === 'value') {
+        beginValue(value)
+      } else if (value === ',') {
+        frame.phase = 'keyOrEnd'
+      } else if (value === '}') {
+        frames.pop()
+      } else {
+        throw new ApiKeyError('invalid_json', 502)
+      }
+      continue
+    }
+    if (frame.phase === 'valueOrEnd') {
+      if (value === ']') { frames.pop(); continue }
+      beginValue(value)
+    } else if (value === ',') {
+      frame.phase = 'valueOrEnd'
+    } else if (value === ']') {
+      frames.pop()
+    } else {
+      throw new ApiKeyError('invalid_json', 502)
+    }
+  }
+  return parsed
+}
+
+/** Parse only the list-safe management projection, never an authority record. */
+function parseApiKeyMetadata(value: unknown): ApiKeyMetadata {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new ApiKeyError('invalid_json', 502)
+  }
+  const row = value as Record<string, unknown>
+  exactApiKeyKeys(row, [
+    'keyId', 'displayLabel', 'createdAtUnixSeconds', 'expiresAtUnixSeconds',
+    'lastUsedAtUnixSeconds', 'lastUsedOutcome', 'status', 'scopes',
+    'graphAllowlist', 'credentialVersion', 'terminalAtUnixSeconds',
+    ...(Object.hasOwn(row, 'graphAccess') ? ['graphAccess'] : []),
+  ])
+  const keyId = typeof row.keyId === 'string' && row.keyId.trim() ? row.keyId : null
+  const displayLabel = typeof row.displayLabel === 'string' ? row.displayLabel : null
+  const createdAtUnixSeconds = apiKeyInteger(row.createdAtUnixSeconds)
+  const expiresAtUnixSeconds = apiKeyInteger(row.expiresAtUnixSeconds)
+  const credentialVersion = apiKeyInteger(row.credentialVersion)
+  if (
+    !keyId || displayLabel === null || createdAtUnixSeconds === null || expiresAtUnixSeconds === null
+    || credentialVersion === null
+    || (row.status !== 'active' && row.status !== 'revoked' && row.status !== 'deleted')
+    || !Array.isArray(row.scopes) || !Array.isArray(row.graphAllowlist)
+    || (row.lastUsedAtUnixSeconds !== null && apiKeyInteger(row.lastUsedAtUnixSeconds) === null)
+    || (row.lastUsedOutcome !== null && row.lastUsedOutcome !== 'authorized')
+    || (row.terminalAtUnixSeconds !== null && apiKeyInteger(row.terminalAtUnixSeconds) === null)
+  ) {
+    throw new ApiKeyError('invalid_json', 502)
+  }
+  const scopes = row.scopes.map(scope => {
+    if (!isApiKeyScope(scope)) throw new ApiKeyError('invalid_json', 502)
+    return scope
+  })
+  if (!scopes.length || new Set(scopes).size !== scopes.length) throw new ApiKeyError('invalid_json', 502)
+  const graphAccess = row.graphAccess === undefined ? 'selected' : row.graphAccess
+  if (graphAccess !== 'selected' && graphAccess !== 'all_accessible') throw new ApiKeyError('invalid_json', 502)
+  const graphAllowlist = row.graphAllowlist.map(graph => {
+    try {
+      if (!graph || typeof graph !== 'object' || Array.isArray(graph)) throw new Error('invalid graph')
+      exactApiKeyKeys(graph as Record<string, unknown>, ['owner', 'graphId'])
+      return validateApiKeyGraphKey(graph as { owner: string; graphId: string })
+    } catch {
+      throw new ApiKeyError('invalid_json', 502)
+    }
+  })
+  const graphKeys = graphAllowlist.map(graph => `${graph.owner}\u0000${graph.graphId}`)
+  if ((graphAccess === 'selected' ? !graphAllowlist.length : graphAllowlist.length !== 0) || new Set(graphKeys).size !== graphKeys.length) {
+    throw new ApiKeyError('invalid_json', 502)
+  }
+  return {
+    keyId,
+    displayLabel,
+    createdAtUnixSeconds,
+    expiresAtUnixSeconds,
+    lastUsedAtUnixSeconds: row.lastUsedAtUnixSeconds === null ? null : apiKeyInteger(row.lastUsedAtUnixSeconds)!,
+    lastUsedOutcome: row.lastUsedOutcome === null ? null : 'authorized',
+    status: row.status,
+    scopes,
+    graphAllowlist,
+    ...(graphAccess === 'all_accessible' ? { graphAccess } : {}),
+    credentialVersion,
+    terminalAtUnixSeconds: row.terminalAtUnixSeconds === null ? null : apiKeyInteger(row.terminalAtUnixSeconds)!,
+  }
+}
+
+function parseApiKeyList(value: unknown): readonly ApiKeyMetadata[] {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new ApiKeyError('invalid_json', 502)
+  const envelope = value as Record<string, unknown>
+  exactApiKeyKeys(envelope, ['apiKeys'])
+  const rows = envelope.apiKeys
+  if (!Array.isArray(rows)) throw new ApiKeyError('invalid_json', 502)
+  const apiKeys = rows.map(parseApiKeyMetadata)
+  if (new Set(apiKeys.map(key => key.keyId)).size !== apiKeys.length) {
+    throw new ApiKeyError('invalid_json', 502)
+  }
+  return apiKeys
+}
+
+function parseApiKeyCreate(value: unknown): ApiKeyCreateResponse {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new ApiKeyError('invalid_json', 502)
+  const row = value as Record<string, unknown>
+  exactApiKeyKeys(row, ['apiKey', 'secret', 'replayed'])
+  const secret = row.secret === null ? null : typeof row.secret === 'string' && row.secret ? row.secret : null
+  if (typeof row.replayed !== 'boolean' || (row.secret !== null && secret === null)) {
+    throw new ApiKeyError('invalid_json', 502)
+  }
+  // A replay cannot truthfully re-deliver the original secret.
+  if (row.replayed && secret !== null) throw new ApiKeyError('invalid_json', 502)
+  return { apiKey: parseApiKeyMetadata(row.apiKey), secret, replayed: row.replayed }
+}
+
+function parseApiKeyDelete(value: unknown): ApiKeyDeleteResponse {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new ApiKeyError('invalid_json', 502)
+  const row = value as Record<string, unknown>
+  exactApiKeyKeys(row, ['apiKey', 'deleted', 'revocationEpoch'])
+  const revocationEpoch = apiKeyInteger(row.revocationEpoch)
+  if (typeof row.deleted !== 'boolean' || revocationEpoch === null) throw new ApiKeyError('invalid_json', 502)
+  return { apiKey: parseApiKeyMetadata(row.apiKey), deleted: row.deleted, revocationEpoch }
+}
+
+function safeApiKeyErrorCode(value: unknown): string | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const row = value as Record<string, unknown>
+  const candidate = typeof row.code === 'string'
+    ? row.code
+    : typeof row.error === 'string'
+      ? row.error
+      : null
+  return new Set([
+    'cognito_human_required', 'idempotency_key_required', 'application_json_required',
+    'api_key_payload_too_large', 'invalid_json', 'duplicate_field', 'invalid_api_key_request',
+    'invalid_scope', 'invalid_graph_allowlist', 'duplicate_graph', 'idempotency_key_reused',
+    'api_key_quota_exceeded', 'api_keys_erased', 'api_key_not_found', 'api_key_inactive',
+    'api_key_authority_unavailable',
+  ]).has(candidate ?? '') ? candidate! : null
 }
 
 interface McpContentItem {
@@ -197,8 +418,12 @@ function graphInfo(value: unknown, index: number): GatewayGraphInfo {
   ) {
     throw new Error(`Gateway GET /graphs row ${index} has an invalid graphId/title/cellState/role shape`)
   }
+  if (row.generation !== undefined && (!Number.isSafeInteger(row.generation) || (row.generation as number) < 1)) {
+    throw new Error(`Gateway GET /graphs row ${index} has an invalid generation`)
+  }
   return {
     ...(owner ? { owner } : {}),
+    ...(row.generation !== undefined ? { generation: row.generation as number } : {}),
     graphId: row.graphId,
     title: row.title,
     cellState,
@@ -271,29 +496,6 @@ function providerCredentialStatus(value: unknown): GatewayProviderCredentialStat
   return row as unknown as GatewayProviderCredentialStatus
 }
 
-function accessGrant(value: unknown, index: number): GatewayAccessGrant {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    throw new Error(`Gateway GET /graphs/{id}/access row ${index} is not an object`)
-  }
-  const row = value as Record<string, unknown>
-  if (
-    typeof row.userId !== 'string' || !row.userId.trim()
-    || (row.role !== 'viewer' && row.role !== 'editor' && row.role !== 'owner')
-    || typeof row.grantedAt !== 'string'
-    || typeof row.grantedBy !== 'string'
-    || (row.email !== undefined && typeof row.email !== 'string')
-    || (row.displayName !== undefined && typeof row.displayName !== 'string')
-  ) {
-    throw new Error(`Gateway GET /graphs/{id}/access row ${index} has an invalid grant shape`)
-  }
-  return row as unknown as GatewayAccessGrant
-}
-
-function accessList(value: unknown): readonly GatewayAccessGrant[] {
-  if (!Array.isArray(value)) throw new Error('Gateway GET /graphs/{id}/access returned a non-array')
-  return value.map(accessGrant)
-}
-
 function activationEnvelope(value: unknown): GatewayActivationEnvelope | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null
   const row = value as Record<string, unknown>
@@ -347,7 +549,18 @@ export class GatewayTransport {
   readonly gatewayBaseUrl: string
   private readonly fetchImpl: typeof fetch
   private graphOwners = new Map<string, string | null>()
+  private explicitGraphOwners = new Map<string, string>()
   private nextId = 1
+  private readonly accessControl = createControlAccessClient({
+    resolveOwner: async (graphId: string) => {
+      if (!this.graphOwners.has(graphId)) await this.graphs()
+      const owner = this.graphOwners.get(graphId)
+      if (owner === null) throw new Error('Access graph identity is ambiguous across owners')
+      if (!owner) throw new Error('Access owner binding is unavailable; refresh the workspace directory.')
+      return owner
+    },
+    request: body => this.requestJson('POST', `${this.gatewayBaseUrl}/control/mcp`, body),
+  })
 
   constructor(private readonly options: GatewayTransportOptions) {
     this.gatewayBaseUrl = normalizeGatewayBaseUrl(options.gatewayBaseUrl)
@@ -364,8 +577,24 @@ export class GatewayTransport {
     return gatewayGraphBaseUrl(this.gatewayBaseUrl, graphId, owner)
   }
 
+  /** Bind a trusted host's exact owner; never derive access authority from the caller. */
+  bindGraphOwner(graphId: string, owner: string): void {
+    if (!graphId || graphId !== graphId.trim()) throw new Error('Gateway graph id must be nonempty without surrounding whitespace')
+    const exactOwner = accessUserPrincipal(owner)
+    const prior = this.explicitGraphOwners.get(graphId)
+    if (prior !== undefined && prior !== exactOwner) throw new Error('Gateway graph is already bound to a different owner identity')
+    this.explicitGraphOwners.set(graphId, exactOwner)
+    this.graphOwners.set(graphId, exactOwner)
+  }
+
   async graphs(): Promise<readonly GatewayGraphInfo[]> {
     const graphs = graphList(await this.requestJson('GET', `${this.gatewayBaseUrl}/graphs`))
+    this.adoptGraphDirectory(graphs)
+    return graphs
+  }
+
+  /** Replace ordinary routing hints from a validated, current account directory. */
+  adoptGraphDirectory(graphs: readonly GatewayGraphInfo[]): void {
     const owners = new Map<string, string | null>()
     for (const graph of graphs) {
       if (!graph.owner) continue
@@ -375,8 +604,8 @@ export class GatewayTransport {
       }
       if (owners.get(graph.graphId) !== graph.owner) owners.set(graph.graphId, null)
     }
+    for (const [graphId, owner] of this.explicitGraphOwners) owners.set(graphId, owner)
     this.graphOwners = owners
-    return graphs
   }
 
   async createGraph(request: GatewayCreateGraphRequest = {}): Promise<GatewayCreatedGraph> {
@@ -416,12 +645,7 @@ export class GatewayTransport {
   }
 
   async access(graphId: string): Promise<readonly GatewayAccessGrant[]> {
-    const id = graphId.trim()
-    if (!id) throw new Error('Gateway graph id must not be empty')
-    return accessList(await this.requestJson(
-      'GET',
-      `${this.gatewayBaseUrl}/graphs/${encodeURIComponent(id)}/access`,
-    ))
+    return this.accessControl.list(graphId)
   }
 
   async putAccess(
@@ -429,35 +653,35 @@ export class GatewayTransport {
     userId: string,
     request: GatewayPutAccessRequest,
   ): Promise<void> {
-    const graph = graphId.trim()
-    const user = userId.trim()
-    if (!graph) throw new Error('Gateway graph id must not be empty')
-    if (!user) throw new Error('Gateway access user id must not be empty')
-    if (request.role !== 'viewer' && request.role !== 'editor') {
-      throw new Error('Gateway access role must be viewer or editor')
-    }
-    const email = request.email?.trim()
-    const displayName = request.displayName?.trim()
-    await this.requestJson(
-      'PUT',
-      `${this.gatewayBaseUrl}/graphs/${encodeURIComponent(graph)}/access/${encodeURIComponent(user)}`,
-      {
-        role: request.role,
-        ...(email ? { email } : {}),
-        ...(displayName ? { displayName } : {}),
-      },
-    )
+    await this.accessControl.put(graphId, userId, request)
   }
 
   async deleteAccess(graphId: string, userId: string): Promise<void> {
-    const graph = graphId.trim()
-    const user = userId.trim()
-    if (!graph) throw new Error('Gateway graph id must not be empty')
-    if (!user) throw new Error('Gateway access user id must not be empty')
-    await this.requestJson(
-      'DELETE',
-      `${this.gatewayBaseUrl}/graphs/${encodeURIComponent(graph)}/access/${encodeURIComponent(user)}`,
-    )
+    await this.accessControl.remove(graphId, userId)
+  }
+
+  /** Owner sharing view: everyone-signed-in and share links (never tokens). */
+  async sharing(graphId: string): Promise<ControlSharingState> {
+    return this.accessControl.sharing(graphId)
+  }
+
+  async setEveryoneAccess(graphId: string, enabled: boolean): Promise<void> {
+    await this.accessControl.setEveryone(graphId, enabled)
+  }
+
+  async createShareLink(graphId: string, request: ControlShareLinkCreate): Promise<ControlMintedShareLink> {
+    return this.accessControl.createLink(graphId, request)
+  }
+
+  async revokeShareLink(graphId: string, linkId: string): Promise<void> {
+    await this.accessControl.revokeLink(graphId, linkId)
+  }
+
+  /** Join through a share link; the gateway grants the link's role to this account. */
+  async redeemShareLink(token: string): Promise<ControlRedeemedShareLink> {
+    const redeemed = await this.accessControl.redeem(token)
+    this.graphOwners.delete(redeemed.graphId)
+    return redeemed
   }
 
   async providerCredentialStatus(provider: 'openrouter'): Promise<GatewayProviderCredentialStatus> {
@@ -488,12 +712,32 @@ export class GatewayTransport {
     name: string,
     args: Readonly<Record<string, unknown>>,
   ): Promise<GatewayMcpResult> {
+    return this.graphRpc(graphId, 'tools/call', { name, arguments: args }, name)
+  }
+
+  /** The cell's advertised MCP tool surface (`tools/list`) for one graph. */
+  async toolsList(graphId: string): Promise<readonly Record<string, unknown>[]> {
+    const result = await this.graphRpc(graphId, 'tools/list', {}, 'tools/list')
+    const tools = (result as { readonly tools?: unknown }).tools
+    if (!Array.isArray(tools)) {
+      throw new Error('Gateway MCP response for tools/list has no tools array')
+    }
+    return tools.filter((tool): tool is Record<string, unknown> =>
+      Boolean(tool) && typeof tool === 'object' && !Array.isArray(tool))
+  }
+
+  private async graphRpc(
+    graphId: string,
+    method: 'tools/call' | 'tools/list',
+    params: Readonly<Record<string, unknown>>,
+    name: string,
+  ): Promise<GatewayMcpResult> {
     const url = `${this.graphBaseUrl(graphId)}/mcp`
     const request = {
       jsonrpc: '2.0',
       id: this.nextId++,
-      method: 'tools/call',
-      params: { name, arguments: args },
+      method,
+      params,
     }
     let rawResponse = await this.requestJson('POST', url, request)
     for (let activationRound = 0; ; activationRound += 1) {
@@ -661,6 +905,100 @@ export class GatewayTransport {
         )
       }
       await new Promise<void>(resolve => setTimeout(resolve, Math.max(0, intervalMs)))
+    }
+  }
+
+  async listApiKeys(options: { readonly signal?: AbortSignal } = {}): Promise<readonly ApiKeyMetadata[]> {
+    return parseApiKeyList(await this.requestApiKeyJson(
+      'GET', `${new URL(this.gatewayBaseUrl).origin}${API_KEY_PATH}`, undefined, undefined, options.signal,
+    ))
+  }
+
+  /** Fresh Cognito bearer on every create; the idempotency key is caller-owned. */
+  async createApiKey(
+    request: ApiKeyCreateRequest,
+    idempotencyKey: string,
+    options: { readonly signal?: AbortSignal } = {},
+  ): Promise<ApiKeyCreateResponse> {
+    if (!isValidApiKeyIdempotencyKey(idempotencyKey)) {
+      throw new ApiKeyError('idempotency_key_required', 428)
+    }
+    return parseApiKeyCreate(await this.requestApiKeyJson(
+      'POST',
+      `${new URL(this.gatewayBaseUrl).origin}${API_KEY_PATH}`,
+      validateApiKeyCreateRequest(request),
+      idempotencyKey,
+      options.signal,
+    ))
+  }
+
+  /** Deletion is an idempotent root-only revocation lifecycle operation. */
+  async deleteApiKey(
+    keyId: string,
+    options: { readonly signal?: AbortSignal } = {},
+  ): Promise<ApiKeyDeleteResponse> {
+    const id = keyId.trim()
+    if (!id) throw new ApiKeyError('api_key_not_found', 404)
+    return parseApiKeyDelete(await this.requestApiKeyJson(
+      'DELETE', `${new URL(this.gatewayBaseUrl).origin}${API_KEY_PATH}/${encodeURIComponent(id)}`, undefined, undefined, options.signal,
+    ))
+  }
+
+  private async requestApiKeyJson(
+    method: 'GET' | 'POST' | 'DELETE',
+    url: string,
+    body: ApiKeyCreateRequest | undefined,
+    idempotencyKey: string | undefined,
+    signal: AbortSignal | undefined,
+  ): Promise<unknown> {
+    try {
+      await this.options.auth.whenReady()
+    } catch {
+      throw new ApiKeyError('api_key_authority_unavailable', 503)
+    }
+    const subject = this.options.auth.userId()
+    const token = this.options.auth.token()
+    if (!subject || !token) throw new ApiKeyError('authentication', 401)
+    const headers: Record<string, string> = {
+      Accept: 'application/json',
+      Authorization: `Bearer ${token}`,
+    }
+    let encodedBody: string | undefined
+    if (body !== undefined) {
+      headers['Content-Type'] = 'application/json'
+      headers['Idempotency-Key'] = idempotencyKey!
+      encodedBody = JSON.stringify(body)
+    }
+    let response: Response
+    try {
+      response = await this.fetchImpl(url, {
+        method, headers, ...(encodedBody === undefined ? {} : { body: encodedBody }), cache: 'no-store', signal,
+      })
+    } catch {
+      throw new ApiKeyError('api_key_authority_unavailable', 503)
+    }
+    const raw = await response.text().catch(() => '')
+    if (this.options.auth.userId() !== subject) throw new ApiKeyError('authentication', 401)
+    if (!response.ok) {
+      let parsed: unknown = null
+      try { parsed = raw ? JSON.parse(raw) as unknown : null } catch { /* stable fallback below */ }
+      const reported = safeApiKeyErrorCode(parsed)
+      const code = reported
+        ?? (response.status === 401
+          ? 'authentication'
+          : response.status === 403
+            ? 'authorization'
+            : response.status >= 500
+              ? 'api_key_authority_unavailable'
+              : 'invalid_api_key_request')
+      throw new ApiKeyError(code, response.status)
+    }
+    if (!raw) throw new ApiKeyError('invalid_json', 502)
+    try {
+      return parseStrictApiKeyJson(raw)
+    } catch (error) {
+      if (error instanceof ApiKeyError) throw error
+      throw new ApiKeyError('invalid_json', 502)
     }
   }
 

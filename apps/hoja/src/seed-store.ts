@@ -10,11 +10,35 @@ export interface SeedDoc {
   readonly id: string
   readonly title: string
   readonly markdown: string
+  /** Native TipTap structure when the backend exposes it. */
+  readonly json?: unknown
+  /** Server revision this content was read at, when the backend has one. */
+  readonly revision?: number
 }
 
 export interface SeedSaveInput {
   readonly markdown: string
   readonly json: unknown
+  /**
+   * The server revision the user last saw. Omitted: the store uses the
+   * revision of its own last read/write. A cell refuses the write with a
+   * SeedConflictError when someone else wrote since.
+   */
+  readonly expectedRevision?: number | null
+}
+
+export interface SeedSearchHit {
+  readonly id: string
+  readonly title: string
+  readonly snippet: string
+}
+
+/** The document changed on the server since the user last saw it. */
+export class SeedConflictError extends Error {
+  constructor(readonly id: string, detail: string) {
+    super(`This leaf changed elsewhere since you opened it (${detail}).`)
+    this.name = 'SeedConflictError'
+  }
 }
 
 export interface SeedSaveResult {
@@ -22,6 +46,8 @@ export interface SeedSaveResult {
   readonly title: string
   readonly snippet: string
   readonly modified_ms: number
+  /** Server revision after this write, when the backend has one. */
+  readonly revision?: number
 }
 
 /** A folder of `.sd` seeds and a Garden graph expose this same app contract. */
@@ -31,6 +57,10 @@ export interface SeedStore {
   read(id: string): Promise<SeedDoc>
   create(): Promise<{ id: string }>
   save(id: string, input: SeedSaveInput): Promise<SeedSaveResult>
+  /** Current server revision, for refreshing an open leaf (cells only). */
+  revisionOf?(id: string): Promise<number | null>
+  /** Body search beyond titles (cells only). */
+  search?(query: string): Promise<readonly SeedSearchHit[]>
 }
 
 export interface SoilStoreOptions {

@@ -8,6 +8,11 @@
 import { isNumericQueryBlockTerm, type QueryBlockResult, type QueryBlockTerm } from './query-block-service.js'
 import { fragmentRegionIdOf } from '../layout/fragment-splice.js'
 import {
+  orderedKindOfTerms,
+  resolveValueFace,
+  type ValueDictionary,
+} from '@shrubbery/nucleus/value-faces'
+import {
   buildVegaTheme,
   ensureVegaTooltipStyles,
   mergeVegaTheme,
@@ -15,6 +20,8 @@ import {
   sanitizeAuthoredVegaConfig,
   sanitizeAuthoredVegaSpecColors,
   QUERY_BLOCK_VEGA_CONFIG,
+  type VegaThemeMode,
+  valueToneColor,
 } from './vega-theme.js'
 
 export interface QueryBlockVegaView {
@@ -53,6 +60,143 @@ export interface MountQueryBlockVegaOptions {
   readonly themeOverride?: Record<string, unknown> | null
   /** Test seam; production deliberately uses the lazy dynamic import below. */
   readonly loadEmbed?: QueryBlockVegaEmbedLoader
+  /**
+   * The graph's value dictionary (nucleus value faces). A field whose values
+   * all resolve to one ORDERED kind (a rung) is charted by its faces: labels
+   * in the data, the kind's display order as the scale domain, and — on a
+   * color channel — the value-face tone palette as the range. TRUSTED house
+   * code applied after sanitization, like `pinnedColorScale`.
+   */
+  readonly valueDictionary?: ValueDictionary | null
+  /** Told what the value faces could not apply (e.g. an authored sort pinned over the ladder). */
+  readonly onValueFaceHints?: (hints: readonly string[]) => void
+}
+
+/** Cap the label width of every categorical y axis (top level and layers) the author left open. */
+function limitCategoryLabels(node: unknown, limit: number): void {
+  if (!isRecord(node)) return
+  const encoding = isRecord(node.encoding) ? node.encoding : null
+  const y = encoding && isRecord(encoding.y) ? encoding.y : null
+  if (y && (y.type === 'nominal' || y.type === 'ordinal') && y.axis !== null) {
+    const axis = isRecord(y.axis) ? y.axis : {}
+    if (axis.labelLimit === undefined) y.axis = { ...axis, labelLimit: limit }
+  }
+  if (Array.isArray(node.layer)) for (const layer of node.layer) limitCategoryLabels(layer, limit)
+}
+
+/** Narrow blocks: legends go under the chart instead of taking a side column. */
+function legendsBelow(node: unknown): void {
+  if (!isRecord(node)) return
+  const encoding = isRecord(node.encoding) ? node.encoding : null
+  for (const channel of ['color', 'shape', 'size', 'opacity', 'strokeDash']) {
+    const def = encoding && isRecord(encoding[channel]) ? encoding[channel] as Record<string, unknown> : null
+    if (!def || def.legend === null) continue
+    const legend = isRecord(def.legend) ? def.legend : {}
+    if (legend.orient === undefined) def.legend = { ...legend, orient: 'bottom', direction: 'horizontal', columns: 2 }
+  }
+  if (Array.isArray(node.layer)) for (const layer of node.layer) legendsBelow(layer)
+}
+
+function isFacetedSpec(spec: Record<string, unknown>): boolean {
+  if ('facet' in spec || 'repeat' in spec || 'concat' in spec || 'hconcat' in spec || 'vconcat' in spec) return true
+  const encoding = isRecord(spec.encoding) ? spec.encoding : {}
+  return 'row' in encoding || 'column' in encoding || 'facet' in encoding
+}
+
+/**
+ * Vega ends a label cut by `labelLimit` with "…" and keeps no trace of the
+ * rest. Give each such SVG label a <title> with the full value it came from
+ * (the one data value that starts with the visible prefix), so hover and
+ * assistive tech still read the whole label.
+ */
+export function titleTruncatedLabels(container: HTMLElement, spec: Record<string, unknown>): number {
+  const data = isRecord(spec.data) && Array.isArray(spec.data.values) ? spec.data.values : []
+  const candidates = new Set<string>()
+  for (const row of data) {
+    if (!isRecord(row)) continue
+    for (const value of Object.values(row)) if (typeof value === 'string') candidates.add(value)
+  }
+  let titled = 0
+  for (const text of container.querySelectorAll('svg text')) {
+    const shown = text.textContent ?? ''
+    if (!shown.endsWith('…')) continue
+    const prefix = shown.slice(0, -1)
+    const matches = [...candidates].filter(value => value.startsWith(prefix) && value !== shown)
+    if (matches.length !== 1) continue
+    const title = container.ownerDocument.createElementNS('http://www.w3.org/2000/svg', 'title')
+    title.textContent = matches[0]
+    text.appendChild(title)
+    titled += 1
+  }
+  return titled
+}
+
+const ENCODING_ORDER_CHANNELS = new Set(['x', 'y', 'color', 'row', 'column', 'facet', 'xOffset', 'yOffset', 'shape', 'detail'])
+
+/**
+ * Value faces on a Vega-Lite spec (plans/2026-09-25-document-primitives.md §3
+ * "Ordering"). For every result column whose terms resolve to one ordered kind:
+ *   - the injected data rows carry the value's LABEL (axes, legends and
+ *     tooltips read "held-out confirmed", not an IRI);
+ *   - each encoding channel on that field gets `scale.domain` = the kind's
+ *     full display order (so every member appears, the empty ones at zero),
+ *     unless the author pinned a `sort` array — that is kept, and a hint says so;
+ *   - a `color` channel on that field gets the matching tone range.
+ * Walks the top-level encoding and every `layer[]` encoding. Returns the
+ * label map per field (applied to the data by the caller) and the hints.
+ */
+export function applyValueFacesToVegaSpec(
+  spec: Record<string, unknown>,
+  result: QueryBlockResult,
+  dictionary: ValueDictionary,
+  mode: VegaThemeMode,
+): { readonly labels: ReadonlyMap<string, ReadonlyMap<string, string>>; readonly hints: readonly string[] } {
+  const labels = new Map<string, Map<string, string>>()
+  const hints: string[] = []
+  if (result.resultKind !== 'bindings') return { labels, hints }
+  const fields = new Map<string, { domain: string[]; range: string[] }>()
+  for (const column of result.columns) {
+    const kind = orderedKindOfTerms(result.rows.map(row => row[column]), dictionary)
+    if (!kind) continue
+    const members = dictionary.orders.get(kind) ?? []
+    const byIri = new Map<string, string>()
+    const domain: string[] = []
+    const range: string[] = []
+    for (const iri of members) {
+      const view = resolveValueFace({ type: 'uri', value: iri }, dictionary)
+      byIri.set(iri, view.text)
+      domain.push(view.text)
+      range.push(view.tone ? valueToneColor(view.tone, mode) : valueToneColor({ kind: 'named', name: 'muted' }, mode))
+    }
+    labels.set(column, byIri)
+    fields.set(column, { domain, range })
+  }
+  if (fields.size === 0) return { labels, hints }
+  const visit = (node: unknown): void => {
+    if (!isRecord(node)) return
+    const encoding = isRecord(node.encoding) ? node.encoding : null
+    if (encoding) {
+      for (const [channel, def] of Object.entries(encoding)) {
+        if (!ENCODING_ORDER_CHANNELS.has(channel) || !isRecord(def) || typeof def.field !== 'string') continue
+        const face = fields.get(def.field)
+        if (!face) continue
+        const scale = isRecord(def.scale) ? def.scale : {}
+        if (Array.isArray(def.sort)) {
+          hints.push(`${channel}: an authored sort is pinned over the ${def.field} order`)
+        } else if (!('domain' in scale)) {
+          def.scale = { ...scale, domain: [...face.domain] }
+          if (def.sort === undefined) def.sort = null
+        }
+        if (channel === 'color') {
+          def.scale = { ...(isRecord(def.scale) ? def.scale : {}), domain: [...face.domain], range: [...face.range] }
+        }
+      }
+    }
+    if (Array.isArray(node.layer)) node.layer.forEach(visit)
+    if (isRecord(node.spec)) visit(node.spec)
+  }
+  visit(spec)
+  return { labels, hints }
 }
 
 // Re-exported for back-compat with existing imports of this module's own
@@ -277,12 +421,30 @@ export async function mountQueryBlockVega(
     }
   }
 
+  const mode = resolveVegaThemeMode(options.container)
+  const valueFaces = options.valueDictionary
+    ? applyValueFacesToVegaSpec(spec, options.result, options.valueDictionary, mode)
+    : null
+  if (valueFaces) options.onValueFaceHints?.(valueFaces.hints)
+
   const data = isRecord(spec.data) ? spec.data : null
   if (!data || !Object.prototype.hasOwnProperty.call(data, 'values')) {
-    spec.data = { values: transformBindingsToVegaValues(options.result) }
+    const values = transformBindingsToVegaValues(options.result)
+    for (const [field, byIri] of valueFaces?.labels ?? []) {
+      for (const row of values) {
+        const label = typeof row[field] === 'string' ? byIri.get(row[field] as string) : undefined
+        if (label !== undefined) row[field] = label
+      }
+    }
+    spec.data = { values }
   }
+  // Fill the block: with autosize `fit` + `contains: padding` the width
+  // already includes the padding, so the whole measured width is used (the
+  // earlier `- 40` left an empty strip on the right). Faceted specs size one
+  // cell, so they keep a width share. The block re-mounts on resize.
+  const containerWidth = measuredContainerWidth(options.container)
   if (spec.width === undefined) {
-    spec.width = Math.max(200, measuredContainerWidth(options.container) - 40)
+    spec.width = Math.max(160, isFacetedSpec(spec) ? containerWidth - 96 : containerWidth)
   }
   if (spec.autosize === undefined) spec.autosize = { type: 'fit', contains: 'padding' }
   if (spec.padding === undefined) spec.padding = 12
@@ -297,7 +459,6 @@ export async function mountQueryBlockVega(
   // keys it sets. The authored layer merges LAW-SANITIZED: the same color
   // laws `validateVegaThemeOverride` enforces on the ux:vegaTheme layer,
   // with strip semantics (`sanitizeAuthoredVegaConfig`).
-  const mode = resolveVegaThemeMode(options.container)
   const houseTheme = buildVegaTheme(mode, options.container)
   const graphTheme = options.themeOverride ?? null
   const effectiveTheme = graphTheme ? mergeVegaTheme(houseTheme, graphTheme) : houseTheme
@@ -310,6 +471,10 @@ export async function mountQueryBlockVega(
   ensureVegaTooltipStyles(options.container.ownerDocument ?? document)
   const embed = await (options.loadEmbed ?? loadProductionEmbed)()
   options.container.replaceChildren()
+  // Narrow blocks: long category labels truncate (with their full text as a
+  // tooltip, below) instead of taking half the width.
+  if (containerWidth < 720) limitCategoryLabels(spec, Math.max(90, Math.round(containerWidth * 0.36)))
+  if (containerWidth < 560) legendsBelow(spec)
   const mounted = await embed(options.container, spec, {
     actions: false,
     renderer: 'svg',
@@ -319,6 +484,7 @@ export async function mountQueryBlockVega(
   // during mount) — the chart renders lawfully AND the author is told exactly
   // which surfaces were ignored, instead of silently repainting their spec.
   if (lawViolations.length > 0) renderChartLawWarning(options.container, lawViolations)
+  titleTruncatedLabels(options.container, spec)
   let finalized = false
   return () => {
     if (finalized) return

@@ -16,7 +16,7 @@ import {
   type ExportedDocument,
 } from '../document-transfer.js'
 
-function contract(base = '/cell'): Pick<ShrubberyContract, 'auth' | 'runtime'> {
+function contract(base = '/cell', mode: 'local' | 'hosted' = 'local'): Pick<ShrubberyContract, 'auth' | 'runtime'> {
   return {
     auth: {
       token: () => 'secret-token',
@@ -26,8 +26,8 @@ function contract(base = '/cell'): Pick<ShrubberyContract, 'auth' | 'runtime'> {
       onChange: () => () => {},
     },
     runtime: {
-      mode: () => 'local',
-      isGateway: () => false,
+      mode: () => mode,
+      isGateway: () => mode === 'hosted',
       graphBaseUrl: () => base,
     },
   }
@@ -394,9 +394,10 @@ describe('GardendDocumentTransferService', () => {
     )
   })
 
-  it('exports raw markdown/html with server filenames and strict graph/document escaping', async () => {
+  it.each(['local', 'hosted'] as const)('exports %s raw markdown/html with mode-correct auth, server filenames and strict escaping', async mode => {
     const fetch = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       expect((init?.headers as Headers).get('Authorization')).toBe('Bearer secret-token')
+      expect((init?.headers as Headers).get('X-User-ID')).toBe(mode === 'local' ? 'user-a' : null)
       return new Response('# Export', {
         headers: {
           'content-type': 'text/markdown; charset=utf-8',
@@ -404,7 +405,7 @@ describe('GardendDocumentTransferService', () => {
         },
       })
     }) as unknown as typeof globalThis.fetch
-    const service = new GardendDocumentTransferService(contract('/cell/'), { fetch })
+    const service = new GardendDocumentTransferService(contract('/cell/', mode), { fetch })
 
     const result = await service.exportDocument('graph/one', 'doc two', { format: 'markdown', title: 'fallback' })
 

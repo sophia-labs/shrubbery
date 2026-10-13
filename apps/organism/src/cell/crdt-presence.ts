@@ -8,6 +8,7 @@
  * old incarnation of the same logical tab; two tabs owned by one human remain
  * legitimate peers.
  */
+import { randomUUID } from '@shrubbery/nucleus/web-crypto'
 
 export interface AwarenessWriter {
   setLocalStateField(field: string, value: unknown): void
@@ -132,8 +133,7 @@ function hash(value: string): number {
 }
 
 function randomId(): string {
-  if (typeof globalThis.crypto?.randomUUID === 'function') return globalThis.crypto.randomUUID()
-  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
+  return randomUUID()
 }
 
 function browserStorage(kind: 'localStorage' | 'sessionStorage'): PresenceStorage | null {

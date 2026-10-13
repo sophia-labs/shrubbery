@@ -84,7 +84,34 @@ export type {
   MessageActionKind,
   MessageActionResult,
   SurfaceActionIntent,
+  ChatChangeIntent,
+  ChatArtifactPreviewRequest,
 } from './chat-panel'
+
+// What a turn changed, read off its own tool calls (pure): the "Changed in this turn" strip's data.
+export { baseToolName, isWriteTool, turnChangesOf } from './turn-changes'
+export type { ChangeRemoval, ChangeSubject, ChangeVerb, TurnChange, TurnChanges } from './turn-changes'
+
+// The Voice picker's pure helpers: provider grouping, search, price / context /
+// tools labels, and the voice-mark wording. No lit, no store, no fetch.
+export {
+  TOP_PROVIDERS,
+  filterVoices,
+  formatContextLength,
+  formatPricePerMillion,
+  formatVoiceMultiple,
+  groupVoices,
+  modelIdTail,
+  unrecordedVoiceMark,
+  voiceDisplayName,
+  voiceMarkFor,
+  voiceMarkFromId,
+  voiceMarkText,
+  voicePriceSummary,
+  voiceProviderLabel,
+  voiceToolsBadge,
+} from './voice-roster'
+export type { VoiceGroup, VoicePriceSummary } from './voice-roster'
 
 // Additive rich composer vocabulary. Re-exporting it keeps runtime/app hosts on
 // the chat seam instead of coupling them directly to Hoja's package boundary.
@@ -108,5 +135,12 @@ export type {
   TokenUsage,
   ChatMessage,
   ChatModelOption,
+  ChatVoiceBasis,
+  ChatVoiceMark,
+  ChatSeam,
+  ChatSeamAction,
+  ChatAccessNote,
+  ChatAccountNote,
+  ChatComposerNotice,
   SessionSummary,
 } from './types'

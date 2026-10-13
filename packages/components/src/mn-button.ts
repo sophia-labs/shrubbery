@@ -11,6 +11,7 @@ import { customElement, property } from 'lit/decorators.js'
 import { classMap } from 'lit/directives/class-map.js'
 import { ifDefined } from 'lit/directives/if-defined.js'
 import { SkinAware } from './skin-aware.js'
+import { BEVELLED } from './bevelled-skins.js'
 import { icon as renderIcon, iconStyles, type IconName } from './icons.js'
 
 export type MnButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'toolbar'
@@ -200,31 +201,31 @@ export class MnButton extends SkinAware(LitElement) {
       opacity: 0.68;
     }
 
-    :host([data-skin='98']) button {
+    :host(${BEVELLED}) button {
       border: 0;
       border-radius: 0;
       background: var(--mn-98-face, #c0c0c0);
       color: var(--mn-color-text-primary, #000);
       box-shadow: var(--mn-98-raised);
     }
-    :host([data-skin='98']) button:hover:not(:disabled) {
+    :host(${BEVELLED}) button:hover:not(:disabled) {
       border-color: transparent;
       background: var(--mn-98-face, #c0c0c0);
       color: var(--mn-color-text-primary, #000);
       box-shadow: var(--mn-98-raised);
     }
-    :host([data-skin='98']) button:active:not(:disabled),
-    :host([data-skin='98']) button.pressed {
+    :host(${BEVELLED}) button:active:not(:disabled),
+    :host(${BEVELLED}) button.pressed {
       background: var(--mn-98-face, #c0c0c0);
       color: var(--mn-color-text-primary, #000);
       box-shadow: var(--mn-98-sunken);
       transform: translate(1px, 1px);
     }
-    :host([data-skin='98']) button:focus-visible {
+    :host(${BEVELLED}) button:focus-visible {
       outline: 1px dotted currentColor;
       outline-offset: -4px;
     }
-    :host([data-skin='98']) .variant-danger {
+    :host(${BEVELLED}) .variant-danger {
       color: var(--mn-color-danger-strong, #800000);
     }
     :host([data-skin='glass']) button {

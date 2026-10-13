@@ -13,6 +13,7 @@ import type {
   ZoteroSourceItem,
 } from '@shrubbery/runtime'
 import type { ShrubberyContract } from '@shrubbery/nucleus'
+import { cellAuthHeaders } from './cell-auth-headers.js'
 
 type ZoteroCellContract = Pick<ShrubberyContract, 'auth' | 'runtime'>
 
@@ -31,10 +32,7 @@ function trimTrailingSlash(value: string): string {
 }
 
 function headers(contract: ZoteroCellContract): Record<string, string> {
-  const h: Record<string, string> = { 'X-User-ID': contract.auth.userId() }
-  const token = contract.auth.token()
-  if (token) h.Authorization = `Bearer ${token}`
-  return h
+  return cellAuthHeaders(contract)
 }
 
 async function fetchJson<T>(

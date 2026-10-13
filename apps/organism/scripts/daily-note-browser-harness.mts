@@ -133,7 +133,7 @@ async function selectLiveHome(page: Page): Promise<void> {
   await page.waitForFunction(() => {
     const source = document.querySelector<HTMLSelectElement>('#source-select')
     const status = document.querySelector<HTMLElement>('#status')
-    return source?.value === 'SEED_NT' && status?.textContent?.includes('parsed 275 triples') === true
+    return source?.value === 'SEED_NT' && status?.textContent?.includes('parsed 282 triples') === true
   }, undefined, { timeout: 60_000 })
   await page.locator('#cell-graph-id').fill(graphId)
   await page.locator('#source-select').selectOption('CELL_LIVE')
@@ -151,7 +151,7 @@ async function selectLiveHome(page: Page): Promise<void> {
 
 async function ensureDailyNoteHome(page: Page): Promise<void> {
   if (await page.locator('sh-workspace-surface mn-home-view').count() === 0) {
-    await page.locator('mn-top-bar .masthead').click()
+    await page.locator('mn-top-bar [data-app-action="home"]').click()
   }
   await page.locator('sh-workspace-surface mn-home-view mn-daily-note-row').waitFor({ state: 'attached' })
 }

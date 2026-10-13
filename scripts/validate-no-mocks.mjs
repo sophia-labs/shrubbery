@@ -42,7 +42,6 @@ const ALLOWLIST = [
   'apps/organism/src/cell/__tests__/access-grant-controller.test.ts',
   'apps/organism/src/cell/__tests__/app-routes.test.ts',
   'apps/organism/src/cell/__tests__/choreograph-studio-service.test.ts',
-  'apps/organism/src/cell/__tests__/choreograph-workspace-feature.test.ts',
   'apps/organism/src/cell/__tests__/chrome-controller.test.ts',
   'apps/organism/src/cell/__tests__/cognito-auth-session.test.ts',
   'apps/organism/src/cell/__tests__/document-activation.test.ts',

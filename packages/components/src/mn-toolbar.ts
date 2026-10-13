@@ -10,6 +10,7 @@
 import { LitElement, css, html, nothing, unsafeCSS } from 'lit'
 import { customElement, property, query, state } from 'lit/decorators.js'
 import { SkinAware } from './skin-aware.js'
+import { BEVELLED } from './bevelled-skins.js'
 import { icon, iconStyles } from './icons.js'
 import { PopoverController } from './popover.js'
 
@@ -45,7 +46,7 @@ export class MnToolbar extends SkinAware(LitElement) {
       gap: var(--mn-toolbar-gap, 2px);
     }
 
-    :host([data-skin='98']) {
+    :host(${BEVELLED}) {
       gap: var(--mn-toolbar-gap, 3px);
     }
   `
@@ -241,15 +242,15 @@ export class MnToolbarOverflow extends SkinAware(LitElement) {
       background: var(--mn-color-surface-hover, #f3f4f6);
     }
 
-    :host([data-skin='98']) .overflow-button {
+    :host(${BEVELLED}) .overflow-button {
       border: 0;
       border-radius: 0;
       background: var(--mn-98-face, #c0c0c0);
       color: var(--mn-color-text-primary, #000);
       box-shadow: var(--mn-98-raised);
     }
-    :host([data-skin='98']) .overflow-button:active,
-    :host([data-skin='98']) .overflow-button[aria-expanded='true'] {
+    :host(${BEVELLED}) .overflow-button:active,
+    :host(${BEVELLED}) .overflow-button[aria-expanded='true'] {
       background: var(--mn-98-face, #c0c0c0);
       color: var(--mn-color-text-primary, #000);
       box-shadow: var(--mn-98-sunken);
@@ -260,13 +261,13 @@ export class MnToolbarOverflow extends SkinAware(LitElement) {
       background: var(--mn-98-face, #c0c0c0);
       box-shadow: var(--mn-shadow-popover);
     }
-    :host([data-skin='98']) .menu-item {
+    :host(${BEVELLED}) .menu-item {
       border-radius: 0;
     }
-    :host([data-skin='98']) .menu-item:hover,
-    :host([data-skin='98']) .menu-item:focus-visible {
+    :host(${BEVELLED}) .menu-item:hover,
+    :host(${BEVELLED}) .menu-item:focus-visible {
       background: var(--mn-98-selection, #000080);
-      color: #fff;
+      color: var(--mn-98-selection-text, #fff);
     }
     :host([data-skin='glass']) .overflow-button {
       border: var(--mn-control-border);

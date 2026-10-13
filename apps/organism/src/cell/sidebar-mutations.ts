@@ -6,6 +6,7 @@
  * MCP tool names and camelCase arguments. No UI component imports MCP or cell
  * transport code.
  */
+import { randomUUID } from '@shrubbery/nucleus/web-crypto'
 
 export interface SidebarMutationMcp {
   toolsCall(name: string, args: Record<string, unknown>): Promise<unknown>
@@ -158,9 +159,7 @@ export function sidebarEntitySlug(label: string): string {
 }
 
 function uniqueSuffix(): string {
-  const uuid = globalThis.crypto?.randomUUID?.()
-  if (uuid) return uuid.replace(/-/g, '').slice(0, 12)
-  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
+  return randomUUID().replace(/-/g, '').slice(0, 12)
 }
 
 export const defaultSidebarIdFactory: SidebarIdFactory = (entity, label) => {
