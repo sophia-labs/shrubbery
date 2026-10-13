@@ -13,6 +13,11 @@ concurrency:
 permissions:
   contents: read
 
+# The organism build needs more than node's default heap with every app in the
+# tree; the SPA ship lane runs with the same limit.
+env:
+  NODE_OPTIONS: --max-old-space-size=8192
+
 jobs:
   # The gate: exactly what is held before the SPA ships (frozen install,
   # typecheck of the six shipped packages, the production builds), plus lint
