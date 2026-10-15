@@ -766,6 +766,9 @@ interface ShadowCaretDocument {
   caretRangeFromPoint?: (x: number, y: number) => Range | null
 }
 
+/** Blocks whose content is a run of text, for "click right of the last line". */
+const TEXT_BLOCK_SELECTOR = 'p, h1, h2, h3, h4, h5, h6'
+
 const EDITOR_CARET_BLOCKED_SELECTOR = [
   'button',
   'input',
@@ -5756,6 +5759,11 @@ export class ShEditorHost extends LitElement {
       node => node instanceof Element && node.matches(EDITOR_CARET_BLOCKED_SELECTOR),
     )) return
 
+    if (this._caretToBlockEndForClick(event, editorRoot)) {
+      editor.commands.focus()
+      return
+    }
+
     const caret = this._shadowCaretFromPoint(event.clientX, event.clientY, shadowRoot, editorRoot)
     if (!caret || !editorRoot.contains(caret.offsetNode)) return
 
@@ -5767,6 +5775,42 @@ export class ShEditorHost extends LitElement {
       // A transient node-view rerender can detach the caret node between lookup
       // and mapping. ProseMirror's original click result remains the safe fallback.
     }
+  }
+
+  /**
+   * A click in the empty space to the right of a text block's last line puts
+   * the caret at the block's end (2026-10-14). The caret lookup
+   * below cannot be trusted for it: on a wrapped block in WebKit, a point in
+   * the line gap or the block's bottom padding resolves to another line, or to
+   * nothing. "Right of the last line" means: right of where the block's text
+   * ends, at or below that line's top, and inside the block.
+   *
+   * Returns true when it placed the caret.
+   */
+  private _caretToBlockEndForClick(event: MouseEvent, editorRoot: HTMLElement): boolean {
+    const editor = this._editor
+    const view = editor?.view
+    if (!editor || !view?.coordsAtPos) return false
+    const target = event.composedPath()[0]
+    if (!(target instanceof Element) || !editorRoot.contains(target)) return false
+    // The click lands on the text block itself, or on a list item's padding
+    // around its paragraph.
+    const block = target.closest(TEXT_BLOCK_SELECTOR)
+      ?? (target.matches('li') ? target.querySelector(':scope > p') : null)
+    if (!(block instanceof HTMLElement) || !editorRoot.contains(block)) return false
+    const rect = block.getBoundingClientRect()
+    const { clientX: x, clientY: y } = event
+    const container = target.matches('li') ? target.getBoundingClientRect() : rect
+    if (x < rect.left || x > container.right || y < container.top || y > container.bottom) return false
+    let end: number
+    try {
+      end = view.posAtDOM(block, block.childNodes.length)
+    } catch {
+      return false
+    }
+    const lastLine = view.coordsAtPos(end)
+    if (y < lastLine.top - 1 || x <= lastLine.right) return false
+    return editor.commands.setTextSelection(end)
   }
 
   private _shadowCaretFromPoint(
