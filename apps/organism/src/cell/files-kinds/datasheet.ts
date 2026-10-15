@@ -3,9 +3,10 @@
  * datasheet's card, list columns and status say. Files knows none of this; it reads `files-kinds/registry.ts`.
  *
  * Reads of the importer:
- *   edition  de:DocumentEdition with de:artifact · de:title · de:partNumber · de:maker · de:revision · de:productType · de:rowCount ·
- *            de:toCheckCount · de:scan · de:textOnly · de:readState (queued | reading | read | failed) · de:readPage · de:readPages ·
- *            de:readError; a de:docType other than "datasheet" belongs to another kind
+ *   edition  de:DocumentEdition with de:artifact · de:title · de:partNumber · de:maker · de:makerBy · de:revision · de:productType ·
+ *            de:documentType · de:fileName · de:rowCount · de:scan · de:textOnly · de:readState (queued | reading | read | failed) ·
+ *            de:readPage · de:readPages · de:readError; a de:docType other than "datasheet" belongs to another kind. The importer's
+ *            de:toCheckCount is not read: what a person sees marked is what the readers disagreed on, nothing else.
  *   param    a de:Assertion of kind derivation in the same named graph: de:predicate · de:paramOrder · eng:lowerLimit · eng:upperLimit ·
  *            eng:typical · eng:nominal · eng:unit / eng:unitLexical · de:valueText · de:confidence (dsp:high | medium | low | contested)
  *            · de:diagnostic (Tom's flags, verbatim)
@@ -13,8 +14,10 @@
  */
 import type { Corroboration, FileEvidenceValue, FileInfoSection } from '@shrubbery/nucleus'
 import { localName } from '@shrubbery/nucleus'
-import type { FileKind, KindItem, KindRecord } from './registry.js'
+import type { CompanionRule, FileKind, KindItem, KindRecord } from './registry.js'
 import { datasheetMargin } from './datasheet-reader.js'
+import { DATASHEET_SECTIONS, datasheetPageContent, editionsQuery, registersQuery } from './datasheet-page.js'
+import { fileNameWitness, parameterLabel, partIdentity, valueWords } from './datasheet-words.js'
 
 /** One parameter as the records state it. */
 export interface RawParam {
@@ -58,26 +61,19 @@ export function productKind(productType: string): string {
   return ''
 }
 
-function num(n: number): string {
-  return String(Math.abs(n) >= 100 ? Math.round(n) : Math.round(n * 1000) / 1000)
-}
-
-/** '1.8–6.5 V', '≤ 6.5 V', '≥ 1.8 V', '60 nA', or the printed text. */
+/** '1.8–6.5 V', '≤ 6.5 V', '≥ 1.8 V', '60 nA', '0.00008 %', or the printed text. Numbers keep their own digits (never rounded to zero). */
 export function formatParam(p: RawParam): string {
-  const unit = p.unit ? ` ${p.unit}` : ''
-  if (p.lower !== null && p.upper !== null) return p.lower === p.upper ? `${num(p.lower)}${unit}` : `${num(p.lower)}–${num(p.upper)}${unit}`
-  if (p.nominal !== null) return `${num(p.nominal)}${unit}`
-  if (p.typical !== null) return `${num(p.typical)}${unit}`
-  if (p.upper !== null) return `≤ ${num(p.upper)}${unit}`
-  if (p.lower !== null) return `≥ ${num(p.lower)}${unit}`
-  return p.text
+  if (p.lower !== null && p.upper !== null) return valueWords({ lower: p.lower, upper: p.upper, typical: null }, p.unit)
+  if (p.nominal !== null) return valueWords({ lower: null, upper: null, typical: null, nominal: p.nominal }, p.unit)
+  if (p.typical !== null) return valueWords({ lower: null, upper: null, typical: null, nominal: p.typical }, p.unit)
+  return valueWords({ lower: p.lower, upper: p.upper, typical: null }, p.unit) || p.text
 }
 
 /** 'inputVoltage' → 'Input voltage'; a short symbol-like name stays as written ('VIN'). */
 export function humanLabel(name: string): string {
   if (/^[A-Z0-9()]{2,6}$/.test(name)) return name
-  const spaced = name.replace(/([a-z0-9])([A-Z])/g, '$1 $2').toLowerCase()
-  return spaced.charAt(0).toUpperCase() + spaced.slice(1)
+  const label = parameterLabel(name)
+  return label.charAt(0).toUpperCase() + label.slice(1)
 }
 
 /**
@@ -100,9 +96,9 @@ export function chooseKeyValues(productType: string, params: readonly RawParam[]
   return out.slice(0, 3)
 }
 
-/** Whether a value asks for a look: contested or low, or flagged by the reader. A checked value never does. */
-export function valueNeedsLook(p: Pick<RawParam, 'corroboration' | 'flagged'>): boolean {
-  return p.corroboration !== 'checked' && (p.corroboration === 'contested' || p.corroboration === 'low' || p.flagged)
+/** Whether a value is disputed: the readers disagreed about it (said by the records or by the reader's own flag). A checked value is not. */
+export function valueDisputed(p: Pick<RawParam, 'corroboration' | 'flagged'>): boolean {
+  return p.corroboration !== 'checked' && (p.corroboration === 'contested' || p.flagged)
 }
 
 const number = (v: string | null): number | null => {
@@ -111,7 +107,7 @@ const number = (v: string | null): number | null => {
   return Number.isFinite(n) ? n : null
 }
 const count = (v: string | null): number => { const n = number(v); return n !== null && n >= 0 ? Math.floor(n) : 0 }
-const flagsLook = (diag: readonly string[]) => diag.some(d => /disagree|contested|repair|lost|mismatch|conflict/i.test(d))
+const flagsLook = (diag: readonly string[]) => diag.some(d => /disagree|contested|conflict/i.test(d))
 
 function paramOf(item: KindItem): RawParam {
   const conf = item.local('conf').toLowerCase()
@@ -128,18 +124,54 @@ function paramOf(item: KindItem): RawParam {
 }
 
 const paramsOf = (r: KindRecord) => r.items.map(paramOf)
-/** Values to check: the importer's count when it states one, otherwise what the key values themselves ask for. */
-const toCheck = (r: KindRecord) => count(r.f.toCheck ?? null) || paramsOf(r).filter(valueNeedsLook).length
+/** Values the readers disagreed on. The importer's own "to check" count is not a count a person needs: it is the reader's audit trail. */
+const disputed = (r: KindRecord) => paramsOf(r).filter(valueDisputed).length
 const rows = (r: KindRecord) => count(r.f.rowCount ?? null)
+/** Every value read: the key values and the table rows. */
+const values = (r: KindRecord) => rows(r) + r.items.length
 const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? '' : 's'}`
 
-/** 'Read with datasheet-parser ee680a6 · Docling 2.135.0', from the import attempt's tool profile (edition → import record → attempt → tool); null when the records do not say. */
+/** The part and maker as the card says them: the records, reconciled with the file name and the title (`partIdentity`). */
+function identityOf(r: KindRecord) {
+  return partIdentity({ partNumber: r.f.part ?? null, families: r.lists?.family ?? [], title: r.f.title ?? null, fileName: r.f.fileName ?? r.f.alias ?? '', maker: r.f.maker ?? null,
+    makerBy: r.f.makerBy ?? null })
+}
+
+/** The words of a document that is not a datasheet ('Errata', 'Reference manual'); null for a datasheet. */
+function otherDocument(r: KindRecord): string | null {
+  const type = (r.f.documentType ?? '').toLowerCase()
+  if (type && type !== 'datasheet') return type.replace(/[_-]+/g, ' ').replace(/^./, c => c.toUpperCase())
+  const product = (r.f.productType ?? '').toLowerCase()
+  const doc: Record<string, string> = { errata: 'Errata', 'reference-manual': 'Reference manual', 'app-note': 'Application note', 'user-guide': 'User guide' }
+  return doc[product] ?? null
+}
+
+/** 'Read · 214 values', with '· 2 disputed' only when the readers disagreed somewhere. */
+function doneBadge(r: KindRecord): string {
+  if (r.f.textOnly === 'true') return otherDocument(r) ?? 'Text only'
+  if (r.f.scan === 'true') return 'Scan: OCR'
+  const d = disputed(r)
+  // The card's annunciator is narrow: a dispute says itself first, in place of "Read" (what does not fit is the count).
+  return d ? `${d} disputed · ${plural(values(r), 'value')}` : `Read · ${plural(values(r), 'value')}`
+}
+
+/** What a datasheet's reader writes beside its PDF (Tom's sidecars, the read job's outputs): hidden from the place, reached from the page. */
+export const DATASHEET_COMPANIONS: readonly CompanionRule[] = Object.freeze([
+  { role: 'text', label: 'Text the reader read', entry: 'artifact', idSuffix: '-text', nameSuffix: '.text.txt' },
+  { role: 'data', label: 'What the reader wrote (data)', entry: 'artifact', idSuffix: '-data', nameSuffix: '.data.json' },
+  { role: 'regions', label: 'Where the reader found each row', entry: 'artifact', idSuffix: '-regions', nameSuffix: '.regions.json' },
+  { role: 'audit', label: 'The reader’s table audit', entry: 'artifact', idSuffix: '-audit', nameSuffix: '.audit.tsv' },
+])
+
+/** 'Read with datasheet-parser (NomDeTom) ee680a6 · Docling 2.135.0', from the import attempt's tool profile (edition → import record → attempt → tool); null when the records do not say. */
 export function readerLine(r: KindRecord): string | null {
   const tool = r.f.readerTool?.trim()
   if (!tool) return null
+  const credit = r.f.readerCredit?.trim()
+  const named = credit && !tool.includes(credit) ? `${tool} (${credit})` : tool
   const commit = r.f.readerCommit?.trim().slice(0, 7)
   const docling = r.f.doclingVersion?.trim()
-  return [`Read with ${tool}${commit ? ` ${commit}` : ''}`, ...(docling ? [`Docling ${docling}`] : [])].join(' · ')
+  return [`Read with ${named}${commit ? ` ${commit}` : ''}`, ...(docling ? [`Docling ${docling}`] : [])].join(' · ')
 }
 
 /** The datasheet's block of the Show info panel. */
@@ -148,13 +180,15 @@ export function datasheetInfo(r: KindRecord): readonly FileInfoSection[] {
   const reader = readerLine(r)
   const params = paramsOf(r).filter(p => formatParam(p) !== '').sort((a, b) => a.order - b.order)
   const registers = count(r.f.registerCount ?? null)
+  const id = identityOf(r)
+  const d = disputed(r)
   return [{ title: 'Datasheet', rows: [
-    ...fact('Part', r.f.part), ...fact('Maker', r.f.maker), ...fact('Revision', r.f.rev), ...fact('Product type', r.f.productType),
+    ...fact('Part', id.part), ...fact('Maker', id.maker), ...fact('Revision', r.f.rev),
     ...(reader ? [{ label: 'Reader', text: reader }] : []),
-    { label: 'Rows', text: String(rows(r)) }, ...(registers ? [{ label: 'Registers', text: String(registers) }] : []),
-    { label: 'To check', text: String(toCheck(r)) },
-    ...params.slice(0, 12).map(p => ({ label: humanLabel(p.name), text: formatParam(p), mark: p.corroboration })),
-    { label: '', text: 'Open in reader', action: 'open' },
+    { label: 'Values', text: String(values(r)) }, ...(registers ? [{ label: 'Registers', text: String(registers) }] : []),
+    ...(d ? [{ label: 'Disputed', text: String(d) }] : []),
+    ...params.slice(0, 12).map(p => ({ label: humanLabel(p.name), text: formatParam(p), ...(valueDisputed(p) || p.corroboration === 'checked' ? { mark: p.corroboration } : {}) })),
+    { label: '', text: 'Open', action: 'open' },
   ] }]
 }
 
@@ -163,10 +197,13 @@ export const datasheetKind: FileKind = {
   captions: ['PDF'],
   recognize: '{ed} a de:DocumentEdition . FILTER NOT EXISTS { {ed} de:docType {dt} . FILTER({dt} != "datasheet") }',
   fields: {
-    title: 'de:title', part: 'de:partNumber', maker: 'de:maker', rev: 'de:revision', productType: 'de:productType', rowCount: 'de:rowCount', registerCount: 'de:registerCount',
-    toCheck: 'de:toCheckCount', readerTool: 'de:importRecord/de:attempt/de:tool/de:toolName', readerCommit: 'de:importRecord/de:attempt/de:tool/de:toolCommit',
+    title: 'de:title', part: 'de:partNumber', maker: 'de:maker', makerBy: 'de:makerBy', rev: 'de:revision', productType: 'de:productType', documentType: 'de:documentType',
+    fileName: 'de:fileName', alias: 'de:alias', rowCount: 'de:rowCount', registerCount: 'de:registerCount',
+    readerTool: 'de:importRecord/de:attempt/de:tool/de:toolName', readerCommit: 'de:importRecord/de:attempt/de:tool/de:toolCommit',
+    readerCredit: 'de:importRecord/de:attempt/de:tool/de:credit',
     doclingVersion: 'de:importRecord/de:attempt/de:tool/de:doclingVersion', scan: 'de:scan', textOnly: 'de:textOnly', state: 'de:readState', page: 'de:readPage', pages: 'de:readPages', error: 'de:readError',
   },
+  lists: { family: '{ed} de:namesFamily {f} . {f} eng:identifier {value}' },
   items: {
     pattern: '{it} a de:Assertion ; de:assertionKind de:derivation ; de:predicate {pred}',
     key: 'pred',
@@ -178,15 +215,18 @@ export const datasheetKind: FileKind = {
     after: 'OPTIONAL { GRAPH ?g2 { ?asm a de:Assessment ; de:assesses {it} ; de:facet "sourceFidelity" ; de:result de:accept . BIND(true AS {checked}) } FILTER(BOUND({it})) }',
   },
   card: {
-    title: r => r.f.part ?? r.f.title ?? '',
-    subtitle: r => [{ text: r.f.maker ?? '' }, ...(r.f.rev ? [{ text: `· Rev ${r.f.rev}`, fixed: true }] : [])],
+    title: r => identityOf(r).part ?? r.f.title ?? '',
+    subtitle: r => {
+      const edition = r.f.rev ? `Rev ${r.f.rev}` : fileNameWitness(r.f.fileName ?? r.f.alias ?? '').edition
+      return [{ text: identityOf(r).maker ?? '' }, ...(edition ? [{ text: `· ${edition}`, fixed: true }] : [])]
+    },
     values: r => chooseKeyValues(r.f.productType ?? '', paramsOf(r)),
-    doneBadge: r => r.f.textOnly === 'true' ? 'Text only' : toCheck(r) > 0 ? `${toCheck(r)} to check` : r.f.scan === 'true' ? 'Scan: OCR' : `Read · ${rows(r)} rows`,
-    badgeTone: r => r.f.textOnly === 'true' || toCheck(r) > 0 ? 'attention' : undefined,
+    doneBadge,
+    badgeTone: r => disputed(r) > 0 ? 'attention' : undefined,
   },
   columns: [
-    { header: 'Part', width: '7rem', cell: r => ({ text: r.f.part ?? r.f.title ?? '', strong: true }) },
-    { header: 'Maker', width: '9rem', cell: r => ({ text: r.f.maker ?? '' }) },
+    { header: 'Part', width: '7rem', cell: r => ({ text: identityOf(r).part ?? r.f.title ?? '', strong: true }) },
+    { header: 'Maker', width: '9rem', cell: r => ({ text: identityOf(r).maker ?? '' }) },
     { header: 'Key value', width: 'minmax(8rem, 12rem)', cell: r => {
       const v = chooseKeyValues(r.f.productType ?? '', paramsOf(r))[0]
       return v ? { label: v.label, text: v.text, mark: v.mark } : { text: '' }
@@ -194,10 +234,16 @@ export const datasheetKind: FileKind = {
   ],
   margin: datasheetMargin,
   info: r => datasheetInfo(r),
-  lookable: r => paramsOf(r).some(valueNeedsLook) || toCheck(r) > 0,
+  page: {
+    sections: DATASHEET_SECTIONS,
+    queries: [{ id: 'editions', scope: 'graph', query: () => editionsQuery() }, { id: 'registers', scope: 'file', query: registersQuery }],
+    content: datasheetPageContent,
+    companions: DATASHEET_COMPANIONS,
+  },
+  lookable: r => disputed(r) > 0,
   summary: r => {
-    const parts = [plural(r.items.length, 'key value'), plural(rows(r), 'row')]
-    if (toCheck(r) > 0) parts.push(`${toCheck(r)} to check`)
+    const parts = [plural(values(r), 'value')]
+    if (disputed(r) > 0) parts.push(`${disputed(r)} disputed`)
     return parts.join(', ')
   },
   status: { state: 'state', page: 'page', pages: 'pages', error: 'error' },

@@ -7,7 +7,7 @@
  * it says is the kind's.
  */
 import type { FileEvidence, ReadState } from '@shrubbery/nucleus'
-import { FILE_KINDS, evidenceQuery, readEvidence, type FileKind } from './files-kinds/index.js'
+import { FILE_KINDS, evidenceQuery, listsQuery, readEvidence, type FileKind } from './files-kinds/index.js'
 
 export { evidenceQuery, readEvidence }
 
@@ -51,6 +51,10 @@ export class FilesEvidence {
 
   get(artifactId: string): FileEvidence | undefined { return this.known.get(artifactId) }
 
+  /** Whether the place's query has answered for this artifact (with its evidence, or with none): until then its kind is not known. */
+  answered(artifactId: string): boolean { return this.answeredIds.has(artifactId) }
+  private answeredIds = new Set<string>()
+
   /** Whether any file of the place is waiting or being read. */
   get active(): boolean { return [...this.known.values()].some(e => ACTIVE.has(e.state)) }
 
@@ -92,12 +96,22 @@ export class FilesEvidence {
     }
     let next = new Map<string, FileEvidence>()
     try {
-      const result = await this.deps.tool('sparql_query', { graphId, query: evidenceQuery(this.deps.kinds ?? FILE_KINDS, ids) })
+      const kinds = this.deps.kinds ?? FILE_KINDS
+      const lists = listsQuery(kinds, ids)
+      const [result, listed] = await Promise.all([
+        this.deps.tool('sparql_query', { graphId, query: evidenceQuery(kinds, ids) }),
+        // The lists are an embellishment (a sheet's family): a cell that cannot answer them still gives the cards.
+        lists ? this.deps.tool('sparql_query', { graphId, query: lists }).catch((): Record<string, unknown> => ({})) : Promise.resolve({} as Record<string, unknown>),
+      ])
       const rows = Array.isArray(result.rows) ? result.rows as Record<string, unknown>[] : []
-      next = readEvidence(this.deps.kinds ?? FILE_KINDS, rows)
+      next = readEvidence(kinds, rows, Array.isArray(listed.rows) ? listed.rows as Record<string, unknown>[] : [])
     } catch {
       // A cell without the records or the tool: every file renders as it did. Asked again at the idle refresh.
-      if (generation === this.generation) this.schedule()
+      if (generation === this.generation) {
+        for (const id of ids) this.answeredIds.add(id)
+        this.schedule()
+        this.deps.onChange()
+      }
       return
     }
     if (this.deps.readStatus) {
@@ -114,7 +128,9 @@ export class FilesEvidence {
     if (this.disposed || generation !== this.generation) return
     const before = this.known
     this.known = next
-    let changed = before.size !== next.size
+    const fresh = ids.some(id => !this.answeredIds.has(id))
+    for (const id of ids) this.answeredIds.add(id)
+    let changed = before.size !== next.size || fresh
     for (const [id, e] of next) {
       const was = before.get(id)
       if (!was || JSON.stringify(was) !== JSON.stringify(e)) changed = true

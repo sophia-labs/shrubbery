@@ -13,6 +13,11 @@
  */
 import type { Corroboration } from '@shrubbery/nucleus'
 import type { FileKindMargin, MarginFact, MarginGroup, MarginReading, MarginRowData } from './registry.js'
+import {
+  figure, headingWords, isHeadingRow, normPart, parameterLabel, parameterSymbol, partIdentity, sectionWords, span, splitLeadingSymbol, withoutFootnotes,
+} from './datasheet-words.js'
+
+export { figure }
 
 type Rec = Record<string, unknown>
 const rec = (v: unknown): Rec | null => (v && typeof v === 'object' && !Array.isArray(v) ? v as Rec : null)
@@ -25,18 +30,13 @@ const strings = (v: unknown): string[] => arr(v).flatMap(x => { const s = str(x)
 /** Rows asked for at once: the cell's own ceiling (garden `datasheet_facts` clamps `limit` to 1..1000, 200 by default). */
 export const FACTS_LIMIT = 1000
 
-/** 3 significant places for small numbers, whole numbers from 100 up (the cards' rule). */
-export function figure(n: number): string {
-  return String(Math.abs(n) >= 100 ? Math.round(n) : Math.round(n * 1000) / 1000)
-}
-
-/** '4.5–28 V', '≤ 28 V', '≥ 3.5 V', 'typ 1.2 V', '0.9–1.5 (typ 1.2) V'; '' when nothing numeric was read. */
+/** '4.5–28 V', '≤ 28 V', '≥ 3.5 V', 'typ 1.2 V', '0.9–1.5 (typ 1.2) V', '−40 to 125 °C'; '' when nothing numeric was read. */
 export function claimValue(value: Rec | null, unitFallback = ''): string {
   if (!value) return ''
   const lower = real(value.lower), typical = real(value.typical), upper = real(value.upper)
   const unit = str(value.unit) ?? unitFallback
   const parts: string[] = []
-  if (lower !== null && upper !== null) parts.push(lower === upper ? figure(lower) : `${figure(lower)}–${figure(upper)}`)
+  if (lower !== null && upper !== null) parts.push(span(lower, upper))
   else if (upper !== null) parts.push(`≤ ${figure(upper)}`)
   else if (lower !== null) parts.push(`≥ ${figure(lower)}`)
   if (typical !== null) parts.push(parts.length ? `(typ ${figure(typical)})` : `typ ${figure(typical)}`)
@@ -134,34 +134,68 @@ function readingWords(reading: Rec): { text: string; page: number | null } {
 }
 
 const JUNK_SECTION = /^(www\.|https?:|©|\d+$)/i
-const sectionKey = (section: string) => section.replace(/\s*\(continued\)\s*$/i, '').replace(/\s+/g, ' ').trim()
 
-/** Groups and rows of the claims: the key values first, then each table (regime, section) in the order of the regime then the page. */
-function groupClaims(claims: Rec[]): { groups: MarginGroup[]; rows: MarginRowData[] } {
+/** One cleaned row of the reading, before it is placed in its group. */
+interface Counted { headings: number; repeats: number }
+
+/**
+ * Groups and rows of the claims: the key values first, then each table (regime, section) in the order of the regime then the page.
+ *
+ * What the reader handed over is cleaned the way a person would read the page: a table's own section heading ('AUDIO PERFORMANCE',
+ * no value) is a heading, never a row; footnote markers leave the names; a symbol carried down from the row above onto a different
+ * parameter ('Intermodulation distortion · THD+N') is dropped; the importer's internal keys ('gainBandwidth') become words; a row the
+ * reader split into identical pieces is one row.
+ */
+function groupClaims(claims: Rec[], counted: Counted): { groups: MarginGroup[]; rows: MarginRowData[] } {
   const groups = new Map<string, MarginGroup & { rank: number; order: number }>()
   const rows: MarginRowData[] = []
+  const seen = new Set<string>()
+  // Per group: the raw symbol and the name of the row above, and the table heading it sits under.
+  const above = new Map<string, { symbol: string; label: string; heading: string }>()
   claims.forEach((claim, index) => {
     const id = str(claim.id) ?? `claim-${index}`
     const key = str(claim.kind) === 'keyParameter'
     const regime = str(claim.regime) ?? 'otherRegime'
     const section = str(claim.section)
-    const clean = section && !JUNK_SECTION.test(section) && section.length >= 3 ? sectionKey(section) : ''
+    const clean = section && !JUNK_SECTION.test(section) && section.length >= 3 ? sectionWords(section) : ''
     const regimeWord = REGIME_WORDS[regime] ?? humanize(regime)
     const groupId = key ? 'key' : `${regime}|${clean.toLowerCase()}`
+    const value = rec(claim.value)
+    const lo = real(value?.lower), ty = real(value?.typical), hi = real(value?.upper)
+    const rawName = str(claim.parameter) ?? humanize(str(claim.predicate)?.split('#').pop() ?? '')
+    const rawSymbol = str(claim.symbol)
+    const rowConditions = str(rec(claim.conditions)?.row)
+    const prev = above.get(groupId)
+    if (!key && isHeadingRow({ label: rawName, symbol: rawSymbol, conditions: rowConditions, hasNumber: lo !== null || ty !== null || hi !== null })) {
+      counted.headings++
+      above.set(groupId, { symbol: '', label: '', heading: headingWords(rawName) })
+      return
+    }
     if (!groups.has(groupId)) {
       const title = key ? 'Key values' : clean || regimeWord || 'Other rows'
       const tag = !key && clean && regimeWord && !title.toLowerCase().includes(regimeWord.toLowerCase().split(' ')[0]!) ? regimeWord : undefined
       groups.set(groupId, { id: groupId, title, ...(tag ? { tag } : {}), rank: key ? 0 : REGIME_RANK[regime] ?? 4, order: groups.size })
     }
+    const name = key ? parameterLabel(rawName) : withoutFootnotes(rawName)
+    let symbol = rawSymbol ? withoutFootnotes(rawSymbol) : ''
+    // A symbol the row above printed, on a parameter that is not the row above's, was carried down by the reader.
+    if (!key && symbol && prev && prev.symbol && prev.symbol === rawSymbol && prev.label && normPart(prev.label) !== normPart(name)) symbol = ''
+    if (key && !symbol) symbol = parameterSymbol(rawName)
+    let named = name
+    if (!key && !symbol) { const split = splitLeadingSymbol(name); if (split) { symbol = split.symbol; named = split.label } }
+    const label = named || prev?.heading || symbol || 'Unnamed row'
+    above.set(groupId, { symbol: rawSymbol ?? '', label: name, heading: prev?.heading ?? '' })
+    const unit = str(value?.unit) ?? ''
+    const page = int(claim.page)
+    const fold = [groupId, label.toLowerCase(), symbol, rowConditions ?? '', lo, ty, hi, unit, page].join('|')
+    if (seen.has(fold)) { counted.repeats++; return }
+    seen.add(fold)
     const diagnostics = strings(claim.diagnostics)
     const corroboration = rec(claim.corroboration)
-    const contested = corroboration?.contested === true || diagnostics.some(isDisagreement)
-    const value = rec(claim.value)
-    const parameter = str(claim.parameter) ?? humanize(str(claim.predicate)?.split('#').pop() ?? '') ?? id
-    const symbol = str(claim.symbol)
-    const conditions = [str(rec(claim.conditions)?.row), ...slotConditions(claim)].flatMap(c => c ? [c] : [])
+    const disagreement = diagnostics.find(isDisagreement)
+    const contested = corroboration?.contested === true || disagreement !== undefined
+    const conditions = [rowConditions, ...slotConditions(claim)].flatMap(c => c ? [c] : [])
     const sources = int(corroboration?.independentSources)
-    const lo = real(value?.lower), ty = real(value?.typical), hi = real(value?.upper)
     const mark = markOf(claim, contested)
     const corrected = claim.corrected === true || rec(claim.correction) !== null || arr(claim.checks).some(c => /correct/i.test(str(rec(c)?.result) ?? ''))
     const notes = [
@@ -169,14 +203,17 @@ function groupClaims(claims: Rec[]): { groups: MarginGroup[]; rows: MarginRowDat
       ...(sources !== null && !contested ? [`${sources} independent ${sources === 1 ? 'source' : 'sources'}.`] : []),
     ]
     rows.push({
-      id, group: groupId, label: parameter, symbol: symbol && symbol.toLowerCase() !== parameter.toLowerCase() ? symbol : '',
-      value: claimValue(value), page: int(claim.page), mark, contested, key,
-      status: corrected ? 'corrected' : mark === 'checked' ? 'checked' : contested ? 'contested' : mark === 'low' || diagnostics.some(d => !/^derived from/.test(d)) ? 'check' : 'read',
+      id, group: groupId, label, symbol: symbol && symbol.toLowerCase() !== label.toLowerCase() ? symbol : '',
+      value: claimValue(value), page, mark, contested, key,
+      status: corrected ? 'corrected' : mark === 'checked' ? 'checked' : contested ? 'contested' : 'read',
       numbers: [lo, ty, hi].flatMap(n => n === null ? [] : [n]), sectionTitle: groups.get(groupId)!.title,
-      readingPages: [...new Set(arr(claim.readings).flatMap(r => { const n = int(rec(r)?.page); return n !== null && n > 0 && n !== int(claim.page) ? [n] : [] }))],
+      readingPages: [...new Set(arr(claim.readings).flatMap(r => { const n = int(rec(r)?.page); return n !== null && n > 0 && n !== page ? [n] : [] }))],
       conditions: conditions.filter((c, i) => conditions.indexOf(c) === i),
       readings: arr(claim.readings).flatMap(r => { const x = rec(r); return x ? [readingWords(x)] : [] }),
       notes,
+      slots: { min: lo === null ? '' : figure(lo), typ: ty === null ? '' : figure(ty), max: hi === null ? '' : figure(hi) }, unit,
+      subgroup: key ? '' : prev?.heading ?? '', when: rowConditions ?? '',
+      ...(contested ? { dispute: disagreement ? plainDiagnostic(disagreement) : 'The readers disagree about this value.' } : {}),
       ...boxOf(claim),
     })
   })
@@ -201,24 +238,59 @@ function editionOf(raw: Rec, artifactId: string): Rec | null {
   return editions.find(e => str(e.artifact) === artifactId) ?? editions[0] ?? null
 }
 
+/** How a maker is known, in words ('from the document and the file name'); nothing for the records' own reading. */
+export function makerHint(by: string | null): string | undefined {
+  if (!by || by === 'records' || by === 'parser' || by === 'none') return undefined
+  if (by === 'part-prefix') return 'guessed from the part number'
+  const WORDS: Readonly<Record<string, string>> = { text: 'the document', parser: 'the reader', filename: 'the file name', 'file name': 'the file name', title: 'the title' }
+  const words = by.split('+').map(w => w.trim()).filter(Boolean).map(w => WORDS[w] ?? (/^the\s/i.test(w) ? w : `the ${w}`))
+  return words.length ? `from ${words.join(' and ')}` : undefined
+}
+
+/** The reader's own account of the reading (`edition.reader`), as plain facts. */
+function aboutOf(edition: Rec): MarginFact[] {
+  const reader = rec(edition.reader)
+  const tools = rec(reader?.tools)
+  const toolLine = tools ? Object.entries(tools).flatMap(([name, commit]) => [`${name}${str(commit) ? ` ${str(commit)!.slice(0, 7)}` : ''}`]).join(', ') : ''
+  const readers = rec(reader?.readers)
+  const readerLine = readers ? [...new Set(Object.values(readers).flatMap(v => str(v) ? [str(v)!] : []))].join(', ') : ''
+  const generated = str(reader?.generated)
+  const repairs = int(reader?.unitRepairs)
+  const byte = str(edition.byteCheck)
+  return [
+    ...(toolLine ? [{ label: 'Reader', text: toolLine }] : []),
+    ...(readerLine ? [{ label: 'Read with', text: readerLine }] : []),
+    ...(generated ? [{ label: 'Read on', text: generated }] : []),
+    ...(repairs ? [{ label: 'Units repaired', text: String(repairs) }] : []),
+    ...(byte ? [{ label: 'File', text: byte === 'matched' ? 'The same bytes the reader read' : `Did not match the bytes the reader read (${byte})` }] : []),
+  ]
+}
+
 /** `datasheet_facts` for one artifact → the margin's reading. */
-export function readDatasheetFacts(raw: Rec, artifactId: string): MarginReading {
+export function readDatasheetFacts(raw: Rec, artifactId: string, context: { readonly fileName?: string } = {}): MarginReading {
   const edition = editionOf(raw, artifactId)
   if (!edition) {
     return { title: '', facts: [], notes: [], groups: [], rows: [], empty: 'Nothing was read from this file yet.', truncated: null, pageCount: null }
   }
   const claims = arr(edition.claims).flatMap(c => { const r = rec(c); return r ? [r] : [] })
-  const { groups, rows } = groupClaims(claims)
+  const counted: Counted = { headings: 0, repeats: 0 }
+  const { groups, rows } = groupClaims(claims, counted)
   const identity = identityOf(edition)
   const parts = strings(edition.parts)
-  const maker = str(edition.maker)
   const pages = int(edition.pageCount)
   const revision = str(edition.revision)
   const keyCount = rows.filter(r => r.key).length
+  const shown = context.fileName
+    ? partIdentity({ partNumber: null, families: parts, title: str(edition.title), fileName: context.fileName, maker: str(edition.maker), makerBy: identity.makerBy })
+    : null
+  const maker = shown ? shown.maker : str(edition.maker)
+  const makerBy = shown ? shown.makerBy : identity.makerBy
+  const family = shown?.family.length ? shown.family : shown?.part ? [shown.part] : parts.map(p => p.toUpperCase())
+  const hint = makerHint(makerBy)
   const facts: MarginFact[] = [
-    { label: 'Maker', text: maker ?? 'not stated', ...(maker && identity.makerBy ? { hint: identity.makerBy } : {}) },
+    ...(maker ? [{ label: 'Maker', text: maker, ...(hint ? { hint } : {}) }] : []),
     ...(revision ? [{ label: 'Revision', text: revision }] : []),
-    ...(parts.length ? [{ label: 'Part family', text: parts.map(p => p.toUpperCase()).join(', '), ...(identity.partsBy ? { hint: identity.partsBy } : {}) }] : []),
+    ...(family.length ? [{ label: family.length > 1 ? 'Part family' : 'Part', text: family.join(', '), ...(identity.partsBy ? { hint: identity.partsBy } : {}) }] : []),
     ...(pages !== null ? [{ label: 'Pages', text: String(pages) }] : []),
     { label: 'Read', text: `${rows.length} ${rows.length === 1 ? 'row' : 'rows'}${keyCount ? `, ${keyCount} key ${keyCount === 1 ? 'value' : 'values'}` : ''}` },
   ]
@@ -229,12 +301,17 @@ export function readDatasheetFacts(raw: Rec, artifactId: string): MarginReading 
     ...(byteCheck && byteCheck !== 'matched' ? [`The stored file did not match its recorded digest (${byteCheck}).`] : []),
     ...(corrections ? [`${corrections} ${corrections === 1 ? 'correction was' : 'corrections were'} imported with it.`] : []),
   ]
-  const title = str(edition.title) ?? (parts.length ? parts.map(p => p.toUpperCase()).join(', ') : '')
+  const title = str(edition.title) ?? (family.length ? family.join(', ') : '')
   return {
     title, facts, notes: notes.filter((n, i) => notes.indexOf(n) === i), groups, rows,
     empty: rows.length ? null : 'Text only: no tables were read. The page is still there to read; nothing was taken from it as a value.',
     truncated: edition.truncated === true ? `Showing the first ${rows.length} rows; the cell cut the rest off at ${FACTS_LIMIT}.` : null,
     pageCount: pages,
+    identity: { title: str(edition.title), parts, maker: str(edition.maker), makerBy: identity.makerBy, revision, documentType: str(edition.documentType),
+      literature: str(edition.literature) },
+    about: aboutOf(edition),
+    counts: { rows: claims.filter(c => str(c.kind) !== 'keyParameter').length, keys: keyCount, headings: counted.headings, repeats: counted.repeats,
+      disputed: rows.filter(r => r.contested).length },
   }
 }
 

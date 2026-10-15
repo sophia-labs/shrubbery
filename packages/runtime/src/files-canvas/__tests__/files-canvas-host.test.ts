@@ -256,24 +256,24 @@ describe('<mn-files-canvas>: the card plane', () => {
 describe('datasheet cards', () => {
   const sheet = {
     kind: 'datasheet', title: 'TPS62840', subtitle: [{ text: 'Texas Instruments' }, { text: '· Rev B', fixed: true }], state: 'read' as const,
-    doneBadge: '2 to check', summary: '4 key values, 212 rows, 2 to check', cells: [], lookable: true,
+    doneBadge: '1 disputed · 215 values', summary: '215 values, 1 disputed', cells: [], lookable: true,
     values: [{ label: 'VIN', text: '1.8–6.5 V', mark: 'high' as const }, { label: 'IOUT', text: '≤ 750 mA', mark: 'checked' as const }, { label: 'fSW', text: '1.8 MHz', mark: 'contested' as const }],
   }
   const nodes = (evidence?: object) => [{ file: A, label: 'TPS62840.pdf', type: 'PDF', ...(evidence ? { evidence } : {}) } as never,
     { file: B, label: 'Plain.pdf', type: 'PDF' }]
 
-  it('shows the title large, subtitle beneath, three values with their marks, and the badge in the annunciator', async () => {
+  it('shows the title large, subtitle beneath, three values (a mark only where the readers disagreed or a person checked), and the badge', async () => {
     const h = await mount({ nodes: nodes(sheet) })
     const card = h.root.querySelector('.card[data-card-key]')!
     expect(card.hasAttribute('data-evidence')).toBe(true)
     expect(card.querySelector('.part')!.textContent).toBe('TPS62840')
     expect(card.querySelector('.maker .by')!.textContent).toBe('Texas Instruments')
     expect(card.querySelector('.maker .rev')!.textContent).toBe('· Rev B')
-    expect([...card.querySelectorAll('.value')].map(v => `${v.getAttribute('data-label')} ${v.querySelector('.v')!.textContent} ${v.querySelector('.mark')!.textContent}`))
-      .toEqual(['VIN 1.8–6.5 V ●●●', 'IOUT ≤ 750 mA ✓', 'fSW 1.8 MHz ⚠'])
-    expect(card.querySelector('.annunciator')!.textContent).toBe('2 to check')
+    expect([...card.querySelectorAll('.value')].map(v => `${v.getAttribute('data-label')} ${v.querySelector('.v')!.textContent} ${v.querySelector('.mark')?.textContent ?? '-'}`))
+      .toEqual(['VIN 1.8–6.5 V -', 'IOUT ≤ 750 mA ✓', 'fSW 1.8 MHz ⚠'])
+    expect(card.querySelector('.annunciator')!.textContent).toBe('1 disputed · 215 values')
     expect(card.querySelector('mn-file-glyph')).toBeNull()
-    expect(card.getAttribute('aria-label')).toContain('VIN 1.8–6.5 V, independent statements agree')
+    expect(card.getAttribute('aria-label')).toContain('VIN 1.8–6.5 V, IOUT ≤ 750 mA, checked by a person, fSW 1.8 MHz, disputed: the readers disagree')
     expect(card.querySelector('.label')).not.toBeNull()      // the file's name stays a label: click-to-rename still has its target
   })
 
@@ -300,7 +300,7 @@ describe('datasheet cards', () => {
     const small = await mount({ nodes: nodes(sheet), view: { iconSize: 'small', snapToGrid: false } })
     const card = small.root.querySelector('.card[data-card-key]')!
     expect(card.querySelector('mn-file-glyph')).not.toBeNull()
-    expect(card.querySelector('.annunciator')!.textContent).toBe('2 to check')
+    expect(card.querySelector('.annunciator')!.textContent).toBe('1 disputed · 215 values')
     const reading = await mount({ nodes: nodes({ ...sheet, title: '', values: [], state: 'reading', progress: { page: 20, pages: 38 } }) })
     const readingCard = reading.root.querySelector('.card[data-card-key]')!
     expect(readingCard.hasAttribute('data-evidence')).toBe(false)

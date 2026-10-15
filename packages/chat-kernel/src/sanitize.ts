@@ -27,3 +27,13 @@ import DOMPurify from 'dompurify'
 export function sanitizeHtml(html: string): string {
   return DOMPurify.sanitize(html)
 }
+
+/**
+ * The chat panel's sanitizer: the same DOMPurify pass, HTML only. Markdown never produces SVG or MathML, and a
+ * tag a model invents that happens to be an SVG name (`<part>TPS63020</part>`, `<text>`, `<path>`) was removed
+ * with its words: DOMPurify allows SVG names by default and then drops such an element out of its namespace,
+ * content and all. As unknown HTML it is unwrapped instead, and its words stay. Every XSS rule is the same.
+ */
+export function sanitizeChatHtml(html: string): string {
+  return DOMPurify.sanitize(html, { USE_PROFILES: { html: true } })
+}

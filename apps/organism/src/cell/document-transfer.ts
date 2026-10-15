@@ -13,6 +13,7 @@ import type { ShrubberyContract } from '@shrubbery/nucleus'
 import { PDF_SOURCE_ANCHOR_ATTRIBUTE, inspectPdfSourceAnchor, encodePdfSourceAnchor, sha256PdfSourceBytes } from '@shrubbery/nucleus'
 import type { PdfExtractionStatus, TipTapJsonNode } from './pdf-layout-parser.js'
 import { cellAuthHeaders } from './cell-auth-headers.js'
+import { documentTitle, fileDocumentTitle } from './document-title.js'
 import { randomUUID } from '@shrubbery/nucleus/web-crypto'
 
 export const DOCUMENT_IMPORT_ACCEPT = [
@@ -895,6 +896,8 @@ export class GardendDocumentTransferService {
     ),
   ): Promise<JobEnvelope> {
     const documentId = transferDocumentId()
+    // The cell makes no document with a title over 96 characters (a file's name, a PDF's first heading can be longer).
+    const title = documentTitle(input.title)
     const response = await this.fetchImpl(`${apiBase}/api/crdt/operations`, {
       method: 'POST',
       headers: this.headers({ 'Content-Type': 'application/json' }),
@@ -904,7 +907,7 @@ export class GardendDocumentTransferService {
         documentId,
         payload: {
           documentId,
-          title: input.title,
+          title,
           ...(input.tiptapJson
             ? { tiptapJson: input.tiptapJson }
             : { content: input.content, format: input.format }),
@@ -914,7 +917,7 @@ export class GardendDocumentTransferService {
       }),
       signal: input.signal,
     })
-    const payload = await this.checked(response, `Write imported document "${input.title}"`)
+    const payload = await this.checked(response, `Write imported document "${title}"`)
     const envelope = isRecord(payload) ? payload as JobEnvelope : {}
     return { ...envelope, documentId: firstNestedString([envelope], ['documentId', 'document_id']) ?? documentId }
   }
@@ -943,7 +946,12 @@ export class GardendDocumentTransferService {
         documentId: input.documentId,
         payload: {
           documentId: input.documentId,
-          title: input.title,
+          // The document was just written; this names its original source.
+          // gardend refuses a create over an existing document unless asked
+          // (2026-10-14), so say that this one updates it.
+          ifExists: 'update',
+          // As the document's write was: a title over 96 characters is refused.
+          title: documentTitle(input.title),
           parentId: input.parentId ?? null,
           readOnly: input.readOnly,
           sourceFile: {
@@ -1068,7 +1076,9 @@ export class GardendDocumentTransferService {
     // written directly; PDF/EPUB/DOCX use the browser parser below so the cell
     // never constructs the invalid numeric source-size projection.
     const artifactId = transferArtifactId()
-    const title = basenameWithoutExtension(file.name)
+    // The file keeps its whole name (the artifact's label); its document's title is cut to what the cell accepts.
+    const label = basenameWithoutExtension(file.name)
+    const title = fileDocumentTitle('', label)
     const mimeType = file.type || 'application/octet-stream'
     const encodedGraphId = encodeURIComponent(graphId)
     const encodedArtifactId = encodeURIComponent(artifactId)
@@ -1078,7 +1088,7 @@ export class GardendDocumentTransferService {
       {
         method: 'POST',
         headers: this.headers({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ dataBase64, mimeType, filename: file.name, label: title }),
+        body: JSON.stringify({ dataBase64, mimeType, filename: file.name, label }),
         signal: options.signal,
       },
     )
@@ -1090,7 +1100,7 @@ export class GardendDocumentTransferService {
         method: 'PUT',
         headers: this.headers({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({
-          label: title,
+          label,
           originalFilename: file.name,
           mimeType,
           status: 'ready',
@@ -1153,6 +1163,8 @@ export class GardendDocumentTransferService {
       })
       const parsed = await this.binaryParser(file, options.signal)
       throwIfAborted(options.signal)
+      // A parsed title is the document's own (a PDF's heading, an EPUB's or a DOCX's title) or, failing one, the file's name.
+      const parsedTitle = parsed.title === label ? title : documentTitle(parsed.title)
       if (parsed.fileType === 'pdf') {
         const bytes = new Uint8Array(await file.arrayBuffer())
         const digest = await sha256PdfSourceBytes(bytes)
@@ -1189,7 +1201,7 @@ export class GardendDocumentTransferService {
         percent: 75,
       })
       const written = await this.writeTextDocument(apiBase, graphId, {
-        title: parsed.title,
+        title: parsedTitle,
         ...(parsed.tiptapJson
           ? { tiptapJson: parsed.tiptapJson }
           : { content: parsed.markdown, format: 'markdown' as const }),
@@ -1201,7 +1213,7 @@ export class GardendDocumentTransferService {
       if (!documentId) throw new DocumentTransferError(`Import "${file.name}" completed without a document id`)
       await this.attachDocumentSource(apiBase, graphId, {
         documentId,
-        title: parsed.title,
+        title: parsedTitle,
         parentId: options.parentId,
         readOnly: true,
         artifactId,
@@ -1224,7 +1236,7 @@ export class GardendDocumentTransferService {
       return {
         file,
         documentId,
-        title: parsed.title,
+        title: parsedTitle,
         fileType: parsed.fileType,
         readOnly: true,
         sourceFile: {
@@ -1337,7 +1349,7 @@ export class GardendDocumentTransferService {
     const mimeType = artifactResponse.headers.get('content-type') ?? 'application/octet-stream'
     const format = textWriteFormat(filename, mimeType)
     if (format) {
-      const title = options.title ?? basenameWithoutExtension(filename)
+      const title = documentTitle(options.title ?? fileDocumentTitle('', basenameWithoutExtension(filename)))
       options.onProgress?.({ jobId: artifactId, status: 'running', message: `Importing ${title}`, percent: 50 })
       const written = await this.writeTextDocument(apiBase, graphId, {
         title,
@@ -1365,7 +1377,7 @@ export class GardendDocumentTransferService {
         method: 'POST',
         headers: this.headers({ 'Content-Type': 'application/json' }),
         body: JSON.stringify({
-          ...(options.title ? { title: options.title } : {}),
+          ...(options.title ? { title: documentTitle(options.title) } : {}),
           ...(options.parentId ? { parentId: options.parentId } : {}),
           readOnly,
           useYdocPath: true,

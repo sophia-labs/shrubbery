@@ -49,6 +49,8 @@ export interface ServedDatasheet {
   state?: 'queued' | 'reading' | 'read' | 'failed'; page?: number; pages?: number; error?: string
   /** The import record's tool profile: 'datasheet-parser (NomDeTom)', 'ee680a6...', '2.135.0'; and the register count. */
   reader?: { tool: string; commit?: string; docling?: string }; registerCount?: number
+  /** The parts the sheet covers (the family's identifiers), and the file name the importer recorded. */
+  families?: string[]; fileName?: string
   params: { pred: string; lo?: number; hi?: number; typ?: number; nom?: number; unit?: string; text?: string
     conf?: 'high' | 'medium' | 'low' | 'contested'; diag?: string; checked?: boolean; order?: number }[]
 }
@@ -99,6 +101,10 @@ export interface FilesContractServer {
   readonly createdBy: Map<string, string>
   /** Raw rows of the evidence query by artifact id (N-Triples terms, kind-prefixed variables): for a kind that is not a datasheet. */
   readonly evidenceRows: Map<string, Record<string, string>[]>
+  /** What a document holds (the notes' TipTap JSON) and its revision, as write_document and read_document see it. */
+  readonly documentBodies: Map<string, { revision: number; tiptapJson: unknown }>
+  /** The rows a page's own queries get: 'editions' (the graph's editions) and 'registers'. */
+  readonly pageRows: Map<string, Record<string, string>[]>
   readonly wires: Map<string, { id: string; sourceDocumentId: string; targetDocumentId: string; targetGraphId: string; predicate: string; bidirectional: boolean }>
   /** Every request the server saw: method, path (with query), and for /mcp the tool name. */
   readonly requests: { method: string; path: string; tool?: string; bytes?: number }[]
@@ -148,6 +154,8 @@ export async function startFilesContractServer(options: FilesContractServerOptio
   const documentFacts = new Map<string, { words: number; updatedAt: string; createdAt: string }>()
   const createdBy = new Map<string, string>()
   const evidenceRows = new Map<string, Record<string, string>[]>()
+  const documentBodies = new Map<string, { revision: number; tiptapJson: unknown }>()
+  const pageRows = new Map<string, Record<string, string>[]>()
   // The graph's wires, as the cell's tools answer them (get_wires / create_wires / list_wire_predicates / delete type 'wires').
   const wires = new Map<string, { id: string; sourceDocumentId: string; targetDocumentId: string; targetGraphId: string; predicate: string; bidirectional: boolean }>()
   const requests: FilesContractServer['requests'] = []
@@ -171,6 +179,17 @@ export async function startFilesContractServer(options: FilesContractServerOptio
         const query = String(args.query ?? '')
         const wanted = /VALUES\s+\?artifact\s*\{([^}]*)\}/.exec(query)?.[1]
         const ids = wanted ? [...wanted.matchAll(/"((?:[^"\\]|\\.)*)"/g)].map(m => JSON.parse(`"${m[1]}"`) as string) : []
+        // The second query of a place: each sheet's lists (its family), one row per value.
+        if (/\?list\b/.test(query)) {
+          return reply({ resultType: 'solutions', variables: ['artifact', 'kind', 'list', 'value'], rows: ids.flatMap(id => (datasheets.get(id)?.families ?? [])
+            .map(f => ({ artifact: lit(id), kind: lit('datasheet'), list: lit('family'), value: lit(f) }))), boolean: null, graph: null, quadCount: 0 })
+        }
+        // A page's own queries (the graph's editions, a file's registers) are answered from `pageRows`, by the query's first SELECT variable.
+        if (!wanted) {
+          const first = /SELECT\s+(?:DISTINCT\s+)?\?(\w+)/.exec(query)?.[1] ?? ''
+          const page = first === 'artifact' ? pageRows.get('editions') ?? [] : first === 'r' ? pageRows.get('registers') ?? [] : []
+          return reply({ resultType: 'solutions', variables: [], rows: page, boolean: null, graph: null, quadCount: page.length })
+        }
         const rows: Record<string, string>[] = []
         for (const id of ids) {
           const d = datasheets.get(id)
@@ -184,7 +203,7 @@ export async function startFilesContractServer(options: FilesContractServerOptio
             ...(d.registerCount ? { [k('registerCount')]: `"${d.registerCount}"^^<${XSD}integer>` } : {}), ...(d.scan ? { [k('scan')]: `"true"^^<${XSD}boolean>` } : {}),
             ...(d.textOnly ? { [k('textOnly')]: `"true"^^<${XSD}boolean>` } : {}), ...(d.state ? { [k('state')]: lit(d.state) } : {}),
             ...(d.page ? { [k('page')]: `"${d.page}"^^<${XSD}integer>` } : {}), ...(d.pages ? { [k('pages')]: `"${d.pages}"^^<${XSD}integer>` } : {}),
-            ...(d.error ? { [k('error')]: lit(d.error) } : {}) }
+            ...(d.error ? { [k('error')]: lit(d.error) } : {}), ...(d.fileName ? { [k('fileName')]: lit(d.fileName) } : {}) }
           if (!d.params.length) rows.push(head)
           d.params.forEach((p, i) => rows.push({ ...head, [k('pred')]: `<${EP}${p.pred}>`, [k('it')]: `<urn:item:${id}:${i}>`, [k('order')]: `"${p.order ?? i}"^^<${XSD}integer>`,
             ...(p.lo !== undefined ? { [k('lo')]: dec(p.lo) } : {}), ...(p.hi !== undefined ? { [k('hi')]: dec(p.hi) } : {}), ...(p.typ !== undefined ? { [k('typ')]: dec(p.typ) } : {}),
@@ -210,6 +229,42 @@ export async function startFilesContractServer(options: FilesContractServerOptio
         const facts = documentFacts.get(id)
         if (!documents.has(id)) return error('document not found')
         return reply({ size: { wordCount: facts?.words ?? 0, word_count: facts?.words ?? 0 }, freshness: { createdAt: facts?.createdAt ?? null, updatedAt: facts?.updatedAt ?? null } })
+      }
+      case 'create_document': {
+        const id = String(args.documentId ?? '')
+        if (!ID.test(id)) return error('invalid document id')
+        // As the cell does (2026-10-14): an existing id is refused unless the caller keeps it.
+        if (documents.has(id) && args.ifExists === 'keep') {
+          const doc = documents.get(id)!
+          return reply({ documentId: id, id, title: doc.title, parentId: doc.parentId, order: doc.order, existed: true })
+        }
+        if (documents.has(id)) return error(`document ${id} already exists`)
+        // As the cell does (gardend `ids::normalize_title`): a new document's title is at most 96 scalar values, trimmed.
+        if (Array.from(String(args.title ?? 'Untitled').trim()).length > 96) return error('title must be 96 characters or fewer')
+        const parentId = (args.parentId as string | null) ?? null
+        documents.set(id, { id, title: String(args.title ?? 'Untitled'), parentId, order: order++ })
+        documentBodies.set(id, { revision: 0, tiptapJson: null })
+        return reply({ documentId: id, id, parentId, order: documents.get(id)!.order })
+      }
+      case 'write_document': {
+        const id = String(args.documentId ?? args.document_id ?? '')
+        const doc = documents.get(id)
+        if (!doc) return error('document not found')
+        const body = documentBodies.get(id) ?? { revision: 0, tiptapJson: null }
+        const expected = args.expectedRevision
+        if (typeof expected === 'number' && expected !== body.revision) return error(`revision conflict: expected ${expected}, current ${body.revision}`)
+        // As the cell does: a whole-document write files the document at the top (the Hoja CellStore's finding).
+        doc.parentId = null
+        if (typeof args.title === 'string') doc.title = args.title
+        documentBodies.set(id, { revision: body.revision + 1, tiptapJson: args.tiptapJson ?? null })
+        return reply({ success: true, documentId: id, title: doc.title, revision: body.revision + 1 })
+      }
+      case 'read_document': {
+        const id = String(args.documentId ?? '')
+        const body = documentBodies.get(id)
+        if (!documents.has(id) || !body) return error(`document ${id} not found`)
+        const content = args.format === 'json' ? JSON.stringify({ tiptapJson: body.tiptapJson }) : ''
+        return reply({ documentId: id, revision: body.revision, content, complete: true })
       }
       case 'create_folder': {
         const id = String(args.folderId)
@@ -477,7 +532,7 @@ export async function startFilesContractServer(options: FilesContractServerOptio
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
   const port = (server.address() as AddressInfo).port
   return {
-    base: `http://127.0.0.1:${port}`, graphId, graphIncarnation, token, folders, artifacts, documents, documentTrash, trash, faces, datasheets, datasheetFacts, revisionCounts, documentFacts, createdBy, evidenceRows, wires, requests,
+    base: `http://127.0.0.1:${port}`, graphId, graphIncarnation, token, folders, artifacts, documents, documentTrash, trash, faces, datasheets, datasheetFacts, revisionCounts, documentFacts, createdBy, evidenceRows, documentBodies, pageRows, wires, requests,
     get revision() { return state.revision }, set revision(v: number) { state.revision = v },
     get failFileViews() { return state.failFileViews }, set failFileViews(v: boolean) { state.failFileViews = v },
     get deferWrites() { return state.deferWrites }, set deferWrites(v: boolean) { state.deferWrites = v },

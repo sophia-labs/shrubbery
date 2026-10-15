@@ -42,6 +42,12 @@ export interface CreateSidebarDocumentInput {
   readonly documentKind?: string | null
   readonly dailyNoteDate?: string | null
   readonly dailyNoteTimeZone?: string | null
+  /**
+   * What gardend does when `documentId` already names a document. Unset, it
+   * refuses (create never takes over a document, 2026-10-14); `keep` returns
+   * the existing one untouched, for "make sure it exists".
+   */
+  readonly ifExists?: 'keep' | null
 }
 
 export interface CreateSidebarFolderInput {
@@ -180,11 +186,11 @@ export async function createSidebarDocument(
   mcp: SidebarMutationMcp,
   input: CreateSidebarDocumentInput,
   opts: SidebarMutationOptions = {},
-): Promise<{ documentId: string }> {
+): Promise<{ documentId: string; existed: boolean }> {
   const graphId = requiredTrimmed(input.graphId, 'graphId')
   const title = requiredTrimmed(input.title, 'title')
   const documentId = idFor('document', title, input.documentId, opts)
-  await mcp.toolsCall('create_document', {
+  const result = await mcp.toolsCall('create_document', {
     graphId,
     documentId,
     title,
@@ -193,8 +199,10 @@ export async function createSidebarDocument(
     documentKind: optionalTrimmed(input.documentKind),
     dailyNoteDate: optionalTrimmed(input.dailyNoteDate),
     dailyNoteTimeZone: optionalTrimmed(input.dailyNoteTimeZone),
+    ...(input.ifExists ? { ifExists: input.ifExists } : {}),
   })
-  return { documentId }
+  const existed = typeof result === 'object' && result !== null && (result as { existed?: unknown }).existed === true
+  return { documentId, existed }
 }
 
 export async function createSidebarFolder(

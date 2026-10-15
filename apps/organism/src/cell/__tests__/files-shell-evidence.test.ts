@@ -30,6 +30,8 @@ async function refresh(): Promise<void> {
 const binding = (): FilesShellBinding => ({ graphId: server.graphId, ownerId: 'owner-1', graphIncarnation: server.graphIncarnation, writable: true, advert, sections })
 const settle = async (ms = 120) => { await new Promise(r => setTimeout(r, ms)) }
 const queries = () => server.requests.filter(r => r.tool === 'sparql_query')
+/** A place asks two batched queries at once: the records, and the lists (each sheet's family). */
+const ASKED_PER_PLACE = 2
 
 const converter: ServedDatasheet = {
   part: 'TPS62840', maker: 'Texas Instruments', rev: 'B', productType: 'DC/DC converter', rowCount: 212, toCheck: 0,
@@ -78,8 +80,8 @@ describe('a place with datasheets', () => {
     await settle()
   })
 
-  it('asks once for the place, for its PDFs only', () => {
-    expect(queries()).toHaveLength(1)
+  it('asks once for the place (its records and its lists), for its PDFs only', () => {
+    expect(queries()).toHaveLength(ASKED_PER_PLACE)
     const asked = server.requests.length
     shell.options(); shell.options()
     expect(server.requests.length).toBe(asked)
@@ -89,7 +91,7 @@ describe('a place with datasheets', () => {
     const nodes = shell.options()!.canvas!.nodes
     const byLabel = (label: string) => nodes.find(n => n.label === label)!
     expect(byLabel('TPS62840.pdf').evidence).toMatchObject({
-      title: 'TPS62840', subtitle: [{ text: 'Texas Instruments' }, { text: '· Rev B', fixed: true }], state: 'read', summary: '4 key values, 212 rows',
+      title: 'TPS62840', subtitle: [{ text: 'Texas Instruments' }, { text: '· Rev B', fixed: true }], state: 'read', summary: '216 values', doneBadge: 'Read · 216 values',
       values: [{ label: 'VIN', text: '1.8–6.5 V', mark: 'high' }, { label: 'IOUT', text: '≤ 750 mA', mark: 'medium' }, { label: 'fSW', text: '1.8 MHz', mark: 'medium' }],
     })
     expect(byLabel('OPA2192.pdf').evidence!.values.map(v => [v.label, v.mark])).toEqual([['GBW', 'contested'], ['VOS', 'checked'], ['Supply', 'high']])
@@ -97,7 +99,7 @@ describe('a place with datasheets', () => {
     expect('evidence' in byLabel('notes.txt')).toBe(false)
   })
 
-  it('adds the list columns\' data and the Needs a look filter, which keeps only what asks for a look', () => {
+  it('adds the list columns\' data and the Disputed filter, which keeps only a sheet whose readers disagreed', () => {
     const options = shell.options()!
     expect(options.rows.filter(r => r.evidence).map(r => r.evidence!.title).sort()).toEqual(['OPA2192', 'TPS62840'])
     expect(options.needsLook).toMatchObject({ on: false, count: 1 })
@@ -126,7 +128,7 @@ describe('a place with no datasheets', () => {
     expect(options.rows.every(r => !('evidence' in r))).toBe(true)
     expect(options.needsLook).toBeNull()
     expect(options.status).toMatchObject({ text: '2 items', busy: false })
-    expect(queries()).toHaveLength(1)
+    expect(queries()).toHaveLength(ASKED_PER_PLACE)
   })
 
   it('a place of images and text asks nothing', async () => {
@@ -167,8 +169,9 @@ describe('the status line while reading', () => {
     server.datasheets.delete('file-other')
     await settle(200)
     const done = shell.options()!
-    expect(done.status).toMatchObject({ busy: false, message: 'Read TPS62840.pdf: 4 key values, 212 rows, 2 to check', action: { label: 'Open' } })
-    expect(done.canvas!.nodes.find(n => n.label === 'TPS62840.pdf')!.evidence).toMatchObject({ state: 'read', doneBadge: '2 to check' })
+    // The importer's "to check" count is the reader's audit trail: a person hears the values and only the disputes.
+    expect(done.status).toMatchObject({ busy: false, message: 'Read TPS62840.pdf: 216 values', action: { label: 'Open' } })
+    expect(done.canvas!.nodes.find(n => n.label === 'TPS62840.pdf')!.evidence).toMatchObject({ state: 'read', doneBadge: 'Read · 216 values' })
   })
 
   it('says the cause when a read fails, and offers Retry when the cell can retry', async () => {
@@ -208,6 +211,6 @@ describe('a second kind in the same place (test-only paper kind)', () => {
     const nodes = shell.options()!.canvas!.nodes
     expect(nodes.find(n => n.label === 'Attention.pdf')!.evidence).toMatchObject({ kind: 'paper', title: 'Attention Is All You Need', doneBadge: 'Read' })
     expect(nodes.find(n => n.label === 'TPS62840.pdf')!.evidence).toMatchObject({ kind: 'datasheet', title: 'TPS62840' })
-    expect(queries()).toHaveLength(1)
+    expect(queries()).toHaveLength(ASKED_PER_PLACE)
   })
 })

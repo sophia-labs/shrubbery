@@ -53,7 +53,7 @@ export class FilesAssertions {
   }
 
   /** What is open: the artifact and its kind (null: nothing, or a kind with no margin). Asks the cell once per (file, read state). */
-  sync(graphId: string, artifactId: string | null, kindId: string | null, readState: string): void {
+  sync(graphId: string, artifactId: string | null, kindId: string | null, readState: string, fileName = ''): void {
     const kind = artifactId && graphId ? this.kindOf(kindId) : undefined
     if (artifactId !== this.open) {
       this.open = artifactId
@@ -70,7 +70,7 @@ export class FilesAssertions {
     const margin = kind.margin
     void this.deps.tool(margin.tool, margin.args(graphId, artifactId)).then(raw => {
       if (this.disposed || this.load?.key !== key) return
-      this.load = { key, artifactId, title: margin.title, status: 'ready', reading: margin.read(raw, artifactId), error: '' }
+      this.load = { key, artifactId, title: margin.title, status: 'ready', reading: margin.read(raw, artifactId, { fileName }), error: '' }
       this.converted = null
       this.deps.onChange()
     }, error => {
@@ -78,6 +78,13 @@ export class FilesAssertions {
       this.load = { key, artifactId, title: margin.title, status: 'error', reading: null, error: error instanceof Error ? error.message : String(error) }
       this.deps.onChange()
     })
+  }
+
+  /** What the open file's kind read from it, for its page: none (a kind with no reading), loading, ready or failed. */
+  readingOf(artifactId: string): { readonly status: 'none' | 'loading' | 'ready' | 'error'; readonly reading: MarginReading | null; readonly error: string } {
+    const load = this.load
+    if (!load || load.artifactId !== artifactId) return { status: 'none', reading: null, error: '' }
+    return { status: load.status, reading: load.reading, error: load.error }
   }
 
   /** What the open file hands the reader, or null for a plain PDF. */

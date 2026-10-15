@@ -183,6 +183,7 @@ describe('daily-note cell adapter', () => {
           documentKind: 'daily-note',
           dailyNoteDate: '2026-06-23',
           dailyNoteTimeZone: 'America/Montevideo',
+          ifExists: 'keep',
         },
       },
     ])

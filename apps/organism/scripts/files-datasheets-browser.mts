@@ -1,8 +1,9 @@
 /**
  * Datasheets in the Files surfaces, in a real browser (Chromium), against the suites' CONTRACT-files v1 server with fixture records of
  * the importer's shape (plans/2026-10-08-datasheets-in-sophia.md §2, §3). Three seeded datasheets render rich cards in the canvas
- * (the part, the maker, three key values by product type with their marks, the badge) and the list gains Part, Maker, Key value and
- * Status columns; a plain PDF and a text file render as before; Needs a look keeps only the contested and low-confidence ones; the
+ * (the part, the maker, three key values by product type, a mark only on a disputed or person-checked value, the badge) and the list
+ * gains Part, Maker, Key value and Status columns; a plain PDF and a text file render as before; Disputed keeps only the sheets whose
+ * readers disagreed on a value (Vera, 2026-10-13: "to check" is not a count a person needs); the
  * status line says how many are reading, the page, and offers Open when a read completes. The cards are read under three skins.
  *
  *   SHOTS_DIR=/path node --import tsx scripts/files-datasheets-browser.mts      (exit 1 on any failed check)
@@ -55,12 +56,12 @@ const cardInfo = (p: Page) => p.evaluate(() => Object.fromEntries([...document.q
   const fits = (c as HTMLElement).scrollHeight <= (c as HTMLElement).clientHeight + 1 && (c.querySelector('.label')?.getBoundingClientRect().height ?? 12) >= 12
   return [c.getAttribute('title')!, { rich: c.hasAttribute('data-evidence'), glyph: !!c.querySelector('mn-file-glyph'), part: c.querySelector('.part')?.textContent?.trim() ?? null, maker: [c.querySelector('.maker .by')?.textContent, c.querySelector('.maker .rev')?.textContent].filter(Boolean).join(' ') || null,
     badge: c.querySelector('.annunciator')?.textContent?.trim() ?? null, fits,
-    values: [...c.querySelectorAll('.value')].map(v => `${v.getAttribute('data-label')} ${v.querySelector('.v')!.textContent} ${v.querySelector('.mark')!.textContent}`) }]
+    values: [...c.querySelectorAll('.value')].map(v => `${v.getAttribute('data-label')} ${v.querySelector('.v')!.textContent}${v.querySelector('.mark') ? ` ${v.querySelector('.mark')!.textContent}` : ''}`) }]
 })))
 const state = (p: Page) => p.evaluate(() => (window as any).__filesHarness.state)
 
 try {
-  await page.goto(`http://127.0.0.1:${port}/files-rudiments-browser-harness.html?cell=/files-cell&token=${cell.token}&graph=${cell.graphId}`)
+  await page.goto(`http://127.0.0.1:${port}/files-rudiments-browser-harness.html?cell=/files-cell&graph=${cell.graphId}#key=${cell.token}`)
   await page.waitForSelector('mn-sidebar-panel button.section-action')
   await page.click('mn-sidebar-panel button.section-action')
   await page.waitForFunction(() => document.querySelector('mn-files-canvas')?.shadowRoot?.querySelectorAll('.card').length === 6)
@@ -69,11 +70,11 @@ try {
   // canvas: three rich cards, the plain PDF and the text file as before
   let cards = await cardInfo(page)
   check('canvas: three datasheets are rich cards', Object.entries(cards).filter(([, c]) => c.rich).map(([k]) => k).sort().join() === 'CSD18540Q5B.pdf,OPA2192.pdf,TPS62840.pdf', Object.keys(cards))
-  check('canvas: a converter shows VIN, IOUT, fSW', JSON.stringify(cards['TPS62840.pdf']!.values) === JSON.stringify(['VIN 1.8–6.5 V ●●●', 'IOUT ≤ 750 mA ●●○', 'fSW 1.8 MHz ●●○']), cards['TPS62840.pdf'])
-  check('canvas: an op-amp shows GBW (contested), VOS (checked), Supply', JSON.stringify(cards['OPA2192.pdf']!.values) === JSON.stringify(['GBW 10 MHz ⚠', 'VOS ≤ 0.025 mV ✓', 'Supply 4.5–36 V ●●●']), cards['OPA2192.pdf'])
-  check('canvas: a MOSFET shows VDS, RDS(on) (low), ID', JSON.stringify(cards['CSD18540Q5B.pdf']!.values) === JSON.stringify(['VDS 60 V ●●●', 'RDS(on) 1.8 mΩ ●○○', 'ID 100 A ●●○']), cards['CSD18540Q5B.pdf'])
+  check('canvas: a converter shows VIN, IOUT, fSW', JSON.stringify(cards['TPS62840.pdf']!.values) === JSON.stringify(['VIN 1.8–6.5 V', 'IOUT ≤ 750 mA', 'fSW 1.8 MHz']), cards['TPS62840.pdf'])
+  check('canvas: an op-amp shows GBW (contested), VOS (checked), Supply', JSON.stringify(cards['OPA2192.pdf']!.values) === JSON.stringify(['GBW 10 MHz ⚠', 'VOS ≤ 0.025 mV ✓', 'Supply 4.5–36 V']), cards['OPA2192.pdf'])
+  check('canvas: a MOSFET shows VDS, RDS(on), ID (a low reading is not painted)', JSON.stringify(cards['CSD18540Q5B.pdf']!.values) === JSON.stringify(['VDS 60 V', 'RDS(on) 1.8 mΩ', 'ID 100 A']), cards['CSD18540Q5B.pdf'])
   check('canvas: part large with maker and revision beneath', cards['TPS62840.pdf']!.part === 'TPS62840' && cards['TPS62840.pdf']!.maker === 'Texas Instruments · Rev B' && cards['CSD18540Q5B.pdf']!.maker === 'Texas Instruments', [cards['TPS62840.pdf'], cards['CSD18540Q5B.pdf']])
-  check('canvas: the badge sits in the annunciator slot', cards['TPS62840.pdf']!.badge === 'Read · 212 rows' && cards['OPA2192.pdf']!.badge === '2 to check' && cards['CSD18540Q5B.pdf']!.badge === '1 to check', Object.entries(cards).map(([k, c]) => [k, c.badge]))
+  check('canvas: the badge sits in the annunciator slot', cards['TPS62840.pdf']!.badge === 'Read · 216 values' && cards['OPA2192.pdf']!.badge === '1 disputed · 143 values' && cards['CSD18540Q5B.pdf']!.badge === 'Read · 99 values', Object.entries(cards).map(([k, c]) => [k, c.badge]))
   check('canvas: every rich card fits its box', ['TPS62840.pdf', 'OPA2192.pdf', 'CSD18540Q5B.pdf'].every(k => cards[k]!.fits), Object.entries(cards).map(([k, c]) => [k, c.fits]))
   check('canvas: a plain PDF and a text file keep today\'s card (glyph, no badge)', ['Plain scan.pdf', 'notes.txt'].every(k => !cards[k]!.rich && cards[k]!.glyph && cards[k]!.badge === null), [cards['Plain scan.pdf'], cards['notes.txt']])
   check('canvas: a file being read keeps its glyph and says Reading 4/20', !cards['Reading.pdf']!.rich && cards['Reading.pdf']!.glyph && cards['Reading.pdf']!.badge === 'Reading 4/20', cards['Reading.pdf'])
@@ -88,14 +89,14 @@ try {
   // the read completes: the status line says what was read and offers Open
   cell.datasheets.set(ids.get('Reading.pdf')!, { part: 'LM5164', maker: 'Texas Instruments', rev: 'A', productType: 'buck converter', rowCount: 88, toCheck: 0, params: [
     { pred: 'inputVoltage', lo: 6, hi: 100, unit: 'V', conf: 'high' }, { pred: 'outputCurrent', hi: 1, unit: 'A', conf: 'high' }, { pred: 'switchingFrequency', typ: 0.5, unit: 'MHz', conf: 'medium' }] })
-  await page.waitForFunction(() => /^Read Reading\.pdf: 3 key values, 88 rows/.test((window as any).__filesHarness.state.status?.message ?? ''), null, { timeout: 15000 })
+  await page.waitForFunction(() => /^Read Reading\.pdf: 91 values/.test((window as any).__filesHarness.state.status?.message ?? ''), null, { timeout: 15000 })
   status = (await state(page)).status
-  check('status: completion names the file, the key values, the rows', status.message === 'Read Reading.pdf: 3 key values, 88 rows' && status.busy === false && status.text === '6 items', status)
+  check('status: completion names the file and the values read', status.message === 'Read Reading.pdf: 91 values' && status.busy === false && status.text === '6 items', status)
   check('status: completion offers Open', await page.locator('.mn-files-pane footer [data-action=status-action]').innerText() === 'Open')
   check('canvas: the file just read is a rich card', (await cardInfo(page))['Reading.pdf']!.part === 'LM5164')
   await page.screenshot({ path: resolve(shots, '02-read-done.png') })
   await page.click('.mn-files-pane footer [data-action=status-action]'); await page.waitForTimeout(500)
-  check('status: Open opens the file in the reader page', (await state(page)).preview?.name === 'Reading.pdf', (await state(page)).preview)
+  check('status: Open opens the file\'s page', (await state(page)).page?.name === 'Reading.pdf', (await state(page)).page)
   await page.click('.mn-files-pane .reader-row [data-action="back"]'); await page.waitForTimeout(400)
 
   // skins: the cards are legible under 98 and Hot Dog Stand (the ink is the label ink; marks differ by shape)
@@ -114,18 +115,18 @@ try {
   const head = await page.locator('.mn-files-pane .list .head [role=columnheader]').allInnerTexts()
   check('list: Part, Maker, Key value and Status join Name, Type and Size', head.join() === 'Name,Type,Part,Maker,Key value,Status,Size', head)
   const row = (label: string) => page.evaluate(l => { const r = [...document.querySelectorAll('.mn-files-pane .list [role=row][data-key]')].find(x => x.querySelector('.name')?.textContent?.includes(l)); return r ? [...r.querySelectorAll('[role=gridcell]')].map(c => c.textContent!.trim()) : null }, label)
-  check('list: a converter row', JSON.stringify(await row('TPS62840.pdf')) === JSON.stringify(['TPS62840.pdf', 'PDF', 'TPS62840', 'Texas Instruments', 'VIN1.8–6.5 V●●●', 'Read · 212 rows', '']), await row('TPS62840.pdf'))
-  check('list: the contested op-amp row says 2 to check', (await row('OPA2192.pdf'))?.[5] === '2 to check' && (await row('OPA2192.pdf'))?.[4] === 'GBW10 MHz⚠', await row('OPA2192.pdf'))
+  check('list: a converter row', JSON.stringify(await row('TPS62840.pdf')) === JSON.stringify(['TPS62840.pdf', 'PDF', 'TPS62840', 'Texas Instruments', 'VIN1.8–6.5 V', 'Read · 216 values', '']), await row('TPS62840.pdf'))
+  check('list: the op-amp row says its dispute', (await row('OPA2192.pdf'))?.[5] === '1 disputed · 143 values' && (await row('OPA2192.pdf'))?.[4] === 'GBW10 MHz⚠', await row('OPA2192.pdf'))
   const plain = await row('Plain scan.pdf')
   check('list: a plain PDF has empty datasheet cells', !!plain && plain.slice(2, 6).every(c => c === ''), plain)
   await page.screenshot({ path: resolve(shots, '04-list.png') })
 
-  // Needs a look
+  // Disputed
   const filterLabel = await page.locator('[data-action=needs-look]').innerText()
-  check('filter: Needs a look counts the two files with something to look at (OPA2192, CSD18540Q5B)', filterLabel === 'Needs a look · 2', filterLabel)
+  check('filter: Disputed counts the one sheet whose readers disagreed (OPA2192)', filterLabel === 'Disputed · 1', filterLabel)
   await page.click('[data-action=needs-look]'); await page.waitForTimeout(300)
   let names = (await state(page)).rows.map((r: any) => r.label).sort()
-  check('filter: on, only the contested and low-confidence ones remain', names.join() === 'CSD18540Q5B.pdf,OPA2192.pdf', names)
+  check('filter: on, only the disputed one remains', names.join() === 'OPA2192.pdf', names)
   check('filter: the toggle is pressed', await page.locator('[data-action=needs-look]').getAttribute('aria-pressed') === 'true')
   await page.screenshot({ path: resolve(shots, '05-needs-a-look.png') })
   await page.click('[data-action=needs-look]'); await page.waitForTimeout(300)

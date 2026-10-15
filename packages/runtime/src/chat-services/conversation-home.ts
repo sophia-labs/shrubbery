@@ -43,6 +43,8 @@ export interface ConversationSummary {
   createdAt?: string | null
   models?: readonly ConversationModelRef[]
   continuesConversation?: ConversationContinuation | null
+  /** A live conversation branched ("Branch from here") or duplicated from another: what it came from. */
+  branchedFrom?: { readonly id: string; readonly kind: 'fork' | 'clone'; readonly title: string | null } | null
 }
 
 // ── dates ──────────────────────────────────────────────────────────────────

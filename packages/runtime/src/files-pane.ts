@@ -11,10 +11,11 @@ import { html, nothing, type TemplateResult } from 'lit'
 import { repeat } from 'lit/directives/repeat.js'
 import { ref } from 'lit/directives/ref.js'
 import { rovingToolbar } from '@shrubbery/nucleus/roving-toolbar'
-import { evidenceBadge, evidenceTone, CORROBORATION_MARK, CORROBORATION_WORDS, type FileEvidence } from '@shrubbery/nucleus'
+import { evidenceBadge, evidenceTone, quietMark, CORROBORATION_WORDS, type FileEvidence } from '@shrubbery/nucleus'
 import './files-canvas/files-canvas-host.js'
 import { renderFilesEmpty } from './files-canvas/files-empty.js'
 import type { FilesCanvasHostInput } from './files-canvas/files-canvas-host.js'
+import { FILES_PAGE_STYLE, renderFilesPage, type FilesPanePage } from './files-page.js'
 
 export type FilesFace = 'canvas' | 'list'
 export type FilesIconSize = 'small' | 'medium' | 'large'
@@ -62,7 +63,9 @@ export type FilesPanePreview =
       readonly assertions?: readonly FilesPaneAssertion[]; readonly assertionsInfo?: FilesPaneAssertion | null
       readonly overlay?: boolean; readonly selected?: string | null
       /** Ask the reader to go to an assertion (a deep link); a new nonce asks again. */
-      readonly reveal?: { readonly id: string; readonly nonce: number } | null }
+      readonly reveal?: { readonly id: string; readonly nonce: number } | null
+      /** Ask the reader to show one assertion's box on its page, the overlay staying as it is (a page link of the file's page). */
+      readonly spotlight?: { readonly id: string; readonly nonce: number } | null }
   | { readonly kind: 'image'; readonly name: string; readonly status: 'loading' | 'ready' | 'error'; readonly error: string; readonly url?: string | null }
   /** A file Hoja renders: text, Markdown, code, JSON, a table, HTML, a Word document. `label` says what kind ('Markdown'). */
   | { readonly kind: 'reader'; readonly name: string; readonly status: 'loading' | 'ready' | 'error'; readonly error: string
@@ -126,10 +129,10 @@ export interface FilesPaneStatus {
   readonly action?: { readonly label: string; readonly onAction: () => void } | null
 }
 
-/** The Needs a look filter: shown (in the list face) only when the place holds datasheets. */
+/** The Disputed filter: shown (in the list face) only when a file of the place has a value its readers disagreed on. */
 export interface FilesPaneNeedsLook {
   readonly on: boolean
-  /** How many files in the place have something to look at. */
+  /** How many files in the place have a disputed value. */
   readonly count: number
   readonly onToggle: (on: boolean) => void
 }
@@ -145,9 +148,17 @@ export interface WorkspaceFilesOptions {
   readonly canvas: FilesCanvasHostInput | null
   /** The list face's rows, in display order. */
   readonly rows: readonly FilesPaneRow[]
-  /** The opened file, which replaces the face until Back. */
+  /** The opened file's viewer: the whole center, or, with `page`, the body of the page's source section. */
   readonly preview: FilesPanePreview | null
-  /** The list face's filter over datasheets with contested, low-confidence or to-check values. */
+  /** The opened file's page (its default face): replaces the face until Back; its source section draws `preview`. */
+  readonly page?: FilesPanePage | null
+  readonly onPageSection?: (id: string, open: boolean) => void
+  /** A page link: open the source at that value (an evidence id, or `page:N`). */
+  readonly onPageGoto?: (evidenceId: string, page: number | null) => void
+  readonly onPageAction?: (action: string) => void
+  readonly onPageFilter?: (text: string) => void
+  readonly onNotesChange?: (detail: { readonly json: unknown; readonly value: string; readonly isEmpty: boolean }) => void
+  /** The list face's filter over datasheets with values the readers disagreed on. */
   readonly needsLook?: FilesPaneNeedsLook | null
   /** The Trash, which replaces the face until Back. */
   readonly trash?: FilesPaneTrash | null
@@ -354,18 +365,18 @@ function chooseFiles(event: Event, value: WorkspaceFilesOptions): void {
  * The opened file's one row (design §12.2): Back, the name, the page controls of a PDF, Reload and Download. It replaces the
  * breadcrumb while a file is open, so the reader is three regions: this row, the page, the status line.
  */
-function renderReaderRow(value: WorkspaceFilesOptions, preview: FilesPanePreview): TemplateResult {
-  const pdf = preview.kind === 'pdf' ? preview : null
+function renderReaderRow(value: WorkspaceFilesOptions, preview: FilesPanePreview | null, name: string): TemplateResult {
+  const pdf = preview?.kind === 'pdf' ? preview : null
   return html`<header class="reader-row" role="toolbar" aria-label="Opened file" ${ref(roving)}>
     <button type="button" class="tool" data-action="back" aria-label="Back to files" @click=${() => value.onClosePreview()}>← <span class="label">Back</span></button>
-    <span class="title" title=${preview.name}>${preview.name}</span>
-    ${preview.kind === 'reader' && preview.label ? html`<span class="kind" data-kind-label>${preview.label}</span>` : nothing}
-    ${preview.kind === 'reader' && typeof preview.source === 'boolean' && value.onPreviewSource ? html`<button type="button" class="tool"
+    <span class="title" title=${name}>${name}</span>
+    ${preview?.kind === 'reader' && preview.label ? html`<span class="kind" data-kind-label>${preview.label}</span>` : nothing}
+    ${preview?.kind === 'reader' && typeof preview.source === 'boolean' && value.onPreviewSource ? html`<button type="button" class="tool"
       data-action="source" aria-pressed=${preview.source ? 'true' : 'false'} aria-label="Show the source"
       @click=${() => value.onPreviewSource?.(!preview.source)}>&lt;/&gt;<span class="label"> Source</span></button>` : nothing}
     ${pdf && value.onReloadPreview ? html`<button type="button" class="tool" data-action="reload" aria-label="Reload original file"
       @click=${() => value.onReloadPreview?.()}>↻<span class="label"> Reload</span></button>` : nothing}
-    ${value.onDownload && preview.kind !== 'file' ? html`<button type="button" class="tool" data-action="download" aria-label="Download ${preview.name}"
+    ${value.onDownload && preview?.kind !== 'file' ? html`<button type="button" class="tool" data-action="download" aria-label="Download ${name}"
       @click=${() => value.onDownload?.()}>↓<span class="label"> Download</span></button>` : nothing}
   </header>`
 }
@@ -405,7 +416,8 @@ function renderTrash(trash: FilesPaneTrash): TemplateResult {
 
 function renderHeader(value: WorkspaceFilesOptions): TemplateResult {
   if (value.trash) return renderTrashRow(value.trash)
-  if (value.preview) return renderReaderRow(value, value.preview)
+  if (value.page) return renderReaderRow(value, value.preview, value.page.name)
+  if (value.preview) return renderReaderRow(value, value.preview, value.preview.name)
   const crumbs = value.breadcrumbs
   return html`<header role="toolbar" aria-label="Files" ${ref(roving)}>
     <nav aria-label="Folder path">
@@ -430,8 +442,8 @@ function renderHeader(value: WorkspaceFilesOptions): TemplateResult {
           @change=${(e: Event) => value.onSnapToGrid((e.currentTarget as HTMLInputElement).checked)} /> Grid</label>
       </span>` : nothing}
       ${value.needsLook && value.face === 'list' ? html`<button type="button" class="tool" data-action="needs-look" aria-pressed=${value.needsLook.on ? 'true' : 'false'}
-        title="Datasheets with a contested or low-confidence value, or values to check"
-        @click=${() => value.needsLook?.onToggle(!value.needsLook.on)}>Needs a look · ${value.needsLook.count}</button>` : nothing}
+        title="Only the files with a value the readers disagreed on"
+        @click=${() => value.needsLook?.onToggle(!value.needsLook.on)}>Disputed · ${value.needsLook.count}</button>` : nothing}
       ${value.onOpenTrash ? html`<button type="button" class="tool" data-action="trash" title="Trash" @click=${() => value.onOpenTrash?.()}>Trash</button>` : nothing}
       ${value.canCreate ? html`<button type="button" class="tool" data-action="new-folder" title="New folder (⌘⇧N)"
         @click=${() => value.onNewFolder()}>New folder</button>` : nothing}
@@ -481,7 +493,7 @@ function renderList(value: WorkspaceFilesOptions): TemplateResult {
     <div role="row" class="head"><span role="columnheader">Name</span><span role="columnheader" class="type">Type</span>${lead ? [...lead.cells.map((c, i) => html`<span role="columnheader" class=${i ? 'ev' : 'ev strong'}>${c.header}</span>`),
       html`<span role="columnheader">Status</span>`] : nothing}<span role="columnheader" class="size">Size</span></div>
     ${value.rows.length === 0 ? (value.needsLook?.on
-      ? html`<div class="files-empty" data-empty-filter><p>Nothing here needs a look.</p></div>` : renderFilesEmpty(value.canUpload)) : nothing}
+      ? html`<div class="files-empty" data-empty-filter><p>Nothing here is disputed.</p></div>` : renderFilesEmpty(value.canUpload)) : nothing}
     ${repeat(value.rows, row => row.key, (row, index) => html`<div role="row" data-key=${row.key} aria-selected=${row.selected ? 'true' : 'false'}
       tabindex=${row.selected || (index === 0 && !value.rows.some(r => r.selected)) ? '0' : '-1'}
       @click=${(e: MouseEvent) => select(e, row.key)}
@@ -503,8 +515,8 @@ function renderEvidenceCells(e: FileEvidence | undefined, columns: number): Temp
   const badge = e ? html`<span role="gridcell" class="badge" data-tone=${evidenceTone(e) ?? nothing}>${evidenceBadge(e)}</span>` : html`<span role="gridcell" class="badge"></span>`
   if (!e) return [...Array.from({ length: columns }, (_, i) => html`<span role="gridcell" class=${i ? 'ev' : 'ev strong'}></span>`), badge]
   return [...e.cells.map((c, i) => html`<span role="gridcell" class=${i ? 'ev' : 'ev strong'} title=${c.text} data-mark=${c.mark ?? nothing}>${c.label
-    ? html`<span class="k">${c.label}</span>` : nothing}<span class="v">${c.text}</span>${c.mark ? html`<span class="mark" role="img"
-    aria-label=${CORROBORATION_WORDS[c.mark]}>${CORROBORATION_MARK[c.mark]}</span>` : nothing}</span>`), badge]
+    ? html`<span class="k">${c.label}</span>` : nothing}<span class="v">${c.text}</span>${quietMark(c.mark) ? html`<span class="mark" role="img"
+    aria-label=${CORROBORATION_WORDS[c.mark!]}>${quietMark(c.mark)}</span>` : nothing}</span>`), badge]
 }
 
 /** The name input of a row named in place. Its keys stay its own (Backspace edits, it does not delete the file). */
@@ -541,7 +553,7 @@ function renderPreview(value: WorkspaceFilesOptions, preview: FilesPanePreview):
       .loading=${preview.status === 'loading' ? { loaded: preview.loaded ?? 0, total: preview.total ?? 0 } : null}
       .error=${preview.status === 'error' ? preview.error : ''}
       .assertions=${preview.assertions ?? EMPTY} .info=${preview.assertionsInfo ?? null}
-      .overlay=${preview.overlay ?? false} .selected=${preview.selected ?? null} .reveal=${preview.reveal ?? null}
+      .overlay=${preview.overlay ?? false} .selected=${preview.selected ?? null} .reveal=${preview.reveal ?? null} .spotlight=${preview.spotlight ?? null}
       @pdf-page-change=${(e: CustomEvent<{ page: number; pageCount: number }>) => value.onPdfPage?.(e.detail.page, e.detail.pageCount)}
       @assertion-select=${(e: CustomEvent<{ id: string | null; page: number | null }>) => value.onAssertionSelect?.(e.detail.id, e.detail.page)}
       @assertion-overlay-change=${(e: CustomEvent<{ on: boolean }>) => value.onOverlay?.(e.detail.on)}
@@ -611,15 +623,32 @@ function renderFilePage(value: WorkspaceFilesOptions, preview: FilePagePreview):
   </section>`
 }
 
+/** The page's source section: the viewer in a frame (a picture or a page flows; a reader keeps its own scroll). */
+function renderSource(value: WorkspaceFilesOptions): TemplateResult {
+  const preview = value.preview
+  if (!preview) return html`<p class="fp-snote">Opening…</p>`
+  const flows = preview.kind === 'file' || preview.kind === 'image' || (preview.kind === 'media' && preview.media === 'audio')
+  return html`<div class="fp-source" ?data-flow=${flows}>${renderPreview(value, preview)}</div>`
+}
+
 export function renderFilesPane(value: WorkspaceFilesOptions): TemplateResult {
   const status = value.status
+  const page = value.page
   const center = value.trash ? renderTrash(value.trash)
+    : page ? renderFilesPage(page, {
+      onSection: (id, open) => value.onPageSection?.(id, open),
+      onGoto: (id, n) => value.onPageGoto?.(id, n),
+      onAction: action => value.onPageAction?.(action),
+      onFilter: text => value.onPageFilter?.(text),
+      onNotes: detail => value.onNotesChange?.(detail),
+      source: () => renderSource(value),
+    })
     : value.preview ? renderPreview(value, value.preview)
     : value.face === 'canvas' && value.canvas ? html`<mn-files-canvas .input=${value.canvas}></mn-files-canvas>`
     : renderList(value)
   // The style sits inside the section: a template that begins with a binding is parsed as a processing instruction by
   // some DOM implementations (happy-dom), and the pane must not depend on the parser's mercy.
-  return html`<section class="mn-files-pane" aria-label="Files" data-graph-id=${value.graphId}>${STYLE}
+  return html`<section class="mn-files-pane" aria-label="Files" data-graph-id=${value.graphId}>${STYLE}${page ? FILES_PAGE_STYLE : nothing}
     ${renderHeader(value)}
     ${value.banner ? html`<p class="note" role="note">${value.banner}</p>` : nothing}
     <div class="center">${center}</div>

@@ -18,8 +18,16 @@ export const CORROBORATION_MARK: Readonly<Record<Corroboration, string>> = Objec
 })
 
 export const CORROBORATION_WORDS: Readonly<Record<Corroboration, string>> = Object.freeze({
-  high: 'independent statements agree', medium: 'one clean source', low: 'low confidence', contested: 'contested', checked: 'checked by a person',
+  high: 'independent statements agree', medium: 'one clean source', low: 'low confidence', contested: 'disputed: the readers disagree', checked: 'checked by a person',
 })
+
+/**
+ * The mark a person sees beside a value: only a disagreement (⚠) or a person's check (✓) earns one. How many readers agreed is the
+ * reading's own business, said on the file's page under About this reading, never painted on every value.
+ */
+export function quietMark(c: Corroboration | undefined): string {
+  return c === 'contested' ? '⚠' : c === 'checked' ? '✓' : ''
+}
 
 export type ReadState = 'queued' | 'reading' | 'read' | 'failed'
 
@@ -80,13 +88,13 @@ export interface FileEvidence {
   /** At most three. */
   readonly values: readonly FileEvidenceValue[]
   readonly state: ReadState
-  /** The badge once read ('Read · 212 rows', '2 to check'); the other states have their own words. */
+  /** The badge once read ('Read · 214 values', 'Read · 214 values · 2 disputed'); the other states have their own words. */
   readonly doneBadge: string
   readonly badgeTone?: 'attention' | 'danger'
-  /** What the status line says when the read completes, after 'Read name: ' ('4 key values, 212 rows, 2 to check'). */
+  /** What the status line says when the read completes, after 'Read name: ' ('214 values, 2 disputed'). */
   readonly summary: string
   readonly cells: readonly FileEvidenceCell[]
-  /** The kind's own predicate: contested or low-confidence values, or values to check. */
+  /** The kind's own predicate: a value the readers disagreed on (the Disputed filter). */
   readonly lookable: boolean
   /** The reading, while it runs. */
   readonly progress?: { readonly page: number; readonly pages: number }
@@ -117,7 +125,7 @@ export function evidenceTone(e: FileEvidence): 'attention' | 'danger' | undefine
   return e.state === 'failed' ? 'danger' : e.state === 'read' ? e.badgeTone : undefined
 }
 
-/** Contested or low-confidence values, or values to check. A file still being read, or unread, has nothing to look at yet. */
+/** A value the readers disagreed on. A file still being read, or unread, has nothing disputed yet. */
 export function needsLook(e: FileEvidence | undefined): boolean {
   return !!e && e.state === 'read' && e.lookable
 }
@@ -129,11 +137,11 @@ export function hasFace(e: FileEvidence | undefined): e is FileEvidence {
 
 /** What the card says to a screen reader. */
 export function evidenceWords(e: FileEvidence): string {
-  const values = e.values.map(v => `${v.label} ${v.text}, ${CORROBORATION_WORDS[v.mark]}`)
+  const values = e.values.map(v => `${v.label} ${v.text}${quietMark(v.mark) ? `, ${CORROBORATION_WORDS[v.mark]}` : ''}`)
   return [e.title, e.subtitle.map(s => s.text).join(' ').replace(/\s*·\s*/g, ' ').trim(), ...values, evidenceBadge(e)].filter(Boolean).join(', ')
 }
 
-/** The sentence under the status line when a file has just been read: 'Read TPS62840.pdf: 4 key values, 212 rows, 2 to check'. */
+/** The sentence under the status line when a file has just been read: 'Read TPS62840.pdf: 214 values, 2 disputed'. */
 export function readDoneSentence(name: string, e: FileEvidence): string {
   return `Read ${name}${e.summary ? `: ${e.summary}` : ''}`
 }

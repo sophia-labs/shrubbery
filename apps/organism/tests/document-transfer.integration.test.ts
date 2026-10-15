@@ -20,6 +20,8 @@ import {
   type SidebarDocumentRest,
 } from '../src/cell/sidebar-documents.js'
 import { OrganismOriginalFileController } from '../src/cell/original-file-controller.js'
+import { FilesClient } from '../src/cell/files-contract.js'
+import { FilesNotes } from '../src/cell/files-notes.js'
 import { makeSidebarDocumentEditable } from '../src/cell/sidebar-mutations.js'
 import type { SidebarNode, SidebarSection } from '@shrubbery/runtime'
 
@@ -512,4 +514,56 @@ describe('document transfer — real gardend', () => {
     // selected source document ever stops being the PDF fixture.
     expect(uploadedFiles.get(uploadedIds[0]!)?.type).toBe('application/pdf')
   }, 60_000)
+
+  // gardend makes no document with a title over 96 characters (garden a901a16 refuses it at once; before, the create
+  // retried forever and every later write to the graph waited behind it). A title made from a file's name is cut to fit.
+  describe('a file name over 96 characters', () => {
+    const stem = 'Thermal validation report for the OPA2134 headphone amplifier board, revision C, batch 7 – final review'
+    const scalars = (value: string) => Array.from(value).length
+    const storedTitle = async (documentId: string) => {
+      const workspace = await mcp.toolsCall('get_workspace', { graph_id: GRAPH_ID }) as {
+        structuredContent?: { documents?: Array<Record<string, unknown>> }
+      }
+      return workspace.structuredContent?.documents?.find(item => item.id === documentId)?.title
+    }
+
+    it('a text file becomes a document whose title is the name cut in its middle', async () => {
+      expect(scalars(stem)).toBeGreaterThan(96)
+      const text = await service.uploadFile(GRAPH_ID, new File(['# Long name\n\nThe name is longer than a title.\n'], `${stem}.md`, { type: 'text/markdown' }))
+      expect(scalars(text.title)).toBeLessThanOrEqual(96)
+      expect(text.title.startsWith('Thermal validation report for the OPA2134')).toBe(true)
+      expect(text.title.endsWith('…review')).toBe(true)
+      expect(await storedTitle(text.documentId)).toBe(text.title)
+      // The file keeps its whole name.
+      expect(text.sourceFile).toMatchObject({ originalFilename: `${stem}.md` })
+    }, 40_000)
+
+    it('a PDF is written and then linked to its original (workspace.createDocument) under the cut title', async () => {
+      const pdf = await service.uploadFile(GRAPH_ID, new File([binaryFilePart(minimalPdf('A PDF with a long name.'))], `${stem}.pdf`, { type: 'application/pdf' }))
+      expect(scalars(pdf.title)).toBeLessThanOrEqual(96)
+      expect(pdf.title.endsWith('…review')).toBe(true)
+      expect(await storedTitle(pdf.documentId)).toBe(pdf.title)
+      expect(pdf.sourceFile).toMatchObject({ originalFilename: `${stem}.pdf` })
+    }, 40_000)
+
+    it('the notes on such a file are made at the first keystroke as "Notes on" the cut name, its extension kept', async () => {
+      const client = new FilesClient({
+        auth: { token: () => cell.token, userId: () => 'organism-document-transfer', isAuthenticated: () => true, whenReady: () => Promise.resolve(), onChange: () => () => {} },
+        runtime: { mode: () => 'local', isGateway: () => false, graphBaseUrl: () => cell.apiUrl },
+      }, mcp, { fetch: nodeCellFetch })
+      const notes = new FilesNotes({ tool: (name, args) => client.tool(name, args), onChange: () => {}, debounceMs: 0 })
+      notes.bind({ graphId: GRAPH_ID, graphIncarnation: '', artifactId: 'file-long-name-notes', label: `${stem}.pdf`, parentId: null, anyFolder: true, writable: true })
+      for (let i = 0; i < 200 && notes.model().status === 'loading'; i++) await new Promise(resolve => setTimeout(resolve, 25))
+      expect(notes.model().status).toBe('empty')
+      notes.change({ json: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Runs warm at ±18 V.' }] }] }, isEmpty: false })
+      await notes.flush()
+      expect(notes.model()).toMatchObject({ status: 'saved', message: 'Saved' })
+      const title = String(await storedTitle(notes.documentId()!))
+      expect(scalars(title)).toBeLessThanOrEqual(96)
+      expect(title.startsWith('Notes on Thermal validation report')).toBe(true)
+      expect(title.endsWith('…review.pdf')).toBe(true)
+      // Nothing waits behind it: the graph takes the next write.
+      await mcp.toolsCall('create_document', { graphId: GRAPH_ID, title: 'After the long names' })
+    }, 40_000)
+  })
 })

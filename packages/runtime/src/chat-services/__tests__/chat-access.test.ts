@@ -37,6 +37,15 @@ describe('accessNoteFor', () => {
     })
   })
 
+  it('a chat that cannot run here: the host\'s reason, in its words', () => {
+    const reason = 'Chat needs Node.js 22.19 or newer, and there is no node on gardend\'s PATH.'
+    expect(accessNoteFor({ mode: 'read', basis: 'unavailable', role: 'owner', reason })).toEqual({ mode: 'read', label: reason })
+    expect(accessNoteFor({ mode: 'read', basis: 'unavailable', role: null })).toEqual({
+      mode: 'read',
+      label: 'Chat is not available on this Sophia.',
+    })
+  })
+
   it('an older conversation: it reads only, and a new chat can change things', () => {
     expect(accessNoteFor({ mode: 'read', basis: 'conversation', role: 'owner' })).toEqual({
       mode: 'read',

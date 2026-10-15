@@ -267,7 +267,7 @@ describe('the opened PDF', () => {
 })
 
 const sheet = (p: Partial<FileEvidence> = {}): FileEvidence => ({
-  kind: 'datasheet', title: 'TPS62840', subtitle: [{ text: 'Texas Instruments' }], state: 'read', doneBadge: 'Read · 212 rows', summary: '', lookable: false,
+  kind: 'datasheet', title: 'TPS62840', subtitle: [{ text: 'Texas Instruments' }], state: 'read', doneBadge: 'Read · 215 values', summary: '', lookable: false,
   values: [], cells: [{ header: 'Part', width: '7rem', text: 'TPS62840', strong: true }, { header: 'Maker', width: '9rem', text: 'Texas Instruments' },
     { header: 'Key value', width: '10rem', label: 'VIN', text: '1.8–6.5 V', mark: 'high' }], ...p,
 })
@@ -284,8 +284,12 @@ describe('datasheets in the list face', () => {
     expect([...host.querySelectorAll('.head [role="columnheader"]')].map(c => c.textContent)).toEqual(['Name', 'Type', 'Part', 'Maker', 'Key value', 'Status', 'Size'])
     const [sheetRow, plainRow] = [...host.querySelectorAll('[role="row"][data-key]')]
     expect([...sheetRow!.querySelectorAll('[role="gridcell"]')].map(c => c.textContent!.trim())).toEqual(
-      ['TPS62840.pdf', 'PDF', 'TPS62840', 'Texas Instruments', 'VIN1.8–6.5 V●●●', 'Read · 212 rows', ''])
-    expect(sheetRow!.querySelector('.mark')!.getAttribute('aria-label')).toBe('independent statements agree')
+      ['TPS62840.pdf', 'PDF', 'TPS62840', 'Texas Instruments', 'VIN1.8–6.5 V', 'Read · 215 values', ''])
+    // How many readers agreed is not painted on a value: only a dispute (or a person's check) earns a mark.
+    expect(sheetRow!.querySelector('.mark')).toBeNull()
+    const disputed = mount(options({ face: 'list', canvas: null, rows: [{ ...rows[0]!, evidence: sheet({ cells: [{ header: 'Part', text: 'TPS62840', strong: true },
+      { header: 'Maker', text: 'Texas Instruments' }, { header: 'Key value', label: 'VIN', text: '1.8–6.5 V', mark: 'contested' }] }) }] }).value)
+    expect(disputed.querySelector('.mark')!.getAttribute('aria-label')).toBe('disputed: the readers disagree')
     expect(plainRow!.querySelectorAll('[role="gridcell"]')).toHaveLength(7)
     expect(plainRow!.querySelector('.strong')!.textContent).toBe('')
   })
@@ -296,18 +300,18 @@ describe('datasheets in the list face', () => {
     expect([...host.querySelectorAll('.head [role="columnheader"]')].map(c => c.textContent)).toEqual(['Name', 'Type', 'Size'])
   })
 
-  it('the Needs a look filter is a toggle in the list header only, and an empty result says so rather than "empty folder"', () => {
+  it('the Disputed filter is a toggle in the list header only, and an empty result says so rather than "empty folder"', () => {
     const calls: boolean[] = []
     const needsLook = { on: false, count: 2, onToggle: (on: boolean) => calls.push(on) }
     const host = mount(options({ face: 'list', canvas: null, rows, needsLook }).value)
     const button = host.querySelector<HTMLButtonElement>('[data-action="needs-look"]')!
-    expect(button.textContent).toBe('Needs a look · 2')
+    expect(button.textContent).toBe('Disputed · 2')
     expect(button.getAttribute('aria-pressed')).toBe('false')
     button.click()
     expect(calls).toEqual([true])
     expect(mount(options({ needsLook }).value).querySelector('[data-action="needs-look"]')).toBeNull()      // not on the canvas face
     const none = mount(options({ face: 'list', canvas: null, rows: [], needsLook: { ...needsLook, on: true } }).value)
-    expect(none.querySelector('[data-empty-filter]')!.textContent).toContain('Nothing here needs a look')
+    expect(none.querySelector('[data-empty-filter]')!.textContent).toContain('Nothing here is disputed')
     expect(none.querySelector('[data-empty]')).toBeNull()
   })
 })

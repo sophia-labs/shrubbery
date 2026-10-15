@@ -46,6 +46,7 @@ export {
   type ChatArtifactPreviewView,
 } from './chat-artifact-preview.js'
 export {
+  CONTINUE_HERE_ACTION,
   createChatServiceStore,
   type ChatServiceStore,
   type ChatServiceStoreOptions,

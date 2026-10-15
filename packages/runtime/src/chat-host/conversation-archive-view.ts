@@ -51,6 +51,8 @@ export interface HomeActions {
   commitRename(id: string): void
   cancelRename(): void
   deleteLive(id: string): void
+  /** Duplicate a live conversation; absent where the chat cannot (the row then has no Duplicate). */
+  duplicateLive?(id: string): void
   retryLive(): void
   retryImported(): void
   dismissNotice(): void
@@ -119,12 +121,27 @@ function renderLiveRow(ctx: HomeRenderContext, row: ConversationRow): TemplateRe
       </div>
     `
   }
+  const duplicate = ctx.actions.duplicateLive
+  const lineage = row.live?.branchedFrom
   return html`
-    <div class="history-row" data-chat-history-row=${row.id} data-chat-history-kind="live" ?data-active=${active}>
+    <div class="history-row" data-chat-history-row=${row.id} data-chat-history-kind="live" ?data-active=${active} ?data-chat-history-duplicable=${Boolean(duplicate)}>
       <button type="button" class="history-select" data-chat-history-select=${row.id} @click=${() => ctx.actions.selectLive(row.id)}>
         <span class="history-name">${row.title}</span>
         <span class="history-meta">${metaLine(ctx, row)}</span>
+        ${lineage
+          ? html`<span class="history-lineage" data-chat-history-lineage=${lineage.id}>↳ ${lineage.kind === 'clone' ? 'duplicated' : 'branched'} from ${lineage.title ?? 'a deleted conversation'}</span>`
+          : nothing}
       </button>
+      ${duplicate
+        ? html`<button
+            type="button"
+            class="history-button"
+            data-chat-history-duplicate=${row.id}
+            title="Duplicate chat"
+            aria-label="Duplicate ${row.title}"
+            @click=${() => duplicate(row.id)}
+          >Duplicate</button>`
+        : nothing}
       <button
         type="button"
         class="history-button"
@@ -648,6 +665,21 @@ export const conversationHomeStyles = css`
   }
   .history-row[data-chat-history-child] {
     margin-left: 1.25rem;
+  }
+  .history-row[data-chat-history-duplicable] {
+    grid-template-columns: minmax(0, 1fr) auto auto auto;
+  }
+  .history-row[data-chat-history-duplicable] > [data-chat-history-duplicate] { grid-column: 2; }
+  .history-row[data-chat-history-duplicable] > [data-chat-history-rename] { grid-column: 3; }
+  .history-row[data-chat-history-duplicable] > [data-chat-history-delete] { grid-column: 4; }
+  .history-lineage {
+    display: block;
+    overflow: hidden;
+    margin-top: 0.125rem;
+    color: var(--mn-color-text-muted, #66736a);
+    font-size: 0.72rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .history-provenance {
     display: block;

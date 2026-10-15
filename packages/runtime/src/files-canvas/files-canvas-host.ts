@@ -22,7 +22,7 @@ import { LitElement, css, html, nothing, svg, unsafeCSS, type PropertyValues, ty
 import { repeat } from 'lit/directives/repeat.js'
 import { FILES_EMPTY_STYLE, renderFilesEmpty } from './files-empty.js'
 import {
-  fileKey, folderViewKey, resolveCapabilities, evidenceBadge, evidenceTone, evidenceWords, hasFace, CORROBORATION_MARK, CORROBORATION_WORDS,
+  fileKey, folderViewKey, resolveCapabilities, evidenceBadge, evidenceTone, evidenceWords, hasFace, quietMark, CORROBORATION_WORDS,
   type FileEvidence, type FileCanvasCapabilities, type FileCanvasInput, type WorkspaceFileRef, type FileCanvasIntent, type FileCanvasSessionPatch, type FileKey,
 } from '@shrubbery/nucleus'
 import {
@@ -214,12 +214,13 @@ export class MnFilesCanvas extends LitElement {
     .annunciator[data-tone='attention'] { font-weight: 600; border-color: currentColor; }
     .annunciator[data-tone='danger'] { font-weight: 600; border-style: dashed; border-color: currentColor; }
     /*
-     * A datasheet card: the part, large, the maker beneath, three key values, each with its corroboration mark. Every ink is the
+     * A datasheet card: the part, large, the maker beneath, three key values; a mark only on a disputed or person-checked value. Every ink is the
      * label ink (dimmed by opacity for the secondary lines) and the marks differ by shape, never by hue, so the card reads on the
      * card surface of every skin and on the bare desktop of the ones that draw no card (98).
      */
     .card[data-evidence] { overflow: hidden; gap: 2px; }
-    .card[data-evidence] .annunciator { color: var(--mn-files-label-ink, var(--mn-color-text-primary)); border-color: currentColor; opacity: 0.85; }
+    .card[data-evidence] .annunciator { color: var(--mn-files-label-ink, var(--mn-color-text-primary)); border-color: currentColor; opacity: 0.85;
+      max-width: 100%; box-sizing: border-box; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .card[data-evidence] .sheet { width: 100%; min-width: 0; display: flex; flex-direction: column; gap: 1px; color: var(--mn-files-label-ink, var(--mn-color-text-primary)); }
     .sheet .part {
       font-size: var(--mn-text-md, 14px); font-weight: 600; line-height: 1.2; text-align: center;
@@ -764,8 +765,8 @@ export class MnFilesCanvas extends LitElement {
     return html`<div class="sheet" data-sheet data-kind=${e.kind}>
       <span class="part" title=${e.title}>${e.title}</span>
       <span class="maker">${e.subtitle.length ? e.subtitle.map((s, i) => html`<span class=${s.fixed ? 'rev' : 'by'} title=${s.text}>${s.text || (i ? '' : '\u00a0')}</span>`) : '\u00a0'}</span>
-      <div class="values">${e.values.map(v => html`<span class="value" data-mark=${v.mark} data-label=${v.label}><span class="k">${v.label}</span><span class="v">${v.text}</span><span
-        class="mark" role="img" aria-label=${CORROBORATION_WORDS[v.mark]} title=${CORROBORATION_WORDS[v.mark]}>${CORROBORATION_MARK[v.mark]}</span></span>`)}</div>
+      <div class="values">${e.values.map(v => html`<span class="value" data-mark=${v.mark} data-label=${v.label}><span class="k">${v.label}</span><span class="v">${v.text}</span>${quietMark(v.mark)
+        ? html`<span class="mark" role="img" aria-label=${CORROBORATION_WORDS[v.mark]} title=${CORROBORATION_WORDS[v.mark]}>${quietMark(v.mark)}</span>` : nothing}</span>`)}</div>
     </div>`
   }
 
@@ -848,7 +849,7 @@ export class MnFilesCanvas extends LitElement {
             @pointerdown=${(e: Event) => e.stopPropagation()} />
           ${naming!.error ? html`<span class="name-error" role="alert">${naming!.error}</span>` : nothing}`
           : html`<span class="label">${displayLabel(card.label, iconSize)}</span>`}
-        ${annunciator ? html`<span class="annunciator" data-tone=${badgeTone}>${annunciator}</span>` : nothing}
+        ${annunciator ? html`<span class="annunciator" data-tone=${badgeTone} title=${annunciator}>${annunciator}</span>` : nothing}
         ${caps.connect && card.role === 'real' && !isNaming ? html`<span class="handle" data-handle=${card.key} ?data-active=${connecting} aria-hidden="true"></span>` : nothing}
       </div>`
     }

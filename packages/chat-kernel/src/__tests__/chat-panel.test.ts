@@ -1303,6 +1303,32 @@ describe('<sh-chat-panel> composer → onSend', () => {
     expect(sent).toEqual([])
   })
 
+  it('waits for the reply to finish before sending, unless the host steers replies', async () => {
+    const el = mount()
+    const sent: string[] = []
+    el.onSend = (text) => sent.push(text)
+    el.streaming = true
+    el.messages = [assistantMsg({ id: 'mBusy', content: 'partial', parts: [], isStreaming: true })]
+    await settle(el)
+
+    el.draft = 'only the power parts'
+    await settle(el)
+    expect(el.querySelector<HTMLButtonElement>('.send-button')?.disabled).toBe(true)
+    composerInput(el).dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+    await settle(el)
+    expect(sent).toEqual([])
+
+    // A host that steers (the agent core's ride chat) takes the message into the reply under way.
+    el.steerWhileStreaming = true
+    await settle(el)
+    expect(el.querySelector('.composer-hint')?.textContent).toMatch(/steers/)
+    const send = el.querySelector<HTMLButtonElement>('.send-button')
+    expect(send?.disabled).toBe(false)
+    send?.click()
+    await settle(el)
+    expect(sent).toEqual(['only the power parts'])
+  })
+
   it('keeps the same Hoja and ProseMirror focused when clear empties the draft', async () => {
     const el = mount()
     await settle(el)

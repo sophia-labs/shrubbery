@@ -12,6 +12,9 @@ import type { ChatAccess } from './chat-service.js'
 
 export function accessNoteFor(access: ChatAccess | null | undefined): ChatAccessNote | null {
   if (!access) return null
+  if (access.basis === 'unavailable') {
+    return { mode: 'read', label: access.reason?.trim() || 'Chat is not available on this Sophia.' }
+  }
   if (access.mode === 'write') {
     return {
       mode: 'write',

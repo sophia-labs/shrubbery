@@ -40,7 +40,8 @@ describe('the Show info model', () => {
     const withReader = buildInfoModel(ctx([file('f1', 'TPS.pdf', 'PDF')], { evidence: read(true) }))!
     const block = withReader.sections.find(s => s.title === 'Datasheet')!
     expect(block.rows.find(r => r.label === 'Reader')!.text).toBe('Read with datasheet-parser (NomDeTom) ee680a6 · Docling 2.135.0')
-    expect(block.rows.at(-1)).toMatchObject({ text: 'Open in reader', action: 'kind:open' })
+    expect(block.rows.at(-1)).toMatchObject({ text: 'Open', action: 'kind:open' })
+    expect(block.rows.some(r => r.label === 'To check')).toBe(false)
     const without = buildInfoModel(ctx([file('f1', 'TPS.pdf', 'PDF')], { evidence: read(false) }))!
     expect(without.sections.find(s => s.title === 'Datasheet')!.rows.some(r => r.label === 'Reader')).toBe(false)
   })

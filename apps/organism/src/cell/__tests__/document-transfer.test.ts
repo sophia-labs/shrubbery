@@ -178,6 +178,7 @@ describe('GardendDocumentTransferService', () => {
       documentId: 'doc-pdf',
       payload: {
         documentId: 'doc-pdf',
+        ifExists: 'update',
         sourceFile: {
           originalFilename: 'paper.pdf',
           mimeType: 'application/pdf',

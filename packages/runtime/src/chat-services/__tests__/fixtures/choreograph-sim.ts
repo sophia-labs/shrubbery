@@ -14,6 +14,16 @@
  *   GET  /g/{graph}/agent-sessions/{id}            session + transcript + events
  *   GET  /g/{graph}/agent-sessions/{id}/events     SSE, or the JSON face
  *
+ * THE DIRECT FACE. The same routes are also answered at Choreograph's own `/api/…` paths, as a self-host's
+ * gardend reaches its local Choreograph (`/services/choreograph/{path}` → `/api/{path}`, the mount
+ * stripped). There no gateway names the graph: an invocation carries it in its body
+ * (`graph.graphId`), the chat-session list in its query (`graph_id`), and a session or run is its own
+ * graph's. And Choreograph checks the caller itself, as `orchestrator.ts` does: no
+ * `x-internal-service` secret, 401; an invocation whose `actorRef` is not `user:<x-user-id>`, 403
+ * `actor_mismatch` (`parseInvocationEnvelope`); an invocation that names no `graph.ownerPrincipal` (which no gateway
+ * forced in), 409 from the workflow's `buildInputs`, the two bodies verbatim as Choreograph `de822be` answered them
+ * live under Vera's gardend on 2026-10-13. See `gardend-proxy.ts` for what stands in front of it.
+ *
  * DETERMINISTIC RACES. A turn is a list of STAGES. Stage 0 is visible the moment
  * the turn starts. Every request to `/events` (SSE or JSON) answers with what is
  * durable NOW and, after its answer, releases the next stage: the live host's SSE
@@ -275,6 +285,8 @@ export interface Received {
   /** Path below `/g/{graph}`, or the full path for a route outside a graph. */
   readonly route: string
   readonly graph: string | null
+  /** Asked at Choreograph's own `/api/…` paths (through a self-host's gardend), not below a gateway graph route. */
+  readonly direct: boolean
   readonly query: URLSearchParams
   readonly headers: IncomingHttpHeaders
   // biome-ignore lint/suspicious/noExplicitAny: the scripted host reads whatever JSON the client sent
@@ -435,6 +447,8 @@ export class ChoreographSim {
   sessionMode: string | null = null
   /** What every new session's document records of its graph access (`source.graphAccess`); null: not said. */
   sessionGraphAccess: 'read' | 'write' | null = null
+  /** The secret the direct face requires as `x-internal-service` (the one gardend gives its child). */
+  internalSecret = 'gardend-child-secret'
   /** The sim clock, in epoch milliseconds. */
   clock = Date.UTC(2026, 8, 28, 22, 40, 0)
   private runSeq = 0
@@ -456,9 +470,10 @@ export class ChoreographSim {
     return this.turns.shift() ?? plainTurn(fallback)
   }
 
-  async start(): Promise<void> {
+  /** Listen on 127.0.0.1: any free port, or the one a supervisor assigned (gardend's child gets `PORT`). */
+  async start(port = 0): Promise<void> {
     this.server = createServer((req, res) => void this.handle(req, res))
-    await new Promise<void>(resolve => this.server.listen(0, '127.0.0.1', resolve))
+    await new Promise<void>(resolve => this.server.listen(port, '127.0.0.1', resolve))
     this.base = `http://127.0.0.1:${(this.server.address() as AddressInfo).port}`
   }
 
@@ -500,20 +515,24 @@ export class ChoreographSim {
     const url = new URL(req.url ?? '/', this.base)
     let raw = ''
     for await (const chunk of req) raw += chunk
-    const graphMatch = /^\/g\/([^/]+)(\/.*)$/.exec(url.pathname)
+    const directMatch = /^\/api(\/.*)$/.exec(url.pathname)
+    const graphMatch = directMatch ? null : /^\/g\/([^/]+)(\/.*)$/.exec(url.pathname)
+    const body = raw ? safeJson(raw) : undefined
+    const route = directMatch ? directMatch[1] : graphMatch ? graphMatch[2] : url.pathname
     const received: Received = {
       method: req.method ?? 'GET',
       path: url.pathname,
-      route: graphMatch ? graphMatch[2] : url.pathname,
-      graph: graphMatch ? graphMatch[1] : null,
+      route,
+      graph: graphMatch ? graphMatch[1] : directMatch ? this.directGraph(route, url.searchParams, body) : null,
+      direct: directMatch !== null,
       query: url.searchParams,
       headers: req.headers,
-      body: raw ? safeJson(raw) : undefined,
+      body,
       rawBody: raw,
     }
     this.received.push(received)
-    let answer: Answer | undefined
-    for (const extra of this.extraRoutes) {
+    let answer: Answer | undefined = received.direct ? this.authenticateDirect(received) : undefined
+    for (const extra of answer ? [] : this.extraRoutes) {
       answer = extra(received)
       if (answer) break
     }
@@ -531,9 +550,63 @@ export class ChoreographSim {
     res.end(answer.body === undefined ? '' : JSON.stringify(answer.body))
   }
 
+  /** The graph a direct-face request is about, where it says one: its body, its query, or its session's. */
+  private directGraph(route: string, query: URLSearchParams, body: unknown): string | null {
+    if (route === '/invocations') {
+      const graph = (body as { graph?: { graphId?: unknown } } | undefined)?.graph?.graphId
+      return typeof graph === 'string' && graph ? graph : null
+    }
+    if (route === '/workflows/runs') return query.get('graph_id')
+    const session = /^\/agent-sessions\/([^/]+)/.exec(route)
+    if (session) return this.sessions.get(session[1])?.graphId ?? null
+    const run = /^\/workflows\/runs\/([^/]+)\/agents$/.exec(route)
+    if (run) return [...this.sessions.values()].find(candidate => candidate.runId === run[1])?.graphId ?? null
+    return null
+  }
+
+  /** What Choreograph checks of a caller on its own paths before anything else (`orchestrator.ts`). */
+  private authenticateDirect(request: Received): Answer | undefined {
+    const secret = request.headers['x-internal-service']
+    const user = request.headers['x-user-id']
+    if (secret !== this.internalSecret || typeof user !== 'string' || !user) {
+      return { status: 401, body: { error: 'Authentication required' } }
+    }
+    if (request.route === '/invocations' && request.method === 'POST') {
+      const actorRef = request.body?.actorRef
+      const authoritative = user.startsWith('user:') ? user : `user:${user}`
+      if (actorRef !== authoritative && actorRef !== user) {
+        return {
+          status: 403,
+          body: { error: { code: 'actor_mismatch', message: 'actorRef must match the authenticated principal' } },
+        }
+      }
+      const owner = request.body?.graph?.ownerPrincipal
+      if (typeof owner !== 'string' || !owner.trim()) {
+        return request.body?.target?.workflowName === 'workspace-chat-v1'
+          ? {
+            status: 409,
+            body: {
+              error: {
+                code: 'workspace_chat_requires_owner_scope',
+                message: 'workspace chat requires a canonical, owner-scoped host invocation',
+              },
+            },
+          }
+          : {
+            status: 409,
+            body: { error: { code: 'invalid_request', message: 'domain agent activity requires a canonical, owner-scoped host invocation' } },
+          }
+      }
+    }
+    return undefined
+  }
+
   private route(request: Received, accept: string): Answer {
-    if (!request.graph) return { status: 404, body: { error: `no route ${request.path}` } }
-    const { graph, route: rest } = request
+    if (!request.graph && !(request.direct && (request.route === '/workflows' || request.route === '/workflows/runs'))) {
+      return { status: 404, body: { error: `no route ${request.path}` } }
+    }
+    const { route: rest } = request
+    const graph = request.graph ?? ''
     if (rest === '/workflows') return { status: 200, body: { workflows: this.workflows } }
     if (rest === '/workflows/runs') return { status: 200, body: { runs: this.runs, count: this.runs.length } }
     if (rest === '/invocations' && request.method === 'POST') return this.invoke(request, graph)
@@ -575,8 +648,9 @@ export class ChoreographSim {
       const visible = session.events.filter(event => event.seq > since)
       const after = () => session.release()
       if (accept.includes('text/event-stream')) return { sse: visible, after }
-      // The JSON face is a read like any other: it releases the next stage afterwards.
-      const answer: Answer = { status: 200, body: { events: visible } }
+      // The JSON face is a read like any other: it releases the next stage afterwards. Choreograph's own
+      // path answers a bare array (`orchestrator.ts`); the gateway's fixture has always wrapped it.
+      const answer: Answer = { status: 200, body: request.direct ? visible : { events: visible } }
       queueMicrotask(after)
       return answer
     }

@@ -107,6 +107,53 @@ describe('<sh-chat-panel> messageActions is an allowlist that defaults to everyt
   })
 })
 
+describe('<sh-chat-panel> "Branch from here" is drawn only where the host names it', () => {
+  it('draws nothing under the person’s message when the host says nothing, or lists only the old actions (the hosted chat)', async () => {
+    const el = mount()
+    el.onMessageAction = () => undefined
+    el.messages = [user(), assistant()]
+    await el.updateComplete
+    expect(el.querySelector('.message.user .message-actions')).toBeNull()
+    el.messageActions = ['copy']
+    await el.updateComplete
+    expect(el.querySelector('.message.user .message-actions')).toBeNull()
+    expect(labels(el, '.message-action-btn')).toEqual(['Copy message'])
+  })
+
+  it('offers it under the person’s messages when named, and says which message', async () => {
+    const el = mount()
+    const asked: [string, string][] = []
+    el.onMessageAction = (id, action) => {
+      asked.push([id, action])
+    }
+    el.messageActions = ['copy', 'branch']
+    el.messages = [user(), assistant(), user({ id: 'u2', content: 'second', parts: [{ type: 'text', content: 'second' }] })]
+    await el.updateComplete
+    const buttons = Array.from(el.querySelectorAll<HTMLButtonElement>('.message.user [data-message-branch]'))
+    expect(buttons.map(button => button.textContent?.trim())).toEqual(['Branch from here', 'Branch from here'])
+    expect(labels(el, '.message.assistant .message-action-btn')).toEqual(['Copy message'])
+    buttons[1]!.click()
+    await el.updateComplete
+    expect(asked).toEqual([['u2', 'branch']])
+  })
+
+  it('is not offered while a reply streams, nor in a transcript shown alone', async () => {
+    const el = mount()
+    el.onMessageAction = () => undefined
+    el.messageActions = ['branch']
+    el.messages = [user()]
+    el.streaming = true
+    await el.updateComplete
+    expect(el.querySelector('[data-message-branch]')).toBeNull()
+    el.streaming = false
+    await el.updateComplete
+    expect(el.querySelector('[data-message-branch]')).not.toBeNull()
+    el.transcriptOnly = true
+    await el.updateComplete
+    expect(el.querySelector('[data-message-branch]')).toBeNull()
+  })
+})
+
 describe('<sh-chat-panel> headerActions is an allowlist that defaults to everything', () => {
   it('draws every header button when the host says nothing', async () => {
     const el = mount()

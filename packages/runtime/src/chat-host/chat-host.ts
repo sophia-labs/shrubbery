@@ -206,6 +206,8 @@ type ContinueState =
  * header, so it is not drawn either.
  */
 const LIVE_MESSAGE_ACTIONS: readonly MessageActionKind[] = ['copy']
+/** A chat that can branch (the self-host ride chat): "Branch from here" under the person's messages too. */
+const LIVE_BRANCHING_MESSAGE_ACTIONS: readonly MessageActionKind[] = ['copy', 'branch']
 /** An imported conversation can be copied from, message by message, and nothing else. */
 const READER_MESSAGE_ACTIONS: readonly MessageActionKind[] = ['copy']
 const PREPARING_DOWNLOAD = 'Preparing the download…'
@@ -1016,7 +1018,7 @@ export class ShChatHost extends LitElement {
       draft,
       draftDetail,
       draftIdentity: sessionId,
-      messageActions: LIVE_MESSAGE_ACTIONS,
+      messageActions: store.service.branchSession ? LIVE_BRANCHING_MESSAGE_ACTIONS : LIVE_MESSAGE_ACTIONS,
       composerReferenceResolver: this.composerReferenceResolver,
       onDraftChange: (
         nextDraft: string,
@@ -1076,12 +1078,16 @@ export class ShChatHost extends LitElement {
     ></sh-chat-artifact-preview>`
   }
 
-  /** The banner's button: add credits (the shell's), or leave a chat that is over (ours); the heads-up's two: details (the shell's), or put it away (its source's). */
+  /**
+   * The banner's button: add credits (the shell's), or leave a chat that is over (ours); the heads-up's two: details (the shell's), or put it
+   * away (its source's). Anything else is the store's own (continue a conversation here, from another tab).
+   */
   private _handleNoticeAction(id: string): void {
     if (id === ADD_CREDITS_ACTION) this._raiseAddCredits('refusal')
     else if (id === NEW_CHAT_ACTION) void this._handleSessionAction({ type: 'new' })
     else if (id === CREDITS_NOTICE_DETAILS_ACTION) this._raiseAddCredits('notice')
     else if (id === CREDITS_NOTICE_DISMISS_ACTION) this.creditsNotice?.dismiss(this._store?.creditsFacts() ?? null)
+    else this._store?.composerNoticeAction?.(id)
   }
 
   /** The balance line's button. */
@@ -1245,9 +1251,15 @@ export class ShChatHost extends LitElement {
         if (!message) throw new Error('Message not found.')
         this._dispatchExportMessage(message)
         defaultHandled = true
+      } else if (action === 'branch') {
+        if (!message) throw new Error('Message not found.')
+        await this._branchFrom(message)
+        defaultHandled = true
       }
     } catch (e) {
       error = e instanceof Error ? e.message : String(e)
+      // Said where conversations are listed: a branch is a new one.
+      if (action === 'branch') this.historyError = `This conversation could not be branched: ${error}`
     }
 
     const detail: ChatMessageActionDetail = {
@@ -1469,15 +1481,47 @@ export class ShChatHost extends LitElement {
     }
     this.historyError = null
     try {
+      // Deleted first, then let go of: a conversation the service would not delete (a reply still under way)
+      // keeps its slot.
+      await store.service.deleteSession(sessionId)
       const slots = store.service.slotSessions()
       slots.forEach((id, index) => {
         if (id === sessionId) store.service.bindSlotSession(index as ChatSessionSlot, null)
       })
-      await store.service.deleteSession(sessionId)
       if (store.getState().sessionId === sessionId) {
         const replacement = await store.service.createSession({ title: null })
         this._bindSessionToActiveSlot(replacement.id)
       }
+      await this._loadHistorySessions()
+    } catch (e) {
+      this.historyError = e instanceof Error ? e.message : String(e)
+    }
+  }
+
+  /**
+   * Branch from one of the person's messages: a new conversation with the history before it, open here, with
+   * that message's words in the composer to edit and send. The old conversation stays as it was.
+   */
+  private async _branchFrom(message: ChatMessage): Promise<void> {
+    const store = this._store
+    const sessionId = store?.getState().sessionId ?? null
+    if (!store?.service.branchSession || !sessionId) throw new Error('This chat cannot branch.')
+    const userIndex = store.getState().messages.filter(candidate => candidate.role === 'user').findIndex(candidate => candidate.id === message.id)
+    const branch = await store.service.branchSession(sessionId, { id: message.id, content: message.content, userIndex })
+    this._writeDraft(branch.session.id, branch.text, null, 'edit')
+    this._bindSessionToActiveSlot(branch.session.id)
+    this._applyToPanel()
+    await this._loadHistorySessions()
+  }
+
+  /** Duplicate a conversation from the drawer: the copy opens here. */
+  private async _duplicateHistorySession(sessionId: string): Promise<void> {
+    const store = this._store
+    if (!store?.service.duplicateSession) return
+    this.historyError = null
+    try {
+      const copy = await store.service.duplicateSession(sessionId)
+      this._bindSessionToActiveSlot(copy.id)
       await this._loadHistorySessions()
     } catch (e) {
       this.historyError = e instanceof Error ? e.message : String(e)
@@ -1844,6 +1888,7 @@ export class ShChatHost extends LitElement {
           this.editingTitle = ''
         },
         deleteLive: id => { void this._deleteHistorySession(id) },
+        ...(this._store?.service.duplicateSession ? { duplicateLive: (id: string) => { void this._duplicateHistorySession(id) } } : {}),
         retryLive: () => { void home.refreshLive() },
         retryImported: () => { void home.retryImported() },
         dismissNotice: () => home.dismissNotice(),

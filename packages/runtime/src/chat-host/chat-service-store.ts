@@ -53,6 +53,7 @@ import {
   finalize,
   modelIdTail,
   projectEvents,
+  uuid,
   voiceMarkFor,
   type ChatComposerNotice,
   type ChatConversationState,
@@ -69,6 +70,7 @@ import {
   asChatServiceFailure,
   ChatBillingFailure,
   type ChatBillingDetail,
+  type ChatDriverState,
   type ChatService,
   type ChatServiceFailure,
   NO_CAPABILITIES,
@@ -78,6 +80,7 @@ import {
   billingNotice,
   budgetNotice,
   minAdmitMicroUsd,
+  NEW_CHAT_ACTION,
   priceFootnote,
   type BalanceReading,
 } from '../chat-services/chat-billing.js'
@@ -151,6 +154,39 @@ export interface ChatServiceStoreOptions {
 
 /** How many times a failed first read of the host's capabilities is repeated. */
 const MAX_PROBE_RETRIES = 4
+
+/** The notice's button that takes a conversation over from the same person's other tab or browser. */
+export const CONTINUE_HERE_ACTION = 'continue-here'
+
+/** What the banner says of a conversation this page cannot drive. */
+function driverBanner(driver: ChatDriverState): string {
+  if (driver.kind === 'gone') return 'This conversation was deleted.'
+  return driver.canTakeOver ? 'This conversation is open in another tab or browser.' : 'Someone else is driving this conversation.'
+}
+
+/** The notice above the composer of a conversation this page cannot drive: what can be done about it. */
+function driverNotice(driver: ChatDriverState, failure: string | null): ChatComposerNotice {
+  if (driver.kind === 'gone') {
+    return {
+      id: 'conversation-gone',
+      tone: 'blocked',
+      title: 'This conversation was deleted.',
+      body: 'Its record is in the trash on this Sophia.',
+      action: { id: NEW_CHAT_ACTION, label: 'New chat' },
+    }
+  }
+  if (!driver.canTakeOver) {
+    return { id: 'driver-elsewhere', tone: 'blocked', title: 'Someone else is driving this conversation.', body: 'You can read it here. Start a new chat to write.' }
+  }
+  return {
+    id: 'driver-elsewhere',
+    tone: 'info',
+    title: 'This conversation is open in another tab or browser.',
+    body: 'Continue here? The other one will keep showing it, read-only.',
+    ...(failure ? { detail: failure } : {}),
+    action: { id: CONTINUE_HERE_ACTION, label: 'Continue here' },
+  }
+}
 
 /** How many times a debit that has not landed is looked for again. */
 const MAX_DEBIT_LOOKS = 3
@@ -240,9 +276,16 @@ export function createChatServiceStore(
   let probeRetries = 0
   let probeTimer: ReturnType<typeof setTimeout> | null = null
   let sessionTitle: string | null = null
+  // Messages sent into the reply under way (a service that steers): shown at once, below the reply,
+  // until the reply settles and the conversation's own record shows where each was taken.
+  let steered: ChatMessage[] = []
   // Monotonic guard for fast session switches: a hydrate only applies if its
   // token is still the latest (a newer setSession bumps it and wins).
   let hydrateToken = 0
+  // Following the bound conversation (a service with a driver lease): stops when it changes.
+  let unfollow: (() => void) | null = null
+  // Why the last "Continue here" did not take, until the next try.
+  let takeOverFailure: string | null = null
 
   const subs = new Set<(s: ChatServiceStoreState) => void>()
 
@@ -327,25 +370,41 @@ export function createChatServiceStore(
     return headsUp()
   }
 
+  /** Why this page cannot drive the bound conversation now (another tab has it, or it was deleted). */
+  function driver(): ChatDriverState | null {
+    if (!sessionId || !service.driverState) return null
+    try {
+      return service.driverState(sessionId)
+    } catch {
+      return null
+    }
+  }
+
   function snapshot(): ChatServiceStoreState {
     const models = voices()
+    const held = driver()
     return {
-      messages: namedByRoster(withVoice(projector.messages, sessionId ? service.sessionVoice?.(sessionId) ?? null : null), models),
+      messages: namedByRoster(
+        withVoice(steered.length > 0 ? [...projector.messages, ...steered] : projector.messages, sessionId ? service.sessionVoice?.(sessionId) ?? null : null),
+        models,
+      ),
       streaming,
+      steerWhileStreaming: typeof service.steer === 'function',
       conversationState,
       sendState,
       sendRecovery,
       sendError,
       retainedDraft:
         (sendState === 'error' || sendState === 'uncertain' || draftKept) ? pendingSendText : null,
-      error,
-      readOnly,
+      // A conversation this page cannot drive is read here: the banner says why.
+      error: held ? driverBanner(held) : error,
+      readOnly: readOnly || held !== null,
       models,
       currentModel: currentVoiceId(models),
       accountNote: accountNoteFor(balance, currentVoiceOption(models), { canAddCredits: canAddCredits(), showBalance: showBalance() }),
       // What the platform refused the last message for, said once, in the billing report's
       // words. Nothing is gated on it: a message still goes, and the platform decides.
-      composerNotice: noticeFor(models),
+      composerNotice: held ? driverNotice(held, takeOverFailure) : noticeFor(models),
       voiceFootnote: service.voiceFootnote ? service.voiceFootnote() : priceFootnote(models),
       // Present when this conversation picked up an earlier one (the window is in `messages`).
       seam: sessionId ? service.sessionSeam?.(sessionId) ?? null : null,
@@ -401,7 +460,11 @@ export function createChatServiceStore(
       notify()
       return
     }
-    if (streaming) return // one in-flight turn at a time
+    if (streaming) {
+      // One reply at a time: a service that steers takes the message into the reply under way.
+      if (service.steer) void steer(sessionId, text)
+      return
+    }
     const turnSession = sessionId
     let accepted = false
     // A new message: whatever the last one was refused for is over, and so is any look for its debit.
@@ -477,11 +540,41 @@ export function createChatServiceStore(
     } finally {
       streaming = false
       notify()
+      // Messages steered into this reply: the conversation's record now says where each was taken.
+      if (steered.length > 0 && turnSession === sessionId) {
+        steered = []
+        hydrate(turnSession, { preserveProjection: true })
+      }
       // A turn is debited when it completes: read the balance again, and, if the turn
       // settled at a cost the balance has not yet shown, look for the debit a few more times.
       void refreshBalance().then(() => {
         if (settledMicroUsd > 0 && balanceBefore !== null) followDebit(balanceBefore, thisTurn)
       })
+    }
+  }
+
+  /** Send a message into the reply under way; shown at once, kept if the service refuses it. */
+  async function steer(turnSession: string, text: string): Promise<void> {
+    const message: ChatMessage = {
+      id: `steer-${uuid()}`,
+      role: 'user',
+      content: text,
+      parts: [{ type: 'text', content: text }],
+      isStreaming: false,
+      toolCalls: [],
+      createdAt: Date.now(),
+    }
+    steered = [...steered, message]
+    notify()
+    try {
+      await service.steer!(turnSession, text)
+    } catch (e) {
+      steered = steered.filter(candidate => candidate.id !== message.id)
+      const failure = asChatServiceFailure(e, { phase: 'submit', recovery: 'none' })
+      pendingSendText = text
+      draftKept = true
+      sendError = failure.message
+      notify()
     }
   }
 
@@ -531,6 +624,32 @@ export function createChatServiceStore(
         error = failure.message
         notify()
       })
+  }
+
+  /** "Continue here": take the conversation over from the same person's other tab, then read its record afresh. */
+  async function takeOver(id: string): Promise<void> {
+    if (!service.takeOver) return
+    takeOverFailure = null
+    try {
+      await service.takeOver(id)
+    } catch (e) {
+      takeOverFailure = asChatServiceFailure(e, { phase: 'submit', recovery: 'none' }).message
+    }
+    if (id !== sessionId) return
+    notify()
+    if (!streaming && takeOverFailure === null) hydrate(id, { preserveProjection: true })
+  }
+
+  /** Follow the bound conversation: a reply another tab drove is read in; a change of driver is shown. */
+  function follow(id: string | null): void {
+    unfollow?.()
+    unfollow = null
+    if (id == null || !service.followSession) return
+    unfollow = service.followSession(id, change => {
+      if (id !== sessionId || disposed) return
+      if (change === 'record' && !streaming) hydrate(id, { preserveProjection: true })
+      else notify()
+    })
   }
 
   function continuityAction(action: ChatContinuityAction): void {
@@ -629,6 +748,8 @@ export function createChatServiceStore(
     getState: snapshot,
     dispose() {
       disposed = true
+      unfollow?.()
+      unfollow = null
       if (probeTimer) clearTimeout(probeTimer)
       probeTimer = null
       if (debitTimer) clearTimeout(debitTimer)
@@ -654,6 +775,7 @@ export function createChatServiceStore(
       void refreshBalance()
       // Optimistic clear — shows immediately, then hydrate the prior conversation.
       projector = createProjectorState()
+      steered = []
       streaming = false
       conversationState = id == null ? 'ready' : 'loading'
       sendState = 'ready'
@@ -662,11 +784,16 @@ export function createChatServiceStore(
       pendingSendText = null
       pendingBaselineUserCount = 0
       error = null
+      takeOverFailure = null
       notify()
+      follow(id)
       if (id == null) return
       // FIX 1: hydrate from the service so a session-switch re-shows the prior
       // messages (not a blank panel). Stale-guarded + IDLE-only.
       hydrate(id, { preserveProjection: false })
+    },
+    composerNoticeAction(id) {
+      if (id === CONTINUE_HERE_ACTION && sessionId) void takeOver(sessionId)
     },
     send(text) {
       void send(text)

@@ -249,7 +249,9 @@ export async function ensureDailyNote(
   })
 
   const documentId = `daily-note-${input.dateKey}`
-  await createSidebarDocument(mcp, {
+  // The list above comes from a projection that can lag (another device may
+  // have just made today's note): keep the note that is there.
+  const { existed } = await createSidebarDocument(mcp, {
     graphId: input.graphId,
     documentId,
     title: formatDailyNoteTitle(input.dateKey, input.locale),
@@ -258,6 +260,7 @@ export async function ensureDailyNote(
     documentKind: 'daily-note',
     dailyNoteDate: input.dateKey,
     dailyNoteTimeZone: input.timeZone,
+    ifExists: 'keep',
   })
-  return { documentId, created: true }
+  return { documentId, created: !existed }
 }

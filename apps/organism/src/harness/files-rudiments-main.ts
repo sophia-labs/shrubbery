@@ -22,7 +22,8 @@ import { mountPlaceNotice } from '../cell/place-notice.js'
 
 const params = new URLSearchParams(window.location.search)
 const GRAPH = params.get('graph') ?? 'files-graph'
-const TOKEN = params.get('token') ?? 'test-bearer'
+// A real cell's bearer travels in the fragment (`#key=`), never the query string: it stays out of server logs and the referrer.
+const TOKEN = new URLSearchParams(window.location.hash.replace(/^#/, '')).get('key') ?? params.get('token') ?? 'test-bearer'
 const WRITABLE = params.get('writable') !== '0'
 // Test-only: show the pane at phone width, to witness the reader's layout there (the shell hides Files on phones).
 const FORCE_PANE = params.get('forcePane') === '1'
@@ -140,7 +141,7 @@ function draw(): void {
       onRename: detail => { void shell.infoRename(detail.name) }, onAction: detail => { void shell.infoAction(detail.action) },
     } : null },
     sidebar: {
-      sections: filesSidebarSections(sections, shell.visible()),
+      sections: filesSidebarSections(shell.visible() ? shell.treeSections(sections) : sections, shell.visible()),
       grouping,
       capabilities: { sort: true, group: true, contextMenu: true },
       // The tree's node menu, as main.ts's command menu has it: Show info for the node (or the several selected).
@@ -183,6 +184,7 @@ function draw(): void {
         variant: files.preview.kind === 'reader' ? files.preview.view?.variant ?? null : files.preview.kind === 'media' ? files.preview.media : null,
         source: files.preview.kind === 'reader' ? files.preview.source ?? null : null } : null,
       rows: files?.rows.map(r => ({ label: r.label, kind: r.kind, selected: r.selected, naming: r.naming ?? null })) ?? [],
+      page: files?.page ? { name: files.page.name, title: files.page.title, sections: files.page.sections.map(s => ({ id: s.id, open: s.open })) } : null,
       inspector: model?.identity.title ?? null,
     },
   }

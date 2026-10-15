@@ -4,4 +4,4 @@ import { datasheetKind } from './datasheet.js'
 
 export const FILE_KINDS: readonly FileKind[] = Object.freeze([datasheetKind])
 export { datasheetKind }
-export { evidenceQuery, readEvidence, kindsMatching, type FileKind, type KindRecord, type KindItem, type MarginReading, type MarginRowData, type FileKindMargin } from './registry.js'
+export { evidenceQuery, listsQuery, readEvidence, kindsMatching, type FileKind, type KindRecord, type KindItem, type MarginReading, type MarginRowData, type FileKindMargin } from './registry.js'

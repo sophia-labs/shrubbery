@@ -277,6 +277,7 @@ import {
   OBJECT_INTENT_EVENT,
   type ObjectCardIntent,
   type ObjectIntentDetail,
+  makeRideChatService,
 } from '@shrubbery/runtime'
 import {
   CommandRegistryImpl,
@@ -337,6 +338,7 @@ import type { DocumentActivationManager } from './cell/document-activation.js'
 import { EditorRoomPool, type EditorRoomLease } from './cell/editor-room-pool.js'
 import { ArtifactLivePreview, watchArtifactWorkspace } from './cell/artifact-live-preview.js'
 import { CustomCssController, showCustomCssMenu } from './cell/custom-css.js'
+import { followWorkspaceTree, treeShows, type TreeExpectation } from './cell/workspace-follow.js'
 import {
   addGraphPanelDocumentNode,
   addGraphPanelEdge,
@@ -351,9 +353,14 @@ import {
   activeSelfHostSession,
   bootstrapSelfHostCell,
   isPermissionRefusal,
+  readSelfHostChat,
   renderSelfHostKeyScreen,
   selfHostBuild,
+  selfHostChatEndpointOption,
+  selfHostRideEndpoint,
   selfHostTransport,
+  type SelfHostChat,
+  type SelfHostRide,
 } from './cell/self-host.js'
 import {
   createSessionStore,
@@ -675,12 +682,30 @@ const mobileShellFeatureHost = createShellFeatureHost<OrganismCellContract>([
 
 /**
  * The self-host build (`VITE_SHRUBBERY_SELF_HOST=1`, `pnpm build:selfhost`): this bundle served by the
- * person's own gardend at `/`, same origin, with no gateway, no Cognito and no Choreograph (so no chat).
- * Decided at build time; the hosted build never asks for `/self-host.json`. See cell/self-host.ts.
+ * person's own gardend at `/`, same origin, with no gateway and no Cognito. Chat is there only when that
+ * gardend runs a Choreograph ({@link selfHostChat}). Decided at build time; the hosted build never asks
+ * for `/self-host.json`. See cell/self-host.ts.
  */
 const SELF_HOST = selfHostBuild(import.meta.env)
-/** Garden opens the right rail on Chat; a self-host has no chat yet, so it opens on Comments. */
-const DEFAULT_RIGHT_PANEL: PanelId = SELF_HOST ? 'comments' : SHELL_DEFAULT_RIGHT_PANEL
+/**
+ * The self-host's chat: set at boot when gardend's `/api/choreograph/status` says a Choreograph is
+ * configured, and null until then (and always, in every other build). Without it a self-host has no chat
+ * at all: no panel, no toggle, no rail button, exactly as before.
+ */
+let selfHostChat: SelfHostChat | null = null
+/**
+ * The self-host's chat on the agent core: set at boot when `/self-host.json` lists gardend's `vehicle`
+ * service as configured. It wins over the Choreograph chat (which is then not asked for at all).
+ */
+let selfHostRide: SelfHostRide | null = null
+/** Chat is hidden: a self-host whose gardend runs neither chat. Never in the hosted build. */
+function chatHidden(): boolean {
+  return SELF_HOST && selfHostChat === null && selfHostRide === null
+}
+/** Garden opens the right rail on Chat; a self-host without chat opens it on Comments. */
+function defaultRightPanel(): PanelId {
+  return chatHidden() ? 'comments' : SHELL_DEFAULT_RIGHT_PANEL
+}
 
 const deploymentConfig = resolveOrganismDeploymentConfig(SELF_HOST ? {} : {
   VITE_GATEWAY_BASE_URL: import.meta.env.VITE_GATEWAY_BASE_URL,
@@ -1057,9 +1082,7 @@ let currentPinnedWireNodes: PinnedWireNode[] = []
 let currentPinnedWireBlocks: PinnedWireBlock[] = []
 type LeftPanelMode = 'files' | 'graph' | 'outline'
 
-const VALID_RIGHT_PANEL_IDS = new Set<PanelId>(
-  SELF_HOST ? ['comments', 'wires', 'inspector', 'graph'] : ['chat', 'comments', 'wires', 'inspector', 'graph'],
-)
+const VALID_RIGHT_PANEL_IDS = new Set<PanelId>(['chat', 'comments', 'wires', 'inspector', 'graph'])
 const panelLayoutStorage = browserSessionStorage()
 const filePaneController = new FilePaneController(panelLayoutStorage)
 const centerPanesSessionRepository = new CenterPanesSessionRepository(panelLayoutStorage)
@@ -1505,7 +1528,7 @@ let latestDocHistoryRequest = 0
 let latestDocHistoryDiffRequest = 0
 
 function isPanelId(value: unknown): value is PanelId {
-  return typeof value === 'string' && VALID_RIGHT_PANEL_IDS.has(value as PanelId)
+  return typeof value === 'string' && VALID_RIGHT_PANEL_IDS.has(value as PanelId) && !(value === 'chat' && chatHidden())
 }
 
 function isLeftPanelMode(value: unknown): value is LeftPanelMode {
@@ -1536,16 +1559,16 @@ function rightPanelRequestedInUrl(): boolean {
 function readRightPanelFromUrl(): RightPanelMode {
   try {
     const raw = new URLSearchParams(window.location.search).get('r')
-    if (raw === null || !raw.trim()) return DEFAULT_RIGHT_PANEL
+    if (raw === null || !raw.trim()) return defaultRightPanel()
     if (raw.trim().toLowerCase() === 'none') return 'none'
     const parsed = raw
       .split(',')
       .map((s) => s.trim())
       .filter((s) => s.length > 0)
     const valid = normalizeRightPanels(parsed)
-    return valid.length > 0 ? rightPanelModeFromPanels(valid) : DEFAULT_RIGHT_PANEL
+    return valid.length > 0 ? rightPanelModeFromPanels(valid) : defaultRightPanel()
   } catch {
-    return DEFAULT_RIGHT_PANEL
+    return defaultRightPanel()
   }
 }
 
@@ -1601,7 +1624,7 @@ function handlePanelReposition(detail: WorkspacePanelRepositionDetail): void {
 function handleLeftExpandedChange(expanded: boolean): void {
   if (expanded === currentPanelLayout.leftExpanded) return
   if (expanded) {
-    preExpandRightPanel = currentRightPanel === 'none' ? DEFAULT_RIGHT_PANEL : currentRightPanel
+    preExpandRightPanel = currentRightPanel === 'none' ? defaultRightPanel() : currentRightPanel
     currentRightPanel = 'none'
   } else {
     currentRightPanel = preExpandRightPanel
@@ -1637,7 +1660,7 @@ function handleRightCollapsedChange(collapsed: boolean): void {
     // Match the legacy right-edge rail: reopening the collapsed right pane
     // always returns to Sophia, while left expansion separately restores its
     // remembered pre-expansion mode.
-    currentRightPanel = DEFAULT_RIGHT_PANEL
+    currentRightPanel = defaultRightPanel()
   }
   writeRightPanelToUrl(currentRightPanel)
   updatePanelLayout({
@@ -1660,7 +1683,7 @@ function transitionRightPanel(panel: RightPanelMode, reflectUrl = true): void {
 }
 
 function setRightPanel(panel: RightPanelMode, origin: string): void {
-  if (SELF_HOST && panel === 'chat') return
+  if (panel === 'chat' && chatHidden()) return
   // The graph is one persistent Class-C surface. Moving it into the right rail
   // first returns the left rail to Files so we never stamp two graph anchors or
   // destroy/recreate the WebGL owner.
@@ -4757,7 +4780,7 @@ const RIGHT_PANEL_COMMAND_SPECS = [
 }>
 
 shellCommandRegistry.register(
-  RIGHT_PANEL_COMMAND_SPECS.filter(spec => !(SELF_HOST && spec.panel === 'chat')).map(({ panel, label, icon, shortcut, keywords }) => ({
+  RIGHT_PANEL_COMMAND_SPECS.map(({ panel, label, icon, shortcut, keywords }) => ({
     id: `panel.toggle.${panel}`,
     label,
     category: 'View',
@@ -4765,6 +4788,8 @@ shellCommandRegistry.register(
     shortcut,
     keywords,
     surfaces: ['palette', 'toolbar', 'context', 'shortcut'] as const,
+    // A self-host offers the chat toggle only once its gardend has said it runs a Choreograph.
+    ...(SELF_HOST && panel === 'chat' ? { when: () => !chatHidden() } : {}),
     run: (ctx: CommandContext) => {
       setRightPanel(
         selectRightPanel(currentRightPanel, panel),
@@ -7680,7 +7705,7 @@ function renderConfig(config: WorkspaceConfig, app: string | undefined): string 
         onReset: () => resetQuickClip(),
         onOpenChange: (open: boolean) => handleQuickClipOpenChange(open),
       },
-      ...(SELF_HOST ? { chatAvailable: false, ...selfHostWorkspaceChrome() } : {}),
+      ...(SELF_HOST ? { chatAvailable: !chatHidden(), ...selfHostWorkspaceChrome() } : {}),
       ...(deploymentConfig.mode === 'hosted' ? {
         workspaces: workspaceSummaries(),
         workspaceStatus: hostedGraphsStatus,
@@ -7694,7 +7719,8 @@ function renderConfig(config: WorkspaceConfig, app: string | undefined): string 
       } : {}),
     },
     sidebar: {
-      sections: filesSidebarSections(currentSidebarSections, filesShellNow?.visible() === true),
+      // The tree without companions (a reader's text beside its PDF, a person's notes on a file): the file's page reaches them.
+      sections: filesSidebarSections(filesShellNow?.visible() ? filesShellNow.treeSections(currentSidebarSections) : currentSidebarSections, filesShellNow?.visible() === true),
       searchQuery: currentSidebarSearchQuery,
       activeId: openDocId,
       selectedId: currentSidebarSelectedId ?? openDocId,
@@ -8070,6 +8096,7 @@ function rerenderCurrentSource(): void {
 // so the token/port NEVER appear in browser JS. We pass NO token here.
 let store: OrganismSessionStore | null = null
 let customCssController: CustomCssController | null = null
+let stopWorkspaceFollow: (() => void) | null = null
 let configStore: ShrubberyStore<WorkspaceConfig> | null = null
 let stopPoll: (() => void) | null = null
 let stopStoreSubscription: (() => void) | null = null
@@ -8668,6 +8695,28 @@ function currentShellContext(
   })
 }
 
+/**
+ * Another writer changed the workspace's tree: bring the local copy up to date (a pull that begins now), read
+ * the tree again, and answer whether it shows what the workspace room says about every document and folder the
+ * change touched (false: the follower asks again shortly; gardend writes the tree's projection just after it
+ * broadcasts a write, so a pull in between brings the new workspace with the old tree). With no usable local
+ * copy the tree is read from the cell, and the pull is skipped.
+ */
+async function followWorkspaceChange(
+  activeStore: OrganismSessionStore,
+  graphId: string,
+  expectations?: () => readonly TreeExpectation[],
+): Promise<boolean> {
+  const current = () => store === activeStore && graphId === currentGraphId && sourceSelect.value === 'CELL_LIVE'
+  if (!current()) return true
+  await activeStore.contract.sourceMirror.followAuthority(graphId)
+  if (!current()) return true
+  await refreshSidebarSections()
+  if (!current() || !expectations) return true
+  return treeShows(expectations(), sidebarNodeById)
+}
+
+
 function buildCellStore(graphId: string): OrganismSessionStore {
   const contract: OrganismCellContract = deploymentContract ?? createLocalGardendContract()
   return createSessionStore({ contract, graphId })
@@ -8794,6 +8843,46 @@ function browserSessionStorage(): Storage | null {
 }
 
 function buildShellChatService(contract: OrganismCellContract): ChatService {
+  // A self-host whose gardend runs the agent core: the ride protocol v2 through gardend's `/services/vehicle`,
+  // with the self-host key (or the Access cookie). gardend mints who calls, the role and the graph.
+  const ride = SELF_HOST ? selfHostRide : null
+  if (ride) {
+    return makeRideChatService({
+      baseUrl: ride.baseUrl,
+      graphId: () => currentGraphId,
+      token: () => ride.token,
+      role: () => (selfHostMayCreateGraphs ? 'owner' : 'editor'),
+      contextRefs: () => currentChatContextRefs(),
+      storage: browserLocalStorage(),
+      // A deleted conversation's document (vehicle-host's mirror, in _sophia/Conversations) goes to the
+      // workspace's Trash with the person's own credential, as the Files page trashes a document.
+      trashDocument: (graphId, documentId) => new FilesClient(contract, contract.mcp).trashDocument(graphId, documentId),
+      // vehicle-host wrote a conversation's document after a reply. The workspace room says so too (the tree
+      // follows every writer, below); this is the same hint, heard first on the conversation's own watch.
+      onWorkspaceChanged: graphId => {
+        if (store) void followWorkspaceChange(store, graphId)
+      },
+      // gardend could not start chat on this computer (no Node.js, or an old one): the panel says why.
+      unavailable: () => (ride.state === 'unavailable' ? ride.reason ?? 'Chat cannot start on this Sophia.' : null),
+    })
+  }
+  // A self-host's chat is the hosted chat, over gardend's proxy to its own Choreograph: the self-host key
+  // (or the Access cookie), the user gardend asserts, events read as JSON while the proxy cannot stream,
+  // and no gateway, so no voices, credits or archive.
+  const selfHosted = SELF_HOST ? selfHostChat : null
+  if (selfHosted) {
+    return assembleChatServices(contract, getScope, 'hosted', {
+      graphId: () => currentGraphId,
+      endpoint: selfHostChatEndpointOption(selfHosted),
+      hosted: {
+        storage: browserLocalStorage(),
+        viaLocalService: true,
+        contextRefs: () => currentChatContextRefs(),
+        // gardend's admins own the place; a member (no graph creation) edits in it. Both may write.
+        role: () => (selfHostMayCreateGraphs ? 'owner' : 'editor'),
+      },
+    })
+  }
   if (deploymentConfig.mode === 'hosted') {
     return assembleChatServices(contract, getScope, 'hosted', {
       // The conversation belongs to the workspace, not to the open document:
@@ -8822,8 +8911,8 @@ function buildShellChatService(contract: OrganismCellContract): ChatService {
 }
 
 function ensureChatClaim(): ChatClaim | null {
-  // A self-host has no Choreograph yet, so no chat (and no voices or credits with it).
-  if (!store || SELF_HOST) {
+  // A self-host whose gardend runs no Choreograph has no chat (and no voices or credits with it).
+  if (!store || chatHidden()) {
     teardownChatClaim()
     return null
   }
@@ -8930,6 +9019,8 @@ function renderCellState(
 function startCellMode(): void {
   customCssController?.dispose()
   customCssController = null
+  stopWorkspaceFollow?.()
+  stopWorkspaceFollow = null
   const graphId = cellGraphId.value.trim() || 'organism-dev'
   const restoreMuxSession = store === null || centerPanesSessionGraphId !== graphId
   // Every call replaces the store, including manual refresh of the same
@@ -9017,6 +9108,19 @@ function startCellMode(): void {
   const nextConfigStore = workspaceConfigStore(nextStore)
   store = nextStore
   customCssController = new CustomCssController(nextStore.contract, graphId, roomPoolFor(nextStore.contract.crdt))
+  // The tree follows writes made outside this page (Sophia's chat, the conversation mirror, another tab or
+  // person, an MCP client), heard on the workspace room the custom CSS above already holds. Not on the hosted
+  // gateway yet: its large graphs have no complete local copy, so following there is a live tree read per
+  // change, a load nobody has measured.
+  if (deploymentConfig.mode !== 'hosted') {
+    stopWorkspaceFollow = followWorkspaceTree({
+      pool: roomPoolFor(nextStore.contract.crdt),
+      auth: nextStore.contract.auth,
+      graphId,
+      onChange: change => followWorkspaceChange(nextStore, graphId, () => change.expectations()),
+      unavailable: error => err(`the tree cannot follow this workspace's changes: ${error instanceof Error ? error.message : String(error)}`),
+    })
+  }
   if (currentArtifactSurface && artifactSurfaceKind(currentArtifactSurface) === 'html') {
     refreshArtifactPreview({ graphId, artifactId: currentArtifactSurface.artifactId })
   }
@@ -9525,6 +9629,8 @@ async function firstDocumentId(s: OrganismSessionStore, graphId: string): Promis
 function stopCellMode(): void {
   customCssController?.dispose()
   customCssController = null
+  stopWorkspaceFollow?.()
+  stopWorkspaceFollow = null
   resetQuickClip(true, false)
   cellControls.hidden = true
   if (stopPoll) {
@@ -11025,6 +11131,21 @@ async function bootSelfHost(): Promise<void> {
   } catch { /* best effort */ }
   document.body.dataset.selfHost = boot.session.auth
   void refreshSelfHostWorkspaces()
+  // Chat, when this gardend runs a Choreograph. Asked before the first render so the rail, the toggle
+  // and the default panel are right from the start; any doubt leaves chat hidden.
+  // The agent core when gardend runs it (`/self-host.json` lists `vehicle`), else the Choreograph chat.
+  selfHostRide = selfHostRideEndpoint(boot.session)
+  selfHostChat = selfHostRide ? null : await readSelfHostChat(boot.session)
+  if (selfHostRide || selfHostChat) {
+    document.body.dataset.selfHostChat = selfHostRide
+      ? `ride:${selfHostRide.state || 'configured'}`
+      : selfHostChat?.state || 'configured'
+    // The rail's first panel was read before chat existed here: read it again (a `?r=chat` link, or Chat
+    // as Garden's default), unless it is closed.
+    const panel = readRightPanelFromUrl()
+    preExpandRightPanel = panel
+    if (currentRightPanel !== 'none') currentRightPanel = panel
+  }
 
   const settingsGraphId = settingsCellGraph(new URL(window.location.href))
   if (settingsGraphId) {
@@ -11229,6 +11350,7 @@ void bootOrganism().catch(error => {
 })
 window.addEventListener('beforeunload', () => {
   customCssController?.dispose()
+  stopWorkspaceFollow?.()
   stopHostedStarterStartup()
   settingsOverlayTransition.destroy()
   resetQuickClip(true, false)

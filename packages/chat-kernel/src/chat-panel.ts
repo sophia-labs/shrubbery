@@ -60,7 +60,7 @@ import { customElement, property } from 'lit/decorators.js'
 import { unsafeHTML } from 'lit/directives/unsafe-html.js'
 import { Marked } from 'marked'
 
-import { sanitizeHtml } from './sanitize.js'
+import { sanitizeChatHtml } from './sanitize.js'
 import type {
   ChatAccessNote,
   ChatAccountNote,
@@ -381,9 +381,11 @@ function previewableMediaType(mediaType: string | null | undefined): boolean {
 export type ChatTheme = 'light' | 'dark' | 'auto'
 
 /** A message-level action the host handles (copy / read-aloud / regenerate /
- * save-to-garden). The kernel emits the intent; the host owns the behavior
- * (clipboard, TTS, persistence) — all DEFERRED host seams. */
-export type MessageActionKind = 'copy' | 'read' | 'regenerate' | 'save-garden'
+ * save-to-garden / branch). The kernel emits the intent; the host owns the behavior
+ * (clipboard, TTS, persistence, a new conversation) — all DEFERRED host seams.
+ * `branch` ("Branch from here", on the person's own messages) is drawn only when the
+ * host names it: a host that never heard of it draws exactly what it drew before. */
+export type MessageActionKind = 'copy' | 'read' | 'regenerate' | 'save-garden' | 'branch'
 
 /** Optional host result for message actions with visible local feedback. */
 export type MessageActionResult = {
@@ -487,6 +489,12 @@ export interface ChatKernelOptions {
   messages?: ChatMessage[]
   /** Response generation lifecycle — drives the typing indicator. */
   streaming?: boolean
+  /**
+   * The host can take a message while a reply is under way (it steers the reply). When true the
+   * composer stays open during streaming and Send fires onSend; absent or false, sending waits for
+   * the reply to finish, as always.
+   */
+  steerWhileStreaming?: boolean
   /** Minimal host-projected transport posture. Defaults to ready for backward
    * compatibility; the kernel never probes a transport or starts a timer. */
   connectionState?: ChatConnectionState
@@ -644,6 +652,8 @@ export class ShChatPanel extends LitElement {
 
   @property({ attribute: false }) messages: ChatMessage[] = []
   @property({ type: Boolean }) streaming = false
+  /** See {@link ChatKernelOptions.steerWhileStreaming}. */
+  @property({ type: Boolean }) steerWhileStreaming = false
   @property({ type: String }) connectionState: ChatConnectionState = 'ready'
   @property({ attribute: false }) conversationState: ChatConversationState | null = null
   @property({ type: String }) sendState: ChatSendState = 'ready'
@@ -675,7 +685,7 @@ export class ShChatPanel extends LitElement {
   @property({ type: String }) theme: ChatTheme = 'auto'
   @property({ type: String, reflect: true }) presentation: ChatPresentation = 'rail'
 
-  @property({ attribute: false }) sanitize: (html: string) => string = sanitizeHtml
+  @property({ attribute: false }) sanitize: (html: string) => string = sanitizeChatHtml
   @property({ attribute: false }) formatModelAnnotation?: (msg: ChatMessage) => string | null
   @property({ type: Boolean }) toolsExpandedByDefault = false
   @property({ attribute: false }) onSend?: (text: string, context?: ChatSendContext) => void
@@ -1059,7 +1069,7 @@ export class ShChatPanel extends LitElement {
       || composer?.isEmpty === true
       || this.sendDisabled
       || this.readOnly
-      || this.streaming
+      || (this.streaming && !this.steerWhileStreaming)
       || this.connectionBlocksSend()
       || this.sendState === 'saving'
       || this.sendState === 'uncertain'
@@ -1891,6 +1901,7 @@ export class ShChatPanel extends LitElement {
    * with none allowed there is no strip at all. A message carried read-only in the
    * continuation window keeps Copy and loses the two actions that would act on it. */
   private renderMessageActions(msg: ChatMessage, readOnlyWindow: boolean): TemplateResult | typeof nothing {
+    if (msg.role === 'user') return this.renderBranchAction(msg, readOnlyWindow)
     if (msg.role !== 'assistant' || !msg.content) return nothing
     const read = !readOnlyWindow && this.messageActionAllowed('read')
     const copy = this.messageActionAllowed('copy')
@@ -1942,6 +1953,26 @@ export class ShChatPanel extends LitElement {
               </button>
             `
           : nothing}
+      </div>
+    `
+  }
+
+  /** "Branch from here" under one of the person's messages: only where the host named it, never while a
+   * reply is streaming, never in a transcript shown alone or a continuation window. */
+  private renderBranchAction(msg: ChatMessage, readOnlyWindow: boolean): TemplateResult | typeof nothing {
+    if (!this.messageActions?.includes('branch') || !this.onMessageAction) return nothing
+    if (readOnlyWindow || this.transcriptOnly || this.streaming || msg.isStreaming || !msg.content) return nothing
+    return html`
+      <div class="message-actions">
+        <button
+          class="message-action-btn message-action-branch"
+          data-message-branch
+          @click=${() => {
+            void this.handleMessageAction(msg.id, 'branch')
+          }}
+          aria-label="Branch from here"
+          title="A new conversation from before this message, with it in the box to edit and send"
+        >Branch from here</button>
       </div>
     `
   }
@@ -2922,6 +2953,7 @@ export class ShChatPanel extends LitElement {
     if (this.sendState === 'uncertain') return 'Check status before sending again'
     if (this.effectiveConversationState() !== 'ready') return 'Available when the conversation is ready'
     if (this.sendDisabled) return 'Sending is unavailable'
+    if (this.streaming && this.steerWhileStreaming) return `Enter steers ${this.assistantLabel} while it is responding`
     if (this.streaming) return `${this.assistantLabel} is responding`
     return 'Enter sends · Shift+Enter adds a line'
   }
@@ -3197,7 +3229,7 @@ export class ShChatPanel extends LitElement {
       || this.sendState === 'saving'
       || this.sendState === 'uncertain'
     const draftEmpty = this.draftDetail?.isEmpty ?? !this.draft.trim()
-    const sendBtnDisabled = draftEmpty || this.streaming || composerDisabled
+    const sendBtnDisabled = draftEmpty || (this.streaming && !this.steerWhileStreaming) || composerDisabled
 
     return html`
       <div class="chat-chrome">
@@ -4257,6 +4289,10 @@ export class ShChatPanel extends LitElement {
     sh-chat-panel .message-action-btn:hover {
       background: var(--mn-color-surface-hover, rgba(0, 0, 0, 0.06));
       color: var(--mn-color-text-primary, #1a1a1a);
+    }
+
+    sh-chat-panel .message-action-btn.message-action-branch {
+      font-size: 0.75rem;
     }
 
     sh-chat-panel .message-action-btn.copied {

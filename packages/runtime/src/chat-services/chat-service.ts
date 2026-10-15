@@ -214,10 +214,14 @@ export interface ChatAccess {
    *  - `role`: the person's role, and what the host gives that role;
    *  - `backend`: the host's chat only reads (an older Choreograph);
    *  - `conversation`: this conversation's own record (the mode it was bound to when it began; an older
-   *    chat keeps the powers it began with, no more).
+   *    chat keeps the powers it began with, no more);
+   *  - `unavailable`: the chat cannot run here at all, and `reason` says why in the host's words (a
+   *    self-host whose computer lacks what chat needs, such as Node.js).
    */
-  readonly basis: 'role' | 'backend' | 'conversation'
+  readonly basis: 'role' | 'backend' | 'conversation' | 'unavailable'
   readonly role: ChatWorkspaceRole | null
+  /** With `basis: 'unavailable'`: why, for the person. */
+  readonly reason?: string
 }
 
 /** The archive conversation a live conversation picked up. */
@@ -243,6 +247,24 @@ export interface ConversationSummary {
   /** The models that spoke in it: `provider` is the route or source recorded it under. */
   readonly models?: readonly { readonly id: string; readonly provider: string }[]
   readonly continuesConversation?: ConversationLineage
+  /** The live conversation this one was branched from ("Branch from here") or duplicated from, when it was. */
+  readonly branchedFrom?: ConversationBranchLineage
+}
+
+/** Where a branched or duplicated live conversation came from. */
+export interface ConversationBranchLineage {
+  /** The parent conversation's id. */
+  readonly id: string
+  /** `fork`: branched from before one of the person's messages; `clone`: a duplicate. */
+  readonly kind: 'fork' | 'clone'
+  /** The parent's name as listed, or null when it is not listed any more (deleted). */
+  readonly title: string | null
+}
+
+/** A branch begun from one of the person's messages: the new conversation, and that message's words for the composer. */
+export interface ChatBranch {
+  readonly session: SessionSummary
+  readonly text: string
 }
 
 /** The "Continue with..." intent an imported conversation's reader emits. */
@@ -264,6 +286,19 @@ export interface ChatBalance {
   /** What the backend says of the credits regime beside the balance; absent from an older backend. */
   readonly facts?: CreditsFacts
 }
+
+/**
+ * Why this page cannot drive a conversation now (the agent core's driver lease, one driver at a time):
+ *  - `elsewhere`: another tab or browser holds it. `canTakeOver` when that is the same person, who may
+ *    continue here ({@link ChatService.takeOver}); otherwise it is someone else's ride.
+ *  - `gone`: the conversation was deleted (from another tab, or here).
+ */
+export type ChatDriverState =
+  | { readonly kind: 'elsewhere'; readonly canTakeOver: boolean }
+  | { readonly kind: 'gone' }
+
+/** What a followed conversation reports: its record moved on (re-read it), or who may drive it changed. */
+export type ChatFollowChange = 'record' | 'driver'
 
 /** A hydrated session: its summary + the full ordered message history. */
 export interface HydratedSession {
@@ -288,6 +323,34 @@ export interface ChatService {
   startTurn(sessionId: string, userText: string): Promise<ChatTurnHandle>
   /** Cooperatively abort the session's in-flight turn (no-op if idle). */
   abort(sessionId: string): Promise<void>
+  /**
+   * Send a message into the reply under way, which takes it before its next step (the agent core's
+   * `steer`). Optional: a service without it makes the person wait for the reply to finish. The
+   * message appears in the conversation's own record once the reply has taken it.
+   */
+  steer?(sessionId: string, text: string): Promise<void>
+
+  // ── one driver at a time (all optional: absent on services with no lease) ──
+  /** Why this page cannot drive the conversation now; null when it can (or when that is not known yet). */
+  driverState?(sessionId: string): ChatDriverState | null
+  /** Continue here: take the conversation over from the same person's other tab or browser, which then only shows it. */
+  takeOver?(sessionId: string): Promise<void>
+  /**
+   * Keep what this page knows of an open conversation current (another tab taking it over, or deleting it;
+   * a reply another tab drove). `onChange` says what moved. Returns the way to stop.
+   */
+  followSession?(sessionId: string, onChange: (change: ChatFollowChange) => void): () => void
+
+  // ── branches (optional: the agent core's fork and clone) ──
+  /**
+   * Branch from one of the person's messages: a new conversation holding the history before it, which this page
+   * then drives. Resolves with the new conversation and the message's words (the composer gets them, to edit and
+   * send). `userIndex` is the message's place among the person's messages, for a message this page saw streamed
+   * (its id is the page's own until the record is read again).
+   */
+  branchSession?(sessionId: string, message: { readonly id: string; readonly content: string; readonly userIndex: number }): Promise<ChatBranch>
+  /** Duplicate a conversation: a new one with the whole history, which this page then drives. */
+  duplicateSession?(sessionId: string): Promise<SessionSummary>
 
   // ── sessions ──
   createSession(opts?: CreateSessionOpts): Promise<SessionSummary>

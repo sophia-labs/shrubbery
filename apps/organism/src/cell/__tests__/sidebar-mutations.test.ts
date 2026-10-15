@@ -39,7 +39,7 @@ describe('sidebar mutation adapter', () => {
       { idFactory: () => 'doc-architecture-notes' },
     )
 
-    expect(result).toEqual({ documentId: 'doc-architecture-notes' })
+    expect(result).toEqual({ documentId: 'doc-architecture-notes', existed: false })
     expect(mcp.calls).toEqual([
       {
         name: 'create_document',

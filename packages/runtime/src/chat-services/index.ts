@@ -21,6 +21,9 @@ export {
 export type {
   ChatBillingDetail,
   ChatBillingKind,
+  ChatBranch,
+  ChatDriverState,
+  ChatFollowChange,
   ChatService,
   ChatFailurePhase,
   ChatFailureRecovery,
@@ -46,6 +49,17 @@ export {
   type HostedChatServiceOptions,
 } from './hosted-chat-service.js'
 
+// The agent core's chat: Vehicle's ride protocol v2 through a self-hosted gardend (`/services/vehicle`).
+export {
+  makeRideChatService,
+  personText,
+  RideFailure,
+  transcriptToMessages,
+  voiceOfModel,
+  type RideChatService,
+  type RideChatServiceOptions,
+} from './ride-chat-service.js'
+
 // The DETERMINISTIC GROW-DRIVER (N0a) — a TurnDriver that matches a fixed phrase
 // catalog to a structural VerbSpec and calls the REAL grow() (the LOCAL-N0 swap
 // for the ECHO driver). The C4 LLM driver slots into the same TurnDriver seam.
@@ -64,6 +78,7 @@ export {
   buildChatKernelOptions,
   defaultModels,
   type AssembleChatServicesOptions,
+  type ChatEndpoint,
   type ChatServiceMode,
   type ChatProjection,
   type ChatProjectionSource,
@@ -77,6 +92,7 @@ export type {
   ChatBalance,
   ChatCapabilities,
   ContinueIntent,
+  ConversationBranchLineage,
   ConversationLineage,
   ConversationSummary,
 } from './chat-service.js'

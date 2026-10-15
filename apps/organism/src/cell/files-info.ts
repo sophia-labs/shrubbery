@@ -11,6 +11,7 @@ import type { WorkspaceFileInfoModel, WorkspaceFileInfoRow } from '@shrubbery/ru
 import type { FilesClient } from './files-contract.js'
 import type { FilesEntryKind } from './files-commands.js'
 import { formatFileSize } from './files-policy.js'
+import { sha256Digest } from '@shrubbery/nucleus/web-crypto'
 
 /** What the panel reads for one item beyond the tree. A field the cell does not state stays null and its row is not drawn. */
 export interface InfoDetail {
@@ -62,8 +63,12 @@ export interface InfoContext {
 const text = (v: unknown): string | null => (typeof v === 'string' && v.trim() ? v : null)
 const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : null)
 
-/** The listing record, the revisions and the digest, folded into one detail. Each part degrades alone. */
-export async function readInfoDetail(client: FilesClient, graphId: string, item: Pick<InfoItem, 'kind' | 'id' | 'sizeBytes'>): Promise<InfoDetail> {
+/**
+ * The listing record, the revisions and the digest, folded into one detail. Each part degrades alone. `hash: false` never fetches the
+ * bytes to hash them (a file's page: its source may be folded, and opening the page must not download the file).
+ */
+export async function readInfoDetail(client: FilesClient, graphId: string, item: Pick<InfoItem, 'kind' | 'id' | 'sizeBytes'>,
+  options: { readonly hash?: boolean } = {}): Promise<InfoDetail> {
   const empty: InfoDetail = { sizeBytes: item.sizeBytes, createdAt: null, updatedAt: null, createdBy: null, updatedBy: null, sha256: null, revisions: null, wordCount: null }
   if (item.kind === 'folder') return empty
   const rec = await client.listingRecord(graphId, item.kind, item.id).catch(() => null)
@@ -75,7 +80,7 @@ export async function readInfoDetail(client: FilesClient, graphId: string, item:
   if (item.kind === 'artifact') {
     const [revisions, digest] = await Promise.all([
       client.tool('list_artifact_revisions', { graphId, artifactId: item.id }).then(r => (Array.isArray(r.revisions) ? r.revisions.length : null)).catch(() => null),
-      detail.sha256 || (detail.sizeBytes ?? 0) > 8 * 1024 * 1024 ? Promise.resolve(detail.sha256) : sha256Of(client, graphId, item.id),
+      detail.sha256 || options.hash === false || (detail.sizeBytes ?? 0) > 8 * 1024 * 1024 ? Promise.resolve(detail.sha256) : sha256Of(client, graphId, item.id),
     ])
     detail = { ...detail, revisions, sha256: digest }
   } else {
@@ -92,7 +97,7 @@ export async function readInfoDetail(client: FilesClient, graphId: string, item:
 async function sha256Of(client: FilesClient, graphId: string, id: string): Promise<string | null> {
   try {
     const bytes = await (await client.download(graphId, id)).arrayBuffer()
-    const digest = await globalThis.crypto.subtle.digest('SHA-256', bytes)
+    const digest = await sha256Digest(bytes)
     return [...new Uint8Array(digest)].map(b => b.toString(16).padStart(2, '0')).join('')
   } catch { return null }
 }

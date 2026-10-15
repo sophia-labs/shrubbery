@@ -193,6 +193,24 @@ export interface HostedChatServiceOptions {
   readonly contextRefs?: () => readonly string[]
   /** The person's role on the bound graph (the gateway's graph list), for what the chat may do here. */
   readonly role?: () => ChatWorkspaceRole | null | undefined
+  /**
+   * Choreograph is reached through a self-host's gardend (`/services/choreograph/api` on the page's own
+   * origin), not through the gateway. Two things follow, and nothing else changes:
+   *   - nothing in between binds a read to a graph, so the chat-session list names its graph itself
+   *     (`graph_id`, which Choreograph honours when no gateway minted one) and keeps only that graph's rows;
+   *   - a turn's event stream that the proxy refuses with 501 (gardend before it learned to stream:
+   *     "use Accept: application/json") is followed through the JSON face instead, for the rest of this
+   *     service's life. A proxy that streams is streamed from, as the gateway is.
+   * Off (the gateway): a refused stream is an error, as it always was.
+   */
+  readonly viaLocalService?: boolean
+  /**
+   * The graph's owner, named in every invocation as `graph.ownerPrincipal`. The gateway forces the owner+graph
+   * binding into what it forwards, so the hosted chat leaves it out (absent: nothing sent, as always). A self-host's
+   * gardend (0.1.3) forwards the body as it is, and Choreograph refuses both chat workflows without an owner
+   * (409 `workspace_chat_requires_owner_scope`; the Domain Agent's `invalid_request`), so the page names it.
+   */
+  readonly graphOwnerPrincipal?: () => string | null | undefined
 }
 
 interface Cloud2ChatDescriptor {
@@ -360,6 +378,11 @@ export function makeHostedChatService(opts: HostedChatServiceOptions): ChatServi
   const unprovisionedGraphs = new Set<string>()
   /** Graphs whose host has no chat-session list (an older Choreograph or gateway): not asked again this page load. */
   const absentSessionLists = new Set<string>()
+  /**
+   * The local service's proxy refused an event stream (501): turns are followed through the JSON face
+   * from then on. Only ever set with `viaLocalService`.
+   */
+  let eventsByPoll = false
   /** Host sessions the person deleted here: the host keeps them, and its list must not bring them back. */
   const hiddenSessions = new Set(readHiddenSessions(opts))
   /** The windows of the conversations that picked up an earlier one, read from storage once each. */
@@ -407,6 +430,12 @@ export function makeHostedChatService(opts: HostedChatServiceOptions): ChatServi
         // A listener's fault is its own; it must not stop the others hearing.
       }
     }
+  }
+
+  /** `{ ownerPrincipal }` when the caller names the graph's owner (a self-host); nothing otherwise (the gateway's). */
+  function graphOwnerOf(): { ownerPrincipal?: string } {
+    const owner = opts.graphOwnerPrincipal?.()?.trim()
+    return owner ? { ownerPrincipal: owner } : {}
   }
 
   function boundGraph(): string | null {
@@ -815,9 +844,11 @@ export function makeHostedChatService(opts: HostedChatServiceOptions): ChatServi
   /** The host's chat sessions for a graph; [] when it has no list, cannot be read now, or says nothing. */
   async function hostSessionRows(graphId: string): Promise<SessionRow[]> {
     if (absentSessionLists.has(graphId)) return []
+    // Through the gateway the graph is the route's; straight to a local Choreograph, the query names it.
+    const scope = opts.viaLocalService ? `&graph_id=${encodeURIComponent(graphId)}` : ''
     try {
       const response = await request(
-        `${CHAT_SESSIONS_PATH}&limit=${SESSION_LIST_LIMIT}`,
+        `${CHAT_SESSIONS_PATH}&limit=${SESSION_LIST_LIMIT}${scope}`,
         { headers: { accept: 'application/json' }, signal: readSignal() },
         graphId,
       )
@@ -826,7 +857,9 @@ export function makeHostedChatService(opts: HostedChatServiceOptions): ChatServi
         return []
       }
       if (!response.ok) return []
-      return parseSessionList(await response.json())
+      const rows = parseSessionList(await response.json())
+      // An older local Choreograph that ignored `graph_id` lists every graph's chats: keep this graph's.
+      return opts.viaLocalService ? rows.filter(row => row.graphId === null || row.graphId === graphId) : rows
     } catch {
       return []
     }
@@ -1226,7 +1259,7 @@ export function makeHostedChatService(opts: HostedChatServiceOptions): ChatServi
               interactionMode: 'headed',
             },
           actorRef: canonicalActor(opts.userId()),
-          graph: { graphId: value.graphId },
+          graph: { graphId: value.graphId, ...graphOwnerOf() },
           cause: { kind: 'trigger', ref: resource },
           idempotencyKey: `sophia-cluster:${value.virtualId}${workspace ? ':ws' : ''}`,
         }),
@@ -1570,23 +1603,33 @@ export function makeHostedChatService(opts: HostedChatServiceOptions): ChatServi
       while (!controller.signal.aborted && Date.now() - startedAt < deadlineMs) {
         const cursorBefore = value.cursor
         const path = `/agent-sessions/${encodeURIComponent(value.agentSessionId ?? '')}/events?since=${value.cursor}`
-        const response = await request(path, {
-          headers: { accept: 'text/event-stream' },
-          signal: controller.signal,
-        }, value.graphId)
-        if (!response.ok) {
+        const response = eventsByPoll
+          ? null
+          : await request(path, {
+            headers: { accept: 'text/event-stream' },
+            signal: controller.signal,
+          }, value.graphId)
+        if (response && response.status === 501 && opts.viaLocalService) {
+          // gardend's proxy does not stream (yet): read what is durable through the JSON face, now and from here on.
+          await response.text().catch(() => '')
+          eventsByPoll = true
+        }
+        if (eventsByPoll) {
+          await catchUp()
+        } else if (response && !response.ok) {
           const body = await response.text().catch(() => '')
           throw new Error(`GET Agent Session events → ${response.status}${body ? ` ${body}` : ''}`)
-        }
-        const reader = response.body?.getReader()
-        if (reader) {
-          try {
-            for await (const frame of parseSse(reader)) {
-              const event = asAgentSessionEvent(frame.data)
-              if (event && take(event)) break
+        } else {
+          const reader = response?.body?.getReader()
+          if (reader) {
+            try {
+              for await (const frame of parseSse(reader)) {
+                const event = asAgentSessionEvent(frame.data)
+                if (event && take(event)) break
+              }
+            } finally {
+              await reader.cancel().catch(() => undefined)
             }
-          } finally {
-            await reader.cancel().catch(() => undefined)
           }
         }
         if (controller.signal.aborted) return { state: 'aborted' }

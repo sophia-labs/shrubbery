@@ -17,10 +17,14 @@
  * to gardend directly: no Cloudflare edge is in the path, so it signs in with the key even when
  * gardend says `cloudflare-access` (gardend takes a valid bearer before looking for an Access pass).
  *
- * Nothing here talks to a gateway, Cognito or Choreograph.
+ * Nothing here talks to a gateway or Cognito. Chat reaches Choreograph only through gardend's own proxy on
+ * this origin, and only when gardend says it has one configured (`GET /api/choreograph/status`): see
+ * {@link readSelfHostChat}. Every URL is this page's origin plus a path, never a host of its own, so the
+ * same bundle works on 127.0.0.1, on localhost forwarded into WSL2, and behind Cloudflare.
  */
 
 import type { MnSettingsActionDetail, MnSettingsSection } from '@shrubbery/components'
+import type { ChatEndpoint } from '@shrubbery/runtime'
 import { createGardendContract, type GardendContract } from './gardend-contract.js'
 import type { LoopbackTransport } from './loopback-mcp.js'
 import { CELL_ERROR_PANEL_CLASS } from './default-workspace-ui.js'
@@ -39,6 +43,16 @@ const DESCRIPTOR_KIND = 'gardend-self-host'
 
 export type SelfHostAuthMode = 'cloudflare-access' | 'key'
 
+/** What gardend says of one local service it knows (`/self-host.json` `services`). */
+export interface SelfHostServiceState {
+  /** gardend has a manifest for it. */
+  readonly configured: boolean
+  /** `unconfigured`, `stopped`, `starting`, `running`, `restarting`, `error` or `unavailable`. */
+  readonly state: string
+  /** With `unavailable`: what this computer lacks, in gardend's words (such as Node.js for chat). */
+  readonly reason?: string
+}
+
 /** `GET /self-host.json` (gardend serves it, public, no auth). */
 export interface SelfHostDescriptor {
   readonly kind: typeof DESCRIPTOR_KIND
@@ -46,6 +60,8 @@ export interface SelfHostDescriptor {
   readonly auth: SelfHostAuthMode
   /** Filled when a valid Access JWT came with the request. */
   readonly user: { readonly email: string } | null
+  /** The local services gardend knows of, by id (empty from a gardend older than its supervision). */
+  readonly services: Readonly<Record<string, SelfHostServiceState>>
 }
 
 /** The page is on this computer's loopback, where no Cloudflare edge can add an Access pass. */
@@ -88,11 +104,25 @@ export function parseSelfHostDescriptor(value: unknown): SelfHostDescriptor {
   const email = rawUser && typeof rawUser === 'object' && !Array.isArray(rawUser)
     ? (rawUser as Record<string, unknown>).email
     : undefined
+  const services: Record<string, SelfHostServiceState> = {}
+  const rawServices = record.services
+  if (rawServices && typeof rawServices === 'object' && !Array.isArray(rawServices)) {
+    for (const [id, raw] of Object.entries(rawServices as Record<string, unknown>)) {
+      if (!/^[a-z0-9][a-z0-9-]{0,62}$/.test(id) || !raw || typeof raw !== 'object' || Array.isArray(raw)) continue
+      const service = raw as Record<string, unknown>
+      services[id] = {
+        configured: service.configured === true,
+        state: typeof service.state === 'string' ? service.state : '',
+        ...(typeof service.reason === 'string' && service.reason.trim() ? { reason: service.reason.trim() } : {}),
+      }
+    }
+  }
   return {
     kind: DESCRIPTOR_KIND,
     version: typeof record.version === 'string' ? record.version : '',
     auth: record.auth,
     user: typeof email === 'string' && email.trim() ? { email: email.trim() } : null,
+    services,
   }
 }
 
@@ -341,6 +371,179 @@ export async function bootstrapSelfHostCell(options: SelfHostBootOptions): Promi
   })
   activeSession = session
   return { kind: 'ready', session, contract, graphId, seededUxConfig, mayCreateGraphs: !refused }
+}
+
+// ── Chat on the agent core: the `vehicle` service gardend runs for this self-host ──
+
+/** Where gardend mounts the agent core's host (`vehicle-host`, the ride protocol v2). */
+export const SELF_HOST_VEHICLE_MOUNT = '/services/vehicle'
+
+/** The self-host's chat over the ride protocol: gardend's `vehicle` service, on this origin. */
+export interface SelfHostRide {
+  /** `${origin}/services/vehicle`; every request names its graph below it (`/g/<graph>/sessions...`). */
+  readonly baseUrl: string
+  /** The self-host key (key mode); none under Cloudflare Access, whose cookie travels same-origin. */
+  readonly token: string | undefined
+  /** What gardend said of the service when the page loaded. */
+  readonly state: string
+  /** With state `unavailable`: why chat cannot run on this computer (gardend's words). */
+  readonly reason?: string
+}
+
+/**
+ * The ride endpoint, when `/self-host.json` lists the `vehicle` service as configured; else null (the chat
+ * keeps S1's Choreograph path, or stays hidden). gardend mints who calls and the graph on every request, so
+ * the page sends neither.
+ */
+export function selfHostRideEndpoint(session: SelfHostSession): SelfHostRide | null {
+  const vehicle = session.descriptor.services.vehicle
+  if (!vehicle?.configured) return null
+  let base: URL
+  try {
+    base = new URL(SELF_HOST_VEHICLE_MOUNT, session.origin)
+  } catch {
+    return null
+  }
+  return {
+    baseUrl: `${base.origin}${base.pathname}`,
+    token: session.token,
+    state: vehicle.state,
+    ...(vehicle.state === 'unavailable' && vehicle.reason ? { reason: vehicle.reason } : {}),
+  }
+}
+
+// ── Chat: the Choreograph gardend runs for this self-host ─────────────────────
+
+/** gardend's word on its local Choreograph (public to any grant with `services.read`, members included). */
+export const SELF_HOST_CHOREOGRAPH_STATUS_PATH = '/api/choreograph/status'
+/** Where gardend mounts Choreograph when the status names no mount of its own. */
+const DEFAULT_CHOREOGRAPH_MOUNT = '/services/choreograph'
+const CHOREOGRAPH_STATUS_TIMEOUT_MS = 5_000
+
+/**
+ * Who the chat speaks as: the user gardend asserts to its Choreograph (`X-User-ID`). Choreograph refuses
+ * an invocation whose `actorRef` is not `user:<that id>` (403 `actor_mismatch`), and lists only that
+ * user's conversations. gardend 0.1.3 asserts its profile id, `default`, for every caller
+ * (`loopback_service_routes.rs`), so the chat is `default` too, whoever signed in. When gardend asserts
+ * the person instead (the Access email, a client token's id), this is the one line to change.
+ */
+export function selfHostChatActor(_session: SelfHostSession): string {
+  return 'default'
+}
+
+/**
+ * The owner of every graph on this gardend, as Choreograph names principals: its profile's, `user:default`. The
+ * gateway forces the owner into each invocation it forwards; gardend 0.1.3 does not, and without one Choreograph
+ * refuses to start either chat workflow (409 `workspace_chat_requires_owner_scope`). Read live against Choreograph
+ * `de822be` under Vera's gardend, 2026-10-13. When gardend forces the binding itself, its value wins.
+ */
+export function selfHostGraphOwner(_session: SelfHostSession): string {
+  return 'user:default'
+}
+
+/** The parts of `GET /api/choreograph/status` the chat reads. */
+export interface SelfHostChoreographStatus {
+  /** `unconfigured`, `stopped`, `running` or `error`. */
+  readonly state: string
+  /** gardend has a service manifest for Choreograph. */
+  readonly configured: boolean
+  readonly proxyMount: string
+}
+
+export function parseSelfHostChoreographStatus(value: unknown): SelfHostChoreographStatus | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const record = value as Record<string, unknown>
+  if (typeof record.configured !== 'boolean') return null
+  const mount = typeof record.proxyMount === 'string' ? record.proxyMount.trim() : ''
+  return {
+    state: typeof record.state === 'string' ? record.state : '',
+    configured: record.configured,
+    proxyMount: mount || DEFAULT_CHOREOGRAPH_MOUNT,
+  }
+}
+
+/** Where this self-host's chat reaches Choreograph, and as whom. */
+export interface SelfHostChat {
+  /**
+   * `${origin}${proxyMount}/api`: gardend strips its mount, and Choreograph's own routes are `/api/…`,
+   * so the chat's paths (`/workflows`, `/invocations`, `/agent-sessions/…`) line up unchanged.
+   */
+  readonly baseUrl: string
+  /** The self-host key (key mode); none under Cloudflare Access, whose cookie travels same-origin. */
+  readonly token: string | undefined
+  readonly userId: string
+  /** The graph owner each invocation names (`graph.ownerPrincipal`). */
+  readonly graphOwner: string
+  /** What gardend said of the service when the page asked. */
+  readonly state: string
+}
+
+/**
+ * The chat endpoint gardend's status describes, or null when it has no Choreograph configured. The mount
+ * must be a path on this origin: a status that pointed anywhere else is not followed.
+ */
+export function selfHostChatEndpoint(
+  session: SelfHostSession,
+  status: SelfHostChoreographStatus,
+): SelfHostChat | null {
+  if (!status.configured) return null
+  const mount = status.proxyMount.replace(/\/+$/, '')
+  if (!mount.startsWith('/') || mount.startsWith('//')) return null
+  let base: URL
+  try {
+    base = new URL(`${mount}/api`, session.origin)
+  } catch {
+    return null
+  }
+  if (base.origin !== new URL(session.origin).origin) return null
+  return {
+    baseUrl: `${base.origin}${base.pathname}`,
+    token: session.token,
+    userId: selfHostChatActor(session),
+    graphOwner: selfHostGraphOwner(session),
+    state: status.state,
+  }
+}
+
+/** The chat's endpoint as `assembleChatServices` takes it: gardend's proxy, the key, gardend's user. */
+export function selfHostChatEndpointOption(chat: SelfHostChat): ChatEndpoint {
+  return {
+    graphBaseUrl: () => chat.baseUrl,
+    token: () => chat.token,
+    userId: () => chat.userId,
+    graphOwner: () => chat.graphOwner,
+  }
+}
+
+/**
+ * Ask this gardend whether it runs Choreograph, and if it does, where the chat reaches it. Anything else
+ * (unconfigured, a gardend without the route, a refusal, a slow or malformed answer) is null: chat stays
+ * hidden, exactly as before there was a Choreograph to show.
+ */
+export async function readSelfHostChat(
+  session: SelfHostSession,
+  fetchImpl: typeof fetch = globalThis.fetch.bind(globalThis),
+): Promise<SelfHostChat | null> {
+  const headers: Record<string, string> = { Accept: 'application/json' }
+  if (session.token) headers.Authorization = `Bearer ${session.token}`
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), CHOREOGRAPH_STATUS_TIMEOUT_MS)
+  try {
+    const response = await fetchImpl(`${session.origin.replace(/\/+$/, '')}${SELF_HOST_CHOREOGRAPH_STATUS_PATH}`, {
+      method: 'GET',
+      headers,
+      credentials: 'same-origin',
+      cache: 'no-store',
+      signal: controller.signal,
+    })
+    if (!response.ok) return null
+    const status = parseSelfHostChoreographStatus(await response.json())
+    return status ? selfHostChatEndpoint(session, status) : null
+  } catch {
+    return null
+  } finally {
+    clearTimeout(timer)
+  }
 }
 
 /** The short screen shown when a key-mode self-host is opened without its key. */

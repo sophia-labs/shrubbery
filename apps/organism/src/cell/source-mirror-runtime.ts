@@ -57,6 +57,8 @@ interface MirrorEntry {
   readonly manager: SourceMirrorManager
   opened: Promise<void> | null
   syncing: Promise<void> | null
+  /** A pull that begins after the authority's latest announcement (followAuthority), while one is waiting. */
+  followUp: Promise<void> | null
 }
 
 interface SurfaceServiceEntry {
@@ -557,6 +559,36 @@ export class SourceMirrorRuntime {
     return entry.manager
   }
 
+  /**
+   * The authority announced a change this copy has not seen (another writer's, broadcast on the graph's
+   * workspace room): pull a copy that begins after now, and resolve once it has landed. A pull already under
+   * way may have begun before the change, so the pull waits it out; announcements while it waits share it.
+   * Nothing for a graph this runtime has not opened, a fenced one, or one whose complete copy the authority
+   * refuses as too large (a permanent refusal; its reads go to the cell). Never rejects: a failed pull leaves
+   * its error on the mirror's state, as backgroundSync does.
+   */
+  followAuthority(graphId: string): Promise<void> {
+    const entry = this.currentEntry(graphId)
+    if (!entry) return Promise.resolve()
+    const state = entry.manager.get()
+    if (state.fenced || state.errorCode === 'source_bundle_too_large') return Promise.resolve()
+    if (!entry.followUp) {
+      const underWay = entry.syncing
+      entry.followUp = (async () => {
+        // Always awaited (`await undefined` too), so `followUp` is assigned before it is cleared below.
+        await underWay?.catch(() => {})
+        // From here a new announcement waits for this pull, not beside it.
+        entry.followUp = null
+        try {
+          await this.sync(entry.graphId)
+        } catch {
+          this.scheduleSyncRetry(entry.graphId)
+        }
+      })()
+    }
+    return entry.followUp
+  }
+
   /** Start sync without making the caller's visible activation wait for it. */
   backgroundSync(graphId: string): void {
     const scheduled = this.syncRetryTimers.get(graphId)
@@ -1034,7 +1066,7 @@ export class SourceMirrorRuntime {
         storage: this.storage,
         transport: this.transport,
       })
-      entry = { userId, graphId: normalizedGraph, manager, opened: null, syncing: null }
+      entry = { userId, graphId: normalizedGraph, manager, opened: null, syncing: null, followUp: null }
       manager.subscribe(() => this.publish(entry!))
       this.entries.set(key, entry)
     }

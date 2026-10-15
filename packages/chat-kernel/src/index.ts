@@ -41,7 +41,7 @@ export type { ProjectorState } from './message-projector'
 
 // The default HTML sanitizer (a real DOMPurify pass) — the kernel owns
 // sanitization because it is the thing that renders untrusted agent content.
-export { sanitizeHtml } from './sanitize'
+export { sanitizeChatHtml, sanitizeHtml } from './sanitize'
 
 // The sandbox adapter — folds a ChatEvent[] stream onto the pure projector
 // (synthesizing per-gate FIFO ${gate}#${n} call ids INSIDE the adapter) and

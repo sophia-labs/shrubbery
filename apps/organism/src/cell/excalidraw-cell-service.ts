@@ -193,6 +193,8 @@ export function makeOrganismExcalidrawOptions(options: OrganismExcalidrawOptions
           documentId: anchor.target.id,
           title: anchor.title.trim() || anchor.target.id,
           parentId: null,
+          // The tree can be behind: a target that is there after all is kept.
+          ifExists: 'keep',
         })
         await options.onWorkspaceChanged?.()
         return { save: true, message: `Recreated ${anchor.title || anchor.target.id}` }

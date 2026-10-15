@@ -83,12 +83,31 @@ export function defaultModels(getScope: () => EditorScope): ChatModelOption[] {
  * omitted, the local impl keeps its default ECHO driver. Hosted Choreograph is
  * configured through AssembleChatServicesOptions.hosted.
  */
+/**
+ * Where the hosted ChatService reaches Choreograph, and as whom, when that is not the contract's gateway.
+ * A self-host's gardend proxies its own Choreograph at `${origin}/services/choreograph/api` (the same
+ * paths as the gateway's graph route, below a base that names no graph), takes the self-host key (or
+ * nothing, under Cloudflare Access), and asserts its own user to Choreograph, which the chat must speak as.
+ */
+export interface ChatEndpoint {
+  readonly graphBaseUrl: (graphId: string) => string
+  readonly token: () => string | undefined
+  readonly userId: () => string
+  /**
+   * The graph's owner as the invocation must name it (`graph.ownerPrincipal`), where no gateway forces it in.
+   * Absent: none is named.
+   */
+  readonly graphOwner?: () => string
+}
+
 export interface AssembleChatServicesOptions {
   readonly turnDriver?: TurnDriver
   readonly hosted?: Omit<
     HostedChatServiceOptions,
-    'graphBaseUrl' | 'graphId' | 'userId' | 'token'
+    'graphBaseUrl' | 'graphId' | 'userId' | 'token' | 'graphOwnerPrincipal'
   >
+  /** Absent: the contract's graph route, token and user (the gateway), as always. */
+  readonly endpoint?: ChatEndpoint
   /**
    * The conversation's graph. Chat is GRAPH-scoped, not document-scoped: a
    * conversation belongs to the workspace, not to whichever document happens to
@@ -118,15 +137,16 @@ export function assembleChatServices(
         'hosted ChatService requires hosted connection options.',
       )
     }
-    const graphId =
-      (typeof driverOrOptions === 'function' ? undefined : driverOrOptions?.graphId)
-      ?? ((): string | null => getScope().graphId)
+    const options = typeof driverOrOptions === 'function' ? undefined : driverOrOptions
+    const graphId = options?.graphId ?? ((): string | null => getScope().graphId)
+    const endpoint = options?.endpoint
     return makeHostedChatService({
       ...connection,
-      graphBaseUrl: (id: string) => contract.runtime.graphBaseUrl(id),
+      graphBaseUrl: endpoint ? endpoint.graphBaseUrl : (id: string) => contract.runtime.graphBaseUrl(id),
       graphId,
-      userId: () => contract.auth.userId(),
-      token: () => contract.auth.token(),
+      userId: endpoint ? endpoint.userId : () => contract.auth.userId(),
+      token: endpoint ? endpoint.token : () => contract.auth.token(),
+      ...(endpoint?.graphOwner ? { graphOwnerPrincipal: endpoint.graphOwner } : {}),
     })
   }
   // 'local' — REAL now. getScope is LOAD-BEARING: defaultModels(getScope) derives
@@ -144,6 +164,8 @@ export function assembleChatServices(
 export interface ChatProjection {
   messages: ChatMessage[]
   streaming: boolean
+  /** The service takes a message while a reply is under way (it steers it). */
+  steerWhileStreaming?: boolean
   conversationState?: ChatConversationState
   /** Compatibility input for hosts not yet projecting conversationState. Gen-2
    * runtime stores do not emit offline/reconnecting. */
@@ -181,7 +203,7 @@ export interface ChatProjectionSource {
   /** Pick a different model (host-owned). */
   setModel?(modelId: string): void
   /** A message-level action intent (copy/read/regenerate/save) — host-owned. */
-  messageAction?(messageId: string, action: 'copy' | 'read' | 'regenerate' | 'save-garden'): void
+  messageAction?(messageId: string, action: 'copy' | 'read' | 'regenerate' | 'save-garden' | 'branch'): void
   /** Retry an operation whose payload/lifecycle remains owned by the host. */
   continuityAction?(action: ChatContinuityAction): void
   /** The action of the composer notice was chosen. */
@@ -212,7 +234,7 @@ export function buildChatKernelOptions(
   projection: () => ChatProjection,
 ): Pick<
   ChatKernelOptions,
-  'messages' | 'streaming' | 'error' | 'readOnly' | 'models' | 'currentModel'
+  'messages' | 'streaming' | 'steerWhileStreaming' | 'error' | 'readOnly' | 'models' | 'currentModel'
   | 'conversationState' | 'sendState' | 'sendRecovery' | 'sendError' | 'onContinuityAction'
   | 'onSend' | 'onModelChange' | 'onMessageAction'
   | 'sessionTitle'
@@ -227,6 +249,7 @@ export function buildChatKernelOptions(
   return {
     messages: p.messages,
     streaming: p.streaming,
+    steerWhileStreaming: p.steerWhileStreaming === true,
     conversationState: p.conversationState
       ?? (p.connectionState === 'loading' || p.connectionState === 'error' ? p.connectionState : 'ready'),
     sendState: p.sendState ?? 'ready',

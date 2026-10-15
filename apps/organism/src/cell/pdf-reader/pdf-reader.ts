@@ -19,6 +19,8 @@
  *                overlay: boolean             the assertions overlay (attribute `overlay`), also the toggle's state
  *                selected: string | null      the selected assertion id
  *                reveal: { id, nonce } | null ask for an assertion: overlay on, scroll to it, select it, flash it (a new nonce asks again)
+ *                spotlight: { id, nonce } | null  show one assertion's box on its page, the overlay staying off (a page link of the file's
+ *                                             page); `page:N` turns to page N. The reader scrolls itself into view first.
  *   methods      goToPage(n) · showAssertion(id) · setZoom('page-width' | 'page-fit' | number) · find(query) · whenReady()
  *   events       (all bubble, composed)
  *                pdf-load              { pageCount, hasText, hasOutline }
@@ -99,6 +101,7 @@ export class MnPdfReader extends LitElement {
   @property({ type: Boolean, reflect: true }) overlay = false
   @property({ attribute: false }) selected: string | null = null
   @property({ attribute: false }) reveal: { id: string; nonce: number } | null = null
+  @property({ attribute: false }) spotlight: { id: string; nonce: number } | null = null
   /** The toggle's name. */
   @property({ type: String, attribute: 'overlay-label' }) overlayLabel = 'What we read'
 
@@ -146,6 +149,10 @@ export class MnPdfReader extends LitElement {
   private thumbBusy = false
   private thumbSeen = new Set<number>()
   private lastReveal = 0
+  private lastFocus = 0
+  /** The one assertion whose box is drawn while the overlay is off (a page link asked for it), and one waiting for the document. */
+  private only: string | null = null
+  private pendingOnly: string | null = null
 
   protected override createRenderRoot(): HTMLElement { return this }
 
@@ -212,6 +219,59 @@ export class MnPdfReader extends LitElement {
       this.lastReveal = this.reveal.nonce
       this.showAssertion(this.reveal.id)
     }
+    if (changed.has('spotlight') && this.spotlight && this.spotlight.nonce !== this.lastFocus) {
+      this.lastFocus = this.spotlight.nonce
+      this.pendingOnly = this.spotlight.id
+      this.scrollIntoView?.({ block: 'start', behavior: 'smooth' })
+      void this.focusOnly()
+    }
+  }
+
+  /** Show one assertion's box on its page, the overlay as it is: a box the import gave, else where its words are on the page. */
+  private async focusOnly(): Promise<void> {
+    const id = this.pendingOnly
+    if (!id || !this.pv || !this.pageCount || this.parsing) return
+    this.pendingOnly = null
+    if (id.startsWith('page:')) { this.goToPage(Number(id.slice(5))); return }
+    const a = this.assertions.find(x => x.id === id)
+    if (!a) return
+    const previous = this.only
+    this.only = id
+    if (previous && previous !== id) { const was = this.placed.get(previous); if (was) this.drawPage(was.page) }
+    if (!this.placed.has(id)) await this.placeOne(a)
+    const p = this.placed.get(id)
+    if (p) { this.scrollToPlaced(p); this.drawPage(p.page); this.flash(id) }
+    else { const page = a.page ?? a.readingPages[0]; if (page) this.goToPage(page) }
+  }
+
+  /** Place one assertion: its own box, else the text search over its page(s), with the page's other rows competing for the lines. */
+  private async placeOne(a: PdfAssertion): Promise<void> {
+    const generation = this.generation
+    const put = (id: string, p: Placed) => { this.placed = new Map([...this.placed, [id, p]]) }
+    if (a.box) {
+      const vp = await this.pageViewport(a.box.page)
+      if (vp && generation === this.generation) {
+        const [vx0, vy0, vx1, vy1] = vp.convert([a.box.l, a.box.b, a.box.r, a.box.t]) as [number, number, number, number]
+        const x0 = Math.max(0, Math.min(vx0, vx1)), x1 = Math.min(vp.width, Math.max(vx0, vx1)), y0 = Math.max(0, Math.min(vy0, vy1)), y1 = Math.min(vp.height, Math.max(vy0, vy1))
+        put(a.id, { page: a.box.page, x: x0 / vp.width, y: y0 / vp.height, w: (x1 - x0) / vp.width, h: (y1 - y0) / vp.height, source: 'reader' })
+        return
+      }
+    }
+    const pages = new Set([a.page, ...a.readingPages].filter((n): n is number => typeof n === 'number' && n > 0))
+    const rows = this.assertions.filter(x => !x.box && x.page !== null && pages.has(x.page))
+      .map(x => ({ id: x.id, label: x.label, symbol: x.symbol, numbers: x.numbers, page: x.page, alt: x.id === a.id ? x.readingPages : [] }))
+    if (!rows.some(r => r.id === a.id)) rows.push({ id: a.id, label: a.label, symbol: a.symbol, numbers: a.numbers, page: a.page, alt: a.readingPages })
+    try {
+      await locateAll(rows, n => this.pageLines(n), (page, found) => {
+        const vp = this.viewports.get(page)
+        const hit = found.get(a.id)
+        if (!vp || !hit || generation !== this.generation) return
+        const [vx0, vy0, vx1, vy1] = vp.convert([hit.rect.x0, hit.rect.y0, hit.rect.x1, hit.rect.y1]) as [number, number, number, number]
+        const x0 = Math.max(0, Math.min(vx0, vx1) - 2), x1 = Math.min(vp.width, Math.max(vx0, vx1) + 2)
+        const y0 = Math.max(0, Math.min(vy0, vy1) - 1), y1 = Math.min(vp.height, Math.max(vy0, vy1) + 1)
+        put(a.id, { page, x: x0 / vp.width, y: y0 / vp.height, w: (x1 - x0) / vp.width, h: (y1 - y0) / vp.height, source: 'text' })
+      })
+    } catch { /* not located: its page is turned to instead */ }
   }
 
   private teardown(): void {
@@ -238,7 +298,7 @@ export class MnPdfReader extends LitElement {
     const data = this.data
     this.pageCount = 0; this.pageNo = 1; this.outline = []; this.noText = false; this.parseError = ''
     this.findOpen = false; this.findCount = null; this.thumbsReady = 0; this.card = null
-    this.placed = new Map(); this.locateDone = false; this.locating = false
+    this.placed = new Map(); this.locateDone = false; this.locating = false; this.only = null
     if (!data) { this.parsing = false; this.ready = Promise.resolve(); return }
     this.parsing = true
     let done!: () => void
@@ -327,6 +387,7 @@ export class MnPdfReader extends LitElement {
   private async afterLoad(): Promise<void> {
     if (this.assertions.length && this.overlay) await this.locate()
     this.flushFocus()
+    await this.focusOnly()
   }
 
   private observeSize(container: HTMLElement): void {
@@ -532,8 +593,9 @@ export class MnPdfReader extends LitElement {
     const div = this.pv?.getPageView(n - 1)?.div as HTMLElement | undefined
     if (!div) return
     div.querySelector(':scope > .pr-alayer')?.remove()
-    if (!this.overlay) return
-    const mine = this.assertions.filter(a => this.placed.get(a.id)?.page === n)
+    // The overlay draws every box; off, only the one a page link asked for.
+    const mine = this.overlay ? this.assertions.filter(a => this.placed.get(a.id)?.page === n)
+      : this.only && this.placed.get(this.only)?.page === n ? this.assertions.filter(a => a.id === this.only) : []
     if (!mine.length) return
     const layer = document.createElement('div')
     layer.className = 'pr-alayer'
@@ -544,7 +606,7 @@ export class MnPdfReader extends LitElement {
       box.dataset.id = a.id
       box.dataset.status = a.status
       box.dataset.source = p.source
-      if (a.id === this.selected) box.dataset.selected = ''
+      if (a.id === this.selected || (!this.overlay && a.id === this.only)) box.dataset.selected = ''
       box.tabIndex = 0
       box.setAttribute('role', 'button')
       box.setAttribute('aria-label', `${a.label}${a.value ? `, ${a.value}` : ''}, ${STATUS_WORDS[a.status]}, page ${n}`)

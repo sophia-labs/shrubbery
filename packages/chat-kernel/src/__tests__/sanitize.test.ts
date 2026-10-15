@@ -22,7 +22,8 @@
  * closure (the tripwire grep excludes __tests__).
  */
 import { describe, it, expect } from 'vitest'
-import { sanitizeHtml } from '../sanitize.js'
+import { marked } from 'marked'
+import { sanitizeChatHtml, sanitizeHtml } from '../sanitize.js'
 
 describe('sanitizeHtml — DOMPurify strips real XSS payloads (real jsdom DOM)', () => {
   it('removes a <script> tag from agent-rendered HTML, keeping benign prose', () => {
@@ -73,5 +74,40 @@ describe('sanitizeHtml — DOMPurify strips real XSS payloads (real jsdom DOM)',
     expect(clean).toContain('<em>not</em>')
     expect(clean).toContain('<li>memory</li>')
     expect(clean).toContain('href="https://example.com"')
+  })
+})
+
+describe('sanitizeChatHtml — the chat panel keeps the words of tags a model invents (real jsdom DOM)', () => {
+  const render = (markdown: string) => {
+    const container = document.createElement('div')
+    container.innerHTML = sanitizeChatHtml(marked.parse(markdown) as string)
+    return container.textContent?.replace(/\s+/g, ' ').trim()
+  }
+
+  it('keeps the text inside an invented tag, whatever its name (an SVG one was dropped with its words)', () => {
+    expect(sanitizeHtml('<p>The converter is <part>TPS63020</part>.</p>')).not.toContain('TPS63020')
+    expect(render('The converter is <part>TPS63020</part>.')).toBe('The converter is TPS63020.')
+    expect(render('<part>TPS63020</part> and <component name="x">BQ25185</component>, see <text>p. 4</text> and <path>J1</path>')).toBe(
+      'TPS63020 and BQ25185, see p. 4 and J1',
+    )
+    expect(sanitizeChatHtml('<p><part>TPS63020</part></p>')).toBe('<p>TPS63020</p>')
+  })
+
+  it('still strips every payload the default does, and keeps marked\'s markup', () => {
+    for (const dirty of [
+      '<p>hi</p><script>window.__pwned = 1</script>',
+      '<img src="x" onerror="window.__pwned = 1">',
+      '<a href="javascript:window.__pwned=1">click</a>',
+      '<svg><script>window.__pwned=1</script></svg>',
+      '<math><mi xlink:href="javascript:window.__pwned=1">x</mi></math>',
+      '<part onclick="window.__pwned=1">x</part>',
+    ]) {
+      const clean = sanitizeChatHtml(dirty)
+      expect(clean).not.toMatch(/<script|onerror|onclick|javascript:|__pwned/)
+    }
+    const prose = sanitizeChatHtml(marked.parse('## Funes\n\nHe could *not* forget. [source](https://example.com)\n\n- [x] memory\n\n| a |\n|---|\n| b |\n\n`code` ~~old~~') as string)
+    for (const piece of ['<h2>Funes</h2>', '<em>not</em>', 'href="https://example.com"', '<li>', 'type="checkbox"', '<table>', '<code>code</code>', '<del>old</del>']) {
+      expect(prose).toContain(piece)
+    }
   })
 })

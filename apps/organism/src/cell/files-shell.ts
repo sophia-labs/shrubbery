@@ -6,8 +6,11 @@
  * - Capability: no `files` advert (CONTRACT-files §1), no pane. Nothing is probed.
  * - Every edit is a command through the cell's contract (`FilesCommands`), announced once with Undo; nothing writes a
  *   store directly. A placement or a view choice is a `source_push` through `FilesLayoutController`.
- * - Opening a file: always a page, never a download (`FilesPreviewController`): a PDF in the original-page viewer, an image
- *   previewed, text, Markdown, code, JSON, tables, HTML and Word rendered by Hoja, media played, anything else its file page.
+ * - Opening a file: its page (`FilesPageController`, Vera 2026-10-13): what the file is, in sections declared as data; its contents
+ *   are one section (`FilesPreviewController`: a PDF in the reader, an image previewed, text, Markdown, code, JSON, tables, HTML and
+ *   Word rendered by Hoja, media played), open for most files and folded where a kind says (a datasheet's PDF). Never a download.
+ * - Companions (a reader's text beside its PDF, a person's notes on a file) are not peers in the place (`files-companions.ts`); the
+ *   file's page reaches them.
  * - Connections (`connect`, `disconnect`) are the graph's own wires between artifacts (`FilesWires`: create_wires, get_wires,
  *   delete type 'wires'), so they are durable and shared; a contested placement is settled by `choose-placement`, which the
  *   layout controller writes.
@@ -32,6 +35,8 @@ import { formatFileSize, typeCaption } from './files-policy.js'
 import { buildInfoModel, readInfoDetail, type InfoDetail, type InfoItem, type InfoWire } from './files-info.js'
 import { FilesEvidence, type FilesEvidenceDeps } from './files-evidence.js'
 import { FilesAssertions } from './files-assertions.js'
+import { FilesPageController, type FilesPageFile } from './files-page.js'
+import { companionRules, companionsOf, findCompanions, withoutCompanions, type Companion } from './files-companions.js'
 import { projectFileWorkspace, type FileWorkspaceProjection } from './file-workspace.js'
 import { randomUUID } from '@shrubbery/nucleus/web-crypto'
 
@@ -100,6 +105,8 @@ export interface FilesShellDeps {
   /** The file kinds Files recognizes; the registered ones by default. */
   readonly kinds?: readonly FileKind[]
   readonly evidenceTiming?: { readonly activeMs?: number; readonly idleMs?: number }
+  /** How long notes wait after the last keystroke before they save (tests). */
+  readonly notesDebounceMs?: number
 }
 
 interface Status {
@@ -192,8 +199,11 @@ export class FilesShell {
   /** What the open PDF's kind read from it, for the reader's overlay and list; and a deep link waiting for its file. */
   private readonly assertions: FilesAssertions
   private pendingEvidence: { readonly artifactId: string | null; readonly id: string } | null = null
-  /** The Needs a look filter of the list face. */
+  /** The Disputed filter of the list face. */
   private needsLookOn = false
+  /** The opened file's page, and the companions of the tree as last bound. */
+  private readonly pages: FilesPageController
+  private companionCache: { sections: readonly FilePaneSection[]; found: Map<string, Companion> } | null = null
   /** Show info: the items it is pinned to (tree keys), and what was read for them. It closes when the selection moves elsewhere. */
   private info: { keys: readonly string[]; generation: number; detail: InfoDetail | null; status: 'loading' | 'ready' | 'error'; wires: InfoWire[] | null
     sizes: ReadonlyMap<string, number> | null } | null = null
@@ -219,9 +229,12 @@ export class FilesShell {
     this.preview = new FilesPreviewController({ client: deps.client, onChange: () => this.changed(), ...(deps.preview ?? {}) })
     this.evidence = new FilesEvidence({
       tool: (name, args) => deps.client.tool(name, args), ...(deps.kinds ? { kinds: deps.kinds } : {}), ...(deps.readStatus ? { readStatus: deps.readStatus } : {}),
-      onChange: () => this.changed(), onTransition: (id, now, was) => this.readFinished(id, now, was), ...(deps.evidenceTiming ?? {}),
+      // A page waiting to know its file's kind opens its source (or not) once the place's evidence answers.
+      onChange: () => { this.primePage(); this.ensureSource(); this.changed() }, onTransition: (id, now, was) => this.readFinished(id, now, was), ...(deps.evidenceTiming ?? {}),
     })
     this.assertions = new FilesAssertions({ tool: (name, args) => deps.client.tool(name, args), ...(deps.kinds ? { kinds: deps.kinds } : {}), onChange: () => this.changed() })
+    this.pages = new FilesPageController({ client: deps.client, onChange: () => this.changed(), ...(deps.kinds ? { kinds: deps.kinds } : {}),
+      ...(deps.notesDebounceMs !== undefined ? { notesDebounceMs: deps.notesDebounceMs } : {}) })
     if (typeof document !== 'undefined') document.addEventListener('keydown', this.onInfoKey)
   }
 
@@ -263,6 +276,7 @@ export class FilesShell {
       this.cameras.clear()
       this.status = { message: '', tone: 'info', undo: false }
       this.preview.close()
+      this.pages.forgetGraph()
     }
     if (!binding.advert) return
     const commandsKey = `${binding.graphId}|${binding.advert.maxUploadBytes}`
@@ -323,9 +337,124 @@ export class FilesShell {
     this.selected = [key]
     this.focused = this.ref(key)
     this.publishSelection()
+    this.openPage(entry)
+  }
+
+  /** Open a file's page (Back returns to the place, or to the page it was opened from when `push`). */
+  private openPage(entry: FilesTreeEntry, push = false): void {
+    const b = this.binding
+    if (!b || entry.kind !== 'artifact') return
+    const file: FilesPageFile = { graphId: b.graphId, id: entry.id, key: entryKey('artifact', entry.id), label: entry.label,
+      caption: typeCaption(entry), mimeType: entry.mimeType ?? null, sizeBytes: this.sizeOf(entry.id) }
+    if (this.preview.snapshot().kind !== 'none' && (this.preview.snapshot() as { artifactId?: string }).artifactId !== entry.id) this.preview.close()
+    this.pages.open(file, { push })
+    // The place's evidence says the file's kind (and so whether its source starts folded): ask now, and open the source if it is open.
+    this.syncEvidence(this.view())
+    this.primePage()
+    this.ensureSource()
     this.changed()
-    void this.preview.open(b.graphId, { id: entry.id, label: entry.label, mimeType: entry.mimeType, fileType: entry.fileType,
-      originalFilename: entry.label })
+  }
+
+  /** Ask for the evidence of the place's files a kind could read (one batched query; a place already asked is not asked again). */
+  private syncEvidence(view: FileWorkspaceProjection): void {
+    const b = this.binding
+    if (!b) return
+    this.evidence.sync(b.graphId, view.nodes.flatMap(node => {
+      const parsed = parseKey(node.id)
+      return parsed?.kind === 'artifact' && kindsMatching(this.deps.kinds ?? FILE_KINDS, typeCaption(nodeFacts(node))).length ? [parsed.id] : []
+    }))
+  }
+
+  private sizeOf(artifactId: string): number | null {
+    const entry = this.view().entries.get(entryKey('artifact', artifactId))
+    return entry?.node.sourceFile?.sizeBytes ?? null
+  }
+
+  /** Back from a page: the page it was opened from, else the place. */
+  private closePage(): void {
+    const previous = this.pages.back()
+    if (!previous) { this.preview.close(); return }
+    this.preview.close()
+    const entry = this.tree().get('artifact', previous.id)
+    if (entry && entry.parentId !== (this.view().folderId ? parseKey(this.view().folderId!)!.id : null)) {
+      this.navigateKeepingPage(entry.parentId === null ? null : entryKey('folder', entry.parentId))
+    }
+    this.changed()
+  }
+
+  /** Move the place to a folder without closing the page (a page opened from another page lives in its own folder). */
+  private navigateKeepingPage(folderKey: string | null): void {
+    if (this.folderKey !== folderKey) { this.folderKey = folderKey; this.selected = []; this.focused = null; this.naming = null; this.drafts = [] }
+    this.trashView = null
+    if (this.binding?.advert && this.layout) this.layoutFor(this.view())
+  }
+
+  /** A page's verb: open another file's page or a document, go to a folder. */
+  private async pageAction(action: string): Promise<void> {
+    const [verb, ...rest] = action.split(':')
+    const value = rest.join(':')
+    const target = (key: string) => { const p = parseKey(key); return p ? this.tree().get(p.kind, p.id) : null }
+    if (verb === 'open' || verb === 'goto') {
+      const entry = target(value)
+      if (!entry) { this.status = { message: 'That is no longer here.', tone: 'error', undo: false }; this.changed(); return }
+      if (entry.kind === 'document') { await this.pages.notes.flush(); this.openDocument(entry); return }
+      if (entry.kind === 'folder') { this.pages.close(); this.navigate(entryKey('folder', entry.id)); return }
+      this.preview.close()
+      this.navigateKeepingPage(entry.parentId === null ? null : entryKey('folder', entry.parentId))
+      this.openPage(entry, true)
+      return
+    }
+    if (verb === 'location') { this.pages.close(); this.navigate(value || null); return }
+  }
+
+  /** A page link: the source opens at that value; the viewer opens if it was folded. */
+  private pageGoto(evidenceId: string): void {
+    this.pages.goto(evidenceId)
+    this.ensureSource()
+  }
+
+  /** Once the open page's kind is known, ask for its reading and its queries now (not at the next render). */
+  private primePage(): void {
+    const b = this.binding
+    const file = this.pages.current
+    if (!b || !file || this.kindPending(file.id)) return
+    const evidence = this.evidence.get(file.id)
+    this.assertions.sync(b.graphId, file.id, evidence?.kind ?? null, evidence?.state ?? '', file.label)
+    this.pages.prime((this.deps.kinds ?? FILE_KINDS).find(k => k.id === evidence?.kind))
+  }
+
+  /** Open the viewer of the page's file when its source section is open and nothing is showing it yet. */
+  private ensureSource(): void {
+    const b = this.binding
+    const file = this.pages.current
+    if (!b || !file) return
+    const opened = this.preview.snapshot()
+    if (opened.kind !== 'none' && opened.artifactId === file.id) return
+    const evidence = this.evidence.get(file.id)
+    const kind = (this.deps.kinds ?? FILE_KINDS).find(k => k.id === evidence?.kind)
+    if (!this.pages.sourceOpen(kind, this.kindPending(file.id))) return
+    const entry = this.tree().get('artifact', file.id)
+    if (!entry) return
+    void this.preview.open(b.graphId, { id: entry.id, label: entry.label, mimeType: entry.mimeType, fileType: entry.fileType, originalFilename: entry.label })
+  }
+
+  /** A file a kind could read (by its type) whose place has not answered yet: its page waits to know its kind. */
+  private kindPending(artifactId: string): boolean {
+    const entry = this.tree().get('artifact', artifactId)
+    if (!entry) return false
+    return kindsMatching(this.deps.kinds ?? FILE_KINDS, typeCaption(entry)).length > 0 && !this.evidence.answered(artifactId)
+  }
+
+  /** The companions of the tree (a reader's text beside its PDF, a person's notes on a file), found once per binding of the sections. */
+  private companions(): Map<string, Companion> {
+    const sections = this.binding?.sections ?? []
+    if (this.companionCache?.sections !== sections) this.companionCache = { sections, found: findCompanions(sections, companionRules(this.deps.kinds ?? FILE_KINDS)) }
+    return this.companionCache.found
+  }
+
+  /** The sidebar's sections as the tree shows them: without companions (the file's page reaches them). */
+  treeSections<T extends FilePaneSection>(sections: readonly T[]): T[] {
+    return withoutCompanions(sections, findCompanions(sections, companionRules(this.deps.kinds ?? FILE_KINDS)))
   }
 
   /**
@@ -344,7 +473,8 @@ export class FilesShell {
     if (!this.tree().get('artifact', want.artifactId)) return
     this.pendingEvidence = null
     this.openFile(want.artifactId)
-    this.assertions.requestReveal(want.artifactId, want.id)
+    // The page opens at the value: its source unfolds and shows that one box (the overlay stays off).
+    this.pageGoto(want.id)
   }
 
   /** Leave the Files pane (another center route took over). */
@@ -355,12 +485,14 @@ export class FilesShell {
     this.drafts = []
     this.trashView = null
     this.preview.close()
+    this.pages.close()
     this.evidence.sync(this.binding?.graphId ?? '', [])
   }
 
   dispose(): void {
     this.disposed = true
     if (typeof document !== 'undefined') document.removeEventListener('keydown', this.onInfoKey)
+    void this.pages.notes.flush()
     this.evidence.dispose()
     this.assertions.dispose()
     this.engine?.engine.dispose?.()
@@ -377,6 +509,7 @@ export class FilesShell {
       this.drafts = []
     }
     this.preview.close()
+    this.pages.close()
     this.trashView = null
     // Read the folder's layout now, so its preferences are known before anything asks to change them.
     if (this.binding?.advert && this.layout) this.layoutFor(this.view())
@@ -493,7 +626,8 @@ export class FilesShell {
   // --- projection ---------------------------------------------------------------------------------------------------
 
   private filesSections(): FilePaneSection[] {
-    return (this.binding?.sections ?? []).filter(section => section.id === 'tree' || section.id === 'documents' || section.id === 'artifacts')
+    const sections = (this.binding?.sections ?? []).filter(section => section.id === 'tree' || section.id === 'documents' || section.id === 'artifacts')
+    return withoutCompanions(sections, this.companions())
   }
 
   private view(): FileWorkspaceProjection {
@@ -549,10 +683,7 @@ export class FilesShell {
     const folderKey = view.folderId
     const cameraKey = folderKey ?? 'root'
     // The datasheets of this place: one batched query for the PDFs shown; a file without records keeps today's card and row.
-    this.evidence.sync(b.graphId, view.nodes.flatMap(node => {
-      const parsed = parseKey(node.id)
-      return parsed?.kind === 'artifact' && kindsMatching(this.deps.kinds ?? FILE_KINDS, typeCaption(nodeFacts(node))).length ? [parsed.id] : []
-    }))
+    this.syncEvidence(view)
     const evidenceOf = (key: string): FileEvidence | undefined => {
       const parsed = parseKey(key)
       return parsed?.kind === 'artifact' ? this.evidence.get(parsed.id) : undefined
@@ -627,8 +758,14 @@ export class FilesShell {
       : layout.ready && !layout.available ? layout.message : null
     const folderId = scope.folderId
     const opened = this.preview.snapshot()
-    const openedEvidence = opened.kind === 'pdf' ? this.evidence.get(opened.artifactId) : undefined
-    this.assertions.sync(b.graphId, opened.kind === 'pdf' ? opened.artifactId : null, openedEvidence?.kind ?? null, openedEvidence?.state ?? '')
+    // What the open file's kind read from it: the page's sections and the reader's overlay both read it, asked once per file.
+    const pageFile = this.pages.current
+    const readOf = pageFile?.id ?? (opened.kind === 'pdf' ? opened.artifactId : null)
+    const readEvidence = readOf ? this.evidence.get(readOf) : undefined
+    this.assertions.sync(b.graphId, readOf, readEvidence?.kind ?? null, readEvidence?.state ?? '', pageFile?.label ?? (opened.kind !== 'none' ? opened.name : ''))
+    const page = pageFile ? this.pageModel(pageFile, view) : null
+    if (page) queueMicrotask(() => this.ensureSource())
+    const sourceShown = !!page && page.sections.some(sec => sec.face === 'source' && sec.open)
     return {
       graphId: b.graphId,
       breadcrumbs: view.breadcrumbs.map(crumb => ({ id: crumb.id, label: crumb.label })),
@@ -637,14 +774,20 @@ export class FilesShell {
       snapToGrid: layout.view.snapToGrid,
       canvas: layout.view.presentation === 'canvas' ? canvas : null,
       rows,
-      preview: paneOf(this.preview.snapshot(), id => this.assertions.forPane(id)),
+      preview: page && !sourceShown ? null : paneOf(this.preview.snapshot(), id => this.assertions.forPane(id), this.pages.spotlight),
+      page,
+      onPageSection: (id, open) => { this.pages.setSection(id, open); if (open) this.ensureSource() },
+      onPageGoto: id => this.pageGoto(id),
+      onPageAction: action => { void this.pageAction(action) },
+      onPageFilter: text => this.pages.setFilter(text),
+      onNotesChange: detail => this.pages.notes.change(detail),
       trash: this.trashPane(),
       onOpenTrash: () => { void this.openTrash() },
       canUpload: caps.add,
       canCreate: caps.create,
       canChangeView: b.writable && layout.ready && layout.available,
       maxUploadLabel: formatFileSize(advert.maxUploadBytes),
-      needsLook: holdsSheets ? { on: filtering, count: lookCount, onToggle: on => { this.needsLookOn = on; this.changed() } } : null,
+      needsLook: holdsSheets && (lookCount > 0 || filtering) ? { on: filtering, count: lookCount, onToggle: on => { this.needsLookOn = on; this.changed() } } : null,
       status: { text: steady, busy: reading.length + queued.length > 0, action: status.action ? { label: status.action.label, onAction: status.action.run } : null,
         message: status.message || progress || (layout.message && b.writable && layout.available ? layout.message : ''),
         undoLabel: status.undo && (this.commands.canUndo || this.placeUndo.length || this.connUndo.length) ? 'Undo' : null, tone: status.tone },
@@ -659,7 +802,7 @@ export class FilesShell {
       onIconSize: size => { void this.layout?.setView({ iconSize: size }) },
       onSnapToGrid: on => { void this.layout?.setView({ snapToGrid: on }) },
       onUndo: () => { void this.undo() },
-      onClosePreview: () => this.preview.close(),
+      onClosePreview: () => { if (this.pages.isOpen) this.closePage(); else this.preview.close() },
       onPdfPage: (page, count) => this.preview.reportPage(page, count),
       onAssertionSelect: (id, page) => { this.assertions.select(id); this.deps.onAssertionSelect?.(id, page) },
       onOverlay: on => this.assertions.setOverlay(on),
@@ -683,6 +826,42 @@ export class FilesShell {
       onRowRename: (key, name) => { const r = this.ref(key); if (r) void this.intent({ kind: 'rename', file: r, name }) },
       onRowRenameCancel: () => { void this.intent({ kind: 'name-cancel' }) },
     }
+  }
+
+  /** The open file's page, as the pane draws it. */
+  private pageModel(file: FilesPageFile, view: FileWorkspaceProjection): ReturnType<FilesPageController['model']> {
+    const tree = this.tree()
+    const entry = tree.get('artifact', file.id)
+    const companions = companionsOf(this.companions(), file.key)
+    const everything: { key: string; id: string; label: string; kind: 'artifact' | 'document' }[] = []
+    const visit = (parent: string | null) => {
+      for (const e of tree.children(parent)) {
+        if (e.kind === 'folder') visit(e.id)
+        else everything.push({ key: entryKey(e.kind, e.id), id: e.id, label: e.label, kind: e.kind })
+      }
+    }
+    visit(null)
+    return this.pages.model({
+      writable: !!this.binding?.writable, anyFolder: this.anyFolder(), graphIncarnation: this.binding?.graphIncarnation ?? '',
+      parentId: entry?.parentId ?? null, evidence: this.evidence.get(file.id), evidencePending: this.kindPending(file.id),
+      reading: this.assertions.readingOf(file.id), tree: everything, companions,
+      info: {
+        location: item => {
+          const parentKey = view.entries.get(item.key)?.parentKey ?? (entry?.parentId ? entryKey('folder', entry.parentId) : null)
+          const parts: string[] = []
+          for (let at = parentKey; at; at = view.entries.get(at)?.parentKey ?? null) parts.unshift(view.entries.get(at)?.node.label ?? '')
+          return { text: ['Files', ...parts].join(' / '), action: `location:${parentKey ?? ''}` }
+        },
+        contents: () => ({ direct: 0, files: 0, bytes: 0, unknown: 0 }),
+        scope: () => ({ files: 1, bytes: file.sizeBytes ?? 0, unknown: file.sizeBytes === null ? 1 : 0 }),
+      },
+      nameOf: id => {
+        const a = tree.get('artifact', id)
+        if (a) return { key: entryKey('artifact', id), label: a.label }
+        const d = tree.get('document', id)
+        return d ? { key: entryKey('document', id), label: d.label } : null
+      },
+    })
   }
 
   /** The inspector for the Files pane's selection (or the folder it shows). */
@@ -1111,7 +1290,7 @@ export class FilesShell {
         const entry = this.entryOf(intent.file)
         if (!entry) return
         if (entry.kind === 'document') { this.openDocument(entry); return }
-        await this.preview.open(b.graphId, { id: entry.id, label: entry.label, mimeType: entry.mimeType, fileType: entry.fileType, originalFilename: entry.label })
+        this.openPage(entry)
         return
       }
       case 'menu': this.showMenu(intent.files, intent.clientX, intent.clientY, intent.at ?? null, this.view()); return
@@ -1322,14 +1501,16 @@ function nodeFacts(node: FilePaneNode): { mimeType?: string | null; fileType?: s
     originalFilename: n.sourceFile?.originalFilename ?? node.label }
 }
 
-function paneOf(state: FilesPreviewState, assertionsOf: (artifactId: string) => ReturnType<FilesAssertions['forPane']>): FilesPanePreview | null {
+function paneOf(state: FilesPreviewState, assertionsOf: (artifactId: string) => ReturnType<FilesAssertions['forPane']>,
+  spotlight: { id: string; nonce: number } | null = null): FilesPanePreview | null {
   switch (state.kind) {
     case 'none': return null
     case 'pdf': {
       const read = assertionsOf(state.artifactId)
       return { kind: 'pdf', name: state.name, status: state.status, error: state.error, data: state.data, loaded: state.loaded, total: state.total,
         fileKey: state.artifactId, pageCount: state.pageCount, pageNumber: state.pageNumber,
-        ...(read ? { assertions: read.assertions, assertionsInfo: read.info, overlay: read.overlay, selected: read.selected, reveal: read.reveal } : {}) }
+        ...(read ? { assertions: read.assertions, assertionsInfo: read.info, overlay: read.overlay, selected: read.selected, reveal: read.reveal } : {}),
+        ...(spotlight ? { spotlight } : {}) }
     }
     case 'image': return { kind: 'image', name: state.name, status: state.status, error: state.error, url: state.url }
     case 'reader': return { kind: 'reader', name: state.name, status: state.status, error: state.error, label: state.label, view: state.view,

@@ -22,7 +22,7 @@ function freshStorage(): Storage {
 
 function session(auth: 'cloudflare-access' | 'key', email: string | null, exits: string[]): SelfHostSession {
   return {
-    descriptor: { kind: 'gardend-self-host', version: '0.1.2', auth, user: email ? { email } : null },
+    descriptor: { kind: 'gardend-self-host', version: '0.1.2', auth, user: email ? { email } : null, services: {} },
     origin: 'http://127.0.0.1:7091',
     auth,
     token: auth === 'key' ? 'k-123' : undefined,
@@ -44,7 +44,31 @@ describe('self-host build flavor', () => {
 
   it('reads the /self-host.json contract and refuses anything else', () => {
     expect(parseSelfHostDescriptor({ kind: 'gardend-self-host', version: '0.1.2', auth: 'key', user: null }))
-      .toEqual({ kind: 'gardend-self-host', version: '0.1.2', auth: 'key', user: null })
+      .toEqual({ kind: 'gardend-self-host', version: '0.1.2', auth: 'key', user: null, services: {} })
+    // gardend's local services (garden b95341e and later), by id; anything malformed is left out.
+    expect(parseSelfHostDescriptor({
+      kind: 'gardend-self-host', version: '0.1.0', auth: 'key', user: null,
+      services: {
+        choreograph: { configured: true, state: 'running' },
+        vehicle: { configured: true, state: 'running' },
+        'Not An Id': { configured: true, state: 'running' },
+        broken: 'yes',
+      },
+    }).services).toEqual({
+      choreograph: { configured: true, state: 'running' },
+      vehicle: { configured: true, state: 'running' },
+    })
+    // An unavailable service carries gardend's reason (garden 91cec43 and later); a blank one is left out.
+    expect(parseSelfHostDescriptor({
+      kind: 'gardend-self-host', version: '0.1.4', auth: 'key', user: null,
+      services: {
+        vehicle: { configured: true, state: 'unavailable', reason: ' Chat needs Node.js 22.19 or newer. ' },
+        tools: { configured: true, state: 'unavailable', reason: '  ' },
+      },
+    }).services).toEqual({
+      vehicle: { configured: true, state: 'unavailable', reason: 'Chat needs Node.js 22.19 or newer.' },
+      tools: { configured: true, state: 'unavailable' },
+    })
     expect(parseSelfHostDescriptor({
       kind: 'gardend-self-host', version: '0.1.2', auth: 'cloudflare-access', user: { email: ' lucy@example.com ' },
     }).user).toEqual({ email: 'lucy@example.com' })

@@ -1,0 +1,3062 @@
+{
+ "graphId": "datasheet-library",
+ "query": {
+  "part": null,
+  "artifact": "ds-cce03619fbe13951",
+  "parameter": null
+ },
+ "namespaces": {
+  "de": "https://sophia-labs.ai/ontology/document-evidence#",
+  "eng": "https://sophia-labs.ai/ontology/engineering#",
+  "ep": "https://sophia-labs.ai/concept/engineering-parameter#"
+ },
+ "matched": 1,
+ "editions": [
+  {
+   "reader": {
+    "tools": {
+     "datasheet-parser": "ee680a6"
+    },
+    "readers": {
+     "registers": null,
+     "device_info": "docling",
+     "prose": "docling",
+     "tables": "docling"
+    },
+    "generated": "2026-10-08",
+    "doclingRows": 54,
+    "pdfplumberSections": 0,
+    "unitRepairs": 0,
+    "textDisagreementPages": null
+   },
+   "makerBy": "part-prefix",
+   "partsBy": null,
+   "identity": null,
+   "literature": null,
+   "title": "LM5164 100V Input, 1A Synchronous Buck DC/DC Converter With Ultra-low IQ",
+   "revision": null,
+   "maker": "Texas Instruments",
+   "documentType": "datasheet",
+   "parts": [
+    "lm5164"
+   ],
+   "artifact": "ds-cce03619fbe13951",
+   "sha256": "cce03619fbe13951eea47458cd45e140361637d8fef32ae143b82b16d597e32d",
+   "byteCheck": "matched",
+   "pageCount": 38,
+   "namedGraph": "urn:mnemosyne:local:graph:datasheet-library:projection:datasheet:ds-cce03619fbe13951:m1",
+   "diagnostics": [
+    "text_readers_disagree"
+   ],
+   "corrections": [],
+   "claims": [
+    {
+     "id": "ds-cce03619fbe13951-params-vin",
+     "kind": "keyParameter",
+     "parameter": "vin",
+     "symbol": null,
+     "section": null,
+     "group": null,
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#inputVoltage",
+     "value": {
+      "lower": 6.0,
+      "typical": null,
+      "upper": 100.0,
+      "unit": "V",
+      "text": null
+     },
+     "regime": "recommendedOperating",
+     "conditions": {
+      "row": null,
+      "completeness": "unknown",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 1,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [
+      {
+       "id": "ds-cce03619fbe13951-params-vin-r0",
+       "sourceRole": "page1",
+       "readerTools": [
+        "docling"
+       ],
+       "page": 1,
+       "lower": 6.0,
+       "upper": 100.0,
+       "externalFile": null,
+       "diagnostics": []
+      },
+      {
+       "id": "ds-cce03619fbe13951-params-vin-r1",
+       "sourceRole": "roc",
+       "readerTools": [
+        "docling"
+       ],
+       "page": 4,
+       "lower": 6.0,
+       "upper": 100.0,
+       "externalFile": null,
+       "diagnostics": []
+      },
+      {
+       "id": "ds-cce03619fbe13951-params-vin-r2",
+       "sourceRole": "prose",
+       "readerTools": [
+        "docling"
+       ],
+       "page": 1,
+       "lower": 6.0,
+       "upper": 100.0,
+       "externalFile": null,
+       "diagnostics": []
+      }
+     ],
+     "corroboration": {
+      "level": "high",
+      "independentSources": 3,
+      "sources": [
+       "page1",
+       "roc",
+       "prose"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cce03619fbe13951#evidence=ds-cce03619fbe13951-params-vin"
+    },
+    {
+     "id": "ds-cce03619fbe13951-params-fsw",
+     "kind": "keyParameter",
+     "parameter": "fsw",
+     "symbol": null,
+     "section": null,
+     "group": null,
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#switchingFrequency",
+     "value": {
+      "lower": 1000.0,
+      "typical": null,
+      "upper": null,
+      "unit": "kHz",
+      "text": null
+     },
+     "regime": "recommendedOperating",
+     "conditions": {
+      "row": null,
+      "completeness": "unknown",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 4,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [
+      {
+       "id": "ds-cce03619fbe13951-params-fsw-r0",
+       "sourceRole": "page1",
+       "readerTools": [
+        "docling"
+       ],
+       "page": 1,
+       "lower": null,
+       "upper": 1000.0,
+       "externalFile": null,
+       "diagnostics": []
+      },
+      {
+       "id": "ds-cce03619fbe13951-params-fsw-r1",
+       "sourceRole": "roc",
+       "readerTools": [
+        "docling"
+       ],
+       "page": 4,
+       "lower": 1000.0,
+       "upper": null,
+       "externalFile": null,
+       "diagnostics": []
+      }
+     ],
+     "corroboration": {
+      "level": "low",
+      "independentSources": 1,
+      "sources": [
+       "roc"
+      ],
+      "contested": false
+     },
+     "diagnostics": [
+      "disagreement: \"roc=1000–? vs page1=?–1000\""
+     ],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cce03619fbe13951#evidence=ds-cce03619fbe13951-params-fsw"
+    },
+    {
+     "id": "ds-cce03619fbe13951-spec_rows-0",
+     "kind": "specRow",
+     "parameter": "Input voltage VIN to GND",
+     "symbol": null,
+     "section": "5.1 Absolute Maximum Ratings",
+     "group": null,
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#inputVoltageVinToGnd",
+     "value": {
+      "lower": -0.3,
+      "typical": null,
+      "upper": 100.0,
+      "unit": "V",
+      "text": null
+     },
+     "regime": "absoluteMaximum",
+     "conditions": {
+      "row": null,
+      "completeness": "unknown",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 4,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cce03619fbe13951#evidence=ds-cce03619fbe13951-spec_rows-0"
+    },
+    {
+     "id": "ds-cce03619fbe13951-spec_rows-1",
+     "kind": "specRow",
+     "parameter": "Input voltage EN to GND",
+     "symbol": null,
+     "section": "5.1 Absolute Maximum Ratings",
+     "group": null,
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#inputVoltageEnToGnd",
+     "value": {
+      "lower": -0.3,
+      "typical": null,
+      "upper": 100.0,
+      "unit": "V",
+      "text": null
+     },
+     "regime": "absoluteMaximum",
+     "conditions": {
+      "row": null,
+      "completeness": "unknown",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 4,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cce03619fbe13951#evidence=ds-cce03619fbe13951-spec_rows-1"
+    },
+    {
+     "id": "ds-cce03619fbe13951-spec_rows-2",
+     "kind": "specRow",
+     "parameter": "Input voltage FB to GND",
+     "symbol": null,
+     "section": "5.1 Absolute Maximum Ratings",
+     "group": null,
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#inputVoltageFbToGnd",
+     "value": {
+      "lower": -0.3,
+      "typical": null,
+      "upper": 5.5,
+      "unit": "V",
+      "text": null
+     },
+     "regime": "absoluteMaximum",
+     "conditions": {
+      "row": null,
+      "completeness": "unknown",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 4,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cce03619fbe13951#evidence=ds-cce03619fbe13951-spec_rows-2"
+    },
+    {
+     "id": "ds-cce03619fbe13951-spec_rows-3",
+     "kind": "specRow",
+     "parameter": "Input voltage RON to GND",
+     "symbol": null,
+     "section": "5.1 Absolute Maximum Ratings",
+     "group": null,
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#inputVoltageRonToGnd",
+     "value": {
+      "lower": -0.3,
+      "typical": null,
+      "upper": 5.5,
+      "unit": "V",
+      "text": null
+     },
+     "regime": "absoluteMaximum",
+     "conditions": {
+      "row": null,
+      "completeness": "unknown",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 4,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cce03619fbe13951#evidence=ds-cce03619fbe13951-spec_rows-3"
+    },
+    {
+     "id": "ds-cce03619fbe13951-spec_rows-4",
+     "kind": "specRow",
+     "parameter": "Bootstrap capacitor External BST to SW capacitance",
+     "symbol": null,
+     "section": "5.1 Absolute Maximum Ratings",
+     "group": null,
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#bootstrapCapacitorExternalBstToSwCapacitance",
+     "value": {
+      "lower": 1.5,
+      "typical": null,
+      "upper": 2.5,
+      "unit": "nF",
+      "text": null
+     },
+     "regime": "absoluteMaximum",
+     "conditions": {
+      "row": null,
+      "completeness": "unknown",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 4,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cce03619fbe13951#evidence=ds-cce03619fbe13951-spec_rows-4"
+    },
+    {
+     "id": "ds-cce03619fbe13951-spec_rows-5",
+     "kind": "specRow",
+     "parameter": "Output voltage BST to GND",
+     "symbol": null,
+     "section": "5.1 Absolute Maximum Ratings",
+     "group": null,
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#outputVoltageBstToGnd",
+     "value": {
+      "lower": -0.3,
+      "typical": null,
+      "upper": 105.5,
+      "unit": "V",
+      "text": null
+     },
+     "regime": "absoluteMaximum",
+     "conditions": {
+      "row": null,
+      "completeness": "unknown",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 4,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cce03619fbe13951#evidence=ds-cce03619fbe13951-spec_rows-5"
+    },
+    {
+     "id": "ds-cce03619fbe13951-spec_rows-6",
+     "kind": "specRow",
+     "parameter": "Output voltage BST to SW",
+     "symbol": null,
+     "section": "5.1 Absolute Maximum Ratings",
+     "group": null,
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#outputVoltageBstToSw",
+     "value": {
+      "lower": -0.3,
+      "typical": null,
+      "upper": 5.5,
+      "unit": "V",
+      "text": null
+     },
+     "regime": "absoluteMaximum",
+     "conditions": {
+      "row": null,
+      "completeness": "unknown",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 4,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cce03619fbe13951#evidence=ds-cce03619fbe13951-spec_rows-6"
+    },
+    {
+     "id": "ds-cce03619fbe13951-spec_rows-7",
+     "kind": "specRow",
+     "parameter": "Output voltage SW to GND",
+     "symbol": null,
+     "section": "5.1 Absolute Maximum Ratings",
+     "group": null,
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#outputVoltageSwToGnd",
+     "value": {
+      "lower": -1.5,
+      "typical": null,
+      "upper": 100.0,
+      "unit": "V",
+      "text": null
+     },
+     "regime": "absoluteMaximum",
+     "conditions": {
+      "row": null,
+      "completeness": "unknown",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 4,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cce03619fbe13951#evidence=ds-cce03619fbe13951-spec_rows-7"
+    },
+    {
+     "id": "ds-cce03619fbe13951-spec_rows-8",
+     "kind": "specRow",
+     "parameter": "Output voltage SW to GND (20ns transient)",
+     "symbol": null,
+     "section": "5.1 Absolute Maximum Ratings",
+     "group": null,
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#outputVoltageSwToGnd20nsTransient",
+     "value": {
+      "lower": -3.0,
+      "typical": null,
+      "upper": null,
+      "unit": "V",
+      "text": null
+     },
+     "regime": "absoluteMaximum",
+     "conditions": {
+      "row": null,
+      "completeness": "unknown",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 4,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cce03619fbe13951#evidence=ds-cce03619fbe13951-spec_rows-8"
+    },
+    {
+     "id": "ds-cce03619fbe13951-spec_rows-9",
+     "kind": "specRow",
+     "parameter": "Output voltage PGOOD to GND",
+     "symbol": null,
+     "section": "5.1 Absolute Maximum Ratings",
+     "group": null,
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#outputVoltagePgoodToGnd",
+     "value": {
+      "lower": -0.3,
+      "typical": null,
+      "upper": 14.0,
+      "unit": "V",
+      "text": null
+     },
+     "regime": "absoluteMaximum",
+     "conditions": {
+      "row": null,
+      "completeness": "unknown",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 4,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cce03619fbe13951#evidence=ds-cce03619fbe13951-spec_rows-9"
+    },
+    {
+     "id": "ds-cce03619fbe13951-spec_rows-10",
+     "kind": "specRow",
+     "parameter": "Operating junction temperature, TJ Operating junction temperature, TJ",
+     "symbol": null,
+     "section": "5.1 Absolute Maximum Ratings",
+     "group": null,
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#operatingJunctionTemperatureTjOperatingJunctionTemperatureTj",
+     "value": {
+      "lower": -40.0,
+      "typical": null,
+      "upper": 150.0,
+      "unit": "°C",
+      "text": null
+     },
+     "regime": "absoluteMaximum",
+     "conditions": {
+      "row": null,
+      "completeness": "unknown",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 4,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cce03619fbe13951#evidence=ds-cce03619fbe13951-spec_rows-10"
+    },
+    {
+     "id": "ds-cce03619fbe13951-spec_rows-11",
+     "kind": "specRow",
+     "parameter": "Storage temperature, Tstg Storage temperature, Tstg",
+     "symbol": null,
+     "section": "5.1 Absolute Maximum Ratings",
+     "group": null,
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#storageTemperatureTstgStorageTemperatureTstg",
+     "value": {
+      "lower": -65.0,
+      "typical": null,
+      "upper": 150.0,
+      "unit": "°C",
+      "text": null
+     },
+     "regime": "absoluteMaximum",
+     "conditions": {
+      "row": null,
+      "completeness": "unknown",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 4,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cce03619fbe13951#evidence=ds-cce03619fbe13951-spec_rows-11"
+    },
+    {
+     "id": "ds-cce03619fbe13951-spec_rows-12",
+     "kind": "specRow",
+     "parameter": "V(ESD) Electrostatic discharge Human-body model (HBM), per ANSI/ESDA/JEDEC JS-001 (1) Charged-device model (CDM), per JEDEC specification JESD22-C101",
+     "symbol": null,
+     "section": "5.2 ESD Ratings",
+     "group": null,
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#vEsdElectrostaticDischargeHumanBodyModelHbmPerAnsiEsdaJedecJs",
+     "value": {
+      "lower": null,
+      "typical": null,
+      "upper": null,
+      "unit": "V",
+      "text": null
+     },
+     "regime": "otherRegime",
+     "conditions": {
+      "row": null,
+      "completeness": "unknown",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 4,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "low",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [
+      "split_from_merged_row",
+      "value_not_numeric"
+     ],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cce03619fbe13951#evidence=ds-cce03619fbe13951-spec_rows-12"
+    },
+    {
+     "id": "ds-cce03619fbe13951-spec_rows-13",
+     "kind": "specRow",
+     "parameter": "V(ESD) Electrostatic discharge Human-body model (HBM), per ANSI/ESDA/JEDEC JS-001 (1) Charged-device model (CDM), per JEDEC specification JESD22-C101",
+     "symbol": null,
+     "section": "5.2 ESD Ratings",
+     "group": null,
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#vEsdElectrostaticDischargeHumanBodyModelHbmPerAnsiEsdaJedecJs",
+     "value": {
+      "lower": null,
+      "typical": null,
+      "upper": null,
+      "unit": "V",
+      "text": null
+     },
+     "regime": "otherRegime",
+     "conditions": {
+      "row": null,
+      "completeness": "unknown",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 4,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "low",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [
+      "split_from_merged_row",
+      "value_not_numeric"
+     ],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cce03619fbe13951#evidence=ds-cce03619fbe13951-spec_rows-13"
+    },
+    {
+     "id": "ds-cce03619fbe13951-spec_rows-14",
+     "kind": "specRow",
+     "parameter": "V(ESD) Electrostatic discharge Human-body model (HBM), per ANSI/ESDA/JEDEC JS-001 (1) Charged-device model (CDM), per JEDEC specification JESD22-C101",
+     "symbol": null,
+     "section": "5.2 ESD Ratings",
+     "group": null,
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#vEsdElectrostaticDischargeHumanBodyModelHbmPerAnsiEsdaJedecJs",
+     "value": {
+      "lower": null,
+      "typical": null,
+      "upper": null,
+      "unit": "V",
+      "text": null
+     },
+     "regime": "otherRegime",
+     "conditions": {
+      "row": null,
+      "completeness": "unknown",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 4,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "low",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [
+      "split_from_merged_row",
+      "value_not_numeric"
+     ],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cce03619fbe13951#evidence=ds-cce03619fbe13951-spec_rows-14"
+    },
+    {
+     "id": "ds-cce03619fbe13951-spec_rows-15",
+     "kind": "specRow",
+     "parameter": "VIN Input voltage",
+     "symbol": null,
+     "section": "5.3 Recommended Operating Conditions",
+     "group": null,
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#vinInputVoltage",
+     "value": {
+      "lower": 6.0,
+      "typical": null,
+      "upper": 100.0,
+      "unit": "V",
+      "text": null
+     },
+     "regime": "recommendedOperating",
+     "conditions": {
+      "row": null,
+      "completeness": "unknown",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 4,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cce03619fbe13951#evidence=ds-cce03619fbe13951-spec_rows-15"
+    },
+    {
+     "id": "ds-cce03619fbe13951-spec_rows-16",
+     "kind": "specRow",
+     "parameter": "VSW Switch node voltage",
+     "symbol": null,
+     "section": "5.3 Recommended Operating Conditions",
+     "group": null,
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#vswSwitchNodeVoltage",
+     "value": {
+      "lower": null,
+      "typical": null,
+      "upper": 100.0,
+      "unit": "V",
+      "text": null
+     },
+     "regime": "recommendedOperating",
+     "conditions": {
+      "row": null,
+      "completeness": "unknown",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 4,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cce03619fbe13951#evidence=ds-cce03619fbe13951-spec_rows-16"
+    },
+    {
+     "id": "ds-cce03619fbe13951-spec_rows-17",
+     "kind": "specRow",
+     "parameter": "VEN/UVLO Enable voltage",
+     "symbol": null,
+     "section": "5.3 Recommended Operating Conditions",
+     "group": null,
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#venUvloEnableVoltage",
+     "value": {
+      "lower": null,
+      "typical": null,
+      "upper": 100.0,
+      "unit": "V",
+      "text": null
+     },
+     "regime": "recommendedOperating",
+     "conditions": {
+      "row": null,
+      "completeness": "unknown",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 4,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cce03619fbe13951#evidence=ds-cce03619fbe13951-spec_rows-17"
+    },
+    {
+     "id": "ds-cce03619fbe13951-spec_rows-18",
+     "kind": "specRow",
+     "parameter": "ILOAD Load current",
+     "symbol": null,
+     "section": "5.3 Recommended Operating Conditions",
+     "group": null,
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#iloadLoadCurrent",
+     "value": {
+      "lower": null,
+      "typical": 1.0,
+      "upper": 1.25,
+      "unit": "A",
+      "text": null
+     },
+     "regime": "recommendedOperating",
+     "conditions": {
+      "row": null,
+      "completeness": "unknown",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 4,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cce03619fbe13951#evidence=ds-cce03619fbe13951-spec_rows-18"
+    },
+    {
+     "id": "ds-cce03619fbe13951-spec_rows-19",
+     "kind": "specRow",
+     "parameter": "FSW Switching frequency",
+     "symbol": null,
+     "section": "5.3 Recommended Operating Conditions",
+     "group": null,
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#fswSwitchingFrequency",
+     "value": {
+      "lower": null,
+      "typical": null,
+      "upper": 1000.0,
+      "unit": "kHz",
+      "text": null
+     },
+     "regime": "recommendedOperating",
+     "conditions": {
+      "row": null,
+      "completeness": "unknown",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 4,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cce03619fbe13951#evidence=ds-cce03619fbe13951-spec_rows-19"
+    },
+    {
+     "id": "ds-cce03619fbe13951-spec_rows-20",
+     "kind": "specRow",
+     "parameter": "CBST External BST to SW capacitance",
+     "symbol": null,
+     "section": "5.3 Recommended Operating Conditions",
+     "group": null,
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#cbstExternalBstToSwCapacitance",
+     "value": {
+      "lower": 2.2,
+      "typical": 2.2,
+      "upper": 2.2,
+      "unit": "nF",
+      "text": null
+     },
+     "regime": "recommendedOperating",
+     "conditions": {
+      "row": null,
+      "completeness": "unknown",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 4,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cce03619fbe13951#evidence=ds-cce03619fbe13951-spec_rows-20"
+    },
+    {
+     "id": "ds-cce03619fbe13951-spec_rows-21",
+     "kind": "specRow",
+     "parameter": "tON Programmable on-time",
+     "symbol": null,
+     "section": "5.3 Recommended Operating Conditions",
+     "group": null,
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#tonProgrammableOnTime",
+     "value": {
+      "lower": 50.0,
+      "typical": null,
+      "upper": 10000.0,
+      "unit": "ns",
+      "text": null
+     },
+     "regime": "recommendedOperating",
+     "conditions": {
+      "row": null,
+      "completeness": "unknown",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 4,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cce03619fbe13951#evidence=ds-cce03619fbe13951-spec_rows-21"
+    },
+    {
+     "id": "ds-cce03619fbe13951-spec_rows-22",
+     "kind": "specRow",
+     "parameter": "VIN shutdown current",
+     "symbol": "IQ-SHUTDOWN",
+     "section": "5.5 Electrical Characteristics",
+     "group": "SUPPLY CURRENT (VIN)",
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#vinShutdownCurrent",
+     "value": {
+      "lower": null,
+      "typical": 3.0,
+      "upper": 15.0,
+      "unit": "µA",
+      "text": null
+     },
+     "regime": "electricalCharacteristic",
+     "conditions": {
+      "row": "VEN = 0V",
+      "completeness": "proseOnly",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 5,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cce03619fbe13951#evidence=ds-cce03619fbe13951-spec_rows-22"
+    },
+    {
+     "id": "ds-cce03619fbe13951-spec_rows-23",
+     "kind": "specRow",
+     "parameter": "VIN sleep current",
+     "symbol": "IQ-SLEEP1",
+     "section": "5.5 Electrical Characteristics",
+     "group": "SUPPLY CURRENT (VIN)",
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#vinSleepCurrent",
+     "value": {
+      "lower": null,
+      "typical": 10.5,
+      "upper": 25.0,
+      "unit": "µA",
+      "text": null
+     },
+     "regime": "electricalCharacteristic",
+     "conditions": {
+      "row": "VEN = 2.5V, VFB = 1.5V",
+      "completeness": "proseOnly",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 5,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cce03619fbe13951#evidence=ds-cce03619fbe13951-spec_rows-23"
+    },
+    {
+     "id": "ds-cce03619fbe13951-spec_rows-24",
+     "kind": "specRow",
+     "parameter": "VIN active current",
+     "symbol": "IQ-ACTIVE",
+     "section": "5.5 Electrical Characteristics",
+     "group": "SUPPLY CURRENT (VIN)",
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#vinActiveCurrent",
+     "value": {
+      "lower": null,
+      "typical": 600.0,
+      "upper": 880.0,
+      "unit": "µA",
+      "text": null
+     },
+     "regime": "electricalCharacteristic",
+     "conditions": {
+      "row": "VEN = 2.5V",
+      "completeness": "proseOnly",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 5,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cce03619fbe13951#evidence=ds-cce03619fbe13951-spec_rows-24"
+    },
+    {
+     "id": "ds-cce03619fbe13951-spec_rows-25",
+     "kind": "specRow",
+     "parameter": "Shutdown threshold",
+     "symbol": "VSD-RISING",
+     "section": "5.5 Electrical Characteristics",
+     "group": "PRECISION ENABLE (EN/UVLO)",
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#shutdownThreshold",
+     "value": {
+      "lower": null,
+      "typical": null,
+      "upper": 1.1,
+      "unit": "V",
+      "text": null
+     },
+     "regime": "electricalCharacteristic",
+     "conditions": {
+      "row": "VEN/UVLO rising",
+      "completeness": "proseOnly",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 5,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cce03619fbe13951#evidence=ds-cce03619fbe13951-spec_rows-25"
+    },
+    {
+     "id": "ds-cce03619fbe13951-spec_rows-26",
+     "kind": "specRow",
+     "parameter": "Shutdown threshold",
+     "symbol": "VSD-FALLING",
+     "section": "5.5 Electrical Characteristics",
+     "group": "PRECISION ENABLE (EN/UVLO)",
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#shutdownThreshold",
+     "value": {
+      "lower": 0.45,
+      "typical": null,
+      "upper": null,
+      "unit": "V",
+      "text": null
+     },
+     "regime": "electricalCharacteristic",
+     "conditions": {
+      "row": "VEN/UVLO falling",
+      "completeness": "proseOnly",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 5,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cce03619fbe13951#evidence=ds-cce03619fbe13951-spec_rows-26"
+    },
+    {
+     "id": "ds-cce03619fbe13951-spec_rows-27",
+     "kind": "specRow",
+     "parameter": "Enable threshold",
+     "symbol": "VEN-RISING",
+     "section": "5.5 Electrical Characteristics",
+     "group": "PRECISION ENABLE (EN/UVLO)",
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#enableThreshold",
+     "value": {
+      "lower": 1.45,
+      "typical": 1.5,
+      "upper": 1.55,
+      "unit": "V",
+      "text": null
+     },
+     "regime": "electricalCharacteristic",
+     "conditions": {
+      "row": "VEN/UVLO rising",
+      "completeness": "proseOnly",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 5,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cce03619fbe13951#evidence=ds-cce03619fbe13951-spec_rows-27"
+    },
+    {
+     "id": "ds-cce03619fbe13951-spec_rows-28",
+     "kind": "specRow",
+     "parameter": "Enable threshold",
+     "symbol": "VEN-FALLING",
+     "section": "5.5 Electrical Characteristics",
+     "group": "PRECISION ENABLE (EN/UVLO)",
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#enableThreshold",
+     "value": {
+      "lower": 1.35,
+      "typical": 1.4,
+      "upper": 1.44,
+      "unit": "V",
+      "text": null
+     },
+     "regime": "electricalCharacteristic",
+     "conditions": {
+      "row": "VEN/UVLO falling",
+      "completeness": "proseOnly",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 5,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cce03619fbe13951#evidence=ds-cce03619fbe13951-spec_rows-28"
+    },
+    {
+     "id": "ds-cce03619fbe13951-spec_rows-29",
+     "kind": "specRow",
+     "parameter": "FB regulation voltage",
+     "symbol": "VREF",
+     "section": "5.5 Electrical Characteristics",
+     "group": "FEEDBACK VOLTAGE (FB)",
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#fbRegulationVoltage",
+     "value": {
+      "lower": 1.181,
+      "typical": 1.2,
+      "upper": 1.218,
+      "unit": "V",
+      "text": null
+     },
+     "regime": "electricalCharacteristic",
+     "conditions": {
+      "row": "VFB falling",
+      "completeness": "proseOnly",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 5,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cce03619fbe13951#evidence=ds-cce03619fbe13951-spec_rows-29"
+    },
+    {
+     "id": "ds-cce03619fbe13951-spec_rows-30",
+     "kind": "specRow",
+     "parameter": "On-time1",
+     "symbol": "tON1",
+     "section": "5.5 Electrical Characteristics",
+     "group": "TIMING (RON)",
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#onTime1",
+     "value": {
+      "lower": null,
+      "typical": 5000.0,
+      "upper": null,
+      "unit": "ns",
+      "text": null
+     },
+     "regime": "electricalCharacteristic",
+     "conditions": {
+      "row": "VVIN = 6V, RRON = 75kΩ",
+      "completeness": "proseOnly",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 5,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cce03619fbe13951#evidence=ds-cce03619fbe13951-spec_rows-30"
+    },
+    {
+     "id": "ds-cce03619fbe13951-spec_rows-31",
+     "kind": "specRow",
+     "parameter": "On-time2",
+     "symbol": "tON2",
+     "section": "5.5 Electrical Characteristics",
+     "group": "TIMING (RON)",
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#onTime2",
+     "value": {
+      "lower": null,
+      "typical": 1650.0,
+      "upper": null,
+      "unit": "ns",
+      "text": null
+     },
+     "regime": "electricalCharacteristic",
+     "conditions": {
+      "row": "VVIN = 6V, RRON = 25kΩ",
+      "completeness": "proseOnly",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 5,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cce03619fbe13951#evidence=ds-cce03619fbe13951-spec_rows-31"
+    },
+    {
+     "id": "ds-cce03619fbe13951-spec_rows-32",
+     "kind": "specRow",
+     "parameter": "On-time3",
+     "symbol": "tON3",
+     "section": "5.5 Electrical Characteristics",
+     "group": "TIMING (RON)",
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#onTime3",
+     "value": {
+      "lower": null,
+      "typical": 2550.0,
+      "upper": null,
+      "unit": "ns",
+      "text": null
+     },
+     "regime": "electricalCharacteristic",
+     "conditions": {
+      "row": "VVIN = 12V, RRON = 75kΩ",
+      "completeness": "proseOnly",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 5,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cce03619fbe13951#evidence=ds-cce03619fbe13951-spec_rows-32"
+    },
+    {
+     "id": "ds-cce03619fbe13951-spec_rows-33",
+     "kind": "specRow",
+     "parameter": "On-time4",
+     "symbol": "tON4",
+     "section": "5.5 Electrical Characteristics",
+     "group": "TIMING (RON)",
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#onTime4",
+     "value": {
+      "lower": null,
+      "typical": 830.0,
+      "upper": null,
+      "unit": "ns",
+      "text": null
+     },
+     "regime": "electricalCharacteristic",
+     "conditions": {
+      "row": "VVIN = 12V, RRON = 25kΩ",
+      "completeness": "proseOnly",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 5,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cce03619fbe13951#evidence=ds-cce03619fbe13951-spec_rows-33"
+    },
+    {
+     "id": "ds-cce03619fbe13951-spec_rows-34",
+     "kind": "specRow",
+     "parameter": "FB upper threshold for PGOOD high to low",
+     "symbol": "VPG-UTH",
+     "section": "5.5 Electrical Characteristics",
+     "group": "POWER GOOD MONITOR (PGOOD)",
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#fbUpperThresholdForPgoodHighToLow",
+     "value": {
+      "lower": 1.105,
+      "typical": 1.14,
+      "upper": 1.175,
+      "unit": "V",
+      "text": null
+     },
+     "regime": "electricalCharacteristic",
+     "conditions": {
+      "row": "VFB rising",
+      "completeness": "proseOnly",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 5,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cce03619fbe13951#evidence=ds-cce03619fbe13951-spec_rows-34"
+    },
+    {
+     "id": "ds-cce03619fbe13951-spec_rows-35",
+     "kind": "specRow",
+     "parameter": "FB lower threshold for PGOOD high to low",
+     "symbol": "VPG-LTH",
+     "section": "5.5 Electrical Characteristics",
+     "group": "POWER GOOD MONITOR (PGOOD)",
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#fbLowerThresholdForPgoodHighToLow",
+     "value": {
+      "lower": 1.055,
+      "typical": 1.08,
+      "upper": 1.1,
+      "unit": "V",
+      "text": null
+     },
+     "regime": "electricalCharacteristic",
+     "conditions": {
+      "row": "VFB falling",
+      "completeness": "proseOnly",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 5,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cce03619fbe13951#evidence=ds-cce03619fbe13951-spec_rows-35"
+    },
+    {
+     "id": "ds-cce03619fbe13951-spec_rows-36",
+     "kind": "specRow",
+     "parameter": "PGOOD upper and lower threshold hysteresis",
+     "symbol": "VPG-HYS",
+     "section": "5.5 Electrical Characteristics",
+     "group": "POWER GOOD MONITOR (PGOOD)",
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#pgoodUpperAndLowerThresholdHysteresis",
+     "value": {
+      "lower": null,
+      "typical": 60.0,
+      "upper": null,
+      "unit": "mV",
+      "text": null
+     },
+     "regime": "electricalCharacteristic",
+     "conditions": {
+      "row": "VFB falling",
+      "completeness": "proseOnly",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 5,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cce03619fbe13951#evidence=ds-cce03619fbe13951-spec_rows-36"
+    },
+    {
+     "id": "ds-cce03619fbe13951-spec_rows-37",
+     "kind": "specRow",
+     "parameter": "PGOOD pulldown resistance",
+     "symbol": "RPG",
+     "section": "5.5 Electrical Characteristics",
+     "group": "POWER GOOD MONITOR (PGOOD)",
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#pgoodPulldownResistance",
+     "value": {
+      "lower": null,
+      "typical": 30.0,
+      "upper": null,
+      "unit": "Ω",
+      "text": null
+     },
+     "regime": "electricalCharacteristic",
+     "conditions": {
+      "row": "VFB = 1V",
+      "completeness": "proseOnly",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 5,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cce03619fbe13951#evidence=ds-cce03619fbe13951-spec_rows-37"
+    },
+    {
+     "id": "ds-cce03619fbe13951-spec_rows-38",
+     "kind": "specRow",
+     "parameter": "Gate drive UVLO",
+     "symbol": "VBST-UV",
+     "section": "5.5 Electrical Characteristics",
+     "group": "BOOTSTRAP (BST)",
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#gateDriveUvlo",
+     "value": {
+      "lower": null,
+      "typical": 2.7,
+      "upper": 3.4,
+      "unit": "V",
+      "text": null
+     },
+     "regime": "electricalCharacteristic",
+     "conditions": {
+      "row": "VBST rising",
+      "completeness": "proseOnly",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 5,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cce03619fbe13951#evidence=ds-cce03619fbe13951-spec_rows-38"
+    },
+    {
+     "id": "ds-cce03619fbe13951-spec_rows-39",
+     "kind": "specRow",
+     "parameter": "High-side MOSFET RDSON",
+     "symbol": "RDSON-HS",
+     "section": "5.5 Electrical Characteristics",
+     "group": "POWER SWITCHES",
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#highSideMosfetRdson",
+     "value": {
+      "lower": null,
+      "typical": 0.725,
+      "upper": null,
+      "unit": "Ω",
+      "text": null
+     },
+     "regime": "electricalCharacteristic",
+     "conditions": {
+      "row": "ISW = -100mA",
+      "completeness": "proseOnly",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 5,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cce03619fbe13951#evidence=ds-cce03619fbe13951-spec_rows-39"
+    },
+    {
+     "id": "ds-cce03619fbe13951-spec_rows-40",
+     "kind": "specRow",
+     "parameter": "Low-side MOSFET RDSON",
+     "symbol": "RDSON-LS",
+     "section": "5.5 Electrical Characteristics",
+     "group": "POWER SWITCHES",
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#lowSideMosfetRdson",
+     "value": {
+      "lower": null,
+      "typical": 0.33,
+      "upper": null,
+      "unit": "Ω",
+      "text": null
+     },
+     "regime": "electricalCharacteristic",
+     "conditions": {
+      "row": "ISW = 100mA",
+      "completeness": "proseOnly",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 5,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cce03619fbe13951#evidence=ds-cce03619fbe13951-spec_rows-40"
+    },
+    {
+     "id": "ds-cce03619fbe13951-spec_rows-41",
+     "kind": "specRow",
+     "parameter": "SOFT START",
+     "symbol": "SOFT START",
+     "section": "5.5 Electrical Characteristics (continued)",
+     "group": null,
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#softStart",
+     "value": {
+      "lower": null,
+      "typical": null,
+      "upper": null,
+      "unit": "SOFT",
+      "text": null
+     },
+     "regime": "electricalCharacteristic",
+     "conditions": {
+      "row": "SOFT START",
+      "completeness": "proseOnly",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 6,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "low",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [
+      "split_from_merged_row",
+      "value_not_numeric"
+     ],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cce03619fbe13951#evidence=ds-cce03619fbe13951-spec_rows-41"
+    },
+    {
+     "id": "ds-cce03619fbe13951-spec_rows-42",
+     "kind": "specRow",
+     "parameter": "SOFT START",
+     "symbol": "SOFT START",
+     "section": "5.5 Electrical Characteristics (continued)",
+     "group": null,
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#softStart",
+     "value": {
+      "lower": null,
+      "typical": null,
+      "upper": null,
+      "unit": "START",
+      "text": null
+     },
+     "regime": "electricalCharacteristic",
+     "conditions": {
+      "row": "SOFT START",
+      "completeness": "proseOnly",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 6,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "low",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [
+      "split_from_merged_row",
+      "value_not_numeric"
+     ],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cce03619fbe13951#evidence=ds-cce03619fbe13951-spec_rows-42"
+    },
+    {
+     "id": "ds-cce03619fbe13951-spec_rows-43",
+     "kind": "specRow",
+     "parameter": "Internal soft-start time",
+     "symbol": "tSS",
+     "section": "5.5 Electrical Characteristics (continued)",
+     "group": null,
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#internalSoftStartTime",
+     "value": {
+      "lower": 1.75,
+      "typical": 3.0,
+      "upper": 4.75,
+      "unit": "ms",
+      "text": null
+     },
+     "regime": "electricalCharacteristic",
+     "conditions": {
+      "row": null,
+      "completeness": "unknown",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 6,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cce03619fbe13951#evidence=ds-cce03619fbe13951-spec_rows-43"
+    },
+    {
+     "id": "ds-cce03619fbe13951-spec_rows-44",
+     "kind": "specRow",
+     "parameter": "CURRENT LIMIT",
+     "symbol": "CURRENT LIMIT",
+     "section": "5.5 Electrical Characteristics (continued)",
+     "group": null,
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#currentLimit",
+     "value": {
+      "lower": null,
+      "typical": null,
+      "upper": null,
+      "unit": "CURRENT",
+      "text": null
+     },
+     "regime": "electricalCharacteristic",
+     "conditions": {
+      "row": "CURRENT LIMIT",
+      "completeness": "proseOnly",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 6,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "low",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [
+      "split_from_merged_row",
+      "value_not_numeric"
+     ],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cce03619fbe13951#evidence=ds-cce03619fbe13951-spec_rows-44"
+    },
+    {
+     "id": "ds-cce03619fbe13951-spec_rows-45",
+     "kind": "specRow",
+     "parameter": "CURRENT LIMIT",
+     "symbol": "CURRENT LIMIT",
+     "section": "5.5 Electrical Characteristics (continued)",
+     "group": null,
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#currentLimit",
+     "value": {
+      "lower": null,
+      "typical": null,
+      "upper": null,
+      "unit": "LIMIT",
+      "text": null
+     },
+     "regime": "electricalCharacteristic",
+     "conditions": {
+      "row": "CURRENT LIMIT",
+      "completeness": "proseOnly",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 6,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "low",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [
+      "split_from_merged_row",
+      "value_not_numeric"
+     ],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cce03619fbe13951#evidence=ds-cce03619fbe13951-spec_rows-45"
+    },
+    {
+     "id": "ds-cce03619fbe13951-spec_rows-46",
+     "kind": "specRow",
+     "parameter": "Peak current limit threshold (HS)",
+     "symbol": "IPEAK1",
+     "section": "5.5 Electrical Characteristics (continued)",
+     "group": null,
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#peakCurrentLimitThresholdHs",
+     "value": {
+      "lower": 1.25,
+      "typical": 1.5,
+      "upper": 1.75,
+      "unit": "A",
+      "text": null
+     },
+     "regime": "electricalCharacteristic",
+     "conditions": {
+      "row": null,
+      "completeness": "unknown",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 6,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cce03619fbe13951#evidence=ds-cce03619fbe13951-spec_rows-46"
+    },
+    {
+     "id": "ds-cce03619fbe13951-spec_rows-47",
+     "kind": "specRow",
+     "parameter": "Peak current limit threshold (LS)",
+     "symbol": "IPEAK2",
+     "section": "5.5 Electrical Characteristics (continued)",
+     "group": null,
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#peakCurrentLimitThresholdLs",
+     "value": {
+      "lower": 1.25,
+      "typical": 1.5,
+      "upper": 1.75,
+      "unit": "A",
+      "text": null
+     },
+     "regime": "electricalCharacteristic",
+     "conditions": {
+      "row": null,
+      "completeness": "unknown",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 6,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cce03619fbe13951#evidence=ds-cce03619fbe13951-spec_rows-47"
+    },
+    {
+     "id": "ds-cce03619fbe13951-spec_rows-48",
+     "kind": "specRow",
+     "parameter": "Min of (IPEAK1 or IPEAK2) minus IVALLEY",
+     "symbol": "IDELTA-ILIM",
+     "section": "5.5 Electrical Characteristics (continued)",
+     "group": null,
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#minOfIpeak1OrIpeak2MinusIvalley",
+     "value": {
+      "lower": 200.0,
+      "typical": 300.0,
+      "upper": null,
+      "unit": "mA",
+      "text": null
+     },
+     "regime": "electricalCharacteristic",
+     "conditions": {
+      "row": null,
+      "completeness": "unknown",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 6,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cce03619fbe13951#evidence=ds-cce03619fbe13951-spec_rows-48"
+    },
+    {
+     "id": "ds-cce03619fbe13951-spec_rows-49",
+     "kind": "specRow",
+     "parameter": "Valley current limit threshold",
+     "symbol": "IVALLEY",
+     "section": "5.5 Electrical Characteristics (continued)",
+     "group": null,
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#valleyCurrentLimitThreshold",
+     "value": {
+      "lower": 0.95,
+      "typical": 1.2,
+      "upper": 1.4,
+      "unit": "A",
+      "text": null
+     },
+     "regime": "electricalCharacteristic",
+     "conditions": {
+      "row": null,
+      "completeness": "unknown",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 6,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cce03619fbe13951#evidence=ds-cce03619fbe13951-spec_rows-49"
+    },
+    {
+     "id": "ds-cce03619fbe13951-spec_rows-50",
+     "kind": "specRow",
+     "parameter": "THERMAL SHUTDOWN",
+     "symbol": "THERMAL SHUTDOWN",
+     "section": "5.5 Electrical Characteristics (continued)",
+     "group": null,
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#thermalShutdown",
+     "value": {
+      "lower": null,
+      "typical": null,
+      "upper": null,
+      "unit": "THERMAL",
+      "text": null
+     },
+     "regime": "electricalCharacteristic",
+     "conditions": {
+      "row": "THERMAL SHUTDOWN",
+      "completeness": "proseOnly",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 6,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "low",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [
+      "split_from_merged_row",
+      "value_not_numeric"
+     ],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cce03619fbe13951#evidence=ds-cce03619fbe13951-spec_rows-50"
+    },
+    {
+     "id": "ds-cce03619fbe13951-spec_rows-51",
+     "kind": "specRow",
+     "parameter": "THERMAL SHUTDOWN",
+     "symbol": "THERMAL SHUTDOWN",
+     "section": "5.5 Electrical Characteristics (continued)",
+     "group": null,
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#thermalShutdown",
+     "value": {
+      "lower": null,
+      "typical": null,
+      "upper": null,
+      "unit": "SHUTDOWN",
+      "text": null
+     },
+     "regime": "electricalCharacteristic",
+     "conditions": {
+      "row": "THERMAL SHUTDOWN",
+      "completeness": "proseOnly",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 6,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "low",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [
+      "split_from_merged_row",
+      "value_not_numeric"
+     ],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cce03619fbe13951#evidence=ds-cce03619fbe13951-spec_rows-51"
+    },
+    {
+     "id": "ds-cce03619fbe13951-spec_rows-52",
+     "kind": "specRow",
+     "parameter": "Thermal shutdown threshold",
+     "symbol": "TSD",
+     "section": "5.5 Electrical Characteristics (continued)",
+     "group": null,
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#thermalShutdownThreshold",
+     "value": {
+      "lower": null,
+      "typical": 175.0,
+      "upper": null,
+      "unit": "°C",
+      "text": null
+     },
+     "regime": "electricalCharacteristic",
+     "conditions": {
+      "row": "TJ rising",
+      "completeness": "proseOnly",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 6,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cce03619fbe13951#evidence=ds-cce03619fbe13951-spec_rows-52"
+    },
+    {
+     "id": "ds-cce03619fbe13951-spec_rows-53",
+     "kind": "specRow",
+     "parameter": "Thermal shutdown hysteresis",
+     "symbol": "TSD-HYS",
+     "section": "5.5 Electrical Characteristics (continued)",
+     "group": null,
+     "predicate": "https://sophia-labs.ai/concept/engineering-parameter#thermalShutdownHysteresis",
+     "value": {
+      "lower": null,
+      "typical": 10.0,
+      "upper": null,
+      "unit": "°C",
+      "text": null
+     },
+     "regime": "electricalCharacteristic",
+     "conditions": {
+      "row": null,
+      "completeness": "unknown",
+      "slots": {
+       "lower": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "typical": {
+        "conditions": null,
+        "guarantee": null
+       },
+       "upper": {
+        "conditions": null,
+        "guarantee": null
+       }
+      }
+     },
+     "page": 6,
+     "box": null,
+     "precision": "page",
+     "geometryStatus": null,
+     "readings": [],
+     "corroboration": {
+      "level": "medium",
+      "independentSources": 1,
+      "sources": [
+       "specTable"
+      ],
+      "contested": false
+     },
+     "diagnostics": [],
+     "checks": [],
+     "checkedByPerson": false,
+     "link": "/files/ds-cce03619fbe13951#evidence=ds-cce03619fbe13951-spec_rows-53"
+    }
+   ],
+   "truncated": false
+  }
+ ]
+}

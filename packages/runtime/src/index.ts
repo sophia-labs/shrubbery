@@ -541,9 +541,12 @@ export {
   type LocalChatServiceOptions,
   type HostedChatServiceOptions,
   type AssembleChatServicesOptions,
+  type ChatEndpoint,
   type TurnDriver,
   type SessionAggregates,
   type CreateSessionRow,
+  makeRideChatService,
+  type RideChatServiceOptions,
 } from './chat-services/index.js'
 
 // The Class-B CHAT HOST (C3) — <sh-chat-host> mounts ONCE + SURVIVES interface-grow
@@ -604,6 +607,7 @@ export {
   type ContinuationPlan,
   type ContinuationWindow,
   type ContinueIntent,
+  type ConversationBranchLineage,
   type ConversationLineage,
   type ConversationSummary,
   type SourceVoice,
@@ -1036,3 +1040,17 @@ export {
   type FilesPaneTrashItem,
   type WorkspaceFilesOptions,
 } from './files-pane.js'
+export {
+  renderFilesPage,
+  type FilesPanePage,
+  type FilesPageBody,
+  type FilesPageFact,
+  type FilesPageLink,
+  type FilesPageNotes,
+  type FilesPageRegister,
+  type FilesPageRow,
+  type FilesPageSection,
+  type FilesPageSubheading,
+  type FilesPageTableGroup,
+  type FilesPageValue,
+} from './files-page.js'

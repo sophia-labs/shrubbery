@@ -33,7 +33,7 @@ const context = await browser.newContext({ viewport: { width: 1440, height: 900 
 const page = await context.newPage()
 const errors: string[] = []
 page.on('pageerror', e => errors.push(e.message))
-const URL = `http://127.0.0.1:${port}/files-rudiments-browser-harness.html?cell=/files-cell&token=${cell.token}&graph=${cell.graphId}`
+const URL = `http://127.0.0.1:${port}/files-rudiments-browser-harness.html?cell=/files-cell&graph=${cell.graphId}&token=${cell.token}`
 
 const reader = page.locator('mn-pdf-reader')
 const shot = (name: string) => page.screenshot({ path: resolve(shots, `${name}.png`) })
@@ -50,6 +50,10 @@ async function openFiles(url = URL): Promise<void> {
 }
 async function openCard(label: string): Promise<void> {
   await page.locator('mn-files-canvas .card[role="option"]', { hasText: label }).first().dblclick()
+  // Opening a file opens its page; a datasheet's PDF is its folded Source section (Vera, 2026-10-13): unfold it.
+  await page.waitForSelector('.fpage [data-section="source"]', { timeout: 15000 })
+  const source = page.locator('.fpage [data-section="source"]')
+  if (!(await source.evaluate(el => el.hasAttribute('data-open')))) await source.locator('h2 button').click()
   await reader.waitFor({ state: 'attached', timeout: 15000 })
   await page.waitForFunction(() => document.querySelector('mn-pdf-reader [data-page-count]')?.textContent !== '–', undefined, { timeout: 30000 })
   await page.waitForFunction(() => document.querySelectorAll('mn-pdf-reader .pdfViewer .page canvas').length > 0, undefined, { timeout: 30000 })
@@ -233,15 +237,19 @@ try {
   await page.reload()
   await listen()
   await reader.waitFor({ state: 'attached', timeout: 20000 })
-  await page.waitForFunction(() => !!document.querySelector('mn-pdf-reader .pr-item[aria-current="true"]'), undefined, { timeout: 60000 })
-  check('deep link: the file is open with the overlay on and the claim selected', (await reader.locator('[data-action="overlay"]').getAttribute('aria-pressed')) === 'true'
-    && (await reader.locator('.pr-item[aria-current="true"]').getAttribute('data-id')) === `${TPS.artifact}-params-vin`)
+  await page.waitForFunction(() => document.querySelectorAll('mn-pdf-reader .pdfViewer .page canvas').length > 0, undefined, { timeout: 60000 })
+  await page.waitForTimeout(2500)
+  const deep = await reader.locator('.pr-abox').evaluateAll(els => els.map(e => e.getAttribute('data-id')))
+  check('deep link: the file\'s page opens with its source at the claim: that one box, the overlay off', (await reader.locator('[data-action="overlay"]').getAttribute('aria-pressed')) === 'false'
+    && (deep.length === 0 || (deep.length === 1 && deep[0] === `${TPS.artifact}-params-vin`)) && await page.locator('.fpage [data-section="source"][data-open]').count() === 1, deep)
   await page.waitForTimeout(2500)
   check('deep link: the pages moved to the claim (its reading on page 4)', Number(await pageNo()) >= 1 && Number(await pageNo()) !== 0, await pageNo())
   console.log('     deep link landed on page', await pageNo())
   await shot('09-deep-link')
 
-  // --- narrow: the element in a split pane of its own width (it lays out in its box, whatever the window)
+  // --- narrow: the element in a split pane of its own width (it lays out in its box, whatever the window), with its list showing
+  await reader.locator('[data-action="overlay"]').click()
+  await reader.locator('.pr-claims').waitFor({ timeout: 10000 })
   await reader.evaluate(el => { (el as HTMLElement).style.cssText = 'width:400px;height:640px;flex:none;align-self:flex-start' })
   await page.waitForTimeout(900)
   const fit = await reader.evaluate(el => ({ sw: el.scrollWidth, cw: el.clientWidth, drawer: getComputedStyle(el.querySelector('.pr-claims') ?? el).position }))
