@@ -279,6 +279,7 @@ import {
   type ObjectIntentDetail,
   makeRideChatService,
 } from '@shrubbery/runtime'
+import { EDITOR_SHORTCUTS } from '@shrubbery/nucleus'
 import {
   CommandRegistryImpl,
   DEFAULT_RIGHT_PANEL as SHELL_DEFAULT_RIGHT_PANEL,
@@ -5507,18 +5508,47 @@ document.addEventListener('keydown', (event) => {
   )
 }, true)
 
+/**
+ * App keys that no registry command carries: listeners in this file and in
+ * cell/ (the palette's scope key, landmark focus, read-aloud).
+ */
+const APP_KEY_SHORTCUTS: readonly MnShortcutCommand[] = [
+  { id: 'keys.palette', label: 'Command palette', category: 'Go', shortcut: 'Mod+K' },
+  { id: 'keys.landmarks', label: 'Move focus between areas', category: 'Go', shortcut: 'F6' },
+  { id: 'keys.tts-toggle', label: 'Read aloud: play or pause', category: 'Read aloud', shortcut: 'Mod+L' },
+  { id: 'keys.tts-start', label: 'Read aloud from the beginning', category: 'Read aloud', shortcut: 'Mod+Shift+L' },
+  { id: 'keys.tts-stop', label: 'Stop reading aloud', category: 'Read aloud', shortcut: 'Mod+Alt+L' },
+]
+
+/**
+ * Every shortcut the app has, for the Keyboard Shortcuts page: each registry
+ * command with a key (whatever its surfaces; unavailable here means dimmed,
+ * not hidden), the editor's keys (EDITOR_SHORTCUTS) and the app keys above.
+ * A key already shown for a registry command is not listed again. `Enter` on
+ * "Open" is a hint for the sidebar, not a shortcut.
+ */
 function shortcutCommandsFromRegistry(): MnShortcutCommand[] {
-  return shellCommandRegistry
-    .available(buildDocumentShortcutContext(), 'shortcut')
-    .filter(command => typeof command.shortcut === 'string' && command.shortcut.trim().length > 0)
+  const ctx = buildDocumentShortcutContext()
+  const available = new Set(shellCommandRegistry.available(ctx).map(command => command.id))
+  const fromRegistry: MnShortcutCommand[] = shellCommandRegistry
+    .getAll()
+    .filter(command => {
+      const shortcut = command.shortcut?.trim() ?? ''
+      return shortcut.length > 0 ? shortcut.toLowerCase() !== 'enter' : false
+    })
     .map(command => ({
       id: command.id,
       label: command.label,
       category: command.category,
       shortcut: command.shortcut!,
       ...(command.keywords ? { keywords: command.keywords } : {}),
-      ...(command.disabled ? { disabled: command.disabled } : {}),
+      ...(command.disabled || !available.has(command.id) ? { disabled: true } : {}),
     }))
+  const shown = new Set(fromRegistry.map(command => command.shortcut.toLowerCase()))
+  const extra = [...EDITOR_SHORTCUTS, ...APP_KEY_SHORTCUTS]
+    .filter(entry => !shown.has(entry.shortcut.toLowerCase()))
+    .map(entry => ({ id: entry.id, label: entry.label, category: entry.category, shortcut: entry.shortcut }))
+  return [...fromRegistry, ...extra]
 }
 
 function showShortcutsDialog(): void {
@@ -5559,6 +5589,8 @@ document.addEventListener('keydown', (event) => {
 
 shortcutsDialogEl.addEventListener('mn-shortcut-run', ((event: CustomEvent<MnShortcutRunDetail>) => {
   const detail = event.detail
+  // Editor and app-key rows describe keys; only registry commands run from here.
+  if (!shellCommandRegistry.get(detail.id)) return
   const ctx = detail.id === 'document.new' || detail.id === 'document.rename'
     ? buildDocumentShortcutContext()
     : buildCommandContext({ origin: 'shortcuts dialog' })
