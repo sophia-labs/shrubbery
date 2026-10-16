@@ -16,6 +16,7 @@ import type {
   WireCreateRequest,
   WireWriter,
   BlockScore,
+  SalienceRenewRequest,
   SalienceUserValueRequest,
   SalienceService,
 } from '@shrubbery/nucleus/contract'
@@ -214,6 +215,11 @@ export class HostedGatewaySalienceService implements SalienceService {
       },
     )
     return parseBlockScore(raw)
+  }
+
+  /** The hosted gateway has no renew route; fail closed rather than guess one. */
+  async renew(_graphId: string, _params: SalienceRenewRequest): Promise<BlockScore> {
+    throw new Error('Renewing freshness is not available on the hosted gateway.')
   }
 }
 

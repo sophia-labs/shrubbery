@@ -117,7 +117,9 @@ import {
   EDITOR_HEADING_IN_VIEW_EVENT,
   type LiveHeadingOutlineEntry,
   SALIENCE_RATE_REQUEST_EVENT,
+  SALIENCE_RENEW_REQUEST_EVENT,
   type SalienceRateRequestDetail,
+  type SalienceRenewRequestDetail,
   OPEN_DOCUMENT_EVENT,
   makeScopedWireBundleLoader,
   rdfLoadArgs,
@@ -6732,6 +6734,50 @@ async function rateSalienceBlock(detail: SalienceRateRequestDetail | undefined):
   }
 }
 
+/**
+ * Renew one block's freshness ("this still matters") without changing its
+ * rating. Same staleness guards as rateSalienceBlock: the optimistic clock is
+ * rolled back if the cell refuses, and a slower older response never
+ * overwrites a newer one.
+ */
+async function renewSalienceBlock(detail: SalienceRenewRequestDetail | undefined): Promise<void> {
+  const blockId = detail?.blockId
+  if (!blockId || !store || !openDocId) return
+  const access = currentSalienceWriteAccess()
+  if (!access.writable) {
+    err(`salience renew ignored: ${access.reason}`)
+    return
+  }
+  const graphId = currentGraphId
+  const documentId = openDocId
+  const requestId = ++latestSalienceRatingRequest
+  salienceRatingRequestIds.set(blockId, requestId)
+  latestSalienceBundleRequest++
+  const checkpoint = captureSalienceScore(currentSalienceBundle, blockId)
+  if (checkpoint.score) {
+    currentSalienceBundle = withSalienceScore(currentSalienceBundle, {
+      ...checkpoint.score,
+      lastValuatedAt: String(Date.now()),
+    })
+    rerenderCurrentSource()
+  }
+  try {
+    const updated = await store.contract.salience.renew(graphId, { documentId, blockId })
+    if (graphId !== currentGraphId || documentId !== openDocId) return
+    if (salienceRatingRequestIds.get(blockId) !== requestId) return
+    currentSalienceBundle = withSalienceScore(currentSalienceBundle, updated)
+    rerenderCurrentSource()
+    ok(`salience renewed: ${blockId}`)
+  } catch (e) {
+    if (salienceRatingRequestIds.get(blockId) !== requestId) return
+    if (graphId !== currentGraphId || documentId !== openDocId) return
+    currentSalienceBundle = rollbackSalienceScore(currentSalienceBundle, blockId, checkpoint)
+    rerenderCurrentSource()
+    err(`salience renew error:\n${e instanceof Error ? e.message : String(e)}`)
+    await refreshSalienceBundle()
+  }
+}
+
 function homeDocumentsFromSidebar(): HomeDocumentSource[] {
   const documents: HomeDocumentSource[] = []
   const visit = (nodes: readonly SidebarNode[]): void => {
@@ -9909,6 +9955,10 @@ hostEl.addEventListener('mn-wire-delete-request', ((event: CustomEvent<WireDelet
 
 hostEl.addEventListener(SALIENCE_RATE_REQUEST_EVENT, ((event: CustomEvent<SalienceRateRequestDetail>) => {
   void rateSalienceBlock(event.detail)
+}) as EventListener)
+
+hostEl.addEventListener(SALIENCE_RENEW_REQUEST_EVENT, ((event: CustomEvent<SalienceRenewRequestDetail>) => {
+  void renewSalienceBlock(event.detail)
 }) as EventListener)
 
 hostEl.addEventListener(WIRE_CONTEXT_REQUEST_EVENT, ((event: CustomEvent<WireContextRequestDetail>) => {

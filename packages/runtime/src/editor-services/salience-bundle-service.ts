@@ -174,6 +174,50 @@ export function valenceIcon(score: BlockScore | undefined): string {
   return 'sun-moon' // neutral
 }
 
+/**
+ * Whether the gutter can renew this block's freshness: it must carry a value
+ * (an agent valuation or the reader's rating) and must not be rated 0 ("let go"). The
+ * cell refuses both with a 422; this mirrors its rule so the button can say
+ * why before the reader clicks.
+ */
+export function canRenewFreshness(score: BlockScore | undefined): boolean {
+  if (!score || score.userImportance === 0) return false
+  return score.importanceCount > 0
+    || score.valenceCount > 0
+    || score.rawImportanceSum !== 0
+    || score.rawValenceSum !== 0
+    || score.userImportance !== null
+    || score.userValence !== null
+}
+
+/** When the block was last valued, as epoch ms, or null. Accepts epoch-ms strings and ISO dates. */
+export function lastValuedAtMs(score: BlockScore | undefined): number | null {
+  const raw = score?.lastValuatedAt?.trim()
+  if (!raw) return null
+  const numeric = Number(raw)
+  if (Number.isFinite(numeric)) return numeric >= 1e12 ? numeric : numeric * 1000
+  const parsed = Date.parse(raw)
+  return Number.isNaN(parsed) ? null : parsed
+}
+
+/** "today", "yesterday", "12 days ago", or null when never valued. */
+export function lastValuedLabel(score: BlockScore | undefined, now = Date.now()): string | null {
+  const at = lastValuedAtMs(score)
+  if (at === null) return null
+  const days = Math.floor((now - at) / 86_400_000)
+  if (days <= 0) return 'today'
+  if (days === 1) return 'yesterday'
+  return `${days} days ago`
+}
+
+/** The renew button's tooltip: what it does, or why it cannot. */
+export function renewLabel(score: BlockScore | undefined, now = Date.now()): string {
+  if (score?.userImportance === 0) return 'Rated 0 (let go) — rate it again to renew it'
+  if (!canRenewFreshness(score)) return 'Rate this block first to renew it'
+  const when = lastValuedLabel(score, now)
+  return when ? `Renew — still matters (last valued ${when})` : 'Renew — still matters'
+}
+
 /** Label for the current importance state. */
 export function importanceLabel(score: BlockScore | undefined): string {
   const imp = score?.userImportance ?? null

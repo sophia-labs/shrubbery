@@ -281,7 +281,9 @@ export {
 
 export {
   SALIENCE_RATE_REQUEST_EVENT,
+  SALIENCE_RENEW_REQUEST_EVENT,
   type SalienceRateRequestDetail,
+  type SalienceRenewRequestDetail,
 } from './editor-host.js'
 
 export {
