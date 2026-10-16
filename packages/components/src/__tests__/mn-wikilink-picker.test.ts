@@ -109,12 +109,19 @@ describe('mn-wikilink-picker', () => {
       picker.selectedDocument = { id: 'doc-architecture', label: 'Architecture', type: 'document' }
       picker.blocks = [
         { id: 'block-h1', type: 'heading', level: 1, text: 'Overview', preview: 'Overview' },
-        { id: 'block-p', type: 'paragraph', text: 'Longer paragraph', preview: 'Longer paragraph preview' },
+        { id: 'block-p', type: 'paragraph', text: 'Longer paragraph', preview: 'Longer paragraph...' },
       ]
     })
 
-    expect(sr(el).querySelector('[data-block-id="block-h1"]')?.textContent).toContain('H1')
-    expect(sr(el).querySelector('[data-block-id="block-p"]')?.textContent).toContain('Longer paragraph preview')
+    // A block row is its text once: no type icon, no H badge, no preview line
+    // repeating the same words (2026-10-14). Headings go by weight.
+    const heading = sr(el).querySelector('[data-block-id="block-h1"]')!
+    const paragraph = sr(el).querySelector('[data-block-id="block-p"]')!
+    expect(heading.textContent!.trim()).toBe('Overview')
+    expect(heading.querySelector('.block-text')!.hasAttribute('data-heading')).toBe(true)
+    expect(heading.querySelector('.badge, .item-icon, .item-preview')).toBeNull()
+    expect(paragraph.textContent!.trim()).toBe('Longer paragraph')
+    expect(paragraph.querySelector('.block-text')!.hasAttribute('data-heading')).toBe(false)
 
     el.phase = 'predicate'
     el.predicates = [
@@ -128,6 +135,44 @@ describe('mn-wikilink-picker', () => {
       'Ground',
     ])
     expect(sr(el).querySelector('[data-predicate-uri="urn:test:supports"]')?.textContent).toContain('supports')
+  })
+
+  it('gives the wire flow its roomier container; the link flow keeps the compact one', async () => {
+    const wire = await mount(picker => { picker.flow = 'wire' })
+    expect(sr(wire).querySelector('.container')!.classList.contains('wire')).toBe(true)
+    const link = await mount(picker => { picker.flow = 'link' })
+    expect(sr(link).querySelector('.container')!.classList.contains('wire')).toBe(false)
+  })
+
+  it('keeps the rows on screen while a refresh loads, and spins only when empty', async () => {
+    const el = await mount(picker => {
+      picker.phase = 'block'
+      picker.selectedDocument = { id: 'doc-a', label: 'A', type: 'document' }
+      picker.blocks = [{ id: 'b1', type: 'paragraph', text: 'first' }]
+      picker.loading = true
+    })
+    expect(sr(el).querySelector('[data-block-id="b1"]')).not.toBeNull()
+    expect(sr(el).querySelector('.loading')).toBeNull()
+    el.blocks = []
+    await el.updateComplete
+    expect(sr(el).querySelector('.loading')).not.toBeNull()
+  })
+
+  it('does not select a stale row with Enter while a block search is loading', async () => {
+    const el = await mount(picker => {
+      picker.phase = 'block'
+      picker.selectedDocument = { id: 'doc-a', label: 'A', type: 'document' }
+      picker.blocks = [{ id: 'old', type: 'paragraph', text: 'from the last query' }]
+      picker.loading = true
+    })
+    const selected: unknown[] = []
+    el.addEventListener('mn-wikilink-select', event => selected.push((event as CustomEvent).detail))
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }))
+    expect(selected).toEqual([])
+    el.loading = false
+    await el.updateComplete
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }))
+    expect(selected).toHaveLength(1)
   })
 
   it('Escape closes from document phase', async () => {

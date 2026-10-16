@@ -187,6 +187,8 @@ export interface EditorOverlayPlacement {
 const OVERLAY_MARGIN = 12
 const OVERLAY_GAP = 8
 const PICKER_SIZE: EditorOverlaySize = { width: 360, height: 420 }
+/** The wire flow's picker is wider and its list taller (mn-wikilink-picker .wire). */
+const WIRE_PICKER_SIZE: EditorOverlaySize = { width: 520, height: 560 }
 const COMPACT_POPOVER_SIZE: EditorOverlaySize = { width: 320, height: 320 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -1296,7 +1298,7 @@ class CandidateDropdown {
     this.onPick = onPick
     this.onSearch = onSearch ?? null
     this.onBlockSearch = onBlockSearch ?? null
-    this.placement = positionMount(this.mount, anchor, PICKER_SIZE)
+    this.placement = positionMount(this.mount, anchor, this.flow === 'wire' ? WIRE_PICKER_SIZE : PICKER_SIZE)
     this.searchToken++
     if (!this.isOpen) {
       this.isOpen = true
@@ -1433,11 +1435,14 @@ class CandidateDropdown {
   }
 
   private loadBlocks(document: WikiLinkSuggestionItem, query: string): void {
+    // A new search in the same document keeps the current rows on screen
+    // until the filtered ones arrive; a different document starts empty.
+    const sameDocument = this.phase === 'block' && this.selectedDocument?.id === document.id
     this.phase = 'block'
     this.query = query
     this.selectedIndex = 0
     this.selectedDocument = document
-    this.blocks = []
+    if (!sameDocument) this.blocks = []
     const onBlockSearch = this.onBlockSearch
     if (!onBlockSearch) {
       this.loading = false

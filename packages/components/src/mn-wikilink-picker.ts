@@ -244,6 +244,30 @@ export class MnWikiLinkPicker extends SkinAware(LitElement) {
       overflow-y: auto;
     }
 
+    /* The wire flow (Mod+;) reads whole blocks, so it is roomier than the
+       link picker: compact still, just not by so much (2026-10-15). */
+    .container.wire {
+      width: 520px;
+    }
+    .container.wire .results {
+      max-height: 440px;
+    }
+
+    /* A block row is its text, once, up to three lines. No type icon or level
+       badge: headings read as headings by weight (2026-10-14). */
+    .block-text {
+      display: -webkit-box;
+      overflow: hidden;
+      color: var(--mn-color-text-primary, #111827);
+      line-height: 1.4;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 3;
+      line-clamp: 3;
+    }
+    .block-text[data-heading] {
+      font-weight: 600;
+    }
+
     .empty,
     .loading {
       display: flex;
@@ -728,6 +752,9 @@ export class MnWikiLinkPicker extends SkinAware(LitElement) {
   }
 
   private selectCurrent(): void {
+    // While a block search is loading, the rows on screen belong to the
+    // previous query; Enter waits for the current ones.
+    if (this.phase === 'block' && this.loading) return
     if (this.flow === 'wire') {
       this.advanceWire()
       return
@@ -793,14 +820,6 @@ export class MnWikiLinkPicker extends SkinAware(LitElement) {
         composed: true,
       }),
     )
-  }
-
-  private iconForBlock(block: MnWikiLinkBlockItem): TemplateResult | unknown {
-    if (block.type === 'heading') return icon(`heading-${block.level ?? 1}`, { size: 14 })
-    if (block.type === 'listItem') return icon('list', { size: 14 })
-    if (block.type === 'blockquote') return icon('quote', { size: 14 })
-    if (block.type === 'codeBlock') return icon('code', { size: 14 })
-    return icon('type', { size: 14 })
   }
 
   private renderContext(): TemplateResult | typeof nothing {
@@ -877,12 +896,9 @@ export class MnWikiLinkPicker extends SkinAware(LitElement) {
           this.selectCurrent()
         }}
       >
-        <span class="item-icon">${this.iconForBlock(block)}</span>
         <span class="item-content">
-          <span class="item-label">${block.text}</span>
-          ${block.preview && block.preview !== block.text ? html`<span class="item-preview">${block.preview}</span>` : nothing}
+          <span class="block-text" ?data-heading=${block.type === 'heading'}>${block.text}</span>
         </span>
-        ${block.type === 'heading' && block.level ? html`<span class=${`badge h${block.level}`}>H${block.level}</span>` : nothing}
       </button>
     `
   }
@@ -1024,7 +1040,9 @@ export class MnWikiLinkPicker extends SkinAware(LitElement) {
   }
 
   private renderResults(): TemplateResult | TemplateResult[] {
-    if (this.loading) {
+    // A refresh keeps the rows already on screen; the spinner is only for an
+    // empty list, so typing in a long document does not blank it each key.
+    if (this.loading && this.items.length === 0) {
       return html`<div class="loading"><span class="spinner" aria-hidden="true"></span>Loading...</div>`
     }
     if (this.flow === 'wire' && this.phase === 'block') return this.renderWireBlocks()
@@ -1066,7 +1084,7 @@ export class MnWikiLinkPicker extends SkinAware(LitElement) {
     return html`
       <div class="overlay" @mousedown=${() => this.close()}></div>
       <section
-        class="container"
+        class=${this.flow === 'wire' ? 'container wire' : 'container'}
         style=${style}
         role="dialog"
         aria-label="Wikilink picker"
@@ -1089,7 +1107,7 @@ export class MnWikiLinkPicker extends SkinAware(LitElement) {
           />
         </header>
         ${this.renderContext()}
-        <div class="results" role="listbox" aria-label=${this.phaseLabel} data-wikilink-results>
+        <div class="results" role="listbox" aria-label=${this.phaseLabel} aria-busy=${this.loading ? 'true' : 'false'} data-wikilink-results>
           ${this.renderResults()}
         </div>
         ${this.renderHint()}

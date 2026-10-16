@@ -44,6 +44,8 @@ import {
   makeScopedWireBundleLoader,
   wikilinkBlockListSparql,
   wikilinkBlockRowsToItems,
+  filterWikiLinkBlocks,
+  wikilinkBlocksInTreeOrder,
   tagSuggestionListSparql,
   tagSuggestionsFromRows,
   makeWireBundleService,
@@ -359,6 +361,82 @@ describe('WikiLinkBlockSearchService — target-document blocks from the project
     ])
   })
 
+  it('lists the whole document in order with no query, and every match with one', () => {
+    // A cap of 20 made blocks past the twentieth look missing in the wiring flow.
+    const items = Array.from({ length: 60 }, (_, i) => ({
+      id: `b${i}`, type: 'paragraph' as const, text: i % 2 ? `odd ${i}` : `even ${i}`,
+    }))
+    expect(filterWikiLinkBlocks(items, '').map(item => item.id)).toEqual(items.map(item => item.id))
+    expect(filterWikiLinkBlocks(items, 'odd')).toHaveLength(30)
+  })
+
+  it('orders blocks by walking the tree, one row per list item, quote or table paragraph', () => {
+    // Shaped like gardend's projection: siblingOrder within each parent, no
+    // doc:order, a ListItem holding its own text plus a Paragraph child with
+    // the same words, and a table whose cells hold paragraphs.
+    const D = 'urn:mnemosyne:local:document:d'
+    const iri = (id: string) => `<${D}#block-${id}>`
+    const T = (local: string) => `<http://mnemosyne.dev/doc#${local}>`
+    const block = (id: string, type: string, text?: string) => ({
+      block: iri(id), blockId: `"${id}"`, type: T(type), ...(text ? { text: `"${text}"` } : {}),
+    })
+    const blockRows = [
+      block('li-1-p', 'Paragraph', 'first item'),
+      block('p-intro', 'Paragraph', 'intro'),
+      block('li-1', 'ListItem', 'first item'),
+      block('li-2', 'ListItem', 'second item'),
+      block('li-2-p', 'Paragraph', 'second item'),
+      block('quote', 'Blockquote', 'quoted words'),
+      block('quote-p', 'Paragraph', 'quoted words'),
+      block('table', 'Table', 'cell a cell b'),
+      block('row', 'TableRow', 'cell a cell b'),
+      block('cell-a', 'TableCell', 'cell a'),
+      block('cell-a-p', 'Paragraph', 'cell a'),
+      block('cell-b', 'TableCell', 'cell b'),
+      block('cell-b-p', 'Paragraph', 'cell b'),
+      block('h', 'Heading', 'closing'),
+    ]
+    const frag = `<${D}#frag>`
+    const edge = (parent: string, child: string, order: number, parentType: string, childType: string) => ({
+      parent, child, siblingOrder: `"${order}"^^<http://www.w3.org/2001/XMLSchema#integer>`,
+      parentType: T(parentType), childType: T(childType),
+    })
+    const edgeRows = [
+      edge(frag, iri('h'), 4, 'XmlFragment', 'Heading'),
+      edge(frag, iri('li-2'), 2, 'XmlFragment', 'ListItem'),
+      edge(frag, iri('p-intro'), 0, 'XmlFragment', 'Paragraph'),
+      edge(frag, iri('li-1'), 1, 'XmlFragment', 'ListItem'),
+      edge(frag, iri('table'), 3, 'XmlFragment', 'Table'),
+      edge(iri('li-1'), iri('li-1-p'), 0, 'ListItem', 'Paragraph'),
+      edge(iri('li-2'), iri('li-2-p'), 0, 'ListItem', 'Paragraph'),
+      edge(iri('li-2'), iri('quote'), 1, 'ListItem', 'Blockquote'),
+      edge(iri('quote'), iri('quote-p'), 0, 'Blockquote', 'Paragraph'),
+      edge(iri('table'), iri('row'), 0, 'Table', 'TableRow'),
+      edge(iri('row'), iri('cell-b'), 1, 'TableRow', 'TableCell'),
+      edge(iri('row'), iri('cell-a'), 0, 'TableRow', 'TableCell'),
+      edge(iri('cell-a'), iri('cell-a-p'), 0, 'TableCell', 'Paragraph'),
+      edge(iri('cell-b'), iri('cell-b-p'), 0, 'TableCell', 'Paragraph'),
+    ]
+    expect(wikilinkBlocksInTreeOrder(blockRows, edgeRows).map(item => item.id))
+      .toEqual(['p-intro', 'li-1', 'li-2', 'quote', 'cell-a-p', 'cell-b-p', 'h'])
+    // Task lists as gardend wrote them: the TaskItem has a #node- id and no
+    // text; its paragraph is the block. Both tasks must appear, in place.
+    const node = (n: number) => `<${D}#node-${n}>`
+    const tasks = wikilinkBlocksInTreeOrder(
+      [block('p-before', 'Paragraph', 'before'), block('task-a', 'Paragraph', 'buy milk'), block('task-b', 'Paragraph', 'call home')],
+      [
+        edge(frag, iri('p-before'), 0, 'XmlFragment', 'Paragraph'),
+        edge(frag, node(1), 1, 'XmlFragment', 'TaskItem'),
+        edge(frag, node(2), 2, 'XmlFragment', 'TaskItem'),
+        edge(node(2), iri('task-b'), 0, 'TaskItem', 'Paragraph'),
+        edge(node(1), iri('task-a'), 0, 'TaskItem', 'Paragraph'),
+      ],
+    )
+    expect(tasks.map(item => item.id)).toEqual(['p-before', 'task-a', 'task-b'])
+    // Without the tree (an older flat document) every block still appears.
+    expect(wikilinkBlocksInTreeOrder(blockRows, []).map(item => item.id)).toHaveLength(blockRows.length)
+  })
+
   it('home scope returns [] without issuing a block query', async () => {
     const store = seedWorkspaceStore(GRAPH_ID, [
       {
@@ -379,6 +457,25 @@ describe('WikiLinkBlockSearchService — target-document blocks from the project
     const services = assembleEditorServices(spyRest, captureWireWriter().writer, homeScope())
     expect(await services.wikiLinkBlocks.suggest('doc-billing', '')).toEqual([])
     expect(queried).toBe(false)
+  })
+
+  it('reads a document once while the picker filters it, not on every keystroke', async () => {
+    const store = seedWorkspaceStore(GRAPH_ID, [
+      {
+        id: 'doc-billing',
+        title: 'Billing',
+        blocks: [{ id: 'block-title', type: 'heading', level: 1, text: 'Billing', order: 0 }],
+      },
+    ])
+    let queries = 0
+    const rest = makeOxigraphRestClient(store)
+    const spyRest = { ...rest, query: (g: string, s: string) => { queries++; return rest.query(g, s) } }
+    const services = assembleEditorServices(spyRest, captureWireWriter().writer, documentScope())
+    await services.wikiLinkBlocks.suggest('doc-billing', '')
+    const afterFirst = queries
+    expect((await services.wikiLinkBlocks.suggest('doc-billing', 'bil')).map(item => item.id)).toEqual(['block-title'])
+    expect(await services.wikiLinkBlocks.suggest('doc-billing', 'zzz')).toEqual([])
+    expect(queries).toBe(afterFirst)
   })
 })
 

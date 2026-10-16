@@ -38,6 +38,9 @@ export {
   wikilinkBlockListSparql,
   filterWikiLinkBlocks,
   wikilinkBlockRowsToItems,
+  wikilinkBlockTreeSparql,
+  wikilinkBlocksInTreeOrder,
+  WIKILINK_BLOCK_LIMIT,
   makeWikiLinkBlockSearchService,
 } from './wikilink-block-search-service.js'
 
