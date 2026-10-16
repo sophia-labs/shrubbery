@@ -113,6 +113,9 @@ const DEFAULTS: PreferenceState = {
   reducedMotion: false,
   reducedTransparency: false,
   editorMaterial: GARDEN_SITE_BUNDLE.appearance.defaultEditorMaterial,
+  editorFont: 'default',
+  lineWidth: 'default',
+  textSize: '100',
   panelLabels: true,
   rightPanelOnLaunch: true,
   restoreLastDocument: true,
@@ -218,6 +221,73 @@ export function resolveThemePreference(
 function editorMaterialFrom(preferences: PreferenceState): EditorMaterial {
   const value = preferences.editorMaterial
   return value === 'paper' || value === 'classic-word' ? value : 'continuous'
+}
+
+/**
+ * Editor typography (Appearance > Editor font, Line width, Text size). Each
+ * choice becomes a custom property on the root that only the editor reads, so
+ * the app's own chrome keeps the skin's faces and sizes. `default` sets
+ * nothing: the skin and the editor material decide.
+ */
+export const EDITOR_FONTS = {
+  default: { label: 'Skin default', stack: null },
+  literata: { label: 'Literata', stack: "'Literata Variable', 'Literata', Georgia, serif" },
+  'source-sans': { label: 'Source Sans', stack: "'Source Sans 3 Variable', 'Source Sans 3', -apple-system, sans-serif" },
+} as const satisfies Record<string, { label: string, stack: string | null }>
+
+/** The measure of the text itself, before the sheet's own padding. */
+export const LINE_WIDTHS = {
+  default: { label: 'Default', width: null },
+  narrow: { label: 'Narrow', width: '560px' },
+  medium: { label: 'Medium', width: '680px' },
+  wide: { label: 'Wide', width: '840px' },
+  // Larger than any window: the sheet's min(100%, ...) caps it to the pane.
+  full: { label: 'Full width', width: '10000px' },
+} as const satisfies Record<string, { label: string, width: string | null }>
+
+export const TEXT_SIZES = ['90', '100', '110', '125', '140'] as const
+
+export type EditorFontPreference = keyof typeof EDITOR_FONTS
+export type LineWidthPreference = keyof typeof LINE_WIDTHS
+export type TextSizePreference = (typeof TEXT_SIZES)[number]
+
+export interface EditorTypePreferences {
+  readonly editorFont: EditorFontPreference
+  readonly lineWidth: LineWidthPreference
+  readonly textSize: TextSizePreference
+}
+
+function isKeyOf<T extends object>(table: T, value: unknown): value is keyof T {
+  return typeof value === 'string' && Object.hasOwn(table, value)
+}
+
+function editorTypeFrom(preferences: PreferenceState): EditorTypePreferences {
+  const size = preferences.textSize
+  return {
+    editorFont: isKeyOf(EDITOR_FONTS, preferences.editorFont) ? preferences.editorFont : 'default',
+    lineWidth: isKeyOf(LINE_WIDTHS, preferences.lineWidth) ? preferences.lineWidth : 'default',
+    textSize: (TEXT_SIZES as readonly unknown[]).includes(size) ? size as TextSizePreference : '100',
+  }
+}
+
+export function readEditorTypePreferences(
+  storage: DefaultSettingsServiceOptions['storage'],
+): EditorTypePreferences {
+  return editorTypeFrom(readPreferences(storage))
+}
+
+/** Write the editor typography onto the root (or remove what is at default). */
+export function applyEditorTypePreferences(
+  preferences: EditorTypePreferences,
+  root: { style: Pick<CSSStyleDeclaration, 'setProperty' | 'removeProperty'> },
+): void {
+  const set = (name: string, value: string | null) => {
+    if (value === null) root.style.removeProperty(name)
+    else root.style.setProperty(name, value)
+  }
+  set('--mn-editor-font', EDITOR_FONTS[preferences.editorFont].stack)
+  set('--mn-editor-line-width', LINE_WIDTHS[preferences.lineWidth].width)
+  set('--mn-editor-text-scale', preferences.textSize === '100' ? null : String(Number(preferences.textSize) / 100))
 }
 
 /** Read the one preference the live editor needs before the settings route is
@@ -334,7 +404,7 @@ export class DefaultOrganismSettingsService implements OrganismSettingsService {
           ? []
           : [{ id: 'sign-out', label: 'Sign out', description: 'End the current hosted session.', variant: 'danger' }],
       }),
-      section('appearance', 'Appearance', 'Skin, theme, and accessibility preferences.', {
+      section('appearance', 'Appearance', 'Skin, theme, how documents read, and accessibility preferences.', {
         selects: [
           { id: 'theme', label: 'Theme', value: themePreferenceFrom(p), options: [{ value: 'system', label: 'System' }, { value: 'light', label: 'Light' }, { value: 'dark', label: 'Dark' }] },
           {
@@ -356,6 +426,27 @@ export class DefaultOrganismSettingsService implements OrganismSettingsService {
                   ? 'Quiet paper page'
                   : 'Classic Word page',
             })),
+          },
+          {
+            id: 'editorFont',
+            label: 'Editor font',
+            description: 'The face for documents. The rest of the app keeps its own.',
+            value: editorTypeFrom(p).editorFont,
+            options: Object.entries(EDITOR_FONTS).map(([value, font]) => ({ value, label: font.label })),
+          },
+          {
+            id: 'lineWidth',
+            label: 'Line width',
+            description: 'How long a line of text runs before it wraps.',
+            value: editorTypeFrom(p).lineWidth,
+            options: Object.entries(LINE_WIDTHS).map(([value, width]) => ({ value, label: width.label })),
+          },
+          {
+            id: 'textSize',
+            label: 'Text size',
+            description: 'The size of text in documents.',
+            value: editorTypeFrom(p).textSize,
+            options: TEXT_SIZES.map((value) => ({ value, label: `${value}%` })),
           },
         ],
         toggles: [
@@ -508,7 +599,9 @@ export class DefaultOrganismSettingsService implements OrganismSettingsService {
         ? visualIdentitySkinFrom({ skin: detail.value })
         : detail.settingId === 'theme'
           ? themePreferenceFrom({ theme: detail.value })
-          : detail.value
+          : detail.settingId === 'editorFont' || detail.settingId === 'lineWidth' || detail.settingId === 'textSize'
+            ? editorTypeFrom({ [detail.settingId]: detail.value })[detail.settingId]
+            : detail.value
     this.preferences[detail.settingId] = normalized
     if (detail.settingId === 'editorMaterial') delete this.preferences.paperPage
     this.persist()

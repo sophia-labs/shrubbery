@@ -78,7 +78,7 @@ describe('createOrganismShellFeatureHost', () => {
       expect(await service.load()).toMatchObject({ runtimeMode: 'hosted', account: profile, userName: 'Updated name', userEmail: '' })
     } finally { host.destroy() }
   })
-  it('persists and reapplies the classic Word editor preference through the shell seam', async () => {
+  it('persists and reapplies the classic Word page and the editor font through the shell seam', async () => {
     const values = new Map<string, string>()
     vi.stubGlobal('localStorage', {
       getItem: (key: string) => values.get(key) ?? null,
@@ -96,12 +96,18 @@ describe('createOrganismShellFeatureHost', () => {
         value: 'classic-word',
       })
       expect(document.documentElement.dataset.editorMaterial).toBe('classic-word')
+      await service.select({ sectionId: 'appearance', settingId: 'editorFont', value: 'source-sans' })
+      expect(document.documentElement.style.getPropertyValue('--mn-editor-font')).toContain('Source Sans')
+      document.documentElement.style.removeProperty('--mn-editor-font')
 
       document.documentElement.removeAttribute('data-editor-material')
       const restoredHost = createOrganismShellFeatureHost()
       restoredHost.workspaceSnapshot(shellContext, {})
       expect(document.documentElement.dataset.editorMaterial).toBe('classic-word')
+      expect(document.documentElement.style.getPropertyValue('--mn-editor-font')).toContain('Source Sans')
       restoredHost.destroy()
+      await service.select({ sectionId: 'appearance', settingId: 'editorFont', value: 'default' })
+      expect(document.documentElement.style.getPropertyValue('--mn-editor-font')).toBe('')
 
       await service.select({
         sectionId: 'appearance',
