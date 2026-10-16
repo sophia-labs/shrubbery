@@ -235,6 +235,7 @@ import {
   type WirePinBlockRequestDetail,
   type WirePinDocumentRequestDetail,
   type WirePinWireRequestDetail,
+  type BlockWireCreatedDetail,
   type WireRadialContextRequestDetail,
   type WireRadialContextState,
   type WirePinnedBlockCloseDetail,
@@ -6176,6 +6177,52 @@ function pinWireNode(detail: WirePinWireRequestDetail | undefined): void {
   rerenderCurrentSource()
 }
 
+/**
+ * The quick wire flow pins the wire it just made, so it can be read and
+ * corrected at once (2026-10-07). The pin is transient: the next
+ * quick wire replaces it, and Escape or a click outside the pins closes it.
+ * Moving it, opening its context or changing it keeps it like any pin.
+ */
+let transientPinnedWireId: string | null = null
+
+function pinQuickWire(detail: BlockWireCreatedDetail | undefined): void {
+  const pin = detail?.pin
+  if (!detail || !pin || !currentGraphId) return
+  closeTransientPinnedWire()
+  const titleOf = (end: { documentId: string; title: string }): string =>
+    end.title.trim() || sidebarNodeById(end.documentId)?.label || end.documentId
+  pinWireNode({
+    wireId: detail.wireId,
+    graphId: currentGraphId,
+    predicate: detail.predicate,
+    predicateLabel: pin.predicateLabel,
+    bidirectional: detail.bidirectional,
+    sourceGraphId: currentGraphId,
+    sourceDocumentId: pin.source.documentId,
+    sourceBlockId: pin.source.blockId ?? null,
+    sourceTitle: titleOf(pin.source),
+    sourceText: pin.source.text,
+    targetGraphId: currentGraphId,
+    targetDocumentId: pin.target.documentId,
+    targetBlockId: pin.target.blockId ?? null,
+    targetTitle: titleOf(pin.target),
+    targetText: pin.target.text,
+    x: pin.x,
+    y: pin.y,
+  })
+  transientPinnedWireId = pinnedWireNodeId(currentGraphId, detail.wireId)
+}
+
+function closeTransientPinnedWire(): void {
+  const id = transientPinnedWireId
+  transientPinnedWireId = null
+  if (id && currentPinnedWireNodes.some((node) => node.id === id)) closePinnedWireNode({ id })
+}
+
+function keepTransientPinnedWire(id: string | undefined): void {
+  if (id && id === transientPinnedWireId) transientPinnedWireId = null
+}
+
 function pinWireBlock(detail: WirePinBlockRequestDetail | undefined): void {
   if (!detail) return
   const graphId = detail.graphId.trim()
@@ -9896,9 +9943,18 @@ window.addEventListener('mn-open-zotero-source', ((event: CustomEvent<{ artifact
   openZoteroSourceFromArtifact(artifactId, key || zoteroKeyFromArtifactId(artifactId), 'mn-open-zotero-source')
 }) as EventListener)
 
-document.addEventListener('mn-wire-created', () => {
+document.addEventListener('mn-wire-created', ((event: CustomEvent<BlockWireCreatedDetail>) => {
+  pinQuickWire(event.detail)
   void refreshWireBundle()
+}) as EventListener)
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && transientPinnedWireId) closeTransientPinnedWire()
 })
+document.addEventListener('pointerdown', (event) => {
+  if (!transientPinnedWireId) return
+  const onPin = event.composedPath().some((target) => (target as Element).tagName === 'SH-WIRE-PINNED-LAYER')
+  if (!onPin) closeTransientPinnedWire()
+}, true)
 document.addEventListener('mn-wire-deleted', () => {
   void refreshWireBundle()
 })
@@ -9972,14 +10028,17 @@ hostEl.addEventListener(WIRE_PINNED_WIRE_CLOSE_EVENT, ((event: CustomEvent<WireP
 }) as EventListener)
 
 hostEl.addEventListener(WIRE_PINNED_WIRE_CONTEXT_REQUEST_EVENT, ((event: CustomEvent<WirePinnedWireContextRequestDetail>) => {
+  keepTransientPinnedWire(event.detail?.id)
   void loadPinnedWireNodeContext(event.detail)
 }) as EventListener)
 
 hostEl.addEventListener(WIRE_PINNED_WIRE_MOVE_EVENT, ((event: CustomEvent<WirePinnedWireMoveDetail>) => {
+  keepTransientPinnedWire(event.detail?.id)
   movePinnedWireNode(event.detail)
 }) as EventListener)
 
 hostEl.addEventListener(WIRE_PINNED_WIRE_UPDATE_REQUEST_EVENT, ((event: CustomEvent<WirePinnedWireUpdateRequestDetail>) => {
+  keepTransientPinnedWire(event.detail?.id)
   void updatePinnedWireNode(event.detail)
 }) as EventListener)
 
