@@ -5,6 +5,7 @@
  * few senderos-shaped claims in their own named graph.
  */
 import { readFileSync } from 'node:fs'
+import { adoptedStyleSheetText, dropAdoptedStyleSheet } from '@shrubbery/nucleus'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { QueryBlockAttrs, QueryBlockRenderRequest } from '@shrubbery/editor-kernel'
@@ -157,10 +158,14 @@ describe('query block — read face', () => {
   })
 
   it('styles the root it renders in: a shadow root gets the stylesheet (document.head never reaches the editor)', async () => {
+    // Adopted sheets outlive a test: earlier light-DOM mounts left one on the document.
+    dropAdoptedStyleSheet(document, 'shrubbery-query-block-style')
     const { root } = mount({ inShadow: true })
     await settle()
-    expect((root as ShadowRoot).querySelector('style[data-shrubbery-query-block-style]')?.textContent).toContain('.query-block-chrome')
-    expect(document.head.querySelector('style[data-shrubbery-query-block-style]')).toBeNull()
+    // An adopted sheet, not a <style> element: the app's CSP refuses runtime <style>.
+    expect(adoptedStyleSheetText(root as ShadowRoot, 'shrubbery-query-block-style')).toContain('.query-block-chrome')
+    expect((root as ShadowRoot).querySelector('style[data-shrubbery-query-block-style]')).toBeNull()
+    expect(adoptedStyleSheetText(document, 'shrubbery-query-block-style')).toBeNull()
   })
 })
 

@@ -13,6 +13,7 @@
  * chat host, store, or provider.
  */
 
+import { adoptStyleSheet } from '@shrubbery/nucleus'
 import type {
   MnContinuityState,
   MnContinuityStatus,
@@ -940,12 +941,9 @@ export class OrganismMobileShellController<TContract = unknown> {
   private ensurePortal(): void {
     if (this.portal || !this.host) return
     const doc = this.host.ownerDocument
-    if (!doc.getElementById(STYLE_ID)) {
-      const style = doc.createElement('style')
-      style.id = STYLE_ID
-      style.textContent = MOBILE_CSS
-      doc.head.append(style)
-    }
+    // Adopted, not a <style> element: the app's CSP refuses runtime <style>
+    // elements (see adoptStyleSheet).
+    adoptStyleSheet(doc, STYLE_ID, MOBILE_CSS)
 
     const portal = doc.createElement('div')
     portal.className = 'organism-mobile-shell'

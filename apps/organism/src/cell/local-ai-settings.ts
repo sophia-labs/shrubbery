@@ -105,7 +105,24 @@ interface DoclingRuntimeStatus extends JsonRecord {
   readonly reason?: string | null
 }
 
-type LocalAiOperationStatus = 'idle' | 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled'
+type LocalAiOperationStatus = 'idle' | 'queued' | 'running' | 'succeeded' | 'failed' | 'cancelled' | 'interrupted'
+
+/** gardend's startup recovery marks jobs that were queued or
+ * running when Garden restarted as status=failed with
+ * detail.error_code="JOB_INTERRUPTED" and detail.interruption.outcome="unknown".
+ * The worker died; the OPERATION's outcome is unknown (writes may have
+ * committed). Render as an interruption to inspect, never as an operation
+ * failure. A plain failure is the case without that error_code. */
+function interruptedJobDetail(payload: unknown): string | null {
+  if (!isRecord(payload)) return null
+  const detail = payload.detail
+  if (!isRecord(detail)) return null
+  const code = stringValue(detail.error_code ?? detail.errorCode)
+  if (code !== 'JOB_INTERRUPTED') return null
+  const interruption = isRecord(detail.interruption) ? detail.interruption : null
+  const outcome = stringValue(interruption?.outcome) || 'unknown'
+  return `Interrupted (outcome ${outcome} — inspect before retrying).`
+}
 
 interface LocalAiOperation {
   readonly id: string
@@ -461,7 +478,14 @@ export class GardendLocalAiSettings {
       const progress = isRecord(payload.progress) ? payload.progress : {}
       const detail = stringValue(progress.message) || `Semantic index refresh ${status || 'running'}.`
       const percent = clampPercent(progress.percent)
-      if (status === 'failed') throw new Error(errorText(payload, 'Semantic index refresh failed.'))
+      if (status === 'failed') {
+        const interrupted = interruptedJobDetail(payload)
+        if (interrupted) {
+          this.patchOperation({ status: 'interrupted', detail: interrupted, progress: null })
+          return
+        }
+        throw new Error(errorText(payload, 'Semantic index refresh failed.'))
+      }
       if (status === 'cancelled') {
         this.patchOperation({ status: 'cancelled', detail, progress: percent })
         return

@@ -331,6 +331,10 @@ export class MnNodeLinkPicker extends SkinAware(LitElement) {
           <header class="head">
             <span class="head-icon" aria-hidden="true">${icon('search', { size: 16 })}</span>
             <input
+              autocapitalize="off"
+              autocorrect="off"
+              spellcheck="false"
+              writingsuggestions="false"
               data-node-link-search
               type="text"
               placeholder="Link to a document or artifact..."

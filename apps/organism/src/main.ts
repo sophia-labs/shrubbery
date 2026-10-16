@@ -447,8 +447,11 @@ import {
   documentSwitcherDocumentsFromSidebar,
   documentSwitcherOfflineSemanticItems,
   documentSwitcherItems,
+  documentSwitcherSalienceNudgesFromRows,
+  documentSwitcherSalienceSparql,
   loadDocumentSwitcherBlocks,
-  mergeDocumentSwitcherBlockItems,
+  reciprocalRankFuseDocumentSwitcherBlocks,
+  withDocumentSwitcherSalienceNudge,
 } from './cell/document-switcher.js'
 import {
   createSidebarDocument,
@@ -5285,6 +5288,13 @@ function documentSwitcherOrigin(): string {
 }
 
 let latestDocumentSwitcherBlockRequest = 0
+let documentSwitcherBlocksTimer: ReturnType<typeof setTimeout> | null = null
+// The block-text SPARQL rides the SAME serialized MCP channel as document
+// opens and sidebar loads. Firing it per keystroke queues expensive queries
+// ahead of everything else and the app appears frozen (~6s/query measured on
+// default_x1 before the per-document-graph fix). Debounce so only the settled
+// query ever reaches the backend.
+const DOCUMENT_SWITCHER_BLOCKS_DEBOUNCE_MS = 300
 
 function documentSwitcherStatusText(scope: MnDocumentSwitcherScope): string {
   if (scope === 'actions') return ''
@@ -5294,6 +5304,10 @@ function documentSwitcherStatusText(scope: MnDocumentSwitcherScope): string {
 
 function refreshDocumentSwitcherRows(): void {
   const requestId = ++latestDocumentSwitcherBlockRequest
+  if (documentSwitcherBlocksTimer) {
+    clearTimeout(documentSwitcherBlocksTimer)
+    documentSwitcherBlocksTimer = null
+  }
   const scope = documentSwitcherEl.scope as MnDocumentSwitcherScope
   const sort = documentSwitcherEl.sort as MnDocumentSwitcherSort
   const query = documentSwitcherEl.query
@@ -5317,45 +5331,101 @@ function refreshDocumentSwitcherRows(): void {
 
   const activeStore = store
   const graphId = currentGraphId
-  const semanticItems = documentSwitcherEl.semanticEnabled
-    ? documentSwitcherOfflineSemanticItems(
-        activeStore.contract.sourceMirror.semanticSearch(graphId, query, 40) ?? [],
-        graphId,
-      )
-    : []
   documentSwitcherEl.status = 'loading'
   documentSwitcherEl.statusText = ''
-  void loadDocumentSwitcherBlocks(activeStore.contract.rest, graphId, query, sort)
-    .then((lexicalBlocks) => {
-      if (
-        requestId !== latestDocumentSwitcherBlockRequest ||
-        store !== activeStore ||
-        currentGraphId !== graphId ||
-        documentSwitcherEl.query !== query ||
-        documentSwitcherEl.scope !== scope ||
-        documentSwitcherEl.sort !== sort
-      ) return
-      const freshDocuments = documentSwitcherDocumentsFromSidebar(currentSidebarSections, graphId)
-      const documentRows = scope === 'all'
-        ? documentSwitcherItems(freshDocuments, query, 'documents', sort)
-        : []
-      const blocks = mergeDocumentSwitcherBlockItems(lexicalBlocks, semanticItems)
-      documentSwitcherEl.items = [...documentRows, ...blocks]
-      documentSwitcherEl.status = 'idle'
-      documentSwitcherEl.statusText = documentSwitcherStatusText(scope)
-    })
-    .catch((error) => {
-      if (
-        requestId !== latestDocumentSwitcherBlockRequest ||
-        store !== activeStore ||
-        currentGraphId !== graphId ||
-        documentSwitcherEl.query !== query ||
-        documentSwitcherEl.scope !== scope ||
-        documentSwitcherEl.sort !== sort
-      ) return
-      documentSwitcherEl.status = 'error'
-      documentSwitcherEl.statusText = error instanceof Error ? error.message : 'Block search failed'
-    })
+  documentSwitcherBlocksTimer = setTimeout(() => {
+    documentSwitcherBlocksTimer = null
+    if (
+      store !== activeStore ||
+      currentGraphId !== graphId ||
+      documentSwitcherEl.query !== query ||
+      documentSwitcherEl.scope !== scope ||
+      documentSwitcherEl.sort !== sort
+    ) return
+    const titleByDocumentId = new Map(
+      documentSwitcherDocumentsFromSidebar(currentSidebarSections, graphId)
+        .map((doc) => [doc.documentId, doc.label] as const),
+    )
+    const semanticItems = documentSwitcherEl.semanticEnabled
+      ? documentSwitcherOfflineSemanticItems(
+          activeStore.contract.sourceMirror.semanticSearch(graphId, query, 40) ?? [],
+          graphId,
+        )
+      : []
+    void loadDocumentSwitcherBlocks(
+      activeStore.contract.rest,
+      graphId,
+      query,
+      sort,
+      (documentId) => titleByDocumentId.get(documentId) ?? null,
+    )
+      .then(async (lexicalBlocks) => {
+        const isStale = () =>
+          requestId !== latestDocumentSwitcherBlockRequest ||
+          store !== activeStore ||
+          currentGraphId !== graphId ||
+          documentSwitcherEl.query !== query ||
+          documentSwitcherEl.scope !== scope ||
+          documentSwitcherEl.sort !== sort
+        if (isStale()) return
+        const freshDocuments = documentSwitcherDocumentsFromSidebar(currentSidebarSections, graphId)
+        const documentRows = scope === 'all'
+          ? documentSwitcherItems(freshDocuments, query, 'documents', sort)
+          : []
+        const fused = reciprocalRankFuseDocumentSwitcherBlocks(lexicalBlocks, semanticItems)
+        const blocks = sort === 'alphabetical'
+          ? [...fused].sort((left, right) =>
+              left.label.localeCompare(right.label, undefined, { sensitivity: 'base' }) ||
+              (left.snippet ?? '').localeCompare(right.snippet ?? '', undefined, { sensitivity: 'base' }))
+          : fused
+        documentSwitcherEl.items = [...documentRows, ...blocks]
+        documentSwitcherEl.status = 'idle'
+        documentSwitcherEl.statusText = documentSwitcherStatusText(scope)
+
+        // Stage 2 (smart only): the salience nudge rides its own graph-wide
+        // scan (~1.5-2s), so RRF results render first and re-rank in place
+        // when valuations land. Exact never pays for this.
+        if (sort !== 'smart' || blocks.length === 0) return
+        try {
+          const salienceResult = (await activeStore.contract.rest.query(
+            graphId,
+            documentSwitcherSalienceSparql(
+              graphId,
+              blocks.map((block) => ({ documentId: block.documentId, blockId: block.blockId })),
+            ),
+          )) as { rows?: ReadonlyArray<Record<string, string>> }
+          if (isStale()) return
+          const nudges = documentSwitcherSalienceNudgesFromRows(salienceResult.rows ?? [])
+          if (nudges.size === 0) return
+          const nudgedDocuments = scope === 'all'
+            ? documentSwitcherItems(
+                documentSwitcherDocumentsFromSidebar(currentSidebarSections, graphId),
+                query,
+                'documents',
+                sort,
+              )
+            : []
+          documentSwitcherEl.items = [
+            ...nudgedDocuments,
+            ...withDocumentSwitcherSalienceNudge(blocks, nudges, sort),
+          ]
+        } catch {
+          // Salience is a nudge, never a blocker: RRF order stays on failure.
+        }
+      })
+      .catch((error) => {
+        if (
+          requestId !== latestDocumentSwitcherBlockRequest ||
+          store !== activeStore ||
+          currentGraphId !== graphId ||
+          documentSwitcherEl.query !== query ||
+          documentSwitcherEl.scope !== scope ||
+          documentSwitcherEl.sort !== sort
+        ) return
+        documentSwitcherEl.status = 'error'
+        documentSwitcherEl.statusText = error instanceof Error ? error.message : 'Block search failed'
+      })
+  }, DOCUMENT_SWITCHER_BLOCKS_DEBOUNCE_MS)
 }
 
 function openDocumentSwitcher(
@@ -5403,6 +5473,15 @@ documentSwitcherEl.addEventListener('mn-document-switcher-scope-change', ((event
 documentSwitcherEl.addEventListener('mn-document-switcher-sort-change', ((event: CustomEvent<MnDocumentSwitcherSortDetail>) => {
   documentSwitcherEl.sort = event.detail.sort
   refreshDocumentSwitcherRows()
+}) as EventListener)
+
+documentSwitcherEl.addEventListener('mn-document-switcher-close', (() => {
+  // A timer that outlives the switcher still fires one backend query against
+  // the closed element's last query — waste on the serialized channel.
+  if (documentSwitcherBlocksTimer) {
+    clearTimeout(documentSwitcherBlocksTimer)
+    documentSwitcherBlocksTimer = null
+  }
 }) as EventListener)
 
 documentSwitcherEl.addEventListener('mn-document-switcher-document-intent', ((

@@ -210,4 +210,49 @@ describe('mn-document-switcher - real custom element', () => {
     expect(containerZ).toBe(1400) // --mn-z-modal fallback
     expect(containerZ).toBeGreaterThan(backdropZ)
   })
+
+  it('the arrow keys scroll the selected row into the list, hover does not', async () => {
+    const el = await mount((node) => {
+      node.open = true
+      node.graphId = 'graph-a'
+      node.items = Array.from({ length: 30 }, (_, i) => ({ kind: 'document' as const, id: `doc-${i}`, label: `Doc ${i}` }))
+    })
+    const list = sr(el).querySelector('.results') as HTMLElement
+    // happy-dom has no layout: a 100px list showing rows 0-3; rows are 25px.
+    const box = (top: number, height: number) => ({ top, bottom: top + height, left: 0, right: 0, width: 0, height, x: 0, y: top, toJSON() {} })
+    list.getBoundingClientRect = () => box(0, 100) as DOMRect
+    const placeRows = () => {
+      sr(el).querySelectorAll<HTMLElement>('[role="option"]').forEach((row, i) => {
+        row.getBoundingClientRect = () => box(i * 25 - list.scrollTop, 25) as DOMRect
+      })
+    }
+    placeRows()
+    const container = sr(el).querySelector('.container') as HTMLElement
+    const down = async () => {
+      container.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, composed: true }))
+      await el.updateComplete
+      placeRows()
+    }
+    for (let i = 0; i < 3; i++) await down()
+    expect(list.scrollTop).toBe(0)
+    await down()
+    expect(el.selectedIndex).toBe(4)
+    expect(list.scrollTop).toBe(25)
+    container.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true, composed: true }))
+    await el.updateComplete
+    placeRows()
+    for (let i = 0; i < 3; i++) {
+      container.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true, composed: true }))
+      await el.updateComplete
+      placeRows()
+    }
+    expect(el.selectedIndex).toBe(0)
+    expect(list.scrollTop).toBe(0)
+
+    const before = list.scrollTop
+    sr(el).querySelectorAll<HTMLElement>('[role="option"]')[20]!.dispatchEvent(new MouseEvent('mouseenter'))
+    await el.updateComplete
+    expect(el.selectedIndex).toBe(20)
+    expect(list.scrollTop).toBe(before)
+  })
 })

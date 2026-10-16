@@ -7,8 +7,13 @@ import {
   documentSwitcherActionRows,
   documentSwitcherDocumentsFromSidebar,
   documentSwitcherItems,
+  documentSwitcherSalienceNudgesFromRows,
+  documentSwitcherSalienceSparql,
   loadDocumentSwitcherBlocks,
+  reciprocalRankFuseDocumentSwitcherBlocks,
+  withDocumentSwitcherSalienceNudge,
 } from '../document-switcher.js'
+import type { MnDocumentSwitcherBlockItem } from '@shrubbery/components'
 
 const ctx: CommandContext = {
   selection: null,
@@ -97,54 +102,39 @@ describe('document switcher shell projection', () => {
     const rows = [
       {
         block: '<urn:mnemosyne:local:document:doc-beta#block-block-plan>',
-        docUri: '<urn:mnemosyne:local:document:doc-beta>',
+        docId: '"doc-beta"',
         blockId: '"block-plan"',
-        docTitle: '"Beta Plan"',
         text: '"Launch plan and invoice workflow"',
         type: '<http://mnemosyne.dev/doc#Paragraph>',
       },
       {
         block: '<urn:mnemosyne:local:document:doc-alpha#block-block-heading>',
-        docUri: '<urn:mnemosyne:local:document:doc-alpha>',
+        docId: '"doc-alpha"',
         blockId: '"block-heading"',
-        docTitle: '"Alpha Notes"',
         text: '"Invoice architecture"',
         type: '<http://mnemosyne.dev/doc#Heading>',
       },
     ]
-
-    expect(documentSwitcherBlockItemsFromRows(rows, 'graph-a', 'invoice', 'smart')).toEqual([
-      {
-        kind: 'block',
-        id: 'doc-alpha:block-heading',
-        documentId: 'doc-alpha',
-        blockId: 'block-heading',
-        graphId: 'graph-a',
-        label: 'Alpha Notes',
-        snippet: 'Invoice architecture',
-        path: 'Alpha Notes / Heading',
-        matchSource: 'lexical',
-        score: 85,
-        compositeScore: 85,
-      },
-      {
-        kind: 'block',
-        id: 'doc-beta:block-plan',
-        documentId: 'doc-beta',
-        blockId: 'block-plan',
-        graphId: 'graph-a',
-        label: 'Beta Plan',
-        snippet: 'Launch plan and invoice workflow',
-        path: 'Beta Plan / Paragraph',
-        matchSource: 'lexical',
-        score: 65,
-        compositeScore: 65,
-      },
+    const titles = new Map([
+      ['doc-alpha', 'Alpha Notes'],
+      ['doc-beta', 'Beta Plan'],
     ])
+    const resolveTitle = (documentId: string) => titles.get(documentId) ?? null
+
+    const projected = documentSwitcherBlockItemsFromRows(rows, 'graph-a', 'invoice', 'smart', resolveTitle)
+    expect(projected.map((item) => item.id)).toEqual(['doc-alpha:block-heading', 'doc-beta:block-plan'])
+    expect(projected.map((item) => item.label)).toEqual(['Alpha Notes', 'Beta Plan'])
+    expect(projected.map((item) => item.path)).toEqual(['Alpha Notes / Heading', 'Beta Plan / Paragraph'])
+    expect(projected.map((item) => item.matchSource)).toEqual(['lexical', 'lexical'])
+    // Continuous relevance: a prefix hit at offset 0 in a short heading beats
+    // a mid-paragraph substring hit — no more tier ties collapsing to a-z.
+    expect(projected[0]!.score!).toBeGreaterThan(projected[1]!.score!)
+    expect(projected[0]!.compositeScore).toBe(projected[0]!.score)
 
     const sparql = documentSwitcherBlocksSparql('graph-a', 'invoice')
-    expect(sparql).toContain('GRAPH <urn:mnemosyne:local:graph:graph-a:projection:workspace>')
+    expect(sparql).toContain('urn:mnemosyne:local:graph:graph-a:projection:document:')
     expect(sparql).toContain('doc:textContent')
+    expect(sparql).not.toContain('projection:workspace')
 
     const calls: Array<{ graphId: string; sparql: string }> = []
     const loaded = await loadDocumentSwitcherBlocks(
@@ -157,11 +147,81 @@ describe('document switcher shell projection', () => {
       'graph-a',
       'invoice',
       'smart',
+      resolveTitle,
     )
     expect(calls).toHaveLength(1)
     expect(loaded.map((item) => item.id)).toEqual(['doc-alpha:block-heading', 'doc-beta:block-plan'])
 
     expect(await loadDocumentSwitcherBlocks({ async query() { throw new Error('should not query') } }, 'graph-a', 'i', 'smart')).toEqual([])
+  })
+
+  it('fuses lexical and semantic ranks with RRF, nudging smart by salience', () => {
+    const mk = (
+      id: string,
+      score: number,
+      matchSource: MnDocumentSwitcherBlockItem['matchSource'] = 'lexical',
+    ): MnDocumentSwitcherBlockItem => {
+      const [documentId, blockId] = id.split(':') as [string, string]
+      return {
+        kind: 'block',
+        id,
+        documentId,
+        blockId,
+        graphId: 'graph-a',
+        label: id,
+        snippet: '',
+        path: null,
+        matchSource,
+        score,
+      }
+    }
+    const lexical = [mk('doc-a:block-b1', 90), mk('doc-b:block-b2', 80), mk('doc-c:block-b3', 70)]
+    const semantic = [
+      mk('doc-c:block-b3', 0.9, 'semantic'),
+      mk('doc-a:block-b1', 0.8, 'semantic'),
+      mk('doc-d:block-b4', 0.7, 'semantic'),
+    ]
+
+    const fused = reciprocalRankFuseDocumentSwitcherBlocks(lexical, semantic)
+    // b1: lex rank 0 + sem rank 1. b3: lex rank 2 + sem rank 0. b1 wins by a hair.
+    expect(fused.map((item) => item.id)).toEqual([
+      'doc-a:block-b1',
+      'doc-c:block-b3',
+      'doc-b:block-b2',
+      'doc-d:block-b4',
+    ])
+    expect(fused[0]!.matchSource).toBe('both')
+    expect(fused[1]!.matchSource).toBe('both')
+    expect(fused[2]!.matchSource).toBe('lexical')
+    expect(fused[3]!.matchSource).toBe('semantic')
+    expect(fused[0]!.score!).toBeCloseTo(1 / 61 + 1 / 62, 6)
+
+    // exact: salience changes nothing.
+    const nudges = new Map([['doc-c:block-b3', { importance: 100, valence: null }]])
+    expect(withDocumentSwitcherSalienceNudge(fused, nudges, 'exact').map((item) => item.id)).toEqual(
+      fused.map((item) => item.id),
+    )
+    // smart: the bounded nudge (capped at 0.006) lifts the valuated block above the tie.
+    const smart = withDocumentSwitcherSalienceNudge(fused, nudges, 'smart')
+    expect(smart[0]!.id).toBe('doc-c:block-b3')
+    expect(smart[0]!.compositeScore!).toBeCloseTo(1 / 63 + 1 / 61 + 0.006, 6)
+
+    // salience rows: target IRIs parse back into docId:blockId keys.
+    const salienceSparql = documentSwitcherSalienceSparql('graph-a', [
+      { documentId: 'doc-c', blockId: 'block-b3' },
+      { documentId: 'doc-e', blockId: 'b5' },
+    ])
+    expect(salienceSparql).toContain(':projection:salience')
+    expect(salienceSparql).toContain('<urn:mnemosyne:local:document:doc-c#block-block-b3>')
+    expect(salienceSparql).toContain('<urn:mnemosyne:local:document:doc-e#block-block-b5>')
+    const parsed = documentSwitcherSalienceNudgesFromRows([
+      {
+        target: '<urn:mnemosyne:local:document:doc-c#block-block-b3>',
+        imp: '"3"^^<http://www.w3.org/2001/XMLSchema#float>',
+        val: '"-1"^^<http://www.w3.org/2001/XMLSchema#float>',
+      },
+    ])
+    expect(parsed.get('doc-c:block-b3')).toEqual({ importance: 3, valence: -1 })
   })
 
   it('projects palette commands into action rows through the command registry', () => {

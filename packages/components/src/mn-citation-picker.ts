@@ -332,6 +332,10 @@ export class MnCitationPicker extends SkinAware(LitElement) {
         <header class="search">
           <span class="search-icon" aria-hidden="true">${icon('search', { size: 16 })}</span>
           <input
+            autocapitalize="off"
+            autocorrect="off"
+            spellcheck="false"
+            writingsuggestions="false"
             data-citation-search
             type="text"
             placeholder="Search your Zotero library..."

@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { adoptedStyleSheetText } from '@shrubbery/nucleus'
 
 import {
   mountQueryBlockVega,
@@ -123,11 +124,11 @@ describe('QueryBlock Vega-Lite data contract', () => {
     expect((config.range as Record<string, unknown>).category).toEqual(
       CATEGORICAL_PALETTE.map((slot) => slot.light),
     )
-    // The tooltip stylesheet is real CSS (not spec JSON) injected once,
-    // idempotently, into the document — see ensureVegaTooltipStyles.
-    const tooltipStyle = document.getElementById('sh-vega-tooltip-style')
-    expect(tooltipStyle).not.toBeNull()
-    expect(tooltipStyle?.textContent).toMatch(/var\(--mn-color-surface-elevated/)
+    // The tooltip stylesheet is real CSS (not spec JSON) adopted once,
+    // idempotently, onto the document — see ensureVegaTooltipStyles.
+    const tooltipCss = adoptedStyleSheetText(document, 'sh-vega-tooltip-style')
+    expect(tooltipCss).not.toBeNull()
+    expect(tooltipCss).toMatch(/var\(--mn-color-surface-elevated/)
     cleanup()
     cleanup()
     expect(finalize).toHaveBeenCalledTimes(1)

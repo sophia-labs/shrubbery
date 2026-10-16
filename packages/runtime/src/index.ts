@@ -368,6 +368,7 @@ export {
   docListSparql,
   makeWikiLinkSearchService,
   workspaceProjectionGraphIri,
+  graphSubject,
   type WireService,
   type WireCreateParams,
   type WireBundle,

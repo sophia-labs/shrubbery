@@ -751,6 +751,10 @@ export class MnWikiLinkPicker extends SkinAware(LitElement) {
             ? html`<span class="selected-predicate">${icon('zap', { size: 10 })}${this.selectedPredicate.label}</span>`
             : nothing}
           <input
+            autocapitalize="off"
+            autocorrect="off"
+            spellcheck="false"
+            writingsuggestions="false"
             class="search"
             type="text"
             data-wikilink-search

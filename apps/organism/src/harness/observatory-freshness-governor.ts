@@ -12,6 +12,7 @@
  * caller-supplied `registerEls`. See `render()`'s own comment for the
  * complete, closed list of what each verdict publishes.
  */
+import { adoptStyleSheet } from '@shrubbery/nucleus'
 import { computeFreshnessVerdict, readLatestProjectionRun, type FreshnessTone, type FreshnessVerdict, type ProjectionRunObservation } from './observatory-freshness.js'
 import type { QueryBlockService } from '@shrubbery/runtime'
 
@@ -70,11 +71,9 @@ const OBSERVATORY_FRESHNESS_STYLE = `
 `
 
 function ensureFreshnessStyle(doc: Document): void {
-  if (doc.getElementById(OBSERVATORY_FRESHNESS_STYLE_ID)) return
-  const style = doc.createElement('style')
-  style.id = OBSERVATORY_FRESHNESS_STYLE_ID
-  style.textContent = OBSERVATORY_FRESHNESS_STYLE
-  doc.head.appendChild(style)
+  // Adopted, not a <style> element: the app's CSP refuses runtime <style>
+  // elements (see adoptStyleSheet).
+  adoptStyleSheet(doc, OBSERVATORY_FRESHNESS_STYLE_ID, OBSERVATORY_FRESHNESS_STYLE)
 }
 
 export function createObservatoryFreshnessGovernor(options: FreshnessGovernorOptions): FreshnessGovernor {

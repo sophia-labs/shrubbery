@@ -2090,6 +2090,9 @@ export class MnSidebarPanel extends SkinAware(LitElement) {
         <label class="search-wrap">
           <span class="search-icon">${icon('search', { size: 15 })}</span>
           <input
+            autocapitalize="off"
+            autocorrect="off"
+            writingsuggestions="false"
             class="search-input"
             type="search"
             autocomplete="off"
