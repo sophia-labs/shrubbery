@@ -177,12 +177,14 @@ export const WikiLink = Node.create<WikiLinkOptions>({
     const blockPreview = HTMLAttributes['data-block-preview']
     const hasBlock = !!HTMLAttributes['data-target-block-id']
 
-    // Format: [[Doc]] or [[>>Block preview...]]
+    // Format: [[Doc]], or for a block [[Its text, cut at 30…]], so a link
+    // reads as the words it points at: "Because [[Information is alive.]]"
+    // (It used to read [[>>…]].)
     let displayText = `[[${label}]]`
     if (hasBlock && blockPreview) {
       const truncatedPreview =
-        blockPreview.length > 30 ? blockPreview.slice(0, 30) + '...' : blockPreview
-      displayText = `[[>>${truncatedPreview}]]`
+        blockPreview.length > 30 ? blockPreview.slice(0, 30) + '…' : blockPreview
+      displayText = `[[${truncatedPreview}]]`
     }
 
     return [
