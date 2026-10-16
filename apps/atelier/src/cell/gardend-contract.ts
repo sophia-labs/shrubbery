@@ -29,6 +29,7 @@ import type {
   WireCreateRequest,
   SalienceService,
   SalienceUserValueRequest,
+  SalienceRenewRequest,
   BlockScore,
 } from '@shrubbery/nucleus/contract'
 import type { TemplateResult } from 'lit'
@@ -230,6 +231,14 @@ class LoopbackSalienceService implements SalienceService {
         importance: params.importance,
         valence: params.valence,
       },
+    )
+    return parseBlockScore(raw)
+  }
+
+  async renew(graphId: string, params: SalienceRenewRequest): Promise<BlockScore> {
+    const raw = await this.mcp.postJson<Record<string, unknown>>(
+      `/salience/${encodeURIComponent(graphId)}/blocks/renew`,
+      { documentId: params.documentId, blockId: params.blockId },
     )
     return parseBlockScore(raw)
   }

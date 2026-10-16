@@ -170,6 +170,17 @@ export class LoopbackMcpClient {
     return JSON.parse(await res.text()) as T
   }
 
+  /** POST JSON to a loopback REST path; resolved and failing the same way as `putJson`. */
+  async postJson<T>(path: string, body: unknown): Promise<T> {
+    const base = this.t.mcpUrl.replace(/\/mcp\/?$/, '')
+    const res = await this.post(`${base}${path}`, JSON.stringify(body))
+    if (!res.ok) {
+      const text = await res.text().catch(() => '')
+      throw new McpError(`Loopback HTTP ${res.status} for POST ${path}: ${text.slice(0, 500)}`, res.status)
+    }
+    return JSON.parse(await res.text()) as T
+  }
+
   // ── transport primitives ────────────────────────────────────────────────────
 
   private async get(url: string): Promise<HttpResponse> {

@@ -1484,26 +1484,29 @@ describe('rung-3 — the live collaborative editor body lifts over a real Y.Doc'
     const real = h as unknown as { _editor: { commands: { setContent(html: string): boolean } } }
     expect(real._editor.commands.setContent(OUTLINE_SEED)).toBe(true)
     await settle(h)
+    let lastBlockId = ''
     const blockEl = (blockId: string): HTMLElement => {
       const el = h.shadowRoot?.querySelector(`[data-block-id="${blockId}"]`) as HTMLElement | null
       expect(el).not.toBeNull()
-      // Right edge at x=500. The value gutter's hover zone is the strip just
-      // PAST that edge, over the editor sheet's right padding, never over the
-      // block's own text — so hovers below arrive on the .ProseMirror root at
-      // x=510. The LEFT-edge wire gutter lives at clientX ~112 in the sibling
-      // test above, confirming these are independent, non-colliding zones.
+      lastBlockId = blockId
       Object.defineProperty(el!, 'getBoundingClientRect', {
         configurable: true,
         value: () => ({ left: 100, top: 40, right: 500, bottom: 64, width: 400, height: 24 }),
       })
       return el!
     }
-    // A hover in the strip past a block's right edge lands on the editor sheet
-    // (.ProseMirror), not on the block: that is where the value gutter opens.
-    const hoverZone = (clientX: number, clientY: number): void => {
-      const sheet = h.shadowRoot?.querySelector('.editor-mount .ProseMirror') as HTMLElement | null
-      expect(sheet).not.toBeNull()
-      sheet!.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, composed: true, clientX, clientY }))
+    // The value gutter opens from the faint row of marks right of the block's
+    // first line (value-marks.ts), not from an invisible strip.
+    // The row ends at the block's right edge (x=500), so the controls anchor at
+    // 504, centered on the pointer's line, as the strip did.
+    const hoverZone = (_clientX: number, clientY: number): void => {
+      const row = h.shadowRoot?.querySelector(`[data-value-marks-for="${lastBlockId}"]`) as HTMLElement | null
+      expect(row).not.toBeNull()
+      Object.defineProperty(row!, 'getBoundingClientRect', {
+        configurable: true,
+        value: () => ({ left: 488, top: clientY - 6, right: 500, bottom: clientY + 6, width: 12, height: 12 }),
+      })
+      row!.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, composed: true }))
     }
     return { h, blockEl, hoverZone }
   }
@@ -1533,8 +1536,12 @@ describe('rung-3 — the live collaborative editor body lifts over a real Y.Doc'
       rated.push(event.detail)
     }) as EventListener)
 
+    // At rest, the reader's own flag shows on the row without any hover.
+    expect(h.shadowRoot!.querySelector('[data-value-marks-for="block-b"] .value-marks-flag svg')).not.toBeNull()
     hoverZone(510, 50)
     await until(() => h.shadowRoot!.querySelector('.salience-gutter') !== null)
+    // The block being valued says so (data-value-open draws its right bar).
+    await until(() => h.shadowRoot!.querySelector('[data-block-id="block-b"]')?.getAttribute('data-value-open') === 'true')
     const gutter = h.shadowRoot!.querySelector('.salience-gutter') as HTMLElement
     const icons = gutter.querySelectorAll('.salience-gutter-icon')
     // composite, importance, valence, renew
@@ -1559,16 +1566,15 @@ describe('rung-3 — the live collaborative editor body lifts over a real Y.Doc'
     ;(icons[1] as HTMLButtonElement).click()
     expect(rated).toEqual([{ blockId: 'block-b', importance: 5, valence: null }])
 
-    // Valence cycles null → 4 ("breakthrough"). This host never round-trips
-    // its own optimistic write back into `salienceBundle` (that's the
-    // shell's job, verified separately in main.ts) — so the still-unbundled
-    // click correctly carries the ORIGINAL seeded importance (3, not the 5
-    // just clicked) forward alongside the new valence, rather than clobbering
-    // the other axis to null.
-    ;(icons[2] as HTMLButtonElement).click()
+    // Valence cycles null → 4 ("breakthrough"). The bundle has not caught up
+    // with the flag yet, and the valence click must still carry it: 5, not
+    // the bundled 3. Carrying the bundled value is how a flag-then-valence
+    // pair used to drop the flag.
+    await h.updateComplete
+    ;(h.shadowRoot!.querySelectorAll('.salience-gutter .salience-gutter-icon')[2] as HTMLButtonElement).click()
     expect(rated).toEqual([
       { blockId: 'block-b', importance: 5, valence: null },
-      { blockId: 'block-b', importance: 3, valence: 4 },
+      { blockId: 'block-b', importance: 5, valence: 4 },
     ])
 
     // Renew asks the shell to move the clock, and carries no rating at all.

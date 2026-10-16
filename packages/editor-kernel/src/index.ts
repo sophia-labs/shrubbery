@@ -19,6 +19,7 @@ import { ListItem } from './extensions/list-item'
 import { Outliner } from './extensions/outliner'
 import { BlockSelection, type BlockSelectionOverlayGate } from './extensions/block-selection'
 import { BlockDnd } from './extensions/block-dnd'
+import { ValueMarks } from './extensions/value-marks'
 import { WireDecorations } from './extensions/wire-decorations'
 import { OutlinerZoom, getZoomedBlockId } from './extensions/outliner-zoom'
 import { Search } from './extensions/search'
@@ -185,6 +186,7 @@ export function kernelExtensions(opts: KernelOptions = {}): Extensions {
     }),
     BlockDnd,
     WireDecorations,
+    ValueMarks,
     OutlinerZoom,
     Search,
     Footnote,
@@ -253,6 +255,7 @@ export { wikilinkStyles }
 export * from './outliner-tree'
 export * from './extensions/block-selection'
 export * from './extensions/block-dnd'
+export * from './extensions/value-marks'
 export * from './extensions/wire-decorations'
 export * from './extensions/outliner-zoom'
 export * from './extensions/citation'
