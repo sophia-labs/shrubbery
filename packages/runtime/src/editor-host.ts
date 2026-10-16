@@ -96,6 +96,9 @@ import {
   valenceLabel,
   combinedImportance,
   combinedValence,
+  canRenewFreshness,
+  lastValuedLabel,
+  renewLabel,
 } from './editor-services/salience-bundle-service.js'
 import {
   WIRE_HIGHLIGHT_BLOCK_EVENT,
@@ -135,6 +138,17 @@ export interface EditorHeadingInViewDetail {
  * and re-renders with the updated bundle.
  */
 export const SALIENCE_RATE_REQUEST_EVENT = 'mn-salience-rate-request'
+
+/**
+ * Gutter request to renew a block's freshness without changing its rating
+ * ("this still matters"). Same shape of contract as the rate request: the
+ * shell calls `contract.salience.renew` and re-renders with the result.
+ */
+export const SALIENCE_RENEW_REQUEST_EVENT = 'mn-salience-renew-request'
+
+export interface SalienceRenewRequestDetail {
+  readonly blockId: string
+}
 
 export interface SalienceRateRequestDetail {
   readonly blockId: string
@@ -177,6 +191,7 @@ const SALIENCE_ICON_PATHS: Readonly<Record<string, string>> = {
   'circle-slash': '<circle cx="12" cy="12" r="10" /><path d="m5 5 14 14" />',
   'sunrise': '<path d="M12 2v8" /><path d="m4.93 10.93 1.41 1.41" /><path d="M2 18h2" /><path d="M20 18h2" /><path d="m19.07 10.93-1.41 1.41" /><path d="M22 22H2" /><path d="m8 6 4-4 4 4" /><path d="M16 18a4 4 0 0 0-8 0" />',
   'eclipse': '<circle cx="12" cy="12" r="10" /><path d="M12 2a7 7 0 1 0 10 10" />',
+  'refresh-cw': '<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" /><path d="M21 3v5h-5" /><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" /><path d="M8 16H3v5" />',
   'sun-moon': '<path d="M12 2v2" /><path d="M12 20v2" /><path d="m4.9 4.9 1.4 1.4" /><path d="m17.7 17.7 1.4 1.4" /><path d="M2 12h2" /><path d="M20 12h2" /><path d="m6.3 17.7-1.4 1.4" /><path d="m19.1 4.9-1.4 1.4" /><circle cx="12" cy="12" r="4" />',
 }
 
@@ -5372,6 +5387,16 @@ export class ShEditorHost extends LitElement {
         }),
       )
     }
+    const renew = (): void => {
+      if (!canRate || !canRenewFreshness(score)) return
+      this.dispatchEvent(
+        new CustomEvent<SalienceRenewRequestDetail>(SALIENCE_RENEW_REQUEST_EVENT, {
+          bubbles: true,
+          composed: true,
+          detail: { blockId },
+        }),
+      )
+    }
     return html`<div
       class="salience-gutter"
       style="left: ${this.salienceOverlayAnchor.x}px; top: ${this.salienceOverlayAnchor.y}px"
@@ -5402,11 +5427,21 @@ export class ShEditorHost extends LitElement {
         ?disabled=${!canRate}
         @click=${() => rate(score?.userImportance ?? null, nextValence(score))}
       >${salienceIcon(valenceIcon(score))}</button>
+      <button
+        type="button"
+        class="salience-gutter-icon salience-gutter-renew"
+        data-salience-renew
+        title=${canRate ? renewLabel(score) : writeReason}
+        aria-label=${canRate ? renewLabel(score) : writeReason}
+        ?disabled=${!canRate || !canRenewFreshness(score)}
+        @click=${renew}
+      >${salienceIcon('refresh-cw')}</button>
       ${this.salienceOverlayExpanded
         ? html`<div class="salience-gutter-numbers">
             <div>composite ${(score?.compositeScore ?? 0).toFixed(2)}</div>
             <div>importance ${combinedImportance(score) === 0 ? '–' : combinedImportance(score).toFixed(2)}</div>
             <div>valence ${combinedValence(score) === 0 ? '–' : combinedValence(score).toFixed(2)}</div>
+            <div>valued ${lastValuedLabel(score) ?? '–'}</div>
           </div>`
         : nothing}
     </div>`

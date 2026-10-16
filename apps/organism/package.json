@@ -43,6 +43,7 @@
     "test:unknown-blocks-gardend-browser": "node --import tsx scripts/editor-unknown-blocks-gardend-browser.mts",
     "test:daily-note-browser": "node --import tsx scripts/daily-note-browser-harness.mts",
     "test:document-activation-browser": "node --import tsx scripts/document-activation-gardend-browser.mts",
+    "test:value-gutter-renew": "node --import tsx scripts/value-gutter-renew-browser.mts",
     "test:offline-sync-browser": "node --import tsx scripts/offline-sync-later-gardend-browser.mts",
     "test:offline-sync-webkit": "SHRUBBERY_BROWSER_ENGINE=webkit node --import tsx scripts/offline-sync-later-gardend-browser.mts",
     "test:source-sync-truth": "node --import tsx scripts/source-sync-distributed-truth-gardend.mts",

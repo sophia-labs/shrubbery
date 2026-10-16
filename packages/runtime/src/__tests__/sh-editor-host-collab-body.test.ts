@@ -1537,7 +1537,8 @@ describe('rung-3 — the live collaborative editor body lifts over a real Y.Doc'
     await until(() => h.shadowRoot!.querySelector('.salience-gutter') !== null)
     const gutter = h.shadowRoot!.querySelector('.salience-gutter') as HTMLElement
     const icons = gutter.querySelectorAll('.salience-gutter-icon')
-    expect(icons).toHaveLength(3)
+    // composite, importance, valence, renew
+    expect(icons).toHaveLength(4)
     // REGRESSION PROOF: the icon must be a REAL rendered <svg><path> tree, not
     // just a wrapper button with the right class/title — a real bug shipped
     // here once already (a separate `html`-tagged sub-template interpolated
@@ -1569,6 +1570,17 @@ describe('rung-3 — the live collaborative editor body lifts over a real Y.Doc'
       { blockId: 'block-b', importance: 5, valence: null },
       { blockId: 'block-b', importance: 3, valence: 4 },
     ])
+
+    // Renew asks the shell to move the clock, and carries no rating at all.
+    const renewed: Array<{ blockId: string }> = []
+    h.addEventListener('mn-salience-renew-request', ((event: CustomEvent<{ blockId: string }>) => {
+      renewed.push(event.detail)
+    }) as EventListener)
+    const renew = icons[3] as HTMLButtonElement
+    expect(renew.hasAttribute('data-salience-renew')).toBe(true)
+    expect(renew.disabled).toBe(false)
+    renew.click()
+    expect(renewed).toEqual([{ blockId: 'block-b' }])
   })
 
   it('opens the value gutter for an UNSCORED block too — not gated behind a prior score', async () => {
@@ -1617,10 +1629,12 @@ describe('rung-3 — the live collaborative editor body lifts over a real Y.Doc'
     hoverZone(510, 50)
     await until(() => h.shadowRoot!.querySelector('.salience-gutter') !== null)
     const icons = h.shadowRoot!.querySelectorAll<HTMLButtonElement>('.salience-gutter-icon')
-    expect(icons).toHaveLength(3)
+    expect(icons).toHaveLength(4)
     expect(icons[0]?.disabled).toBe(false)
     expect(icons[1]?.disabled).toBe(true)
     expect(icons[2]?.disabled).toBe(true)
+    expect(icons[3]?.disabled).toBe(true)
+    expect(icons[3]?.title).toBe(reason)
     expect(icons[1]?.title).toBe(reason)
     icons[1]?.click()
     icons[2]?.click()

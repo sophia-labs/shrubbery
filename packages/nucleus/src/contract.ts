@@ -269,6 +269,12 @@ export interface SalienceUserValueRequest {
   readonly valence: number | null
 }
 
+/** Params to renew one block's freshness without changing any rating. */
+export interface SalienceRenewRequest {
+  readonly documentId: string
+  readonly blockId: string
+}
+
 export interface SalienceService {
   /**
    * All scored/tagged blocks for a document — a computed view (composite
@@ -283,6 +289,13 @@ export interface SalienceService {
    * Returns the block's full updated score.
    */
   setUserValue(graphId: string, params: SalienceUserValueRequest): Promise<BlockScore>
+  /**
+   * Renew a valued block's freshness (lastValuatedAt) without changing any
+   * rating: "this still matters". The cell refuses an unvalued block and a
+   * block rated 0 ("let go"). Online-only, like setUserValue. Returns the
+   * block's full updated score.
+   */
+  renew(graphId: string, params: SalienceRenewRequest): Promise<BlockScore>
 }
 
 // ── (4) Native bridge — optional (absent ⇒ web / cell / Studio) ───────────────
