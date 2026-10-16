@@ -764,7 +764,9 @@ describe('@shrubbery/tokens — editor material axis', () => {
 
   it('registers an honest paper surface without claiming pagination', () => {
     expect(EDITOR_MATERIAL_APPLICATIONS.paper.appliesAttribute).toBe('[data-editor-material=paper]')
-    expect(paper['--mn-editor-sheet-width']).toContain('816px')
+    // 664px of text plus the page's 152px of padding: an 816px Letter-wide page
+    // until Appearance > Line width sets --mn-editor-line-width.
+    expect(paper['--mn-editor-sheet-width']).toContain('var(--mn-editor-line-width, 664px) + 152px')
     expect(paper['--mn-editor-sheet-min-height']).toContain('1056px')
     expect(paper['--mn-editor-sheet-surface']).toBe('#fffdf8')
     expect(paper['--mn-editor-ruler-display']).toBe('block')

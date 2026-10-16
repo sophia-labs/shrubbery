@@ -4,6 +4,8 @@ import {
   persistAppearancePreferences,
   readAppearancePreferences,
   readEditorMaterialPreference,
+  readEditorTypePreferences,
+  applyEditorTypePreferences,
   resolveThemePreference,
 } from '../settings-service.js'
 import { PhanesControlApi } from '../phanes-control-api.js'
@@ -109,6 +111,39 @@ describe('DefaultOrganismSettingsService', () => {
     storage.setItem('shrubbery.organism.settings.v1', JSON.stringify({ skin: 'not-a-skin' }))
     expect(readAppearancePreferences(storage).skin).toBe('garden')
     expect(JSON.parse(storage.getItem('shrubbery.organism.settings.v1') ?? '{}').skin).toBe('garden')
+  })
+
+  it('persists the editor font, line width and text size, and rejects values outside the catalog', async () => {
+    const storage = new MemoryStorage()
+    const service = createDefaultSettingsService({ runtimeMode: 'local', storage })
+    expect(readEditorTypePreferences(storage)).toEqual({ editorFont: 'default', lineWidth: 'default', textSize: '100' })
+    await service.select({ sectionId: 'appearance', settingId: 'editorFont', value: 'source-sans' })
+    await service.select({ sectionId: 'appearance', settingId: 'lineWidth', value: 'narrow' })
+    await service.select({ sectionId: 'appearance', settingId: 'textSize', value: '125' })
+    expect(readEditorTypePreferences(storage)).toEqual({ editorFont: 'source-sans', lineWidth: 'narrow', textSize: '125' })
+    const appearance = (await service.load()).sections.find(section => section.id === 'appearance')!
+    expect(appearance.selects?.find(select => select.id === 'editorFont')?.value).toBe('source-sans')
+    expect(appearance.selects?.find(select => select.id === 'editorFont')?.options.map(option => option.value))
+      .toEqual(['default', 'literata', 'source-sans'])
+
+    await service.select({ sectionId: 'appearance', settingId: 'editorFont', value: 'comic-sans' })
+    await service.select({ sectionId: 'appearance', settingId: 'textSize', value: '400' })
+    await service.select({ sectionId: 'appearance', settingId: 'lineWidth', value: 'toString' })
+    expect(readEditorTypePreferences(storage)).toEqual({ editorFont: 'default', lineWidth: 'default', textSize: '100' })
+  })
+
+  it('writes editor typography as root custom properties and removes them at default', () => {
+    const props = new Map<string, string>()
+    const root = { style: {
+      setProperty: (name: string, value: string | null) => { props.set(name, value ?? '') },
+      removeProperty: (name: string) => { props.delete(name); return '' },
+    } }
+    applyEditorTypePreferences({ editorFont: 'literata', lineWidth: 'full', textSize: '110' }, root)
+    expect(props.get('--mn-editor-font')).toContain("'Literata Variable'")
+    expect(props.get('--mn-editor-line-width')).toBe('10000px')
+    expect(props.get('--mn-editor-text-scale')).toBe('1.1')
+    applyEditorTypePreferences({ editorFont: 'default', lineWidth: 'default', textSize: '100' }, root)
+    expect(props.size).toBe(0)
   })
 
   it('migrates the former paperPage boolean without losing an opted-in page', async () => {

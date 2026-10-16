@@ -909,8 +909,11 @@ export class ShEditorHost extends LitElement {
       background-color: var(--mn-editor-canvas-surface, var(--mn-color-surface-canvas, var(--mn-color-surface-base, #fffdf8)));
       background-image: var(--mn-editor-canvas-image, var(--mn-atmosphere, none));
       color: var(--mn-color-text-primary, #1f2933);
-      font: var(--mn-text-base, 16px) / var(--mn-editor-line-height, var(--mn-leading-prose, 1.72))
-        var(--mn-font-prose, Georgia, 'Times New Roman', serif);
+      /* Appearance > Editor font and Text size set --mn-editor-font and
+         --mn-editor-text-scale on the root. They reach only the document:
+         the app's own chrome keeps the skin's faces and sizes. */
+      font: calc(var(--mn-text-base, 16px) * var(--mn-editor-text-scale, 1)) / var(--mn-editor-line-height, var(--mn-leading-prose, 1.72))
+        var(--mn-editor-font, var(--mn-font-prose, Georgia, 'Times New Roman', serif));
       scrollbar-color: var(--mn-color-border-strong, #b8c0b9) transparent;
       scrollbar-width: thin;
     }
@@ -1028,6 +1031,11 @@ export class ShEditorHost extends LitElement {
       white-space: pre-wrap;
       word-break: break-word;
       counter-reset: footnote;
+    }
+
+    /* Zen mode (the shell's view.zen): the page alone, without the toolbar. */
+    :host([zen]) mn-editor-toolbar {
+      display: none;
     }
 
     @media (min-width: 761px) {
@@ -1191,7 +1199,7 @@ export class ShEditorHost extends LitElement {
       border-left: 3px solid var(--mn-color-border-accent, var(--mn-color-accent, #3d7f5f));
       border-radius: var(--mn-radius-md, 6px);
       color: var(--mn-color-text-secondary, #4b5563);
-      font-family: var(--mn-font-prose, Georgia, 'Times New Roman', serif);
+      font-family: var(--mn-editor-font, var(--mn-font-prose, Georgia, 'Times New Roman', serif));
       font-style: italic;
       line-height: var(--mn-editor-line-height, 1.65);
       transition:
@@ -1248,7 +1256,7 @@ export class ShEditorHost extends LitElement {
       width: 100%;
       border: 1px solid var(--mn-color-border-default, #d1d5db);
       border-collapse: collapse;
-      font-size: var(--mn-text-sm, 13px);
+      font-size: calc(var(--mn-text-sm, 13px) * var(--mn-editor-text-scale, 1));
       table-layout: fixed;
     }
     /* position: relative anchors the resize handle; box-sizing: border-box
@@ -1382,20 +1390,20 @@ export class ShEditorHost extends LitElement {
     .editor-mount .ProseMirror h2,
     .editor-mount .ProseMirror h3 {
       color: var(--mn-color-text-title, var(--mn-color-text-primary, #1f2933));
-      font-family: var(--mn-font-display, var(--mn-font-prose, Georgia, serif));
+      font-family: var(--mn-editor-font, var(--mn-font-display, var(--mn-font-prose, Georgia, serif)));
       line-height: var(--mn-leading-tight, 1.2);
       letter-spacing: -0.025em;
     }
     .editor-mount .ProseMirror h1 {
-      font-size: var(--mn-text-3xl, 1.875rem);
+      font-size: calc(var(--mn-text-3xl, 1.875rem) * var(--mn-editor-text-scale, 1));
       font-weight: 650;
     }
     .editor-mount .ProseMirror h2 {
-      font-size: var(--mn-text-2xl, 1.5rem);
+      font-size: calc(var(--mn-text-2xl, 1.5rem) * var(--mn-editor-text-scale, 1));
       font-weight: 620;
     }
     .editor-mount .ProseMirror h3 {
-      font-size: var(--mn-text-xl, 1.25rem);
+      font-size: calc(var(--mn-text-xl, 1.25rem) * var(--mn-editor-text-scale, 1));
       font-weight: 620;
     }
     .editor-mount .ProseMirror .footnote-ref {
@@ -1839,7 +1847,7 @@ export class ShEditorHost extends LitElement {
       display: none !important;
     }
     .editor-mount .ProseMirror .outliner-zoom-root {
-      font-size: var(--mn-text-lg, 1.125rem);
+      font-size: calc(var(--mn-text-lg, 1.125rem) * var(--mn-editor-text-scale, 1));
       font-weight: 650;
       padding-bottom: var(--mn-space-2, 0.5rem);
       margin-bottom: var(--mn-space-2, 0.5rem);
@@ -2909,6 +2917,8 @@ export class ShEditorHost extends LitElement {
     } else {
       this.removeAttribute('editor-material')
     }
+    // Zen mode (the shell's view.zen) hides this host's toolbar.
+    this.toggleAttribute('zen', root?.hasAttribute('data-zen') === true)
     // The ambient skin rides the same observer: a skin whose page is a coloured surface
     // (Hotdog Stand) re-scopes the page's roles by `:host([editor-skin=…])`, without :host-context.
     // It is deliberately NOT named data-skin: a host carrying data-skin would itself match the
@@ -2929,7 +2939,7 @@ export class ShEditorHost extends LitElement {
     this._editorMaterialObserver = new Observer(() => this._syncEditorMaterial())
     this._editorMaterialObserver.observe(root, {
       attributes: true,
-      attributeFilter: ['data-editor-material', 'data-skin'],
+      attributeFilter: ['data-editor-material', 'data-skin', 'data-zen'],
     })
   }
 

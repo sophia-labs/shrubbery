@@ -1103,6 +1103,13 @@ let currentGraphPanelViewMode: GraphPanelViewMode =
 // reload same as everything else in this module.
 let graphNodeHistory: string[] = []
 let graphNodeHistoryIndex = -1
+/**
+ * Zen mode (Mod+\, view.zen): the page alone. Both side panels collapse
+ * without touching their remembered layout, and the root's data-zen hides
+ * the bars, the rails, the pane header and the editor toolbar (index.html,
+ * editor-host). It lasts for this window only.
+ */
+let zenMode = false
 let currentPanelLayout: OrganismPanelLayoutState = readPanelLayoutState(
   panelLayoutStorage,
   panelLayoutStorageKey(currentApp),
@@ -1622,6 +1629,7 @@ function handlePanelReposition(detail: WorkspacePanelRepositionDetail): void {
 }
 
 function handleLeftExpandedChange(expanded: boolean): void {
+  if (expanded) exitZenMode()
   if (expanded === currentPanelLayout.leftExpanded) return
   if (expanded) {
     preExpandRightPanel = currentRightPanel === 'none' ? defaultRightPanel() : currentRightPanel
@@ -1639,6 +1647,7 @@ function handleLeftExpandedChange(expanded: boolean): void {
 }
 
 function handleLeftCollapsedChange(collapsed: boolean): void {
+  if (!collapsed) exitZenMode()
   if (collapsed === currentPanelLayout.leftCollapsed) return
   if (collapsed && currentPanelLayout.leftExpanded) {
     currentRightPanel = preExpandRightPanel
@@ -1653,6 +1662,7 @@ function handleLeftCollapsedChange(collapsed: boolean): void {
 }
 
 function handleRightCollapsedChange(collapsed: boolean): void {
+  if (!collapsed) exitZenMode()
   if (collapsed === (currentRightPanel === 'none')) return
   if (collapsed) {
     currentRightPanel = 'none'
@@ -1671,6 +1681,7 @@ function handleRightCollapsedChange(collapsed: boolean): void {
 }
 
 function transitionRightPanel(panel: RightPanelMode, reflectUrl = true): void {
+  if (panel !== 'none') exitZenMode()
   currentRightPanel = panel
   if (panel !== 'none') {
     preExpandRightPanel = panel
@@ -4841,6 +4852,16 @@ shellCommandRegistry.register([
 
 shellCommandRegistry.register([
   {
+    id: 'view.zen',
+    label: 'Zen Mode',
+    category: 'View',
+    icon: 'maximize-2',
+    shortcut: 'Mod+\\',
+    keywords: ['zen', 'focus', 'distraction', 'writing', 'fullscreen'],
+    surfaces: ['palette', 'shortcut'] as const,
+    run: () => toggleZenMode(),
+  },
+  {
     id: 'view.shortcuts',
     label: 'Show Keyboard Shortcuts',
     category: 'View',
@@ -7659,8 +7680,8 @@ function renderConfig(config: WorkspaceConfig, app: string | undefined): string 
     ...(contested ? { contested } : {}),
     ...(parkedWork ? { parkedWork } : {}),
     ...(files ? { files } : {}),
-    leftCollapsed: currentPanelLayout.leftCollapsed,
-    rightCollapsed: currentPanelLayout.rightCollapsed || currentRightPanel === 'none',
+    leftCollapsed: zenMode || currentPanelLayout.leftCollapsed,
+    rightCollapsed: zenMode || currentPanelLayout.rightCollapsed || currentRightPanel === 'none',
     panelLayout: {
       // `null` = this app has no saved pixel override yet, so `undefined` lets
       // the runtime fall through to the region's own `sizeFraction` instead of Garden's pixel geometry.
@@ -9354,6 +9375,21 @@ async function openDocumentFromShell(
   if (detail.blockId) {
     ok(`opened document "${documentId}" from surface action; focusing block "${detail.blockId}"`)
   }
+}
+
+function toggleZenMode(): void {
+  zenMode = !zenMode
+  document.documentElement.toggleAttribute('data-zen', zenMode)
+  rerenderCurrentSource()
+}
+
+/**
+ * Asking for a panel (the inspector, the chat, the sidebar) leaves zen mode.
+ * Zen only hides the panels at render time, so a panel opened inside it
+ * would otherwise change the remembered layout unseen and appear on exit.
+ */
+function exitZenMode(): void {
+  if (zenMode) toggleZenMode()
 }
 
 function activateCenterPaneLocation(paneId: CenterPaneId, origin: string): void {
