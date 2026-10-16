@@ -169,7 +169,7 @@ export class ShCenterPanes extends LitElement {
       padding: 0 7px;
       border-bottom: 1px solid var(--mn-color-border-subtle, #ddd8ce);
       background: var(--mn-color-surface-chrome, rgba(248, 246, 240, 0.96));
-      font: 500 12px/1 var(--mn-font-ui, system-ui, sans-serif);
+      font: 500 12px/1.45 var(--mn-font-ui, system-ui, sans-serif);
     }
 
     .pane[data-active='true'] .pane-header {
