@@ -196,6 +196,10 @@ function salienceIcon(name: string): ReturnType<typeof unsafeHTML> {
 const SALIENCE_GUTTER_WIDTH_ESTIMATE = 140
 const SALIENCE_GUTTER_HEIGHT_ESTIMATE = 140
 const SALIENCE_GUTTER_MARGIN = 8
+/** Width of the hover strip to the right of a block that opens the value gutter. */
+const SALIENCE_ZONE_WIDTH = 28
+/** Top-level blocks that can be valued from the gutter. Mirrors the gutter hit list. */
+const SALIENCE_BLOCK_SELECTOR = 'p, h1, h2, h3, li, .image-block, mn-calendar-event, blockquote, .code-block-wrapper'
 
 function clampSalienceOverlayAnchor(x: number, y: number): { readonly x: number; readonly y: number } {
   const vw = globalThis.innerWidth || 1024
@@ -4241,10 +4245,13 @@ export class ShEditorHost extends LitElement {
       return
     }
     if (this._salienceOverlayHoverTimer) return
-    const { clientX, clientY } = event
+    // Anchor at the block's right edge, not at the pointer, so the popover opens
+    // beside the text column rather than wherever in the strip the pointer was.
+    const anchorX = block.getBoundingClientRect().right + 4
+    const { clientY } = event
     this._salienceOverlayHoverTimer = setTimeout(() => {
       this._salienceOverlayHoverTimer = null
-      this._openSalienceOverlay(blockId, clientX, clientY)
+      this._openSalienceOverlay(blockId, anchorX, clientY)
     }, 120)
   }
 
@@ -5573,13 +5580,35 @@ export class ShEditorHost extends LitElement {
    * design doc: "wires are on the left"). Same 24px hotspot width and same
    * top-level-block resolution the OG's ValuationController used.
    */
+  /**
+   * The value gutter's hover zone is the strip just PAST a block's right edge,
+   * never inside the block.
+   *
+   * It used to be the last 24px inside the block. Blocks carry 8px of right
+   * padding, so 16px of that zone lay over text on every line that ran to the
+   * edge, and the popover then opened at the pointer — on the line being typed.
+   * The editor sheet has 48px of padding to the right of every block, and that
+   * strip is empty, so the zone lives there instead and the text column keeps
+   * its full width.
+   *
+   * A pointer in that strip is over `.ProseMirror` itself, not over any block,
+   * so the block is found by the pointer's height. The scan only runs when the
+   * pointer is NOT over a block — over text it returns immediately.
+   */
   private _salienceHitForEvent(event: MouseEvent): HTMLElement | null {
-    const block = this._topLevelGutterBlockForEvent(event)
-    if (!block) return null
-    const rect = block.getBoundingClientRect()
-    const fromRight = rect.right - event.clientX
-    if (fromRight < 0 || fromRight >= 24) return null
-    return block
+    const editorRoot = this.renderRoot?.querySelector('.editor-mount .ProseMirror') as HTMLElement | null
+    if (!editorRoot) return null
+    const target = event.target instanceof Element ? event.target : null
+    if (!target || target !== editorRoot) return null
+    for (const child of Array.from(editorRoot.children)) {
+      const block = child as HTMLElement
+      if (!block.matches(SALIENCE_BLOCK_SELECTOR)) continue
+      const rect = block.getBoundingClientRect()
+      if (event.clientY < rect.top || event.clientY >= rect.bottom) continue
+      const past = event.clientX - rect.right
+      return past >= 0 && past < SALIENCE_ZONE_WIDTH ? block : null
+    }
+    return null
   }
 
   private _blockPosForId(blockId: string): number | null {

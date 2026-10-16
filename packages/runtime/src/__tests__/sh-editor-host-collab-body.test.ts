@@ -1462,7 +1462,11 @@ describe('rung-3 — the live collaborative editor body lifts over a real Y.Doc'
   async function mountSalienceDoc(
     scores: ReadonlyMap<string, BlockScore>,
     documentAccess: EditorDocumentAccess | null = null,
-  ): Promise<{ h: ShEditorHost; blockEl: (blockId: string) => HTMLElement }> {
+  ): Promise<{
+    h: ShEditorHost
+    blockEl: (blockId: string) => HTMLElement
+    hoverZone: (clientX: number, clientY: number) => void
+  }> {
     const be = backend()
     const provider = be.open({ kind: 'doc', graphId: 'g', docId: 'salience-doc' })
     const binding = makeBinding({
@@ -1483,16 +1487,25 @@ describe('rung-3 — the live collaborative editor body lifts over a real Y.Doc'
     const blockEl = (blockId: string): HTMLElement => {
       const el = h.shadowRoot?.querySelector(`[data-block-id="${blockId}"]`) as HTMLElement | null
       expect(el).not.toBeNull()
-      // Right edge at x=500 — 10px inside it (490) sits in the 24px hotspot;
-      // the LEFT-edge wire gutter lives at clientX ~112 in the sibling test
-      // above, confirming these are independent, non-colliding zones.
+      // Right edge at x=500. The value gutter's hover zone is the strip just
+      // PAST that edge, over the editor sheet's right padding, never over the
+      // block's own text — so hovers below arrive on the .ProseMirror root at
+      // x=510. The LEFT-edge wire gutter lives at clientX ~112 in the sibling
+      // test above, confirming these are independent, non-colliding zones.
       Object.defineProperty(el!, 'getBoundingClientRect', {
         configurable: true,
         value: () => ({ left: 100, top: 40, right: 500, bottom: 64, width: 400, height: 24 }),
       })
       return el!
     }
-    return { h, blockEl }
+    // A hover in the strip past a block's right edge lands on the editor sheet
+    // (.ProseMirror), not on the block: that is where the value gutter opens.
+    const hoverZone = (clientX: number, clientY: number): void => {
+      const sheet = h.shadowRoot?.querySelector('.editor-mount .ProseMirror') as HTMLElement | null
+      expect(sheet).not.toBeNull()
+      sheet!.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, composed: true, clientX, clientY }))
+    }
+    return { h, blockEl, hoverZone }
   }
 
   it('opens the value gutter for a SCORED block and cycles importance/valence independently', async () => {
@@ -1512,15 +1525,15 @@ describe('rung-3 — the live collaborative editor body lifts over a real Y.Doc'
       userImportance: 3,
       userValence: null,
     }
-    const { h, blockEl } = await mountSalienceDoc(new Map([['block-b', scoredBlock]]))
-    const el = blockEl('block-b')
+    const { h, blockEl, hoverZone } = await mountSalienceDoc(new Map([['block-b', scoredBlock]]))
+    blockEl('block-b')
 
     const rated: SalienceRateRequestDetail[] = []
     h.addEventListener(SALIENCE_RATE_REQUEST_EVENT, ((event: CustomEvent<SalienceRateRequestDetail>) => {
       rated.push(event.detail)
     }) as EventListener)
 
-    el.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, composed: true, clientX: 490, clientY: 50 }))
+    hoverZone(510, 50)
     await until(() => h.shadowRoot!.querySelector('.salience-gutter') !== null)
     const gutter = h.shadowRoot!.querySelector('.salience-gutter') as HTMLElement
     const icons = gutter.querySelectorAll('.salience-gutter-icon')
@@ -1562,15 +1575,15 @@ describe('rung-3 — the live collaborative editor body lifts over a real Y.Doc'
     // A real OG bug this ports the fix for: gating the gutter behind an
     // existing agent/user score meant an unscored block could never receive
     // its FIRST rating.
-    const { h, blockEl } = await mountSalienceDoc(new Map())
-    const el = blockEl('block-c')
+    const { h, blockEl, hoverZone } = await mountSalienceDoc(new Map())
+    blockEl('block-c')
 
     const rated: SalienceRateRequestDetail[] = []
     h.addEventListener(SALIENCE_RATE_REQUEST_EVENT, ((event: CustomEvent<SalienceRateRequestDetail>) => {
       rated.push(event.detail)
     }) as EventListener)
 
-    el.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, composed: true, clientX: 490, clientY: 50 }))
+    hoverZone(510, 50)
     await until(() => h.shadowRoot!.querySelector('.salience-gutter') !== null)
     const gutter = h.shadowRoot!.querySelector('.salience-gutter') as HTMLElement
     const icons = gutter.querySelectorAll('.salience-gutter-icon')
@@ -1590,7 +1603,7 @@ describe('rung-3 — the live collaborative editor body lifts over a real Y.Doc'
 
   it('keeps scores visible but disables rating when shell authority is read-only', async () => {
     const reason = 'Rating requires Editor access to this graph.'
-    const { h, blockEl } = await mountSalienceDoc(new Map(), {
+    const { h, blockEl, hoverZone } = await mountSalienceDoc(new Map(), {
       readOnly: false,
       salienceWritable: false,
       salienceWriteReason: reason,
@@ -1600,12 +1613,8 @@ describe('rung-3 — the live collaborative editor body lifts over a real Y.Doc'
       rated.push(event.detail)
     }) as EventListener)
 
-    blockEl('block-c').dispatchEvent(new MouseEvent('mouseover', {
-      bubbles: true,
-      composed: true,
-      clientX: 490,
-      clientY: 50,
-    }))
+    blockEl('block-c')
+    hoverZone(510, 50)
     await until(() => h.shadowRoot!.querySelector('.salience-gutter') !== null)
     const icons = h.shadowRoot!.querySelectorAll<HTMLButtonElement>('.salience-gutter-icon')
     expect(icons).toHaveLength(3)
@@ -1629,11 +1638,13 @@ describe('rung-3 — the live collaborative editor body lifts over a real Y.Doc'
     vi.stubGlobal('innerWidth', 520)
     vi.stubGlobal('innerHeight', 200)
     try {
-      const { h, blockEl } = await mountSalienceDoc(new Map())
-      const el = blockEl('block-c')
-      // clientX=490 is 30px from the 520px-wide viewport's right edge; clientY=10
-      // is 10px from the top — both would overflow their edge unclamped.
-      el.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, composed: true, clientX: 490, clientY: 10 }))
+      const { h, blockEl, hoverZone } = await mountSalienceDoc(new Map())
+      blockEl('block-c')
+      // The popover anchors at the block's right edge (504) in a 520px-wide
+      // viewport, and the hover at clientY=45 is inside the block's band
+      // (40–64) but close enough to the top that a popover vertically centred
+      // on it (~140px tall) would overflow — both edges need the clamp.
+      hoverZone(510, 45)
       await until(() => h.shadowRoot!.querySelector('.salience-gutter') !== null)
       const gutter = h.shadowRoot!.querySelector('.salience-gutter') as HTMLElement
       const style = gutter.getAttribute('style') ?? ''
@@ -1641,9 +1652,9 @@ describe('rung-3 — the live collaborative editor body lifts over a real Y.Doc'
       const top = Number(/top:\s*(-?\d+(?:\.\d+)?)px/.exec(style)?.[1])
       expect(Number.isNaN(left)).toBe(false)
       expect(Number.isNaN(top)).toBe(false)
-      // Clamped well clear of the raw hover point (490, 10) in both directions.
-      expect(left).toBeLessThan(490)
-      expect(top).toBeGreaterThan(10)
+      // Clamped well clear of the raw anchor (504, 45) in both directions.
+      expect(left).toBeLessThan(504)
+      expect(top).toBeGreaterThan(45)
       // And within the stubbed viewport with margin, accounting for the
       // popover's own estimated footprint (it is right-anchored and
       // vertically centered via `transform: translateY(-50%)`).
