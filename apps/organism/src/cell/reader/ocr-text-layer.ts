@@ -19,7 +19,9 @@ export interface OcrWord {
 
 export interface OcrPage {
   readonly page: number
-  readonly status: 'ocr' | 'has-text' | 'rotated' | 'failed' | string
+  readonly status: 'ocr' | 'has-text' | 'failed' | string
+  /** The page's /Rotate, clockwise degrees: its words read upright when the page is shown turned. */
+  readonly rotation?: number
   readonly words?: readonly OcrWord[]
 }
 
@@ -44,22 +46,38 @@ interface TextItem {
   hasEOL: boolean
 }
 
+/**
+ * A word's place as pdf.js wants it, on a page shown turned by `rotation`: the direction its text runs and the glyphs'
+ * up, in the page's own coordinates, so that turned with the page it reads upright. `start`/`end` measure along the
+ * line (for the space to the next word); `size` is the word's height across it.
+ */
+function placement(word: OcrWord, rotation: number): { transform: TextItem['transform']; size: number; start: number; end: number } {
+  switch (((rotation % 360) + 360) % 360) {
+    case 90: { const size = Math.max(1, word.x1 - word.x0); return { transform: [0, size, -size, 0, word.x1, word.y0], size, start: word.y0, end: word.y1 } }
+    case 180: { const size = Math.max(1, word.y1 - word.y0); return { transform: [-size, 0, 0, -size, word.x1, word.y1], size, start: -word.x1, end: -word.x0 } }
+    case 270: { const size = Math.max(1, word.x1 - word.x0); return { transform: [0, -size, size, 0, word.x0, word.y1], size, start: -word.y1, end: -word.y0 } }
+    default: { const size = Math.max(1, word.y1 - word.y0); return { transform: [size, 0, 0, size, word.x0, word.y0], size, start: word.x0, end: word.x1 } }
+  }
+}
+
 /** One page's words as pdf.js text content: a word per item, a space carried to the next word, a line end marked. */
 export function ocrTextContent(page: OcrPage): { items: TextItem[]; styles: Record<string, unknown>; lang: string | null } {
   const words = page.words ?? []
+  const rotation = page.rotation ?? 0
   const items: TextItem[] = []
   words.forEach((word, index) => {
     const next = words[index + 1]
     const sameLine = next && next.block === word.block && next.par === word.par && next.line === word.line
-    const height = Math.max(1, word.y1 - word.y0)
+    const here = placement(word, rotation)
     // The space after a word belongs to it, so find and copy see "two words", and the box runs to the next word.
-    const right = sameLine && next.x0 > word.x1 ? next.x0 : word.x1
+    const nextStart = sameLine ? placement(next, rotation).start : here.end
+    const end = nextStart > here.end ? nextStart : here.end
     items.push({
       str: sameLine ? `${word.text} ` : word.text,
       dir: 'ltr',
-      width: Math.max(1, right - word.x0),
-      height,
-      transform: [height, 0, 0, height, word.x0, word.y0],
+      width: Math.max(1, end - here.start),
+      height: here.size,
+      transform: here.transform,
       fontName: OCR_FONT,
       hasEOL: !sameLine,
     })

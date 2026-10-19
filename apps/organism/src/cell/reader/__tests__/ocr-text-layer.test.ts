@@ -26,6 +26,18 @@ describe('a scan\'s words as pdf.js text content', () => {
     expect(is).toMatchObject({ transform: [22, 0, 0, 22, 188, 690], width: 204 - 188 })
   })
 
+  it('turns a rotated page\'s words with the page: upside down, each word runs right to left from its far corner', () => {
+    const [knowledge, is] = ocrTextContent({ ...page, rotation: 180 }).items
+    // Shown upright on a page turned 180 degrees, "Knowledge" starts at its box's top-right corner and runs toward x0.
+    expect(knowledge).toMatchObject({ transform: [-22, 0, 0, -22, 180, 712], height: 22, width: 180 - 72 })
+    expect(is!.transform).toEqual([-22, 0, 0, -22, 204, 712])
+  })
+
+  it('turns a quarter-turned page\'s words: they run up the page', () => {
+    const [knowledge] = ocrTextContent({ ...page, rotation: 90 }).items
+    expect(knowledge!.transform).toEqual([0, 108, -108, 0, 180, 690])
+  })
+
   it('makes real pdf.js answer a textless page with the words read, and leaves a printed page as printed', async () => {
     // A real two-page PDF read by real pdf.js: page 1 has no text (as a scan has none), page 2 has a printed line.
     const pdfjs = await loadPdfJs()
