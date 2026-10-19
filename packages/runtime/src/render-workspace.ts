@@ -36,23 +36,11 @@
  * render-workspace-island.test.ts.)
  */
 
-import { html, render, nothing, type TemplateResult } from 'lit'
-import { ref } from 'lit/directives/ref.js'
-import { renderFilesPane, type WorkspaceFilesOptions } from './files-pane.js'
 import {
+  type AppId,
   DEFAULT_FILE_PANE_GROUPING,
   DEFAULT_FILE_PANE_SORT,
-  KNOWN_COMPONENTS,
   deriveAppTabs,
-  isAppDeclared,
-  planFor,
-  persistenceOf,
-  rightPanelModeFromPanels,
-  resolvePanelTag,
-  resolveSurfaceTag,
-  selectVtuberControlChannel,
-  stampPanelBody,
-  type AppId,
   type FilePaneAction,
   type FilePaneActionDetail,
   type FilePaneCapabilities,
@@ -72,10 +60,19 @@ import {
   type FilePaneSortChangeDetail,
   type FilePaneStatus,
   type FilePaneStorage,
+  isAppDeclared,
+  KNOWN_COMPONENTS,
   type PanelId,
+  persistenceOf,
+  planFor,
   type RightPanelMode,
+  resolvePanelTag,
+  resolveSurfaceTag,
+  rightPanelModeFromPanels,
   type SplitNode,
   type SurfaceRegionRole,
+  selectVtuberControlChannel,
+  stampPanelBody,
   type VtuberControlChannel,
   type VtuberControlOverlay,
   type WorkspaceConfig,
@@ -90,21 +87,20 @@ import {
   type ResourceLocator,
   type ViewDescriptor,
 } from '@shrubbery/nucleus/layout'
-import type { EditorHostBinding } from './editor-host-binding.js'
+import { html, nothing, render, type TemplateResult } from 'lit'
+import { ref } from 'lit/directives/ref.js'
 import type {
-  EditorBlockFocusRequest,
-  EditorDocumentAccess,
-  EditorImageInserter,
-  LiveOutlinerCommand,
-  WireRadialContextMap,
-} from './editor-host.js'
-import type { EditorKernelOptions } from './collab/live-editor.js'
-import type { WireBundle } from './editor-services/wire-bundle-service.js'
-import type { SalienceBundle } from './editor-services/salience-bundle-service.js'
-import { isPersistentCenter, renderCenterSlotAnchor, mountEditorHost } from './mount.js'
-import { mountGraphHost } from './graph-host.js'
-import type { ChatService } from './chat-services/chat-service.js'
-import { mountChatHost } from './chat-host/mount-chat-host.js'
+  CenterPaneCloseIntentDetail,
+  CenterPaneFocusIntentDetail,
+  CenterPaneId,
+  CenterPaneNavigateIntentDetail,
+  CenterPaneOpenIntentDetail,
+  CenterPaneProjection,
+  CenterPaneResizeIntentDetail,
+  CenterPanesProjection,
+} from './center-panes-contract.js'
+import type { CenterPaneEditorHostOptions } from './center-panes-host.js'
+import { homeLocation } from './center-panes-model.js'
 import type {
   ChatHeaderActionDetail,
   ChatHostCredits,
@@ -113,25 +109,54 @@ import type {
   HojaWikiLinkResolver,
 } from './chat-host/chat-host.js'
 import type { ConversationHomePorts } from './chat-host/conversation-home-ports.js'
-import {
-  type CenterPaneCloseIntentDetail,
-  type CenterPaneFocusIntentDetail,
-  type CenterPaneId,
-  type CenterPaneProjection,
-  type CenterPaneNavigateIntentDetail,
-  type CenterPaneOpenIntentDetail,
-  type CenterPaneResizeIntentDetail,
-  type CenterPanesProjection,
-} from './center-panes-contract.js'
-import { homeLocation } from './center-panes-model.js'
-import type { LiveHeadingOutlineEntry } from './collab/live-editor.js'
-import type { CenterPaneEditorHostOptions } from './center-panes-host.js'
+import { mountChatHost } from './chat-host/mount-chat-host.js'
+import type { ChatService } from './chat-services/chat-service.js'
+import type { EditorKernelOptions, LiveHeadingOutlineEntry } from './collab/live-editor.js'
+import type {
+  EditorBlockFocusRequest,
+  EditorDocumentAccess,
+  EditorImageInserter,
+  LiveOutlinerCommand,
+  WireRadialContextMap,
+} from './editor-host.js'
+import type { EditorHostBinding } from './editor-host-binding.js'
+import type { SalienceBundle } from './editor-services/salience-bundle-service.js'
+import type { WireBundle } from './editor-services/wire-bundle-service.js'
+import { renderFilesPane, type WorkspaceFilesOptions } from './files-pane.js'
+import { mountGraphHost } from './graph-host.js'
+import { isPersistentCenter, mountEditorHost, renderCenterSlotAnchor } from './mount.js'
 import './center-panes-host.js'
+import type { CuentaVerbPort } from './despacho/cuenta-verbs.js'
+import type { QueryBlockService } from './editor-services/query-block-service.js'
+import { setVegaThemeScopeOverrides } from './editor-services/query-block-vega.js'
+import type { FaceRegistry } from './layout/face-registry.js'
+import type { CuentaVerbSeam } from './layout/faces/card-cuenta-face.js'
+import { CARD_OBJECT_FACE_ID } from './layout/faces/card-object-face.js'
+import type { FilmstripEvidenceService } from './layout/faces/filmstrip-face.js'
+import { SPARQL_BINDINGS_TABLE_FACE_ID } from './layout/faces/sparql-bindings-table-face.js'
+import type { SubjectRowActivateDetail } from './layout/faces/sparql-table-view-element.js'
 import {
-  mountWiresPanel,
-  type WireContextMap,
-  type WiresPanelMountOptions,
-} from './wires-panel/wires-panel.js'
+  createFragmentFaceRegistrations,
+  createFragmentFaceRegistry,
+  createFragmentResourceAdapters,
+  FRAGMENT_GRID_COLLECTION_ADAPTER_ID,
+} from './layout/fragment-face-set.js'
+import { fragmentNodeId, spliceFragmentDocument } from './layout/fragment-splice.js'
+import { LAYOUT_DASHBOARD_COMPONENT } from './layout/layout-dashboard-host.js'
+import { createQueryTextResolver, NamedQueryRegistry } from './layout/named-query-registry.js'
+import { contestedCardParams, objectLocator, type SourceObjectService } from './layout/source-object-service.js'
+import type {
+  SurfaceActiveTabChange,
+  SurfaceDividerPolicy,
+  SurfaceRatioChange,
+} from './layout/surface-host.js'
+import {
+  defineWorkspaceSurfaceElement,
+  type WorkspaceBoundFaceDefinition,
+  type WorkspaceSurfaceBuild,
+  type WorkspaceSurfaceElement,
+  type WorkspaceSurfaceModel,
+} from './layout/workspace-surface-element.js'
 import {
   mountWirePinnedLayer,
   type PinnedWireBlock,
@@ -141,36 +166,10 @@ import {
   type PinnedWireNodeContextMap,
 } from './wire-pinned-layer/wire-pinned-layer.js'
 import {
-  defineWorkspaceSurfaceElement,
-  type WorkspaceBoundFaceDefinition,
-  type WorkspaceSurfaceBuild,
-  type WorkspaceSurfaceElement,
-  type WorkspaceSurfaceModel,
-} from './layout/workspace-surface-element.js'
-import {
-  FRAGMENT_GRID_COLLECTION_ADAPTER_ID,
-  createFragmentFaceRegistrations,
-  createFragmentFaceRegistry,
-  createFragmentResourceAdapters,
-} from './layout/fragment-face-set.js'
-import { NamedQueryRegistry, createQueryTextResolver } from './layout/named-query-registry.js'
-import { fragmentNodeId, spliceFragmentDocument } from './layout/fragment-splice.js'
-import type { FaceRegistry } from './layout/face-registry.js'
-import type { QueryBlockService } from './editor-services/query-block-service.js'
-import { objectLocator, contestedCardParams, type SourceObjectService } from './layout/source-object-service.js'
-import { CARD_OBJECT_FACE_ID } from './layout/faces/card-object-face.js'
-import { SPARQL_BINDINGS_TABLE_FACE_ID } from './layout/faces/sparql-bindings-table-face.js'
-import type { FilmstripEvidenceService } from './layout/faces/filmstrip-face.js'
-import type { CuentaVerbSeam } from './layout/faces/card-cuenta-face.js'
-import type { CuentaVerbPort } from './despacho/cuenta-verbs.js'
-import type { SubjectRowActivateDetail } from './layout/faces/sparql-table-view-element.js'
-import { setVegaThemeScopeOverrides } from './editor-services/query-block-vega.js'
-import type {
-  SurfaceActiveTabChange,
-  SurfaceDividerPolicy,
-  SurfaceRatioChange,
-} from './layout/surface-host.js'
-import { LAYOUT_DASHBOARD_COMPONENT } from './layout/layout-dashboard-host.js'
+  mountWiresPanel,
+  type WireContextMap,
+  type WiresPanelMountOptions,
+} from './wires-panel/wires-panel.js'
 
 // Re-export the fragment-region marker alongside the other workspace option
 // types so shells import everything from one place.
@@ -263,6 +262,40 @@ export interface TagLensOptions {
   readonly error?: string | null
   readonly onRefresh?: (detail: TagLensRefreshDetail) => void
   readonly onOpenBlock?: (detail: TagLensOpenBlockDetail) => void
+}
+
+export interface WorkflowPlanStepView {
+  readonly id: string
+  readonly label: string
+  readonly job: string
+  readonly mode: 'once' | 'perItem'
+  /** Local names of the collections the step reads, runs over, checks and produces. */
+  readonly over?: string | null
+  readonly consumes?: readonly string[]
+  readonly checks?: string | null
+  readonly produces?: string | null
+  readonly instructions: string
+  /** Changed since the pane last read the definition (an agent is working on it). */
+  readonly changed?: boolean
+  readonly progress?: { readonly started: number; readonly done: number; readonly failed: number } | null
+}
+
+export interface WorkflowPlanOptions {
+  readonly title: string
+  readonly definition: string
+  readonly status: 'loading' | 'ready' | 'invalid' | 'error'
+  readonly phases: readonly { readonly title: string; readonly steps: readonly WorkflowPlanStepView[] }[]
+  readonly problems?: readonly string[]
+  readonly digest?: string | null
+  readonly error?: string | null
+  readonly updatedAt?: string | null
+  readonly run?: { readonly id: string; readonly status: string; readonly message?: string | null } | null
+  readonly results?: {
+    readonly columns: readonly string[]
+    readonly rows: readonly (readonly string[])[]
+    readonly refused: readonly { readonly what: string; readonly why: string }[]
+  } | null
+  readonly onRun?: () => void
 }
 
 export interface ZoteroSourceItem {
@@ -1347,6 +1380,11 @@ export interface RenderWorkspaceOptions {
    */
   readonly tagLens?: TagLensOptions | null
   /**
+   * Optional workflow plan for the center surface (graph-plan-v1, 2026-10-18): a workflow whose definition is a named
+   * RDF graph, drawn as it is now and, during a run, with each step's progress. The shell owns the reads and the run.
+   */
+  readonly workflowPlan?: WorkflowPlanOptions | null
+  /**
    * Optional controlled Zotero-source workbench for the center surface. The host
    * only reflects shell-owned Zotero item/annotation/wire state and forwards
    * intents; source materialization, daily-note promotion queues, API reads, and
@@ -1880,6 +1918,85 @@ function renderTagLens(tagLens: TagLensOptions): TemplateResult {
   ></mn-tag-view>`
 }
 
+const WORKFLOW_PLAN_STYLE = `
+.wfp { padding: 28px 32px 48px; max-width: 1180px; margin: 0 auto; color: var(--mn-text, inherit); font: 14px/1.5 var(--mn-font-sans, system-ui, sans-serif); }
+.wfp-eyebrow { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; opacity: .6; }
+.wfp-head { display: flex; gap: 16px; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; }
+.wfp-head h1 { font: 500 26px/1.2 var(--mn-font-serif, Georgia, serif); margin: 4px 0; }
+.wfp-meta { font-size: 12.5px; opacity: .7; font-variant-numeric: tabular-nums; }
+.wfp-meta code { font: 11.5px var(--mn-font-mono, ui-monospace, monospace); }
+.wfp-run { font: 600 13px inherit; padding: 7px 14px; border-radius: 4px; border: 1px solid currentColor; background: transparent; color: inherit; cursor: pointer; }
+.wfp-run[disabled] { opacity: .4; cursor: default; }
+.wfp-problems { margin: 14px 0 0; padding: 10px 14px 10px 30px; border-left: 2px solid #b4483c; font-size: 13px; }
+.wfp-lanes { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(220px, 1fr); gap: 14px; margin-top: 20px; overflow-x: auto; padding-bottom: 6px; }
+.wfp-lane-title { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; opacity: .65; margin-bottom: 8px; border-bottom: 1px solid color-mix(in srgb, currentColor 18%, transparent); padding-bottom: 6px; }
+.wfp-card { border: 1px solid color-mix(in srgb, currentColor 18%, transparent); border-radius: 6px; padding: 10px 12px; margin-bottom: 10px; transition: box-shadow .4s, border-color .4s; }
+.wfp-card.changed { border-color: #3557a3; box-shadow: 0 0 0 2px color-mix(in srgb, #3557a3 25%, transparent); }
+.wfp-card h3 { margin: 0; font: 500 15px/1.3 var(--mn-font-serif, Georgia, serif); }
+.wfp-job { font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; opacity: .6; }
+.wfp-io { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0; }
+.wfp-chip { font-size: 11px; border: 1px solid color-mix(in srgb, currentColor 22%, transparent); border-radius: 3px; padding: 0 5px; }
+.wfp-instr { font: 12.5px/1.45 var(--mn-font-serif, Georgia, serif); opacity: .85; display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden; }
+.wfp-progress { margin-top: 6px; font-size: 12px; font-variant-numeric: tabular-nums; }
+.wfp-progress.live { color: #3557a3; }
+.wfp-section { margin-top: 26px; }
+.wfp-section h2 { font: 500 17px/1.3 var(--mn-font-serif, Georgia, serif); margin: 0 0 8px; }
+.wfp-table { overflow-x: auto; }
+.wfp-table table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+.wfp-table th { text-align: left; font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; opacity: .65; border-bottom: 1px solid currentColor; padding: 5px 6px; }
+.wfp-table td { border-bottom: 1px solid color-mix(in srgb, currentColor 14%, transparent); padding: 6px; vertical-align: top; }
+.wfp-refused { border-left: 2px solid #b4483c; padding-left: 10px; margin: 6px 0; font-size: 12.5px; }
+`
+
+function renderWorkflowPlan(plan: WorkflowPlanOptions): TemplateResult {
+  const statusText =
+    plan.status === 'loading' ? 'Reading the definition…'
+      : plan.status === 'invalid' ? 'Not runnable yet'
+        : plan.status === 'error' ? `Could not read the definition: ${plan.error ?? ''}`
+          : 'Ready to run'
+  const running = plan.run && plan.run.status === 'running'
+  const canRun = plan.status === 'ready' && Boolean(plan.digest) && !running
+  return html`<section class="wfp" data-surface="workflow-plan">
+    <style>${WORKFLOW_PLAN_STYLE}</style>
+    <header class="wfp-head">
+      <div>
+        <div class="wfp-eyebrow">Workflow · <code>${plan.definition}</code></div>
+        <h1>${plan.title}</h1>
+        <div class="wfp-meta">${statusText}${plan.digest ? html` · digest <code>${plan.digest.slice(0, 19)}…</code>` : nothing}${plan.updatedAt ? html` · read ${plan.updatedAt}` : nothing}</div>
+      </div>
+      <button class="wfp-run" ?disabled=${!canRun} @click=${() => plan.onRun?.()}>${running ? 'Running…' : 'Approve and run this version'}</button>
+    </header>
+    ${plan.problems && plan.problems.length > 0 ? html`<ul class="wfp-problems">${plan.problems.map((p) => html`<li>${p}</li>`)}</ul>` : nothing}
+    <div class="wfp-lanes">
+      ${plan.phases.map((phase, i) => html`<div class="wfp-lane">
+        <div class="wfp-lane-title">${i + 1} · ${phase.title}</div>
+        ${phase.steps.map((step) => html`<article class="wfp-card ${step.changed ? 'changed' : ''}" data-step=${step.id}>
+          <h3>${step.label}</h3>
+          <div class="wfp-job">${step.job}</div>
+          <div class="wfp-io">
+            ${step.checks ? html`<span class="wfp-chip">checks each ${step.checks}</span>`
+              : step.mode === 'perItem' ? html`<span class="wfp-chip">for each ${step.over ?? ''}</span>`
+                : html`<span class="wfp-chip">once</span>`}
+            ${(step.consumes ?? []).map((c) => html`<span class="wfp-chip">reads ${c}</span>`)}
+            ${step.produces ? html`<span class="wfp-chip">→ ${step.produces}</span>` : nothing}
+          </div>
+          <div class="wfp-instr" title=${step.instructions}>${step.instructions}</div>
+          ${step.progress ? html`<div class="wfp-progress ${running ? 'live' : ''}">${step.progress.done} done${step.progress.started > step.progress.done + step.progress.failed ? html` · ${step.progress.started - step.progress.done - step.progress.failed} running` : nothing}${step.progress.failed ? html` · ${step.progress.failed} failed` : nothing}</div>` : nothing}
+        </article>`)}
+      </div>`)}
+    </div>
+    ${plan.run ? html`<div class="wfp-section"><div class="wfp-meta">Run <code>${plan.run.id}</code> · ${plan.run.status}${plan.run.message ? html` · ${plan.run.message}` : nothing}</div></div>` : nothing}
+    ${plan.results ? html`<div class="wfp-section">
+      <h2>What the run found (${plan.results.rows.length})</h2>
+      <div class="wfp-table"><table>
+        <thead><tr>${plan.results.columns.map((c) => html`<th>${c}</th>`)}</tr></thead>
+        <tbody>${plan.results.rows.map((row) => html`<tr>${row.map((cell) => html`<td>${cell}</td>`)}</tr>`)}</tbody>
+      </table></div>
+      ${plan.results.refused.length > 0 ? html`<h2 style="margin-top:18px">Refused (${plan.results.refused.length})</h2>${plan.results.refused.map((r) => html`<div class="wfp-refused"><div>${r.what}</div><div style="opacity:.75">${r.why}</div></div>`)}` : nothing}
+    </div>` : nothing}
+  </section>`
+}
+
 function renderZoteroSource(source: ZoteroSourceOptions): TemplateResult {
   return html`<mn-zotero-source-workbench
     .artifactId=${source.artifactId}
@@ -2015,7 +2132,7 @@ function parkedRelativeTime(value: number): string {
 }
 
 function parkedReasonChip(reason: string): TemplateResult {
-  const tone = PARKED_REASON_TONE[reason] ?? PARKED_REASON_TONE['orphaned']!
+  const tone = PARKED_REASON_TONE[reason] ?? PARKED_REASON_TONE.orphaned!
   const style =
     `display:inline-flex;align-items:center;gap:var(--mn-space-1);`
     + `padding:0 var(--mn-space-2);border-radius:var(--mn-radius-pill);`
@@ -2346,6 +2463,7 @@ function bodyFor(
   inspector: WorkspaceInspectorOptions | null | undefined,
   parkedWork: ParkedWorkOptions | null,
   files: WorkspaceFilesOptions | null = null,
+  workflowPlan: WorkflowPlanOptions | null = null,
 ): unknown {
   const configuredSurface = configuredSurfaceOwnsRegion(config, regionId)
   // master §3 Slice 8, WS3 §5.2 — the legacy (non-Surface) render path's own
@@ -2358,6 +2476,9 @@ function bodyFor(
   // The Files route is an explicit navigation too: it precedes Home.
   if (!configuredSurface && role === 'center' && files) {
     return renderFilesPane(files)
+  }
+  if (!configuredSurface && role === 'center' && workflowPlan) {
+    return renderWorkflowPlan(workflowPlan)
   }
   if (!configuredSurface && role === 'center' && home) {
     return renderHome(home, dailyNotes)
@@ -2744,6 +2865,7 @@ function renderSpine(
   panelLayout: WorkspacePanelLayoutOptions | null,
   parkedWork: ParkedWorkOptions | null,
   files: WorkspaceFilesOptions | null = null,
+  workflowPlan: WorkflowPlanOptions | null = null,
 ): TemplateResult | typeof nothing {
   // ── Plan-derived positions (same 20/75 for GARDEN_DEFAULT, divergent for variants) ──
   const outerSplit = plan.spine.kind === 'split' ? (plan.spine as SplitNode) : null
@@ -2806,6 +2928,7 @@ function renderSpine(
         inspector,
         parkedWork,
         files,
+        workflowPlan,
       )
       const controls = renderPanelEdgeControls(head.role, panelLayout)
       const landmarkRole = landmarkRoleFor(head.role)
@@ -2853,6 +2976,7 @@ function renderSpine(
       inspector,
       parkedWork,
       files,
+      workflowPlan,
     )
     const startControls = renderPanelEdgeControls(head.role, panelLayout)
     const landmarkRole = landmarkRoleFor(head.role)
@@ -2889,6 +3013,7 @@ const SURFACE_FACE = Object.freeze({
   files: 'garden.files',
   home: 'garden.home',
   tagLens: 'garden.tag-lens',
+  workflowPlan: 'garden.workflow-plan',
   zoteroSource: 'garden.zotero-source',
   artifact: 'garden.artifact',
   dailyHome: 'garden.daily-note-home',
@@ -2917,6 +3042,7 @@ type WorkspaceSurfaceFaceState =
   | { readonly kind: 'home'; readonly home: WorkspaceHomeOptions; readonly dailyNotes: RenderWorkspaceOptions['dailyNotes'] }
   | { readonly kind: 'files'; readonly value: WorkspaceFilesOptions }
   | { readonly kind: 'tag-lens'; readonly value: TagLensOptions }
+  | { readonly kind: 'workflow-plan'; readonly value: WorkflowPlanOptions }
   | { readonly kind: 'zotero-source'; readonly value: ZoteroSourceOptions }
   | { readonly kind: 'artifact'; readonly value: ArtifactViewOptions }
   | { readonly kind: 'daily-home'; readonly value: NonNullable<RenderWorkspaceOptions['dailyNotes']> }
@@ -3379,6 +3505,9 @@ function renderWorkspaceSurfaceFace(target: HTMLElement, raw: unknown): unknown 
     case 'tag-lens':
       decorateSurfaceTarget(target, { role: 'center', surfacePart: 'center-route' })
       return renderTagLens(state.value)
+    case 'workflow-plan':
+      decorateSurfaceTarget(target, { role: 'center', surfacePart: 'center-route' })
+      return renderWorkflowPlan(state.value)
     case 'zotero-source':
       decorateSurfaceTarget(target, { role: 'center', surfacePart: 'center-route' })
       return renderZoteroSource(state.value)
@@ -3569,6 +3698,10 @@ function ensureWorkspaceSurfaceDefined(): void {
     {
       faceId: SURFACE_FACE.tagLens, persistence: 'stamp', minWidth: 280, minHeight: 180,
       accepts: locator => acceptsSurfaceIri(locator, 'tag:'),
+    },
+    {
+      faceId: SURFACE_FACE.workflowPlan, persistence: 'stamp', minWidth: 320, minHeight: 200,
+      accepts: locator => acceptsSurfaceIri(locator, 'workflow:'),
     },
     {
       faceId: SURFACE_FACE.zoteroSource, persistence: 'stamp', minWidth: 320, minHeight: 180,
@@ -3979,6 +4112,11 @@ function assembleWorkspaceSurface(
         kind: 'files', value: opts.files,
       })
     }
+    if (opts.workflowPlan) {
+      return addLeaf('workspace-center-workflow-plan', SURFACE_FACE.workflowPlan, surfaceResource(`workflow:${opts.workflowPlan.definition}`), {
+        kind: 'workflow-plan', value: opts.workflowPlan,
+      })
+    }
     if (opts.home) {
       return addLeaf('workspace-center-home', SURFACE_FACE.home, surfaceResource(`home:${opts.home.graphId}`), {
         kind: 'home',
@@ -4324,7 +4462,7 @@ function workspaceSurfaceModel(
     const entry = liveFragments?.regions?.[meta.regionId]
     if (!liveFragments || !entry || entry.state.status !== 'ready') return
     const originalTabs = entry.state.doc.nodes[meta.fragmentTabsId]
-    if (!originalTabs || originalTabs.kind !== 'tabs') return
+    if (originalTabs?.kind !== 'tabs') return
     const originalActiveNodeId = originalTabs.tabs.find(
       (tab) => fragmentNodeId(meta.regionId, tab.nodeId) === change.operation.activeNodeId,
     )?.nodeId
@@ -4685,6 +4823,7 @@ export function renderWorkspaceTemplate(
     artifact = null,
     parkedWork = null,
     files = null,
+    workflowPlan = null,
     graphPanel = null,
     outlinePanel = null,
     vtuberControls = null,
@@ -4778,6 +4917,7 @@ export function renderWorkspaceTemplate(
     panelLayout,
     parkedWork,
     files,
+    workflowPlan,
   )
 
   // `.main` body: with NO rails it is the bare spine (GardenDefault path —

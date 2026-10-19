@@ -118,6 +118,8 @@ export {
   type TagLensBlock,
   type TagLensOpenBlockDetail,
   type TagLensOptions,
+  type WorkflowPlanOptions,
+  type WorkflowPlanStepView,
   type TagLensRefreshDetail,
   type TagLensStatus,
   type ZoteroSourceAnnotation,

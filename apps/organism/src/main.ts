@@ -221,6 +221,7 @@ import {
   type SidebarSection,
   type TagLensBlock,
   type TagLensOpenBlockDetail,
+  type WorkflowPlanOptions,
   type ZoteroSourceAnnotation,
   type ZoteroSourceBaseDetail,
   type ZoteroSourceIncomingWire,
@@ -361,6 +362,7 @@ import {
   renderSelfHostKeyScreen,
   selfHostBuild,
   selfHostChatEndpointOption,
+  selfHostGraphOwner,
   selfHostRideEndpoint,
   selfHostTransport,
   type SelfHostChat,
@@ -481,6 +483,14 @@ import {
   type MobileFileMutationIntent,
 } from './cell/mobile-file-mutation-flow.js'
 import { loadTagLensBlocks } from './cell/tag-lens.js'
+import {
+  type GraphPlanV1,
+  loadGraphPlan,
+  loadGraphPlanResults,
+  localId as graphPlanLocalId,
+  readGraphPlanRun,
+  startGraphPlanRun,
+} from './cell/graph-plan.js'
 import {
   ensureDailyNote,
   loadDailyNotes,
@@ -1325,6 +1335,208 @@ type CurrentTagLens = {
 }
 let currentTagLens: CurrentTagLens | null = null
 let latestTagLensRequest = 0
+
+// ── The workflow plan route (graph-plan-v1, Vera 2026-10-18) ─────────────────────────────────────────────────────
+// A workflow whose definition is a named RDF graph, shown in the main pane and redrawn as an agent edits the graph
+// (?wf=<definition graph IRI>, optional ?wfinput=<JSON run input>). "Approve and run" starts Choreograph's built-in
+// graph-plan-v1 with the digest of exactly the plan on screen; the pane follows the run and reads back what it found.
+type CurrentWorkflowPlan = {
+  readonly definition: string
+  readonly graphId: string
+  readonly inputs: Record<string, unknown>
+  view: WorkflowPlanOptions
+  plan: GraphPlanV1 | null
+  digest: string | null
+  fingerprints: Map<string, string>
+  changedAt: Map<string, number>
+  runId: string | null
+  runStatus: string | null
+  progress: ReadonlyMap<string, { readonly started: number; readonly done: number; readonly failed: number }>
+  timer: ReturnType<typeof setInterval> | null
+  inFlight: boolean
+}
+let currentWorkflowPlan: CurrentWorkflowPlan | null = null
+const WORKFLOW_PLAN_POLL_MS = 1500
+const WORKFLOW_PLAN_CHANGED_MS = 6000
+const WORKFLOW_CHOREOGRAPH_MOUNT = '/services/choreograph'
+
+function closeWorkflowPlan(): void {
+  if (currentWorkflowPlan?.timer) clearInterval(currentWorkflowPlan.timer)
+  currentWorkflowPlan = null
+}
+
+function workflowPlanFromUrl(): { definition: string; inputs: Record<string, unknown> } | null {
+  try {
+    const url = new URL(window.location.href)
+    const definition = url.searchParams.get('wf')?.trim() ?? ''
+    if (!definition) return null
+    let inputs: Record<string, unknown> = {}
+    const raw = url.searchParams.get('wfinput')
+    if (raw) {
+      const parsed: unknown = JSON.parse(raw)
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) inputs = parsed as Record<string, unknown>
+    }
+    return { definition, inputs }
+  } catch {
+    return null
+  }
+}
+
+function openWorkflowPlan(graphId: string, definition: string, inputs: Record<string, unknown>): void {
+  closeWorkflowPlan()
+  clearTagLensState()
+  clearZoteroSourceState()
+  clearArtifactSurfaceState()
+  openDocId = null
+  teardownEditorClaim()
+  currentWorkflowPlan = {
+    definition,
+    graphId,
+    inputs,
+    view: { title: definition, definition, status: 'loading', phases: [] },
+    plan: null,
+    digest: null,
+    fingerprints: new Map(),
+    changedAt: new Map(),
+    runId: null,
+    runStatus: null,
+    progress: new Map(),
+    timer: null,
+    inFlight: false,
+  }
+  const state = currentWorkflowPlan
+  state.timer = setInterval(() => void pollWorkflowPlan(state), WORKFLOW_PLAN_POLL_MS)
+  void pollWorkflowPlan(state)
+}
+
+function workflowPlanService(): { origin: string; token: string | undefined; mount: string } {
+  return { origin: window.location.origin, token: activeSelfHostSession()?.token, mount: WORKFLOW_CHOREOGRAPH_MOUNT }
+}
+
+/** Live reads for the workflow pane: an agent writes the definition and run graphs over MCP, outside every document
+ * room, so the source mirror's local copy never sees them. Read them from the cell itself. */
+function workflowPlanReader(): { query(graphId: string, sparql: string): Promise<unknown> } | null {
+  const caller = store?.contract.rawMcp
+  return caller ? { query: (graphId, sparql) => caller.callTool('sparql_query', { graphId, query: sparql }) } : null
+}
+
+async function pollWorkflowPlan(state: CurrentWorkflowPlan): Promise<void> {
+  if (state.inFlight || currentWorkflowPlan !== state || !store) return
+  state.inFlight = true
+  try {
+    const reader = workflowPlanReader()
+    if (!reader) return
+    const loaded = await loadGraphPlan(reader, state.graphId, state.definition)
+    const now = Date.now()
+    if (loaded.plan) {
+      const seen = new Map<string, string>()
+      for (const phase of loaded.plan.phases) {
+        for (const step of phase.steps) {
+          const fingerprint = JSON.stringify([phase.title, step.label, step.job, step.mode, step.over, step.consumes, step.checks, step.produces, step.instructions, step.itemSchema])
+          seen.set(step.id, fingerprint)
+          if (state.fingerprints.size > 0 && state.fingerprints.get(step.id) !== fingerprint) state.changedAt.set(step.id, now)
+        }
+      }
+      state.fingerprints = seen
+    }
+    state.plan = loaded.plan
+    state.digest = loaded.digest
+    if (state.runId && state.runStatus === 'running') {
+      const run = await readGraphPlanRun(workflowPlanService(), state.runId)
+      state.progress = run.byLabel
+      if (run.status !== 'running') {
+        state.runStatus = run.status
+        await loadWorkflowPlanResults(state)
+      }
+    }
+    state.view = workflowPlanView(state, loaded.problems, now)
+  } catch (error) {
+    console.error('[wf-plan] poll failed', error)
+    state.view = { ...state.view, status: 'error', error: error instanceof Error ? error.message : String(error) }
+  } finally {
+    state.inFlight = false
+  }
+  if (currentWorkflowPlan === state) rerenderCurrentSource()
+}
+
+async function loadWorkflowPlanResults(state: CurrentWorkflowPlan): Promise<void> {
+  if (!store || !state.plan || !state.runId) return
+  const runGraph = `${state.plan.workflow}:run:${state.runId.replace(/[^A-Za-z0-9_-]/g, '_')}`
+  const reader = workflowPlanReader()
+  if (!reader) return
+  const results = await loadGraphPlanResults(reader, state.graphId, runGraph)
+  const last = state.plan.phases.at(-1)?.steps.find((step) => step.produces)?.produces
+  const shown = results.items.filter((item) => item.collection === last).map((item) => item.value)
+  const columns = [...new Set(shown.flatMap((value) => (value && typeof value === 'object' ? Object.keys(value) : ['value'])))].slice(0, 7)
+  const cell = (value: unknown): string => (value === undefined || value === null ? '' : typeof value === 'string' ? value : JSON.stringify(value))
+  state.view = {
+    ...state.view,
+    results: {
+      columns,
+      rows: shown.map((value) => columns.map((column) => cell(value && typeof value === 'object' ? (value as Record<string, unknown>)[column] : value))),
+      refused: results.refused.map((r) => ({
+        what: cell(r.item && typeof r.item === 'object' ? ((r.item as Record<string, unknown>).quote ?? r.item) : r.item),
+        why: cell(r.verdict && typeof r.verdict === 'object' ? ((r.verdict as Record<string, unknown>).reason ?? r.verdict) : r.verdict),
+      })),
+    },
+  }
+}
+
+function workflowPlanView(state: CurrentWorkflowPlan, problems: readonly string[], now: number): WorkflowPlanOptions {
+  const plan = state.plan
+  return {
+    title: plan?.title ?? state.definition,
+    definition: state.definition,
+    status: plan ? 'ready' : 'invalid',
+    problems,
+    digest: state.digest,
+    updatedAt: new Date(now).toLocaleTimeString(),
+    phases: (plan?.phases ?? []).map((phase) => ({
+      title: phase.title,
+      steps: phase.steps.map((step) => ({
+        id: step.id,
+        label: step.label,
+        job: step.job,
+        mode: step.mode,
+        over: step.over ? graphPlanLocalId(step.over) : null,
+        consumes: step.consumes.map(graphPlanLocalId),
+        checks: step.checks ? graphPlanLocalId(step.checks) : null,
+        produces: step.produces ? graphPlanLocalId(step.produces) : null,
+        instructions: step.instructions,
+        changed: now - (state.changedAt.get(step.id) ?? 0) < WORKFLOW_PLAN_CHANGED_MS,
+        progress: state.progress.get(step.label) ?? null,
+      })),
+    })),
+    run: state.runId ? { id: state.runId, status: state.runStatus ?? 'running' } : null,
+    ...(state.view.results ? { results: state.view.results } : {}),
+    onRun: () => void runWorkflowPlan(state),
+  }
+}
+
+async function runWorkflowPlan(state: CurrentWorkflowPlan): Promise<void> {
+  const session = activeSelfHostSession()
+  if (!state.plan || !state.digest || !session) {
+    state.view = { ...state.view, run: { id: '-', status: 'not started', message: session ? 'the plan is not runnable' : 'runs need a self-hosted Sophia' } }
+    rerenderCurrentSource()
+    return
+  }
+  try {
+    const runId = await startGraphPlanRun(workflowPlanService(), {
+      graphId: state.graphId,
+      graphOwner: selfHostGraphOwner(session),
+      definition: state.definition,
+      digest: state.digest,
+      inputs: state.inputs,
+    })
+    state.runId = runId
+    state.runStatus = 'running'
+    state.progress = new Map()
+    state.view = { ...state.view, results: null, run: { id: runId, status: 'running' } }
+  } catch (error) {
+    state.view = { ...state.view, run: { id: '-', status: 'refused', message: error instanceof Error ? error.message : String(error) } }
+  }
+  rerenderCurrentSource()
+}
 
 type CurrentZoteroSourceSurface = {
   readonly graphId: string
@@ -3513,7 +3725,7 @@ function dailyNoteRenderState(): NonNullable<RenderWorkspaceOptions['dailyNotes'
   return {
     todayKey,
     todayDoc: todayDocProp,
-    showHomeRow: openDocId == null && currentTagLens == null && currentZoteroSourceSurface == null && currentArtifactSurface == null,
+    showHomeRow: openDocId == null && currentTagLens == null && currentWorkflowPlan == null && currentZoteroSourceSurface == null && currentArtifactSurface == null,
     activeDateKey: active?.dateKey ?? null,
     activeAdjacency: dailyNoteAdjacency(active),
     datesWithNotes,
@@ -7942,6 +8154,7 @@ function renderConfig(config: WorkspaceConfig, app: string | undefined): string 
   const paneEditorHosts = centerPaneEditorHostOptions()
   const chat = ensureChatClaim()
   const tagLens = currentTagLens
+  const workflowPlan = !openDocId && !tagLens ? currentWorkflowPlan?.view ?? null : null
   const zoteroSource = currentZoteroSourceSurface
   const artifactSurface = currentArtifactSurface
   const docHistorySurface = currentDocHistorySurface
@@ -7953,7 +8166,7 @@ function renderConfig(config: WorkspaceConfig, app: string | undefined): string 
   const parkedWork = currentParkedWorkOptions()
   // The Files route yields to every other explicit center route, and stays closed once another took over.
   const filesShellNow = bindFilesShell()
-  const filesBlocked = Boolean(openDocId || centerPanesVisible || tagLens || zoteroSource
+  const filesBlocked = Boolean(openDocId || centerPanesVisible || tagLens || workflowPlan || zoteroSource
     || artifactSurface || docHistorySurface || contested || parkedWork)
   if (filesBlocked) filesShellNow?.leave()
   const files = !filesBlocked && (app === undefined || app === 'garden') ? filesShellNow?.options() ?? null : null
@@ -7965,7 +8178,7 @@ function renderConfig(config: WorkspaceConfig, app: string | undefined): string 
   // Preserve the saved notebook fragment on arrival; an explicit shell route
   // uses the ordinary editor center for this view, without writing UX state.
   config = withNotebookWorkspaceShell(config, {
-    preferHostRoute: Boolean(openDocId || centerPanesVisible || tagLens || zoteroSource
+    preferHostRoute: Boolean(openDocId || centerPanesVisible || tagLens || workflowPlan || zoteroSource
       || artifactSurface || docHistorySurface || contested || parkedWork || files),
   })
   // Grapevine (Sophia Chat) needs the hosted gateway: it does not join a self-host's picker.
@@ -8186,6 +8399,7 @@ function renderConfig(config: WorkspaceConfig, app: string | undefined): string 
           },
         }
       : {}),
+    ...(workflowPlan ? { workflowPlan } : {}),
     ...(zoteroSource
       ? {
           zoteroSource: {
@@ -9449,6 +9663,10 @@ function startCellMode(): void {
   const nextStore = buildCellStore(graphId)
   const nextConfigStore = workspaceConfigStore(nextStore)
   store = nextStore
+  {
+    const fromUrl = workflowPlanFromUrl()
+    if (fromUrl) openWorkflowPlan(graphId, fromUrl.definition, fromUrl.inputs)
+  }
   customCssController = new CustomCssController(nextStore.contract, graphId, roomPoolFor(nextStore.contract.crdt))
   // The tree follows writes made outside this page (Sophia's chat, the conversation mirror, another tab or
   // person, an MCP client), heard on the workspace room the custom CSS above already holds. Not on the hosted
