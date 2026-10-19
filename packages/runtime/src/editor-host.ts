@@ -770,6 +770,9 @@ interface ShadowCaretDocument {
   caretRangeFromPoint?: (x: number, y: number) => Range | null
 }
 
+/** Blocks whose content is a run of text, for "click right of the last line". */
+const TEXT_BLOCK_SELECTOR = 'p, h1, h2, h3, h4, h5, h6'
+
 const EDITOR_CARET_BLOCKED_SELECTOR = [
   'button',
   'input',
@@ -1177,7 +1180,13 @@ export class ShEditorHost extends LitElement {
     .editor-mount .ProseMirror > h1,
     .editor-mount .ProseMirror > h2,
     .editor-mount .ProseMirror > h3 {
-      margin: 0 0 var(--mn-space-1, 0.25rem);
+      /* A transparent border, not a margin, for the space below: WebKit paints
+         a multi-block selection into the margins between blocks (see the list
+         item rule). !important keeps the background clipped against the
+         background shorthand in the hover and selected rules. */
+      margin: 0;
+      border-bottom: var(--mn-space-1, 0.25rem) solid transparent;
+      background-clip: padding-box !important;
       padding: var(--mn-space-1-5, 0.375rem) var(--mn-space-2, 0.5rem)
         var(--mn-space-1-5, 0.375rem) var(--mn-space-8, 2rem);
       border-radius: var(--mn-radius-md, 6px);
@@ -1526,8 +1535,17 @@ export class ShEditorHost extends LitElement {
       background: var(--mn-color-warning-surface-strong, #ffedd5);
       box-shadow: 0 0 0 2px color-mix(in srgb, var(--mn-color-warning-border, #f59e0b) 28%, transparent);
     }
+    /* The space under each list item is a transparent BORDER, not a margin.
+       WebKit paints a selection across blocks into the margins between them,
+       from the list's left edge: Select All drew a band under every bullet.
+       A border is part of the block, so nothing is painted there. The
+       background stays clipped to the padding box, so the hover and selected
+       washes keep their size; !important holds that against the background
+       shorthand in those rules, which would reset the clip. */
     .editor-mount .ProseMirror > li {
-      margin: 0 0 var(--mn-space-2, 0.5rem);
+      margin: 0;
+      border-bottom: var(--mn-space-2, 0.5rem) solid transparent;
+      background-clip: padding-box !important;
       padding: var(--mn-space-1-5, 0.375rem) var(--mn-space-2, 0.5rem)
         var(--mn-space-1-5, 0.375rem) var(--mn-space-8, 2rem);
       border-radius: var(--mn-radius-md, 6px);
@@ -5747,6 +5765,11 @@ export class ShEditorHost extends LitElement {
       node => node instanceof Element && node.matches(EDITOR_CARET_BLOCKED_SELECTOR),
     )) return
 
+    if (this._caretToBlockEndForClick(event, editorRoot)) {
+      editor.commands.focus()
+      return
+    }
+
     const caret = this._shadowCaretFromPoint(event.clientX, event.clientY, shadowRoot, editorRoot)
     if (!caret || !editorRoot.contains(caret.offsetNode)) return
 
@@ -5758,6 +5781,42 @@ export class ShEditorHost extends LitElement {
       // A transient node-view rerender can detach the caret node between lookup
       // and mapping. ProseMirror's original click result remains the safe fallback.
     }
+  }
+
+  /**
+   * A click in the empty space to the right of a text block's last line puts
+   * the caret at the block's end (2026-10-14). The caret lookup
+   * below cannot be trusted for it: on a wrapped block in WebKit, a point in
+   * the line gap or the block's bottom padding resolves to another line, or to
+   * nothing. "Right of the last line" means: right of where the block's text
+   * ends, at or below that line's top, and inside the block.
+   *
+   * Returns true when it placed the caret.
+   */
+  private _caretToBlockEndForClick(event: MouseEvent, editorRoot: HTMLElement): boolean {
+    const editor = this._editor
+    const view = editor?.view
+    if (!editor || !view?.coordsAtPos) return false
+    const target = event.composedPath()[0]
+    if (!(target instanceof Element) || !editorRoot.contains(target)) return false
+    // The click lands on the text block itself, or on a list item's padding
+    // around its paragraph.
+    const block = target.closest(TEXT_BLOCK_SELECTOR)
+      ?? (target.matches('li') ? target.querySelector(':scope > p') : null)
+    if (!(block instanceof HTMLElement) || !editorRoot.contains(block)) return false
+    const rect = block.getBoundingClientRect()
+    const { clientX: x, clientY: y } = event
+    const container = target.matches('li') ? target.getBoundingClientRect() : rect
+    if (x < rect.left || x > container.right || y < container.top || y > container.bottom) return false
+    let end: number
+    try {
+      end = view.posAtDOM(block, block.childNodes.length)
+    } catch {
+      return false
+    }
+    const lastLine = view.coordsAtPos(end)
+    if (y < lastLine.top - 1 || x <= lastLine.right) return false
+    return editor.commands.setTextSelection(end)
   }
 
   private _shadowCaretFromPoint(

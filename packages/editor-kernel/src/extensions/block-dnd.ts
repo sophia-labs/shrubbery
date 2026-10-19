@@ -7,7 +7,7 @@
 
 import { Extension } from '@tiptap/core'
 import { Fragment, type Node as ProseMirrorNode } from '@tiptap/pm/model'
-import { Plugin, PluginKey, type EditorState, type Transaction } from '@tiptap/pm/state'
+import { Plugin, PluginKey, TextSelection, type EditorState, type Transaction } from '@tiptap/pm/state'
 import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view'
 import {
   MAX_INDENT,
@@ -221,6 +221,94 @@ export function dropModeFromGeometry(
   return clientX - rect.left > childThresholdPx ? 'child' : 'after'
 }
 
+/**
+ * Move the caret across a block boundary through ProseMirror instead of the
+ * browser.
+ *
+ * WHY. Every block carries a drag handle, rendered as a `contenteditable=false`
+ * widget in front of its first character (see `decorations` below). WebKit's
+ * native caret movement walks into that widget. Measured in WebKit with the
+ * caret at the start of a block: one Left left the caret in no paragraph at
+ * all — a typed character landed nowhere — and the next Backspace joined the
+ * block into the previous one. Up from a block's start did the same. Chromium
+ * steps over the widget, so this only showed in the packaged app, which is
+ * WKWebView.
+ *
+ * When ProseMirror sets the selection itself it draws the DOM caret correctly
+ * past the widget, so the fix is to handle exactly the moves that cross a
+ * textblock edge and leave every other arrow press to the browser.
+ *
+ * Plain keys only: Shift, Alt, Cmd and Ctrl keep their native meanings
+ * (extending a selection, word and line jumps).
+ */
+export function crossBlockBoundary(view: EditorView, event: KeyboardEvent): boolean {
+  if (event.shiftKey || event.altKey || event.metaKey || event.ctrlKey) return false
+  const { state } = view
+  const { selection } = state
+  if (!(selection instanceof TextSelection) || !selection.empty) return false
+  const $pos = selection.$from
+  if (!$pos.parent.isTextblock) return false
+
+  const atStart = $pos.parentOffset === 0
+  const atEnd = $pos.parentOffset === $pos.parent.content.size
+  let target: TextSelection | null = null
+
+  if (event.key === 'ArrowLeft' && atStart) {
+    target = previousTextblockEnd(state, $pos.before())
+  } else if (event.key === 'ArrowRight' && atEnd) {
+    target = nextTextblockStart(state, $pos.after())
+  } else if ((event.key === 'ArrowUp' || event.key === 'ArrowDown') && atStart) {
+    // Only when the move would leave this block. Up and Down from the middle of
+    // a wrapped paragraph stay inside it, and the browser does those correctly.
+    const direction = event.key === 'ArrowUp' ? 'up' : 'down'
+    if (!view.endOfTextblock(direction)) return false
+    target = event.key === 'ArrowUp'
+      ? verticalTarget(view, previousTextblockEnd(state, $pos.before()), 'up')
+      : verticalTarget(view, nextTextblockStart(state, $pos.after()), 'down')
+  } else {
+    return false
+  }
+
+  if (!target) return false
+  view.dispatch(state.tr.setSelection(target).scrollIntoView())
+  return true
+}
+
+function previousTextblockEnd(state: EditorState, before: number): TextSelection | null {
+  const found = TextSelection.findFrom(state.doc.resolve(before), -1, true)
+  return found instanceof TextSelection ? found : null
+}
+
+function nextTextblockStart(state: EditorState, after: number): TextSelection | null {
+  const found = TextSelection.findFrom(state.doc.resolve(after), 1, true)
+  return found instanceof TextSelection ? found : null
+}
+
+/**
+ * For Up and Down, keep the caret's column the way the browser would: land at
+ * the caret's x on the nearest line of the neighbouring block. Falls back to the
+ * block edge when coordinates are unavailable (a hidden or unmeasured editor).
+ */
+function verticalTarget(
+  view: EditorView,
+  edge: TextSelection | null,
+  direction: 'up' | 'down',
+): TextSelection | null {
+  if (!edge) return null
+  try {
+    const here = view.coordsAtPos(view.state.selection.from)
+    const there = view.coordsAtPos(edge.from)
+    const y = direction === 'up' ? there.bottom - 2 : there.top + 2
+    const hit = view.posAtCoords({ left: here.left, top: y })
+    if (!hit) return edge
+    const $hit = view.state.doc.resolve(hit.pos)
+    if (!$hit.parent.isTextblock) return edge
+    return TextSelection.create(view.state.doc, hit.pos)
+  } catch {
+    return edge
+  }
+}
+
 export const BlockDnd = Extension.create({
   name: 'blockDnd',
 
@@ -236,6 +324,9 @@ export const BlockDnd = Extension.create({
           },
         },
         props: {
+          handleKeyDown(view, event) {
+            return crossBlockBoundary(view, event)
+          },
           decorations(state) {
             const blocks = getOutlinerBlocks(state.doc)
             const dndState = blockDndKey.getState(state)

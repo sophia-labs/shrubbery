@@ -53,6 +53,7 @@ import {
   getHeadingOutline,
   getOutlinerBlocks,
   getZoomedBlockId,
+  kernelCoreExtensionOptions,
   kernelExtensions,
   tagChipStyles,
   wikilinkStyles,
@@ -540,6 +541,7 @@ export function createLiveCollabEditor(opts: LiveCollabEditorOptions): Editor {
     editor = new Editor({
       element: opts.element,
       editable: opts.editable ?? true,
+      coreExtensionOptions: kernelCoreExtensionOptions,
       extensions: [
         // History DROPPED here (collaborative:true ⇒ StarterKit undoRedo:false).
         ...kernelExtensions({ ...opts.kernel, collaborative: true }),
