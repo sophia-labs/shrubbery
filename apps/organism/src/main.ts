@@ -519,6 +519,7 @@ import {
 } from './cell/document-comments.js'
 import type { ReaderAnnotateDetail, ReaderAnnotationChangeDetail } from './cell/reader/reader-model.js'
 import type { ReaderAskDetail } from './cell/reader/mn-reader.js'
+import { readerAskText } from './cell/reader/ask-text.js'
 import {
   activeDocumentSelection,
   projectInspectorActions,
@@ -2448,11 +2449,7 @@ function handleEditorCommentInserted(detail: EditorCommentInsertedDetail | undef
  */
 function askSophiaAboutReader(detail: ReaderAskDetail | undefined): void {
   if (!detail || chatHidden()) return
-  const title = detail.title.replace(/[\]\[]/g, '')
-  const quote = detail.quote.trim().replace(/\s+/g, ' ').slice(0, 1200)
-  const text = detail.scope === 'passage' && quote
-    ? `From "${title}", ${detail.where}:\n\n> ${quote}\n\n`
-    : `About ${detail.scope === 'page' ? '' : 'the chapter '}${detail.where} of "${title}": `
+  const text = readerAskText(detail)
   if (currentRightPanel !== 'chat') setRightPanel('chat', 'reader: ask Sophia')
   // The chat host mounts when the panel opens: offer the words until it has taken them.
   let tries = 0
