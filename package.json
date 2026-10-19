@@ -26,7 +26,9 @@
     "overrides": {
       "@codemirror/state": "6.5.2",
       "@codemirror/view": "6.38.1",
-      "@codemirror/lint": "6.9.0"
+      "@codemirror/lint": "6.9.0",
+      "react": "19.2.7",
+      "react-dom": "19.2.7"
     },
     "patchedDependencies": {
       "@tiptap/y-tiptap@3.0.5": "patches/@tiptap__y-tiptap@3.0.5.patch"
