@@ -886,6 +886,7 @@ describe('picker glue — the full causal chain through SHIPPED code (no mock on
           insertedAtCursor.push(attrs)
           return true
         },
+        getActiveBlockId: () => 'block-cursor',
       }),
       services,
       getScope,
@@ -924,6 +925,8 @@ describe('picker glue — the full causal chain through SHIPPED code (no mock on
     expect(rec.params.sourceDocumentId).toBe(DOC_ID)
     expect(rec.params.targetDocumentId).toBe('doc-billing')
     expect(rec.params.targetBlockId).toBe('block-price')
+    // The wire starts at the block the link was typed in, not the whole document.
+    expect(rec.params.sourceBlockId).toBe('block-cursor')
     expect(insertedAtCursor).toEqual([
       {
         targetDocId: 'doc-billing',

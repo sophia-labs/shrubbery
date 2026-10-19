@@ -789,10 +789,14 @@ async function onSelect(
   const pick = selection.document
   const block = selection.block
   const predicate = selection.predicate
+  // The link sits in a block, so the wire starts there, not at the whole
+  // document.
+  const sourceBlockId = opts.getEditor()?.getActiveBlockId?.() ?? null
   // 1) Create the wire FIRST — the service mints + returns the wireId (the cell honors
   //    the caller-minted id; the node + wire then share it).
   const { wireId } = await opts.services.wire.create({
     sourceDocumentId,
+    ...(sourceBlockId ? { sourceBlockId } : {}),
     targetDocumentId: pick.id,
     ...(block ? { targetBlockId: block.id } : {}),
     ...(predicate ? { predicate: predicate.uri } : {}),
