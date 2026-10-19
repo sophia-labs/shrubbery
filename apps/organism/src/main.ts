@@ -487,6 +487,7 @@ import { loadTagLensBlocks } from './cell/tag-lens.js'
 import {
   findingCommentId,
   type GraphPlanV1,
+  latestGraphPlanRun,
   loadGraphPlan,
   loadGraphPlanResults,
   localId as graphPlanLocalId,
@@ -1360,6 +1361,8 @@ type CurrentWorkflowPlan = {
   /** The run's findings a person may publish as comments, and how the last publish went. */
   findings: readonly PublishableFinding[]
   publish: { status: 'ready' | 'publishing' | 'done' | 'error'; message: string | null }
+  /** The pane looked for this workflow's last run (once per opening), so a reload keeps it in view. */
+  lastRunLooked: boolean
   progress: ReadonlyMap<string, { readonly started: number; readonly done: number; readonly failed: number }>
   timer: ReturnType<typeof setInterval> | null
   inFlight: boolean
@@ -1423,6 +1426,7 @@ function openWorkflowPlan(graphId: string, definition: string, inputs: Record<st
     runStatus: null,
     findings: [],
     publish: { status: 'ready', message: null },
+    lastRunLooked: false,
     progress: new Map(),
     timer: null,
     inFlight: false,
@@ -1464,6 +1468,20 @@ async function pollWorkflowPlan(state: CurrentWorkflowPlan): Promise<void> {
     }
     state.plan = loaded.plan
     state.digest = loaded.digest
+    if (!state.runId && !state.lastRunLooked && loaded.plan) {
+      state.lastRunLooked = true
+      const last = await latestGraphPlanRun(reader, state.graphId, loaded.plan.workflow)
+      if (last) {
+        state.runId = last.runId
+        state.runStatus = last.status
+        try {
+          state.progress = (await readGraphPlanRun(workflowPlanService(), last.runId)).byLabel
+        } catch {
+          /* the run's own graph still says what it found; only the step tallies are missing */
+        }
+        await loadWorkflowPlanResults(state)
+      }
+    }
     if (state.runId && state.runStatus === 'running') {
       const run = await readGraphPlanRun(workflowPlanService(), state.runId)
       state.progress = run.byLabel

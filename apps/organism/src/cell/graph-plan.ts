@@ -556,3 +556,21 @@ export function publishableFindings(values: readonly unknown[]): PublishableFind
 export function findingCommentId(runId: string, index: number): string {
   return `wf-${runId.replace(/[^A-Za-z0-9_-]/g, '_')}-${index + 1}`
 }
+
+/**
+ * The workflow's latest run, read from the runs' own graphs (each run testifies `wf:GraphPlanRun` with its id and
+ * status). Run ids begin with a base-36 clock, so the greatest id is the latest run.
+ */
+export async function latestGraphPlanRun(
+  rest: GraphPlanReader,
+  graphId: string,
+  workflow: string,
+): Promise<{ runId: string; status: string } | null> {
+  assertIri(workflow, 'workflow')
+  const query = `PREFIX wf: <${WF}> SELECT ?runId ?status WHERE { GRAPH ?g { ?run a wf:GraphPlanRun ; wf:runId ?runId ; wf:status ?status ; wf:workflow <${workflow}> } } ORDER BY DESC(?runId) LIMIT 1`
+  const row = (findRows(await rest.query(graphId, query)) ?? []).find(isRecord)
+  if (!row) return null
+  const text = (raw: unknown): string | undefined => (typeof raw === 'string' ? parseTerm(raw).value : undefined)
+  const runId = text(row.runId)
+  return runId ? { runId, status: text(row.status) ?? 'completed' } : null
+}

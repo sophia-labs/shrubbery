@@ -75,6 +75,11 @@ export interface MnOriginalViewerAnnotationDetail extends MnOriginalViewerIntent
   readonly annotation: MnOriginalViewerAnnotation
 }
 
+/** A quote as a reader should see it: a JSON-escaped line break an agent copied (a backslash and an n) reads as a space. */
+function shownQuote(quote: string | null | undefined): string {
+  return (quote ?? '').replace(/\\[nrt]/g, ' ')
+}
+
 function trimmed(value: string | null | undefined): string {
   return (value ?? '').trim()
 }
@@ -886,7 +891,7 @@ export class MnOriginalViewer extends SkinAware(LitElement) {
     return html`
       <span class="annotation-item" data-kind=${kind}>
         ${trimmed(annotation.quote)
-          ? html`<span class="annotation-passage">${annotation.quote}</span>`
+          ? html`<span class="annotation-passage">${shownQuote(annotation.quote)}</span>`
           : html`<span class="annotation-quote">No quoted passage</span>`}
         ${kind === 'comment' && body ? html`<span class="annotation-body">${body}</span>` : nothing}
         <span class="annotation-author">${kind === 'highlight' ? 'Highlight' : author || 'Comment'}</span>
@@ -963,7 +968,7 @@ export class MnOriginalViewer extends SkinAware(LitElement) {
             <span>
               <span class="annotation-label">${annotation.label || annotation.sourceRef || annotation.id}</span>
               ${annotation.pageNumber ? html`<span class="annotation-quote">Page ${annotation.pageNumber}</span>` : nothing}
-              ${trimmed(annotation.quote) ? html`<span class="annotation-quote">${annotation.quote}</span>` : nothing}
+              ${trimmed(annotation.quote) ? html`<span class="annotation-quote">${shownQuote(annotation.quote)}</span>` : nothing}
             </span>
           </button>
         `)}
