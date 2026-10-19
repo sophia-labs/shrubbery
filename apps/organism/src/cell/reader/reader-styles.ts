@@ -22,7 +22,9 @@ export function highlightRules(prefix: string): string {
   ].join('\n')
 }
 
-export const READER_STYLES: CSSResult = css`
+
+/** The Reader's tokens, on the host of anything that draws its chrome (the Reader, its bar). */
+export const READER_TOKENS: CSSResult = css`
   :host {
     --rd-bar-h: 44px;
     --rd-chrome: var(--mn-color-surface-chrome, var(--mn-color-surface-panel, #f6f5f2));
@@ -48,30 +50,18 @@ export const READER_STYLES: CSSResult = css`
     --rd-note-line: rgba(200, 120, 20, 0.85);
     --rd-find: rgba(86, 156, 245, 0.28);
     --rd-find-current: rgba(250, 140, 40, 0.55);
-    --rd-type-size: 1.125rem;
-    --rd-measure: 34em;
-    --rd-face: var(--mn-font-prose, Georgia, serif);
-
-    display: flex;
-    flex-direction: column;
-    min-width: 0;
-    min-height: 0;
-    height: 100%;
-    flex: 1 1 auto;
-    color: var(--rd-ink);
-    background: var(--rd-canvas);
-    font-family: var(--mn-font-chrome, system-ui, sans-serif);
-    font-size: var(--mn-text-sm, 13px);
-    container: reader / inline-size;
   }
-  :host([data-kind='epub']) { --rd-canvas: var(--rd-paper); }
+`
+
+/** The one bar: sidebar | title and author | location | tools | Original / Text | more. The same in every view. */
+export const READER_BAR_STYLES: CSSResult = css`
+  :host { display: block; flex: 0 0 auto; position: relative; z-index: 3; container: rbar / inline-size; font-family: var(--mn-font-chrome, system-ui, sans-serif); font-size: var(--mn-text-sm, 13px); color: var(--rd-ink); }
+  [hidden] { display: none !important; }
   * { box-sizing: border-box; }
   button { font: inherit; color: inherit; }
-  [hidden] { display: none !important; }
-
   /* --- the bar ------------------------------------------------------------------------------------------------------ */
   .bar {
-    flex: 0 0 var(--rd-bar-h);
+    height: var(--rd-bar-h);
     display: flex;
     align-items: center;
     gap: var(--mn-space-2, 8px);
@@ -98,18 +88,19 @@ export const READER_STYLES: CSSResult = css`
   .btn:hover:not(:disabled) { background: var(--rd-hover); color: var(--rd-ink); }
   .btn[aria-pressed='true'] { background: var(--rd-pressed); color: var(--rd-accent); }
   .btn:disabled { opacity: 0.4; cursor: default; }
-  .btn:focus-visible, .seg button:focus-visible, .loc input:focus-visible { outline: 2px solid var(--rd-focus); outline-offset: 1px; }
+  .btn:focus-visible, .seg button:focus-visible, .loc input:focus-visible, .loc-slot input:focus-visible { outline: 2px solid var(--rd-focus); outline-offset: 1px; }
   .btn svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
   .btn .count { font-size: var(--mn-text-xs, 12px); font-variant-numeric: tabular-nums; }
 
-  .loc { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; justify-content: center; gap: 2px; color: var(--rd-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
-  .loc input {
+  .loc-slot, .tools { display: flex; align-items: center; gap: 2px; min-width: 0; }
+  .loc, .loc-slot { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; justify-content: center; gap: 2px; color: var(--rd-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .loc input, .loc-slot input {
     width: 3.4em; height: 26px; text-align: center; font: inherit; color: var(--rd-ink);
     background: var(--rd-raised); border: 1px solid var(--rd-rule-strong); border-radius: var(--mn-radius-sm, 4px);
   }
-  .loc .of { padding: 0 4px 0 6px; }
-  .loc .where { flex: 0 1 auto; min-width: 0; max-width: 24em; overflow: hidden; text-overflow: ellipsis; color: var(--rd-ink); padding: 0 6px; }
-  .loc .pct { flex: none; color: var(--rd-quiet); }
+  .loc .of, .loc-slot .of { padding: 0 4px 0 6px; }
+  .loc .where, .loc-slot .where { flex: 0 1 auto; min-width: 0; max-width: 24em; overflow: hidden; text-overflow: ellipsis; color: var(--rd-ink); padding: 0 6px; }
+  .loc .pct, .loc-slot .pct { flex: none; color: var(--rd-quiet); }
 
   .zoom { min-width: 3.4em; text-align: center; color: var(--rd-muted); font-variant-numeric: tabular-nums; }
 
@@ -119,6 +110,45 @@ export const READER_STYLES: CSSResult = css`
     background: transparent; color: var(--rd-muted); cursor: pointer;
   }
   .seg button[aria-pressed='true'] { background: var(--rd-raised); color: var(--rd-ink); box-shadow: var(--mn-shadow-xs, 0 1px 2px rgba(0, 0, 0, 0.08)); }
+
+  .bar-progress { position: absolute; left: 0; bottom: -1px; height: 2px; background: var(--rd-accent); opacity: 0.55; transition: width 200ms ease; }
+  .bar-error { margin: 0; padding: 6px 12px; background: var(--rd-chrome); color: var(--mn-color-text-danger, #b42318); border-bottom: 1px solid var(--rd-rule); font-size: var(--mn-text-xs, 12px); }
+  .status { color: var(--rd-muted); font-size: var(--mn-text-xs, 12px); }
+  .find-pop {
+    position: absolute; top: calc(100% + 8px); right: 14px; z-index: 4; display: flex; align-items: center; gap: 2px;
+    padding: 4px 4px 4px 10px; background: var(--rd-raised); border: 1px solid var(--rd-rule-strong);
+    border-radius: var(--mn-radius-md, 8px); box-shadow: var(--rd-shadow-pop);
+  }
+  .find-pop input { width: 200px; border: 0; outline: none; background: transparent; font: inherit; color: var(--rd-ink); }
+  .find-pop .count { color: var(--rd-quiet); font-size: var(--mn-text-xs, 12px); min-width: 5.5em; text-align: right; padding-right: 4px; font-variant-numeric: tabular-nums; }
+  @container rbar (max-width: 640px) {
+    .title small, .status { display: none; }
+  }
+`
+
+export const READER_STYLES: CSSResult = css`
+  :host {
+    /* the tokens: READER_TOKENS */
+    --rd-type-size: 1.125rem;
+    --rd-measure: 34em;
+    --rd-face: var(--mn-font-prose, Georgia, serif);
+
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    height: 100%;
+    flex: 1 1 auto;
+    color: var(--rd-ink);
+    background: var(--rd-canvas);
+    font-family: var(--mn-font-chrome, system-ui, sans-serif);
+    font-size: var(--mn-text-sm, 13px);
+    container: reader / inline-size;
+  }
+  :host([data-kind='epub']) { --rd-canvas: var(--rd-paper); }
+  * { box-sizing: border-box; }
+  button { font: inherit; color: inherit; }
+  [hidden] { display: none !important; }
 
   /* --- body: sidebar | stage | margin -------------------------------------------------------------------------------- */
   .body { flex: 1 1 auto; display: flex; min-height: 0; position: relative; }
@@ -332,10 +362,9 @@ export const READER_STYLES: CSSResult = css`
   }
   .veil { position: absolute; inset: 0; z-index: 4; display: grid; place-items: center; background: var(--rd-canvas); color: var(--rd-muted); padding: 24px; text-align: center; }
   .veil p { max-width: 36em; line-height: 1.5; }
-  .bar-progress { position: absolute; left: 0; bottom: -1px; height: 2px; background: var(--rd-accent); opacity: 0.55; transition: width 200ms ease; }
 
   @container reader (max-width: 640px) {
-    .title small, .bar .lbl, .zoom { display: none; }
-    .loc .where { max-width: 9em; }
+    .zoom { display: none; }
+    .loc .where, .loc-slot .where { max-width: 9em; }
   }
 `

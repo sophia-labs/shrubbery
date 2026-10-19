@@ -732,6 +732,35 @@ function originalFileFeature<TContract>(): ShellFeature<TContract> {
   const rememberView = (scope: string, view: 'text' | 'original'): void => {
     try { globalThis.localStorage?.setItem(viewKey(scope), view) } catch { /* the default is the original */ }
   }
+  // The work's own title and author, as the Reader read them: the Text view's bar says the same words.
+  const metaKey = (scope: string): string => `mn-reader:v1:meta:${scope}`
+  const readerMetas = new Map<string, { readonly title: string; readonly author: string }>()
+  const readerMetaFor = (scope: string): { readonly title: string; readonly author: string } | null => {
+    if (!scope) return null
+    const known = readerMetas.get(scope)
+    if (known) return known
+    try {
+      const raw = globalThis.localStorage?.getItem(metaKey(scope))
+      const parsed = raw ? JSON.parse(raw) as { title?: unknown; author?: unknown } : null
+      if (parsed && typeof parsed.title === 'string') {
+        const meta = { title: parsed.title, author: typeof parsed.author === 'string' ? parsed.author : '' }
+        readerMetas.set(scope, meta)
+        return meta
+      }
+    } catch { /* the file name will do */ }
+    return null
+  }
+  const onReaderMeta = (event: Event): void => {
+    const detail = (event as CustomEvent<{ title?: string; author?: string }>).detail
+    const context = latestContext
+    if (!context?.documentId || !detail?.title) return
+    const scope = `${context.graphId}\u0000${context.documentId}`
+    const meta = { title: detail.title, author: detail.author ?? '' }
+    const known = readerMetas.get(scope)
+    if (known?.title === meta.title && known.author === meta.author) return
+    readerMetas.set(scope, meta)
+    try { globalThis.localStorage?.setItem(metaKey(scope), JSON.stringify(meta)) } catch { /* only the Text bar's title */ }
+  }
   let openedOriginalFor = ''
   const ensure = (): OrganismOriginalFileController => {
     controller ??= new OrganismOriginalFileController({
@@ -811,6 +840,7 @@ function originalFileFeature<TContract>(): ShellFeature<TContract> {
       listeningRoot.removeEventListener('mn-original-viewer-chapter-select', onChapterSelect)
       listeningRoot.removeEventListener('mn-original-viewer-page-select', onPageSelect)
       listeningRoot.removeEventListener('mn-editor-make-editable', onMakeEditable)
+      listeningRoot.removeEventListener('reader-meta', onReaderMeta)
     }
     listeningRoot = root
     root.addEventListener('mn-editor-original-view-toggle', onToggle)
@@ -820,6 +850,7 @@ function originalFileFeature<TContract>(): ShellFeature<TContract> {
     root.addEventListener('mn-original-viewer-chapter-select', onChapterSelect)
     root.addEventListener('mn-original-viewer-page-select', onPageSelect)
     root.addEventListener('mn-editor-make-editable', onMakeEditable)
+    root.addEventListener('reader-meta', onReaderMeta)
   }
 
   return {
@@ -895,7 +926,12 @@ function originalFileFeature<TContract>(): ShellFeature<TContract> {
       if (assignedHost && assignedHost !== host) assignedHost.originalFileView = null
       assignedHost = host
       // Highlights and notes are saved into the open document's comments, so they need its live Y.Doc.
-      if (host) host.originalFileView = { ...ensure().snapshot(), readerCanAnnotate: quoteDoc !== null }
+      if (host) host.originalFileView = {
+        ...ensure().snapshot(),
+        readerCanAnnotate: quoteDoc !== null,
+        readerBar: true,
+        readerMeta: readerMetaFor(latestContext.documentId ? `${latestContext.graphId}\u0000${latestContext.documentId}` : ''),
+      }
     },
     destroy() {
       if (listeningRoot) {
@@ -906,6 +942,7 @@ function originalFileFeature<TContract>(): ShellFeature<TContract> {
         listeningRoot.removeEventListener('mn-original-viewer-chapter-select', onChapterSelect)
         listeningRoot.removeEventListener('mn-original-viewer-page-select', onPageSelect)
         listeningRoot.removeEventListener('mn-editor-make-editable', onMakeEditable)
+        listeningRoot.removeEventListener('reader-meta', onReaderMeta)
       }
       if (assignedHost) assignedHost.originalFileView = null
       controller?.destroy()

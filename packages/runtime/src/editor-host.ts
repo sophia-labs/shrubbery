@@ -498,6 +498,13 @@ export interface EditorOriginalFileView {
   readonly readerAnnotations?: readonly unknown[]
   /** May this person highlight and write notes on the original? */
   readonly readerCanAnnotate?: boolean
+  /**
+   * The shell has the Reader's bar (`<mn-reader-bar>`): a read-only document with an original shows it, in Text as in
+   * Original, so the two views have one bar with the Original / Text control at one place.
+   */
+  readonly readerBar?: boolean
+  /** The work's own title and author (the PDF's metadata, the book's package), when the Reader has read them. */
+  readonly readerMeta?: { readonly title: string; readonly author: string } | null
 }
 
 /** Shell-owned access state for the open document. */
@@ -1065,6 +1072,7 @@ export class ShEditorHost extends LitElement {
     }
     .editor-mount[hidden],
     mn-editor-toolbar[hidden],
+    mn-reader-bar[hidden],
     .original-file-view[hidden] {
       display: none !important;
     }
@@ -1113,7 +1121,8 @@ export class ShEditorHost extends LitElement {
     }
 
     /* Zen mode (the shell's view.zen): the page alone, without the toolbar. */
-    :host([zen]) mn-editor-toolbar {
+    :host([zen]) mn-editor-toolbar,
+    :host([zen]) mn-reader-bar[data-reader-text-bar] {
       display: none;
     }
 
@@ -5374,7 +5383,7 @@ export class ShEditorHost extends LitElement {
       this._syncSearchState()
     }
     void this.updateComplete.then(() => {
-      const toolbar = this.renderRoot.querySelector('mn-editor-toolbar') as
+      const toolbar = this.renderRoot.querySelector('mn-reader-bar[data-reader-text-bar], mn-editor-toolbar:not([hidden])') as
         | (HTMLElement & { focusSearchInput?: () => void })
         | null
       toolbar?.focusSearchInput?.()
@@ -5535,8 +5544,11 @@ export class ShEditorHost extends LitElement {
     const showOriginal = Boolean(original?.active)
     // The Reader has its own bar (Original / Text, find, notes); the editor's toolbar steps aside while it shows.
     const inReader = showOriginal && original?.reader != null && Boolean(customElements.get('mn-reader'))
-    return html`<mn-editor-toolbar
-        ?hidden=${inReader}
+    // The text of a read-only document that has an original wears the same bar as the original does.
+    const textBar = !showOriginal && original?.available === true && original.readerBar === true && this._toolbarReadOnly()
+      && Boolean(customElements.get('mn-reader-bar'))
+    return html`${textBar && original ? this._renderReaderTextBar(original) : nothing}<mn-editor-toolbar
+        ?hidden=${inReader || textBar}
         @pointerdown=${this._captureToolbarSelection}
         @focusin=${this._captureToolbarSelection}
         .formatState=${fs}
@@ -5655,6 +5667,63 @@ export class ShEditorHost extends LitElement {
       ></mn-input-dialog>
       <div class="wire-radial-layer">${this.renderWireRadialOverlay()}</div>
       <div class="salience-gutter-layer">${this.renderSalienceGutter()}</div>`
+  }
+
+  /**
+   * The one bar for a read-only document's Text (see `EditorOriginalFileView.readerBar`): find opens the editor's search,
+   * and the ⋯ menu holds Make Editable, Download original and Read aloud.
+   */
+  private _renderReaderTextBar(original: EditorOriginalFileView): TemplateResult {
+    const access = this.documentAccess
+    const conflict = this._activationPhase === 'conflict'
+    const saving = access?.makeEditableStatus === 'saving'
+    const status = this._activationDurability === 'failed'
+      ? 'Local save failed · Reconnect before closing'
+      : conflict
+        ? this._activationConflict === 'deleted'
+          ? 'Deleted remotely · Local recovery saved'
+          : this._activationConflict === 'replaced'
+            ? 'Document replaced · Local recovery saved'
+            : 'Offline cache cannot be safely fenced'
+        : !this._activationSynced ? 'Waiting for document authority…' : access?.readOnlyLabel || 'View only'
+    const canMakeEditable = (this._activationSynced && !conflict) && (access?.makeEditable ?? true)
+    const menu = [
+      ...(canMakeEditable ? [{ id: 'make-editable', label: saving ? 'Making editable…' : 'Make Editable', icon: 'unlock', disabled: saving }] : []),
+      { id: 'download', label: 'Download original', icon: 'download', disabled: !original.downloadable },
+      { type: 'divider' as const },
+      {
+        id: 'read-aloud',
+        label: !this.ttsAvailable ? 'Read aloud (unavailable in this browser)' : this.ttsStatus === 'idle' ? 'Read aloud' : 'Stop reading',
+        icon: 'volume-2',
+        disabled: !this.ttsAvailable,
+      },
+    ]
+    const find = { open: this.searchOpen, query: this.searchQuery, count: this.searchResultCount, index: this.searchCurrentIndex }
+    return html`<mn-reader-bar
+      view="text"
+      data-reader-text-bar
+      title=${original.readerMeta?.title || original.title}
+      author=${original.readerMeta?.author || ''}
+      view-toggle
+      no-sidebar
+      ?find-pressed=${this.searchOpen}
+      .status=${status}
+      .error=${access?.makeEditableStatus === 'error' ? access.makeEditableError ?? '' : ''}
+      .find=${find}
+      .menu=${menu}
+      @rd-bar-find=${(event: CustomEvent<{ open: boolean }>) => { if (event.detail.open) this._openSearch(); else this._closeSearch() }}
+      @rd-bar-menu=${this._onReaderTextBarMenu}
+    ></mn-reader-bar>`
+  }
+
+  private _onReaderTextBarMenu = (event: Event): void => {
+    const { id, modifiers } = (event as CustomEvent<{ id: string; modifiers: { shiftKey: boolean; altKey: boolean; metaKey: boolean; ctrlKey: boolean } }>).detail
+    const emit = (type: string, detail?: unknown): void => {
+      this.dispatchEvent(new CustomEvent(type, { bubbles: true, composed: true, detail }))
+    }
+    if (id === 'make-editable') emit('mn-editor-make-editable')
+    else if (id === 'download') emit('mn-original-viewer-download', {})
+    else if (id === 'read-aloud') emit('mn-editor-tts-toggle', { shiftKey: modifiers.shiftKey, altKey: modifiers.altKey, metaKey: modifiers.metaKey, ctrlKey: modifiers.ctrlKey })
   }
 
   private renderSalienceGutter(): TemplateResult | typeof nothing {

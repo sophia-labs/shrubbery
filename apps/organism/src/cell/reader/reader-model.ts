@@ -61,26 +61,30 @@ export interface ReaderAnnotationChangeDetail {
 const CONTEXT_CHARS = 48
 
 /**
- * The live selection inside `root`, as a Range in `root`'s tree. A shadow root hides its selection from
- * `document.getSelection()` in some engines, so this asks the root (Chromium), then composed ranges (WebKit, Gecko).
+ * The live selection inside `root`, as a Range in `root`'s tree. Engines disagree about selections in shadow trees:
+ * WebKit's `getRangeAt` answers with the range rescoped to the shadow host, so composed ranges (which see into the
+ * roots named) are asked first wherever they exist; `getRangeAt` is the fallback for engines without them.
  */
 export function selectionIn(root: ShadowRoot): Range | null {
   const own = (root as ShadowRoot & { getSelection?: () => Selection | null }).getSelection?.()
   const selection = own ?? document.getSelection()
-  if (!selection || selection.rangeCount === 0 || selection.isCollapsed) return null
+  if (!selection || selection.rangeCount === 0) return null
   const composed = (selection as Selection & { getComposedRanges?: (...args: unknown[]) => StaticRange[] }).getComposedRanges
-  if (!own && typeof composed === 'function') {
+  if (typeof composed === 'function') {
+    // WebKit calls a selection inside a shadow tree collapsed (its rescoped range sits at the host); the composed
+    // range is the real one, so collapse is judged there.
     const roots = shadowAncestry(root)
     let ranges: StaticRange[] = []
     try { ranges = composed.call(selection, { shadowRoots: roots }) } catch { ranges = composed.call(selection, ...roots) }
     const first = ranges[0]
-    if (first && root.contains(first.startContainer) && root.contains(first.endContainer)) {
+    if (first && !first.collapsed && root.contains(first.startContainer) && root.contains(first.endContainer)) {
       const range = document.createRange()
       range.setStart(first.startContainer, first.startOffset)
       range.setEnd(first.endContainer, first.endOffset)
       return range
     }
   }
+  if (selection.isCollapsed) return null
   const range = selection.getRangeAt(0)
   return root.contains(range.startContainer) && root.contains(range.endContainer) ? range : null
 }

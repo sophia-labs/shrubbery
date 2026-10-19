@@ -19,10 +19,12 @@
 import { LitElement, html, nothing, type PropertyValues, type TemplateResult } from 'lit'
 import { customElement, property, state } from 'lit/decorators.js'
 import { unsafeHTML } from 'lit/directives/unsafe-html.js'
-import { unsafeSVG } from 'lit/directives/unsafe-svg.js'
 import { repeat } from 'lit/directives/repeat.js'
 import { ref } from 'lit/directives/ref.js'
 import { locateQuoteAnnotations, quoteSearchText, type QuoteChapterText, type QuoteSearchText } from '../source-quote-annotations.js'
+import './reader-bar.js'
+import type { MenuEntry } from '@shrubbery/nucleus'
+import { icon } from './reader-icons.js'
 import { PdfSurface, type PdfOutlineItem, type PdfSurfaceState, type PdfZoom } from './pdf-surface.js'
 import {
   READER_COLORS,
@@ -38,24 +40,12 @@ import {
   type ReaderColor,
   type ReaderPlace,
 } from './reader-model.js'
-import { PDF_VIEWER_STYLES, READER_STYLES, highlightRules } from './reader-styles.js'
+import { PDF_VIEWER_STYLES, READER_BAR_STYLES, READER_STYLES, READER_TOKENS, highlightRules } from './reader-styles.js'
 import type { ReaderBook, ReaderTocEntry } from './epub-book.js'
 
 export type ReaderSource =
   | { readonly kind: 'pdf'; readonly key: string; readonly data: Uint8Array }
   | { readonly kind: 'epub'; readonly key: string; readonly book: ReaderBook }
-
-const ICONS: Readonly<Record<string, string>> = {
-  sidebar: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/>',
-  margin: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/><path d="M17.5 9h1M17.5 12h1"/>',
-  left: '<path d="m15 18-6-6 6-6"/>', right: '<path d="m9 18 6-6-6-6"/>',
-  minus: '<path d="M5 12h14"/>', plus: '<path d="M5 12h14M12 5v14"/>',
-  search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>', x: '<path d="M18 6 6 18M6 6l12 12"/>',
-  up: '<path d="m18 15-6-6-6 6"/>', down: '<path d="m6 9 6 6 6-6"/>',
-  more: '<circle cx="5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/>',
-  type: '<path d="M4 19 9 5l5 14M5.8 14h6.4"/><path d="M15 19l3-8 3 8M15.9 16.6h4.2"/>',
-}
-const icon = (name: string): TemplateResult => html`<svg viewBox="0 0 24 24" aria-hidden="true">${unsafeSVG(ICONS[name] ?? '')}</svg>`
 
 const TYPE_SIZES = [0.95, 1.05, 1.125, 1.25, 1.4, 1.6] as const
 const MEASURES = { narrow: '28em', medium: '34em', wide: '42em' } as const
@@ -83,7 +73,7 @@ interface Composer extends Pop {
 
 @customElement('mn-reader')
 export class MnReader extends LitElement {
-  static override styles = [PDF_VIEWER_STYLES, READER_STYLES]
+  static override styles = [PDF_VIEWER_STYLES, READER_TOKENS, READER_BAR_STYLES, READER_STYLES]
 
   @property({ attribute: false }) source: ReaderSource | null = null
   @property({ type: String }) override title = ''
@@ -102,7 +92,7 @@ export class MnReader extends LitElement {
   @state() private sidebar = false
   @state() private tab: 'contents' | 'pages' | 'notes' = 'contents'
   @state() private margin = true
-  @state() private menu: 'more' | 'type' | 'fit' | null = null
+  @state() private menu: 'type' | 'fit' | null = null
   @state() private findOpen = false
   @state() private findQuery = ''
   @state() private pdfState: PdfSurfaceState | null = null
@@ -203,10 +193,25 @@ export class MnReader extends LitElement {
 
   protected override updated(changed: PropertyValues): void {
     if (changed.has('source')) void this.openSource()
+    this.announceMeta()
     if (changed.has('annotations') || changed.has('pending')) void this.placeAnnotations()
     if (changed.has('chapter') && this.source?.kind === 'epub') this.afterChapter()
     if (changed.has('notePlaces')) this.queuePlaceNotes()
     if (changed.has('sidebar') || changed.has('margin') || changed.has('type') || changed.has('overlay') || changed.has('narrow')) this.queuePlaceNotes()
+  }
+
+  private metaSaid = ''
+  /** Tell the shell the work's own title and author, once they are known: the Text view's bar says the same words. */
+  private announceMeta(): void {
+    const source = this.source
+    if (!source) return
+    const book = source.kind === 'epub' ? source.book : null
+    const title = this.displayTitle(book)
+    const author = this.displayAuthor(book)
+    const said = `${source.key}\u0000${title}\u0000${author}`
+    if (said === this.metaSaid || title === 'Original') return
+    this.metaSaid = said
+    this.say('reader-meta', { title, author })
   }
 
   private async openSource(): Promise<void> {
@@ -745,32 +750,30 @@ export class MnReader extends LitElement {
     const pdf = source?.kind === 'pdf' ? this.pdfState : null
     const book = source?.kind === 'epub' ? source.book : null
     const notes = this.notesCount()
-    return html`<header class="bar" role="toolbar" aria-label="Reader">
-      <div class="bar-start">
-        <button type="button" class="btn" aria-label="Contents and pages" title="Contents and pages" aria-pressed=${this.sidebarShown ? 'true' : 'false'}
-          ?disabled=${!source} @click=${() => this.togglePanel('sidebar')}>${icon('sidebar')}</button>
-        <div class="title"><b>${this.displayTitle(book)}</b>${this.displayAuthor(book) ? html`<small>${this.displayAuthor(book)}</small>` : nothing}</div>
-      </div>
-      <div class="loc">${pdf ? this.pdfLocation(pdf) : book ? this.bookLocation(book) : nothing}</div>
-      <div class="bar-end">
-        ${pdf ? html`
+    const more: MenuEntry[] = [
+      { id: 'download', label: 'Download original', icon: 'download', disabled: !this.downloadable },
+      ...(this.textView ? [{ id: 'text', label: 'Show the text', icon: 'file-text' }] : []),
+    ]
+    return html`<mn-reader-bar view="original" title=${this.displayTitle(book)} author=${this.displayAuthor(book)}
+        ?view-toggle=${this.textView} ?sidebar-pressed=${this.sidebarShown} ?sidebar-disabled=${!source}
+        ?find-pressed=${this.findOpen} ?find-disabled=${!source} .progress=${book ? this.progress : null} .menu=${more}
+        @rd-bar-sidebar=${() => this.togglePanel('sidebar')}
+        @rd-bar-find=${() => { if (this.findOpen) this.closeFind(); else this.openFind() }}
+        @rd-bar-menu=${(e: CustomEvent<{ id: string }>) => this.onBarMenu(e.detail.id)}>
+      <div slot="location" class="loc-slot">${pdf ? this.pdfLocation(pdf) : book ? this.bookLocation(book) : nothing}</div>
+      ${pdf ? html`<span slot="tools" class="tools">
           <button type="button" class="btn" aria-label="Zoom out" title="Zoom out (⌘−)" ?disabled=${!pdf.ready} @click=${() => this.surface?.zoomBy(1 / 1.15)}>${icon('minus')}</button>
           <button type="button" class="btn zoom" aria-label="Fit" title="Fit and zoom" aria-haspopup="menu" ?disabled=${!pdf.ready} @click=${() => { this.menu = this.menu === 'fit' ? null : 'fit' }}>${Math.round(pdf.scale * 100)}%</button>
-          <button type="button" class="btn" aria-label="Zoom in" title="Zoom in (⌘+)" ?disabled=${!pdf.ready} @click=${() => this.surface?.zoomBy(1.15)}>${icon('plus')}</button>` : nothing}
-        ${book ? html`<button type="button" class="btn" aria-label="Type" title="Type size, face and width" aria-pressed=${this.menu === 'type' ? 'true' : 'false'} @click=${() => { this.menu = this.menu === 'type' ? null : 'type' }}>${icon('type')}</button>` : nothing}
-        <button type="button" class="btn" aria-label="Find" title="Find (⌘F)" aria-pressed=${this.findOpen ? 'true' : 'false'} ?disabled=${!source}
-          @click=${() => { if (this.findOpen) this.closeFind(); else this.openFind() }}>${icon('search')}</button>
-        <button type="button" class="btn" aria-label="Margin notes" title="Notes in the margin" aria-pressed=${this.marginShown ? 'true' : 'false'} ?disabled=${!source}
-          @click=${() => this.togglePanel('margin')}>${icon('margin')}${notes ? html`<span class="count">${notes}</span>` : nothing}</button>
-        ${this.textView ? html`<span class="sep"></span>
-          <div class="seg" role="group" aria-label="View">
-            <button type="button" aria-pressed="true" title="The original">Original</button>
-            <button type="button" aria-pressed="false" title="The text made from it" @click=${() => this.say('mn-editor-original-view-toggle', {})}>Text</button>
-          </div>` : nothing}
-        <button type="button" class="btn" aria-label="More" title="More" aria-haspopup="menu" aria-pressed=${this.menu === 'more' ? 'true' : 'false'} @click=${() => { this.menu = this.menu === 'more' ? null : 'more' }}>${icon('more')}</button>
-      </div>
-      ${book ? html`<div class="bar-progress" style=${`width:${(this.progress * 100).toFixed(2)}%`}></div>` : nothing}
-    </header>`
+          <button type="button" class="btn" aria-label="Zoom in" title="Zoom in (⌘+)" ?disabled=${!pdf.ready} @click=${() => this.surface?.zoomBy(1.15)}>${icon('plus')}</button></span>` : nothing}
+      ${book ? html`<button slot="tools" type="button" class="btn" aria-label="Type" title="Type size, face and width" aria-pressed=${this.menu === 'type' ? 'true' : 'false'} @click=${() => { this.menu = this.menu === 'type' ? null : 'type' }}>${icon('type')}</button>` : nothing}
+      <button slot="tools-end" type="button" class="btn" aria-label="Margin notes" title="Notes in the margin" aria-pressed=${this.marginShown ? 'true' : 'false'} ?disabled=${!source}
+        @click=${() => this.togglePanel('margin')}>${icon('margin')}${notes ? html`<span class="count">${notes}</span>` : nothing}</button>
+    </mn-reader-bar>`
+  }
+
+  private onBarMenu(id: string): void {
+    if (id === 'download') this.say('mn-original-viewer-download', {})
+    else if (id === 'text') this.say('mn-editor-original-view-toggle', {})
   }
 
   private pdfLocation(pdf: PdfSurfaceState): TemplateResult {
@@ -800,12 +803,6 @@ export class MnReader extends LitElement {
 
   private menus(): TemplateResult | typeof nothing {
     if (!this.menu) return nothing
-    if (this.menu === 'more') {
-      return html`<div class="menu" role="menu" style="top:6px;right:8px">
-        <button type="button" role="menuitem" ?disabled=${!this.downloadable} @click=${() => { this.menu = null; this.say('mn-original-viewer-download', {}) }}>Download original</button>
-        ${this.textView ? html`<button type="button" role="menuitem" @click=${() => { this.menu = null; this.say('mn-editor-original-view-toggle', {}) }}>Show the text</button>` : nothing}
-      </div>`
-    }
     if (this.menu === 'fit') {
       const zoom = this.pdfState?.zoom
       const zoomItem = (value: PdfZoom, label: string) => html`<button type="button" role="menuitemradio" aria-checked=${zoom === value ? 'true' : 'false'}
