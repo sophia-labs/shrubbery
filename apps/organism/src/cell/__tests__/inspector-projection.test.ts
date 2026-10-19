@@ -82,6 +82,33 @@ describe('organism inspector projection', () => {
     ])
   })
 
+  it('rolls block-level wires (a [[ link typed in a block) up into the document backlinks', () => {
+    const blockWire = (id: string, localBlockId: string) => ({
+      id,
+      predicate: 'http://mnemosyne.ai/vocab#references',
+      predicateLabel: 'references',
+      otherDocumentId: `doc-${id}`,
+      otherGraphId: 'graph-a',
+      otherTitle: `Source ${id}`,
+      localBlockId,
+      bidirectional: false,
+    })
+    const bundle: WireBundle = {
+      outgoingWires: [],
+      incomingWires: [blockWire('in-1', 'block-a'), blockWire('in-2', 'block-b')],
+      wiredBlockIds: ['block-a', 'block-b'],
+    }
+    const base = { graphId: 'graph-a', activeDocumentId: 'doc-a', wireBundle: bundle }
+    const document = projectInspectorModel({ ...base, selection: activeDocumentSelection('graph-a', 'doc-a') })
+    const backlinks = document?.relations?.groups?.find((group) => group.key === 'backlinks')
+    expect(backlinks?.items.map((item) => item.id)).toEqual(['in-1', 'in-2'])
+    const block = projectInspectorModel({
+      ...base,
+      selection: { kind: 'block', graphId: 'graph-a', documentId: 'doc-a', blockId: 'block-b' },
+    })
+    expect(block?.relations?.groups?.find((group) => group.key === 'backlinks')?.items.map((item) => item.id)).toEqual(['in-2'])
+  })
+
   it('filters active block relations to the selected block', () => {
     const selection: SelectedObject = {
       kind: 'block',
