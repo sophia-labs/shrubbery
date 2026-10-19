@@ -59,6 +59,7 @@ A pure **RDF → UI** interpreter and a vetted component library. Render a works
 pnpm install
 pnpm test:source         # source-owned tests; no ambient Gardend binary
 GARDEN_BIN=/path/to/gardend pnpm test:run # full Garden contract/integration suite
+pnpm test:real           # real gardend (downloaded for you), real Chromium and WebKit
 pnpm --filter @shrubbery/organism test:browser # real Chromium shell/settings/editor/art journey
 ```
 

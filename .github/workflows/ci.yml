@@ -19,12 +19,12 @@ env:
   NODE_OPTIONS: --max-old-space-size=8192
 
 jobs:
-  # The gate: exactly what is held before the SPA ships (frozen install,
-  # typecheck of the six shipped packages, the production builds), plus lint
-  # and the self-host build that gardend's release archives carry as ui/.
-  # A red here means what ships is broken.
+  # The gate. Everything here must be green to merge, and a merge to main ships the hosted app (the SPA ship
+  # lane builds from this repository): frozen install, lint, typecheck of the whole workspace, the no-mocks
+  # ratchet, the source-owned tests, the production builds, and the self-host build that gardend's release
+  # archives carry as ui/.
   gate:
-    name: Lint, typecheck, build (what ships)
+    name: Lint, typecheck, no-mocks, tests, build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -43,64 +43,30 @@ jobs:
       - name: Lint
         run: pnpm lint
 
-      - name: Typecheck the shipped packages
-        run: |
-          for pkg in chat-kernel runtime components tokens nucleus organism; do
-            pnpm --filter "@shrubbery/$pkg" run typecheck
-          done
+      - name: Typecheck the whole workspace
+        run: pnpm -r --no-bail run typecheck
 
-      - name: Build the hosted app (organism + Hoja)
-        run: |
-          pnpm --filter @shrubbery/organism build
-          pnpm --filter @shrubbery/hoja-app build:cloud
+      - name: Guard the no-mocks principle
+        run: node scripts/validate-no-mocks.mjs
+
+      - name: Run source-owned tests
+        run: pnpm test:source
+
+      - name: Build the whole workspace
+        run: pnpm -r --no-bail run build
 
       - name: Build the self-host UI (gardend's ui/)
         run: |
           pnpm build:selfhost
           test -f apps/organism/dist-selfhost/index.html
 
-  # Reported, not gating. These run on every push and show their result, but
-  # they do not hold what ships: several suites need a real gardend or fail on
-  # main today, the no-mocks ratchet has known debt, and the Chromium proofs
-  # time out on hosted runners. Fix them here; do not drop them silently.
-  reported:
-    name: Reported, not gating (suites, whole workspace, no-mocks)
-    runs-on: ubuntu-latest
-    continue-on-error: true
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-
-      - uses: pnpm/action-setup@v4
-        with:
-          version: "9.0.0"
-
-      - name: Install exact dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Typecheck the whole workspace
-        if: always()
-        run: pnpm -r --no-bail run typecheck
-
-      - name: Guard the no-mocks principle
-        if: always()
-        run: node scripts/validate-no-mocks.mjs
-
-      - name: Run source-owned tests
-        if: always()
-        run: pnpm test:source
-
-      - name: Build the whole workspace
-        if: always()
-        run: pnpm -r --no-bail run build
-
+  # Real gardend, real browsers, one command: the same `pnpm test:real` a contributor runs locally. It downloads the
+  # prebuilt gardend (built by sophia-labs/gardend for every commit on its main), so no Rust toolchain is involved,
+  # and runs the suites in Chromium and WebKit. Gating: a browser regression is a regression.
   browser:
-    name: Reported, not gating (Chromium)
+    name: Real gardend, Chromium and WebKit
     runs-on: ubuntu-latest
-    continue-on-error: true
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
 
@@ -115,31 +81,11 @@ jobs:
       - name: Install exact dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Install Chromium
-        run: pnpm --filter @shrubbery/organism exec playwright install --with-deps chromium
-
-      - name: Exercise the production shell in Chromium
-        if: always()
+      - name: Run the real-gardend suites
         env:
-          SHRUBBERY_ARTIFACT_DIR: ${{ runner.temp }}/shrubbery-browser-artifacts
-          SHRUBBERY_ART_DIRECTION_ARTIFACT_DIR: ${{ runner.temp }}/shrubbery-art-direction
-        run: pnpm --filter @shrubbery/organism test:browser
-
-      - name: Exercise Hoja create, autosave, reload, list, and reopen
-        if: always()
-        env:
-          HOJA_BROWSER_ARTIFACT_DIR: ${{ runner.temp }}/hoja-browser-artifacts
-        run: pnpm --filter @shrubbery/hoja-app test:browser
-
-      - name: Exercise browser-owned Vitest suites in Chromium
-        if: always()
-        run: pnpm test:browser-suites
-
-      - name: Exercise the self-contained organism proofs in Chromium
-        if: always()
-        env:
-          SHRUBBERY_WORKSPACE_SELECTOR_ARTIFACT_DIR: ${{ runner.temp }}/shrubbery-workspace-selector-browser
-        run: pnpm --filter @shrubbery/organism test:browser-verified
+          GITHUB_TOKEN: ${{ github.token }}
+          CI: "true"
+        run: pnpm test:real
 
       - name: Preserve browser evidence
         if: always()
@@ -148,35 +94,5 @@ jobs:
           name: shrubbery-browser-evidence
           path: |
             ${{ runner.temp }}/shrubbery-browser-artifacts
-            ${{ runner.temp }}/shrubbery-art-direction
-            ${{ runner.temp }}/shrubbery-workspace-selector-browser
-            ${{ runner.temp }}/hoja-browser-artifacts
           if-no-files-found: ignore
           retention-days: 14
-
-  # Integration lane: the *.integration.test.ts suites spawn a REAL gardend
-  # (no mocks), so they cannot run on a stock runner. Manual only: trigger the
-  # workflow with a runner that has a gardend build, and set the GARDEN_BIN
-  # repo secret to its absolute path (see packages/source/src/node/spawn-gardend.ts).
-  integration:
-    name: Integration (real gardend — manual)
-    if: github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-
-      - uses: pnpm/action-setup@v4
-        with:
-          version: "9.0.0"
-
-      - name: Install exact dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Run integration suites against a real gardend
-        env:
-          GARDEN_BIN: ${{ secrets.GARDEN_BIN }}
-        run: pnpm -r --no-bail exec vitest run integration.test --passWithNoTests

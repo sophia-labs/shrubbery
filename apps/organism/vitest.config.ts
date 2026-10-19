@@ -25,6 +25,10 @@ export default defineConfig({
     hookTimeout: 60000,
     // One cell at a time — fresh-profile spawns must not race for ports/locks.
     fileParallelism: false,
-    poolOptions: { forks: { singleFork: true } },
+    // One process per file (files already run one at a time). A shared process shares happy-dom's
+    // custom-element registry between files, and the idempotent define shim in tests/setup.ts then
+    // keeps the FIRST file's classes: a later file's `new ShFlowAppFrame()` throws "Illegal
+    // constructor" and its `instanceof MnSidebarPanel` fails, depending on which files ran before it.
+    poolOptions: { forks: { singleFork: false } },
   },
 })

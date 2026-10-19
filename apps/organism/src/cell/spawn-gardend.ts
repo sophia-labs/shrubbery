@@ -30,18 +30,17 @@ import { uxConfigGraphIri } from '@shrubbery/nucleus'
 // GARDEN_BIN env var still overrides.
 //
 // Default discovery walks a small list of well-known candidates so contributors
-// don't have to set GARDEN_BIN: first the sibling-repo checkout (the standard
-// GitHub layout where shrubbery/ and garden/ live side-by-side), then Vera's
-// local sophia dev tree, kept for her own machine. The first existing
-// candidate wins; if none exist, the first candidate is returned so the error
-// message points at the most-likely-correct location for a fresh contributor.
+// don't have to set GARDEN_BIN: the sibling-repo checkout (the standard GitHub
+// layout, shrubbery/ and gardend/ side by side; a checkout directory named garden
+// works too). The first existing candidate wins; if none exist, the first candidate
+// is returned so the error message points at the most-likely-correct location for
+// a fresh contributor. `pnpm test:real` finds or downloads a gardend itself.
 const HERE = dirname(fileURLToPath(import.meta.url))
 
 const DEFAULT_BIN_CANDIDATES: readonly string[] = [
-  // Sibling-repo checkout: shrubbery/apps/organism/src/cell/ → ../../../../../garden/...
+  // Sibling-repo checkouts: shrubbery/apps/organism/src/cell/ → ../../../../../gardend/...
+  resolve(HERE, '../../../../../gardend/src-tauri/target/release/examples/gardend'),
   resolve(HERE, '../../../../../garden/src-tauri/target/release/examples/gardend'),
-  // Vera's local sophia dev tree
-  '/Users/vera/dev/sophia/garden/src-tauri/target/release/examples/gardend',
 ]
 
 function findDefaultBin(): string {

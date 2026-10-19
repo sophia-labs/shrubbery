@@ -9,6 +9,9 @@ conneg-static/
 # Downloaded local embedding models; disposable and recreated by gardend tests.
 **/.fastembed_cache/
 
+# Prebuilt gardend binaries `pnpm test:real` downloads.
+.gardend-cache/
+
 # Runtime artifact written by `pnpm gardend:dev` (loopback coords + token).
 # Server-side only — must NEVER be committed (contains a session bearer token).
 **/.gardend-loopback.json

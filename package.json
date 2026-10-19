@@ -11,9 +11,10 @@
     "concordance:status": "node scripts/validate-concordance-campaign.mjs --write",
     "test": "pnpm -r test:run",
     "test:run": "pnpm -r test:run",
-    "test:source": "pnpm -r --no-bail exec vitest run --exclude '**/*.browser.test.ts' --exclude '**/*.integration.test.ts' --exclude '**/*.probe.test.ts' --passWithNoTests",
-    "test:browser-suites": "pnpm -r exec vitest run browser.test.ts --passWithNoTests",
+    "test:source": "pnpm -r --no-bail exec node ../../scripts/vitest-if-present.mjs run --exclude '**/*.browser.test.ts' --exclude '**/*.integration.test.ts' --exclude '**/*.probe.test.ts' --passWithNoTests",
+    "test:browser-suites": "pnpm -r --no-bail exec node ../../scripts/vitest-if-present.mjs run browser.test.ts --passWithNoTests",
     "test:all": "pnpm -r --no-bail run test:run",
+    "test:real": "node scripts/test-real.mjs",
     "lint": "biome lint .",
     "guard:no-mocks": "node scripts/validate-no-mocks.mjs"
   },
