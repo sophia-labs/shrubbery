@@ -20,6 +20,7 @@ import {
   type CrdtBackend,
   type RestClient,
   type RuntimeModeProvider,
+  type SalienceRenewRequest,
   type SalienceUserValueRequest,
   type SalienceService,
   type ShrubberyContract,
@@ -215,6 +216,7 @@ export class InMemoryCellContract implements ShrubberyContract {
     this.salience = {
       getScores: async (graphId, documentId) => this.getScores(graphId, documentId),
       setUserValue: async (graphId, params) => this.setUserValue(graphId, params),
+      renew: async (graphId, params) => this.renew(graphId, params),
     }
   }
 
@@ -463,6 +465,17 @@ export class InMemoryCellContract implements ShrubberyContract {
       userImportance: params.importance,
       userValence: params.valence,
     }
+    this.blockScores.set(params.blockId, score)
+    return score
+  }
+
+  /** In-memory stand-in for the cell's renew route: refuses what the cell refuses. */
+  private renew(graphId: string, params: SalienceRenewRequest): BlockScore {
+    this.assertGraph(graphId)
+    const existing = this.blockScores.get(params.blockId)
+    if (!existing) throw new Error('block has no value to renew; rate it first')
+    if (existing.userImportance === 0) throw new Error('block was rated 0 (let go); rate it again to renew it')
+    const score: BlockScore = { ...existing, lastValuatedAt: String(Date.now()) }
     this.blockScores.set(params.blockId, score)
     return score
   }

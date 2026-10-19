@@ -57,6 +57,9 @@ import {
   kernelExtensions,
   tagChipStyles,
   wikilinkStyles,
+  setValueMarks,
+  setValueMarksOpen,
+  type ValueMark,
   setWireHighlight,
   setWiredBlocks,
   type CitationAttrs,
@@ -193,6 +196,29 @@ export function setLiveWireHighlight(
   // of throwing inside a hover handler.
   const view = usableView(editor)
   return view ? setWireHighlight(view, blockId, mode) : false
+}
+
+/** One block's glyphs in the value gutter's resting row (the kernel's type). */
+export type LiveValueMark = ValueMark
+
+/**
+ * Draw the value gutter's resting row on every top-level block: the given
+ * marks by block id, and `defaultSignalSvg` for the rest. Decorations; see
+ * value-marks.ts.
+ */
+export function setLiveValueMarks(
+  editor: unknown,
+  marks: ReadonlyMap<string, LiveValueMark>,
+  defaultSignalSvg: string,
+): boolean {
+  const view = usableView(editor)
+  return view ? setValueMarks(view, marks, defaultSignalSvg) : false
+}
+
+/** Mark the block whose value controls are open, or none with null. */
+export function setLiveValueMarksOpen(editor: unknown, blockId: string | null): boolean {
+  const view = usableView(editor)
+  return view ? setValueMarksOpen(view, blockId) : false
 }
 
 export function liveZoomSnapshot(editor: Pick<Editor, 'state'>): LiveZoomSnapshot {

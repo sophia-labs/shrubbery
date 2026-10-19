@@ -1462,7 +1462,11 @@ describe('rung-3 — the live collaborative editor body lifts over a real Y.Doc'
   async function mountSalienceDoc(
     scores: ReadonlyMap<string, BlockScore>,
     documentAccess: EditorDocumentAccess | null = null,
-  ): Promise<{ h: ShEditorHost; blockEl: (blockId: string) => HTMLElement }> {
+  ): Promise<{
+    h: ShEditorHost
+    blockEl: (blockId: string) => HTMLElement
+    hoverZone: (clientX: number, clientY: number) => void
+  }> {
     const be = backend()
     const provider = be.open({ kind: 'doc', graphId: 'g', docId: 'salience-doc' })
     const binding = makeBinding({
@@ -1480,19 +1484,31 @@ describe('rung-3 — the live collaborative editor body lifts over a real Y.Doc'
     const real = h as unknown as { _editor: { commands: { setContent(html: string): boolean } } }
     expect(real._editor.commands.setContent(OUTLINE_SEED)).toBe(true)
     await settle(h)
+    let lastBlockId = ''
     const blockEl = (blockId: string): HTMLElement => {
       const el = h.shadowRoot?.querySelector(`[data-block-id="${blockId}"]`) as HTMLElement | null
       expect(el).not.toBeNull()
-      // Right edge at x=500 — 10px inside it (490) sits in the 24px hotspot;
-      // the LEFT-edge wire gutter lives at clientX ~112 in the sibling test
-      // above, confirming these are independent, non-colliding zones.
+      lastBlockId = blockId
       Object.defineProperty(el!, 'getBoundingClientRect', {
         configurable: true,
         value: () => ({ left: 100, top: 40, right: 500, bottom: 64, width: 400, height: 24 }),
       })
       return el!
     }
-    return { h, blockEl }
+    // The value gutter opens from the faint row of marks right of the block's
+    // first line (value-marks.ts), not from an invisible strip.
+    // The row ends at the block's right edge (x=500), so the controls anchor at
+    // 504, centered on the pointer's line, as the strip did.
+    const hoverZone = (_clientX: number, clientY: number): void => {
+      const row = h.shadowRoot?.querySelector(`[data-value-marks-for="${lastBlockId}"]`) as HTMLElement | null
+      expect(row).not.toBeNull()
+      Object.defineProperty(row!, 'getBoundingClientRect', {
+        configurable: true,
+        value: () => ({ left: 488, top: clientY - 6, right: 500, bottom: clientY + 6, width: 12, height: 12 }),
+      })
+      row!.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, composed: true }))
+    }
+    return { h, blockEl, hoverZone }
   }
 
   it('opens the value gutter for a SCORED block and cycles importance/valence independently', async () => {
@@ -1512,19 +1528,24 @@ describe('rung-3 — the live collaborative editor body lifts over a real Y.Doc'
       userImportance: 3,
       userValence: null,
     }
-    const { h, blockEl } = await mountSalienceDoc(new Map([['block-b', scoredBlock]]))
-    const el = blockEl('block-b')
+    const { h, blockEl, hoverZone } = await mountSalienceDoc(new Map([['block-b', scoredBlock]]))
+    blockEl('block-b')
 
     const rated: SalienceRateRequestDetail[] = []
     h.addEventListener(SALIENCE_RATE_REQUEST_EVENT, ((event: CustomEvent<SalienceRateRequestDetail>) => {
       rated.push(event.detail)
     }) as EventListener)
 
-    el.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, composed: true, clientX: 490, clientY: 50 }))
+    // At rest, the reader's own flag shows on the row without any hover.
+    expect(h.shadowRoot!.querySelector('[data-value-marks-for="block-b"] .value-marks-flag svg')).not.toBeNull()
+    hoverZone(510, 50)
     await until(() => h.shadowRoot!.querySelector('.salience-gutter') !== null)
+    // The block being valued says so (data-value-open draws its right bar).
+    await until(() => h.shadowRoot!.querySelector('[data-block-id="block-b"]')?.getAttribute('data-value-open') === 'true')
     const gutter = h.shadowRoot!.querySelector('.salience-gutter') as HTMLElement
     const icons = gutter.querySelectorAll('.salience-gutter-icon')
-    expect(icons).toHaveLength(3)
+    // composite, importance, valence, renew
+    expect(icons).toHaveLength(4)
     // REGRESSION PROOF: the icon must be a REAL rendered <svg><path> tree, not
     // just a wrapper button with the right class/title — a real bug shipped
     // here once already (a separate `html`-tagged sub-template interpolated
@@ -1545,32 +1566,42 @@ describe('rung-3 — the live collaborative editor body lifts over a real Y.Doc'
     ;(icons[1] as HTMLButtonElement).click()
     expect(rated).toEqual([{ blockId: 'block-b', importance: 5, valence: null }])
 
-    // Valence cycles null → 4 ("breakthrough"). This host never round-trips
-    // its own optimistic write back into `salienceBundle` (that's the
-    // shell's job, verified separately in main.ts) — so the still-unbundled
-    // click correctly carries the ORIGINAL seeded importance (3, not the 5
-    // just clicked) forward alongside the new valence, rather than clobbering
-    // the other axis to null.
-    ;(icons[2] as HTMLButtonElement).click()
+    // Valence cycles null → 4 ("breakthrough"). The bundle has not caught up
+    // with the flag yet, and the valence click must still carry it: 5, not
+    // the bundled 3. Carrying the bundled value is how a flag-then-valence
+    // pair used to drop the flag.
+    await h.updateComplete
+    ;(h.shadowRoot!.querySelectorAll('.salience-gutter .salience-gutter-icon')[2] as HTMLButtonElement).click()
     expect(rated).toEqual([
       { blockId: 'block-b', importance: 5, valence: null },
-      { blockId: 'block-b', importance: 3, valence: 4 },
+      { blockId: 'block-b', importance: 5, valence: 4 },
     ])
+
+    // Renew asks the shell to move the clock, and carries no rating at all.
+    const renewed: Array<{ blockId: string }> = []
+    h.addEventListener('mn-salience-renew-request', ((event: CustomEvent<{ blockId: string }>) => {
+      renewed.push(event.detail)
+    }) as EventListener)
+    const renew = icons[3] as HTMLButtonElement
+    expect(renew.hasAttribute('data-salience-renew')).toBe(true)
+    expect(renew.disabled).toBe(false)
+    renew.click()
+    expect(renewed).toEqual([{ blockId: 'block-b' }])
   })
 
   it('opens the value gutter for an UNSCORED block too — not gated behind a prior score', async () => {
     // A real OG bug this ports the fix for: gating the gutter behind an
     // existing agent/user score meant an unscored block could never receive
     // its FIRST rating.
-    const { h, blockEl } = await mountSalienceDoc(new Map())
-    const el = blockEl('block-c')
+    const { h, blockEl, hoverZone } = await mountSalienceDoc(new Map())
+    blockEl('block-c')
 
     const rated: SalienceRateRequestDetail[] = []
     h.addEventListener(SALIENCE_RATE_REQUEST_EVENT, ((event: CustomEvent<SalienceRateRequestDetail>) => {
       rated.push(event.detail)
     }) as EventListener)
 
-    el.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, composed: true, clientX: 490, clientY: 50 }))
+    hoverZone(510, 50)
     await until(() => h.shadowRoot!.querySelector('.salience-gutter') !== null)
     const gutter = h.shadowRoot!.querySelector('.salience-gutter') as HTMLElement
     const icons = gutter.querySelectorAll('.salience-gutter-icon')
@@ -1590,7 +1621,7 @@ describe('rung-3 — the live collaborative editor body lifts over a real Y.Doc'
 
   it('keeps scores visible but disables rating when shell authority is read-only', async () => {
     const reason = 'Rating requires Editor access to this graph.'
-    const { h, blockEl } = await mountSalienceDoc(new Map(), {
+    const { h, blockEl, hoverZone } = await mountSalienceDoc(new Map(), {
       readOnly: false,
       salienceWritable: false,
       salienceWriteReason: reason,
@@ -1600,18 +1631,16 @@ describe('rung-3 — the live collaborative editor body lifts over a real Y.Doc'
       rated.push(event.detail)
     }) as EventListener)
 
-    blockEl('block-c').dispatchEvent(new MouseEvent('mouseover', {
-      bubbles: true,
-      composed: true,
-      clientX: 490,
-      clientY: 50,
-    }))
+    blockEl('block-c')
+    hoverZone(510, 50)
     await until(() => h.shadowRoot!.querySelector('.salience-gutter') !== null)
     const icons = h.shadowRoot!.querySelectorAll<HTMLButtonElement>('.salience-gutter-icon')
-    expect(icons).toHaveLength(3)
+    expect(icons).toHaveLength(4)
     expect(icons[0]?.disabled).toBe(false)
     expect(icons[1]?.disabled).toBe(true)
     expect(icons[2]?.disabled).toBe(true)
+    expect(icons[3]?.disabled).toBe(true)
+    expect(icons[3]?.title).toBe(reason)
     expect(icons[1]?.title).toBe(reason)
     icons[1]?.click()
     icons[2]?.click()
@@ -1629,11 +1658,13 @@ describe('rung-3 — the live collaborative editor body lifts over a real Y.Doc'
     vi.stubGlobal('innerWidth', 520)
     vi.stubGlobal('innerHeight', 200)
     try {
-      const { h, blockEl } = await mountSalienceDoc(new Map())
-      const el = blockEl('block-c')
-      // clientX=490 is 30px from the 520px-wide viewport's right edge; clientY=10
-      // is 10px from the top — both would overflow their edge unclamped.
-      el.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, composed: true, clientX: 490, clientY: 10 }))
+      const { h, blockEl, hoverZone } = await mountSalienceDoc(new Map())
+      blockEl('block-c')
+      // The popover anchors at the block's right edge (504) in a 520px-wide
+      // viewport, and the hover at clientY=45 is inside the block's band
+      // (40–64) but close enough to the top that a popover vertically centred
+      // on it (~140px tall) would overflow — both edges need the clamp.
+      hoverZone(510, 45)
       await until(() => h.shadowRoot!.querySelector('.salience-gutter') !== null)
       const gutter = h.shadowRoot!.querySelector('.salience-gutter') as HTMLElement
       const style = gutter.getAttribute('style') ?? ''
@@ -1641,9 +1672,9 @@ describe('rung-3 — the live collaborative editor body lifts over a real Y.Doc'
       const top = Number(/top:\s*(-?\d+(?:\.\d+)?)px/.exec(style)?.[1])
       expect(Number.isNaN(left)).toBe(false)
       expect(Number.isNaN(top)).toBe(false)
-      // Clamped well clear of the raw hover point (490, 10) in both directions.
-      expect(left).toBeLessThan(490)
-      expect(top).toBeGreaterThan(10)
+      // Clamped well clear of the raw anchor (504, 45) in both directions.
+      expect(left).toBeLessThan(504)
+      expect(top).toBeGreaterThan(45)
       // And within the stubbed viewport with margin, accounting for the
       // popover's own estimated footprint (it is right-anchored and
       // vertically centered via `transform: translateY(-50%)`).

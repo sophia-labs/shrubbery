@@ -488,6 +488,11 @@ describe('HostedGatewayContract', () => {
     expect(network.calls.every(call => (
       new Headers(call.init.headers).get('Authorization') === 'Bearer salience-token'
     ))).toBe(true)
+
+    // The gateway has no renew route: fail closed, without a request.
+    await expect(contract.salience.renew(graphId, { documentId: 'doc / one', blockId: 'block-1' }))
+      .rejects.toThrow(/not available on the hosted gateway/)
+    expect(network.calls).toHaveLength(2)
   })
 
   it('provisions an offline graph and document as cold-queryable Meaningful Objects', async () => {

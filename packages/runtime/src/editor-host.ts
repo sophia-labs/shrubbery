@@ -56,7 +56,7 @@ import { LitElement, html, css, nothing, type TemplateResult } from 'lit'
 import { classMap } from 'lit/directives/class-map.js'
 import { unsafeHTML } from 'lit/directives/unsafe-html.js'
 import { customElement, property, state } from 'lit/decorators.js'
-import { PDF_SOURCE_ANCHOR_ATTRIBUTE, pdfSourceText } from '@shrubbery/nucleus'
+import { PDF_SOURCE_ANCHOR_ATTRIBUTE, pdfSourceText, type BlockScore } from '@shrubbery/nucleus'
 import type { EditorHostState, EditorHostBinding } from './editor-host-binding.js'
 import { installOutlinerGutter } from './outliner-gutter.js'
 // The CRDT plane is quarantined to the collab/ SUBDIR (not island-scanned). The
@@ -79,6 +79,9 @@ import {
   type LiveTagChipAttrs,
   type LiveWikiLinkAttrs,
   type LiveZoomSnapshot,
+  setLiveValueMarks,
+  setLiveValueMarksOpen,
+  type LiveValueMark,
   setLiveWireHighlight,
   setLiveWiredBlocks,
 } from './collab/live-editor.js'
@@ -96,6 +99,9 @@ import {
   valenceLabel,
   combinedImportance,
   combinedValence,
+  canRenewFreshness,
+  lastValuedLabel,
+  renewLabel,
 } from './editor-services/salience-bundle-service.js'
 import {
   WIRE_HIGHLIGHT_BLOCK_EVENT,
@@ -135,6 +141,17 @@ export interface EditorHeadingInViewDetail {
  * and re-renders with the updated bundle.
  */
 export const SALIENCE_RATE_REQUEST_EVENT = 'mn-salience-rate-request'
+
+/**
+ * Gutter request to renew a block's freshness without changing its rating
+ * ("this still matters"). Same shape of contract as the rate request: the
+ * shell calls `contract.salience.renew` and re-renders with the result.
+ */
+export const SALIENCE_RENEW_REQUEST_EVENT = 'mn-salience-renew-request'
+
+export interface SalienceRenewRequestDetail {
+  readonly blockId: string
+}
 
 export interface SalienceRateRequestDetail {
   readonly blockId: string
@@ -177,7 +194,34 @@ const SALIENCE_ICON_PATHS: Readonly<Record<string, string>> = {
   'circle-slash': '<circle cx="12" cy="12" r="10" /><path d="m5 5 14 14" />',
   'sunrise': '<path d="M12 2v8" /><path d="m4.93 10.93 1.41 1.41" /><path d="M2 18h2" /><path d="M20 18h2" /><path d="m19.07 10.93-1.41 1.41" /><path d="M22 22H2" /><path d="m8 6 4-4 4 4" /><path d="M16 18a4 4 0 0 0-8 0" />',
   'eclipse': '<circle cx="12" cy="12" r="10" /><path d="M12 2a7 7 0 1 0 10 10" />',
+  'refresh-cw': '<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8" /><path d="M21 3v5h-5" /><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16" /><path d="M8 16H3v5" />',
   'sun-moon': '<path d="M12 2v2" /><path d="M12 20v2" /><path d="m4.9 4.9 1.4 1.4" /><path d="m17.7 17.7 1.4 1.4" /><path d="M2 12h2" /><path d="M20 12h2" /><path d="m6.3 17.7-1.4 1.4" /><path d="m19.1 4.9-1.4 1.4" /><circle cx="12" cy="12" r="4" />',
+}
+
+/** A block with no score yet, as a base for a rating made just now. */
+function emptyBlockScore(blockId: string): BlockScore {
+  return {
+    blockId,
+    documentId: '',
+    cumulativeImportance: 0,
+    cumulativeValence: 0,
+    rawImportanceSum: 0,
+    rawValenceSum: 0,
+    importanceCount: 0,
+    valenceCount: 0,
+    compositeScore: 0,
+    blockWireCount: 0,
+    docWireCount: 0,
+    lastValuatedAt: null,
+    userImportance: null,
+    userValence: null,
+  }
+}
+
+function salienceIconSvg(name: string): string {
+  const body = SALIENCE_ICON_PATHS[name] ?? SALIENCE_ICON_PATHS['flag-off']
+  return `<svg class="salience-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" `
+    + `stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${body}</svg>`
 }
 
 function salienceIcon(name: string): ReturnType<typeof unsafeHTML> {
@@ -1925,17 +1969,107 @@ export class ShEditorHost extends LitElement {
     .salience-gutter-layer {
       display: contents;
     }
-    /* The right-edge hover bar — a lightweight, always-on hint that the value
-       gutter exists there, independent of whether the popover has opened yet.
-       Wires live on the left edge (see the design doc); this is deliberately
-       the mirror-image affordance on the right. Excluded on coarse pointers
-       (touch), where hover has no meaning and there is no popover trigger. */
+    /* The block whose value controls are open wears a bar on its right edge,
+       so it is plain which block is being valued ("make
+       the block react"). The block being typed in wears the focus bar on its
+       left; both are box-shadows, so they are listed together or one silently
+       replaces the other. */
+    .editor-mount .ProseMirror > [data-value-open] {
+      box-shadow: inset -3px 0 0 color-mix(in srgb, var(--mn-color-accent, #16a34a) 55%, transparent);
+    }
+    .editor-mount .ProseMirror:focus > :is(p, h1, h2, h3)[data-block-focused][data-value-open] {
+      box-shadow:
+        inset 2px 0 0 var(--mn-color-border-accent, #3d7f5f),
+        inset -3px 0 0 color-mix(in srgb, var(--mn-color-accent, #16a34a) 55%, transparent);
+    }
+    /* The value gutter at rest (value-marks.ts):
+       a faint row right of each block's first line,
+       pinned the way the wire bubble is on the left. The signal bars show while
+       the block is hovered; the reader's own flag and valence always show. */
+    .value-marks {
+      position: absolute;
+      left: calc(100% + 4px);
+      /* Centered on the first line. Not 0.5lh: this row's own line-height
+         is 0, so lh would measure the row, not the block's line. */
+      top: calc(var(--mn-space-1-5, 0.375rem) + var(--mn-editor-line-height, 1.72) * 0.5em);
+      z-index: 1;
+      display: inline-flex;
+      align-items: center;
+      gap: 1px;
+      transform: translateY(-50%);
+      color: var(--mn-color-text-tertiary, #7a8580);
+      line-height: 0;
+      cursor: pointer;
+      user-select: none;
+      -webkit-user-select: none;
+      transition: opacity var(--mn-transition-fast, 120ms ease);
+    }
+    .value-marks .salience-icon {
+      width: 12px;
+      height: 12px;
+    }
+    /* An atom (image, math, query, rule) cannot hold the
+       row, so it hangs from this zero-height block just before the atom. It
+       takes no space; an atom with a top margin (math) has
+       its row a little above its first line. */
+    .value-marks-anchor {
+      position: relative;
+      height: 0;
+    }
+    /* A table cell holds its row in the top-right corner, inside its padding:
+       to the right of the cell is the next cell. */
+    .value-marks--cell {
+      left: auto;
+      right: 2px;
+      top: 2px;
+      transform: none;
+    }
+    .value-marks--cell .salience-icon {
+      width: 10px;
+      height: 10px;
+    }
+    .value-marks-signal {
+      display: inline-flex;
+      visibility: hidden;
+      opacity: 0.55;
+    }
+    /* The reader's own marks carry their decisions: fainter than the text, but not as
+       faint as the machine's signal. */
+    .value-marks-flag,
+    .value-marks-valence {
+      display: inline-flex;
+      opacity: 0.8;
+    }
+    .value-marks-flag--2 .salience-icon + .salience-icon {
+      margin-left: -6px;
+    }
     @media (hover: hover) and (pointer: fine) {
       /* Same reasoning as the background wash above: this is the other half of
          the blink, and the greener half — it is the bar the report named. */
       .editor-mount:not([data-typing]) .ProseMirror > :is(p, h1, h2, h3, li, blockquote, .code-block-wrapper):hover {
         box-shadow: inset -3px 0 0 color-mix(in srgb, var(--mn-color-accent, #16a34a) 55%, transparent);
       }
+      /* A table's rows belong to its cells: hovering one cell shows that
+         cell's signal, not the whole table's. */
+      .editor-mount .ProseMirror > :not(.tableWrapper):hover > .value-marks .value-marks-signal,
+      .editor-mount .ProseMirror > :not(.tableWrapper):hover .value-marks .value-marks-signal,
+      .editor-mount .ProseMirror > [data-value-open] .value-marks-signal,
+      .editor-mount .ProseMirror :is(td, th):hover > .value-marks .value-marks-signal,
+      .editor-mount .ProseMirror :is(td, th)[data-value-open] > .value-marks .value-marks-signal {
+        visibility: visible;
+      }
+      /* Its own rule: an engine without :has() drops only this one. */
+      .editor-mount .ProseMirror > .value-marks-anchor:has(+ :hover) .value-marks-signal,
+      .editor-mount .ProseMirror > .value-marks-anchor:has(+ [data-value-open]) .value-marks-signal {
+        visibility: visible;
+      }
+      .value-marks:hover > * {
+        opacity: 1;
+      }
+    }
+    /* A zen mode that mirrors data-zen onto the host hides the row. */
+    :host([zen]) .value-marks {
+      display: none;
     }
     .salience-gutter {
       position: fixed;
@@ -3069,8 +3203,18 @@ export class ShEditorHost extends LitElement {
     if (changed.has('documentAccess')) this._syncDocumentAccess()
     if (changed.has('initialZoomBlockId') && this._editor) this._applyInitialZoom()
     if (changed.has('focusRequest') && this._editor) this._applyFocusRequest()
+    if (changed.has('salienceBundle')) {
+      // The shell updates the bundle optimistically and rolls it back on a
+      // failed write, so a new bundle is the truth either way: a rating
+      // pending here only bridges the moment before it arrives. Keeping one
+      // past that would show a rating that failed, or hide one an agent or
+      // another window just changed.
+      this._pendingRatings.clear()
+      this._syncValueMarks()
+    }
     if (changed.has('wireBundle')) {
       this._syncWireIndicators()
+      this._syncValueMarks()
       this._syncMarginGloss()
       this._closeWireOverlay()
     }
@@ -3492,6 +3636,7 @@ export class ShEditorHost extends LitElement {
     this._syncFormatState()
     this._syncFocusedBlock()
     this._syncWireIndicators()
+    this._syncValueMarks()
     this._syncMarginGloss()
     this._syncWireHighlight()
     this._syncActiveComment()
@@ -3998,6 +4143,7 @@ export class ShEditorHost extends LitElement {
     if (applied) {
       this._syncFormatState()
       this._syncWireIndicators()
+      this._syncValueMarks()
     }
     return applied
   }
@@ -4117,6 +4263,33 @@ export class ShEditorHost extends LitElement {
     }
   }
 
+  /**
+   * DRIVES THE PLUGIN (value-marks.ts): each scored block's signal bars, plus
+   * the reader's own flag and valence where set. Blocks without a score get the
+   * empty signal, so they can still be valued.
+   */
+  private _syncValueMarks(): void {
+    if (!this._editor) return
+    const marks = new Map<string, LiveValueMark>()
+    for (const [blockId, score] of this.salienceBundle?.scores ?? []) {
+      const level = signalIcon(score)
+      const imp = score.userImportance ?? null
+      const val = score.userValence ?? null
+      marks.set(blockId, {
+        signalSvg: salienceIconSvg(level),
+        ...(hasUserImportance(score)
+          ? { flagCount: imp === 5 ? 2 as const : 1 as const, flagSvg: salienceIconSvg(importanceIcon(score)) }
+          : {}),
+        ...(val === 4 || val === -4 ? { valenceSvg: salienceIconSvg(valenceIcon(score)) } : {}),
+        label: `${importanceLabel(score)} · ${valenceLabel(score)}`,
+      })
+    }
+    setLiveValueMarks(this._editor, marks, salienceIconSvg('signal-zero'))
+  }
+
+  /** Ratings sent but not yet in the salience bundle, by block id. */
+  private _pendingRatings = new Map<string, { importance: number | null, valence: number | null }>()
+
   private _syncMarginGloss(): void {
     const editor = this._editor
     if (!editor) return
@@ -4227,10 +4400,12 @@ export class ShEditorHost extends LitElement {
     this.salienceOverlayBlockId = blockId
     this.salienceOverlayAnchor = clampSalienceOverlayAnchor(x, y)
     this.salienceOverlayOpen = true
+    setLiveValueMarksOpen(this._editor, blockId)
   }
 
   private _closeSalienceOverlay(): void {
     this._clearSalienceOverlayTimers()
+    setLiveValueMarksOpen(this._editor, null)
     this.salienceOverlayOpen = false
     this.salienceOverlayBlockId = null
     this.salienceOverlayExpanded = false
@@ -4256,14 +4431,11 @@ export class ShEditorHost extends LitElement {
    * receive their first rating).
    */
   private _onEditorSalienceMouseMove(event: MouseEvent): void {
-    const block = this._salienceHitForEvent(event)
-    if (!block) {
-      this._clearSalienceOverlayHoverTimer()
-      this._startSalienceOverlayCloseTimer()
-      return
-    }
-    const blockId = block.getAttribute('data-block-id')
-    if (!blockId) {
+    const row = event.target instanceof Element
+      ? event.target.closest<HTMLElement>('.value-marks')
+      : null
+    const blockId = row?.dataset.valueMarksFor ?? null
+    if (!row || !blockId) {
       this._clearSalienceOverlayHoverTimer()
       this._startSalienceOverlayCloseTimer()
       return
@@ -4273,10 +4445,13 @@ export class ShEditorHost extends LitElement {
       return
     }
     if (this._salienceOverlayHoverTimer) return
-    const { clientX, clientY } = event
+    // Anchor beside the row, centered on the block's first line, so the
+    // controls open where the glyphs are rather than where the pointer was.
     this._salienceOverlayHoverTimer = setTimeout(() => {
       this._salienceOverlayHoverTimer = null
-      this._openSalienceOverlay(blockId, clientX, clientY)
+      if (!row.isConnected) return
+      const rect = row.getBoundingClientRect()
+      this._openSalienceOverlay(blockId, rect.right + 4, rect.top + rect.height / 2)
     }, 120)
   }
 
@@ -4482,6 +4657,7 @@ export class ShEditorHost extends LitElement {
   private _teardownEditor(): void {
     this._discardToolbarSelection()
     this._closeOutlinerMenu(false)
+    this._pendingRatings.clear()
     this._blockFocusRetryToken += 1
     if (this._blockFocusHighlightTimer) {
       clearTimeout(this._blockFocusHighlightTimer)
@@ -4877,6 +5053,7 @@ export class ShEditorHost extends LitElement {
     this._syncZoomSnapshot()
     this._syncFormatState()
     this._syncWireIndicators()
+    this._syncValueMarks()
   }
 
   private _openWikiLinkPicker(): void {
@@ -5025,6 +5202,7 @@ export class ShEditorHost extends LitElement {
     })
     this._syncFormatState()
     this._syncWireIndicators()
+    this._syncValueMarks()
     return applied
   }
 
@@ -5385,17 +5563,36 @@ export class ShEditorHost extends LitElement {
   private renderSalienceGutter(): TemplateResult | typeof nothing {
     if (this.originalFileView?.active || !this.salienceOverlayOpen || !this.salienceOverlayBlockId) return nothing
     const blockId = this.salienceOverlayBlockId
-    const score = this.salienceBundle?.scores.get(blockId)
+    // A rating the reader just made counts at once: the bundle catches up later, and
+    // a second click computed from the old bundle would undo the first (flag,
+    // then valence, used to drop the flag).
+    const bundled = this.salienceBundle?.scores.get(blockId)
+    const pending = this._pendingRatings.get(blockId)
+    const score: BlockScore | undefined = pending
+      ? { ...(bundled ?? emptyBlockScore(blockId)), userImportance: pending.importance, userValence: pending.valence }
+      : bundled
     const canRate = this.documentAccess?.salienceWritable ?? !(this.documentAccess?.readOnly ?? false)
     const writeReason = this.documentAccess?.salienceWriteReason?.trim()
       || 'Rating requires writable graph access and an online cell.'
     const rate = (importance: number | null, valence: number | null): void => {
       if (!canRate) return
+      this._pendingRatings.set(blockId, { importance, valence })
+      this.requestUpdate()
       this.dispatchEvent(
         new CustomEvent<SalienceRateRequestDetail>(SALIENCE_RATE_REQUEST_EVENT, {
           bubbles: true,
           composed: true,
           detail: { blockId, importance, valence },
+        }),
+      )
+    }
+    const renew = (): void => {
+      if (!canRate || !canRenewFreshness(score)) return
+      this.dispatchEvent(
+        new CustomEvent<SalienceRenewRequestDetail>(SALIENCE_RENEW_REQUEST_EVENT, {
+          bubbles: true,
+          composed: true,
+          detail: { blockId },
         }),
       )
     }
@@ -5429,11 +5626,21 @@ export class ShEditorHost extends LitElement {
         ?disabled=${!canRate}
         @click=${() => rate(score?.userImportance ?? null, nextValence(score))}
       >${salienceIcon(valenceIcon(score))}</button>
+      <button
+        type="button"
+        class="salience-gutter-icon salience-gutter-renew"
+        data-salience-renew
+        title=${canRate ? renewLabel(score) : writeReason}
+        aria-label=${canRate ? renewLabel(score) : writeReason}
+        ?disabled=${!canRate || !canRenewFreshness(score)}
+        @click=${renew}
+      >${salienceIcon('refresh-cw')}</button>
       ${this.salienceOverlayExpanded
         ? html`<div class="salience-gutter-numbers">
             <div>composite ${(score?.compositeScore ?? 0).toFixed(2)}</div>
             <div>importance ${combinedImportance(score) === 0 ? '–' : combinedImportance(score).toFixed(2)}</div>
             <div>valence ${combinedValence(score) === 0 ? '–' : combinedValence(score).toFixed(2)}</div>
+            <div>valued ${lastValuedLabel(score) ?? '–'}</div>
           </div>`
         : nothing}
     </div>`
@@ -5607,14 +5814,6 @@ export class ShEditorHost extends LitElement {
    * design doc: "wires are on the left"). Same 24px hotspot width and same
    * top-level-block resolution the OG's ValuationController used.
    */
-  private _salienceHitForEvent(event: MouseEvent): HTMLElement | null {
-    const block = this._topLevelGutterBlockForEvent(event)
-    if (!block) return null
-    const rect = block.getBoundingClientRect()
-    const fromRight = rect.right - event.clientX
-    if (fromRight < 0 || fromRight >= 24) return null
-    return block
-  }
 
   private _blockPosForId(blockId: string): number | null {
     const doc = this._editor?.state.doc

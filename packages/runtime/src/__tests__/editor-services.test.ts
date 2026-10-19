@@ -705,6 +705,7 @@ describe('SalienceBundleService — read side over the contract seam (not RestCl
         return scores
       },
       setUserValue: async () => blockScore(),
+      renew: async () => blockScore(),
     }
     const bundle = await makeSalienceBundleService(salience).loadBundle(GRAPH_ID, 'doc-architecture')
     expect(bundle.scores.size).toBe(2)
@@ -717,6 +718,7 @@ describe('SalienceBundleService — read side over the contract seam (not RestCl
     const salience: SalienceService = {
       getScores: async () => { called = true; return [] },
       setUserValue: async () => blockScore(),
+      renew: async () => blockScore(),
     }
     const loader = makeScopedSalienceBundleLoader(salience, homeScope())
     await expect(loader()).resolves.toEqual({ scores: new Map() })
