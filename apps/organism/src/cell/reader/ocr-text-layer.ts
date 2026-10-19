@@ -62,8 +62,21 @@ function placement(word: OcrWord, rotation: number): { transform: TextItem['tran
 
 /** One page's words as pdf.js text content: a word per item, a space carried to the next word, a line end marked. */
 export function ocrTextContent(page: OcrPage): { items: TextItem[]; styles: Record<string, unknown>; lang: string | null } {
-  const words = page.words ?? []
   const rotation = page.rotation ?? 0
+  // Every word of a line gets the line's full height, so a selection across it is one even band, as in a printed PDF.
+  const across = rotation % 180 === 90 ? (['x0', 'x1'] as const) : (['y0', 'y1'] as const)
+  const lines = new Map<string, { low: number; high: number }>()
+  const lineOf = (word: OcrWord) => `${word.block}:${word.par}:${word.line}`
+  for (const word of page.words ?? []) {
+    const line = lines.get(lineOf(word))
+    lines.set(lineOf(word), line
+      ? { low: Math.min(line.low, word[across[0]]), high: Math.max(line.high, word[across[1]]) }
+      : { low: word[across[0]], high: word[across[1]] })
+  }
+  const words = (page.words ?? []).map(word => {
+    const line = lines.get(lineOf(word))!
+    return { ...word, [across[0]]: line.low, [across[1]]: line.high }
+  })
   const items: TextItem[] = []
   words.forEach((word, index) => {
     const next = words[index + 1]

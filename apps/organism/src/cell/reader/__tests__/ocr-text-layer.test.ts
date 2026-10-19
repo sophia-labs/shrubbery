@@ -33,9 +33,24 @@ describe('a scan\'s words as pdf.js text content', () => {
     expect(is!.transform).toEqual([-22, 0, 0, -22, 204, 712])
   })
 
-  it('turns a quarter-turned page\'s words: they run up the page', () => {
-    const [knowledge] = ocrTextContent({ ...page, rotation: 90 }).items
-    expect(knowledge!.transform).toEqual([0, 108, -108, 0, 180, 690])
+  it('turns a quarter-turned page\'s words: a line runs up the page, from the corner where it starts as shown', () => {
+    // On a page turned a quarter clockwise a printed line runs up the page: its words share an x range, y grows.
+    const turned: OcrPage = { page: 1, status: 'ocr', rotation: 90, words: [
+      { text: 'Knowledge', x0: 300, x1: 322, y0: 100, y1: 208, conf: 95, block: 1, par: 1, line: 1 },
+      { text: 'is', x0: 301, x1: 320, y0: 216, y1: 232, conf: 95, block: 1, par: 1, line: 1 },
+    ] }
+    const [knowledge, is] = ocrTextContent(turned).items
+    expect(knowledge).toMatchObject({ transform: [0, 22, -22, 0, 322, 100], width: 216 - 100, height: 22 })
+    expect(is!.transform).toEqual([0, 22, -22, 0, 322, 216])
+  })
+
+  it('gives every word of a line the line\'s full height, so a selection across it is one even band', () => {
+    const uneven: OcrPage = { page: 1, status: 'ocr', words: [
+      { text: 'Cover', x0: 72, x1: 120, y0: 690, y1: 712, conf: 95, block: 1, par: 1, line: 1 },
+      { text: 'your', x0: 126, x1: 160, y0: 684, y1: 706, conf: 95, block: 1, par: 1, line: 1 },
+    ] }
+    const [cover, your] = ocrTextContent(uneven).items
+    expect([cover!.transform, your!.transform]).toEqual([[28, 0, 0, 28, 72, 684], [28, 0, 0, 28, 126, 684]])
   })
 
   it('makes real pdf.js answer a textless page with the words read, and leaves a printed page as printed', async () => {
