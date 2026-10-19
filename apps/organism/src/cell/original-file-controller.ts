@@ -26,7 +26,8 @@ import {
   type SourceQuoteAnnotation,
 } from './source-quote-annotations.js'
 import { readEpubBook } from './reader/epub-book.js'
-import type { ReaderSource } from './reader/mn-reader.js'
+import type { ReaderScanState, ReaderSource } from './reader/mn-reader.js'
+import type { OcrTextLayer } from './reader/ocr-text-layer.js'
 import type { ReaderAnnotation } from './reader/reader-model.js'
 
 type OriginalFileContract = Pick<ShrubberyContract, 'auth' | 'runtime'>
@@ -526,6 +527,8 @@ export class OrganismOriginalFileController {
   private pdfPageUrl = ''
   /** What the Reader shows, in reader mode: the PDF's bytes or the parsed book. */
   private readerSource: ReaderSource | null = null
+  /** Reading the scan's text, when the original is a PDF without any. */
+  private scanState: ReaderScanState | null = null
 
   constructor(private readonly options: OriginalFileControllerOptions) {
     const fetchImpl = options.fetch ?? globalThis.fetch
@@ -578,6 +581,7 @@ export class OrganismOriginalFileController {
     this.annotationViews = []
     this.selectedChapterId = ''
     this.readerSource = null
+    this.scanState = null
   }
 
   private revokePdfPage(): void {
@@ -654,6 +658,28 @@ export class OrganismOriginalFileController {
     this.annotationViews = projected.annotations
   }
 
+  /** The PDF the Reader shows (graph, document) when it has no OCR words yet, for the shell to ask about. */
+  get scanWithoutWords(): { readonly graphId: string; readonly documentId: string } | null {
+    const source = this.readerSource
+    if (!this.scope || !source || source.kind !== 'pdf' || source.ocr) return null
+    return { graphId: this.scope.graphId, documentId: this.scope.documentId }
+  }
+
+  setScan(graphId: string, documentId: string, state: ReaderScanState | null): void {
+    if (this.scope?.graphId !== graphId || this.scope.documentId !== documentId) return
+    this.scanState = state
+    this.render()
+  }
+
+  /** A scan's words have been read: they become its pages' text in the Reader. */
+  attachOcr(graphId: string, documentId: string, layer: OcrTextLayer): void {
+    const source = this.readerSource
+    if (this.scope?.graphId !== graphId || this.scope.documentId !== documentId || source?.kind !== 'pdf') return
+    this.readerSource = { ...source, ocr: layer }
+    this.scanState = null
+    this.render()
+  }
+
   releaseScope(graphId: string, documentId: string | null): void {
     if (this.scope?.graphId !== graphId || this.scope.documentId !== documentId) return
     this.setScope(null, '', null)
@@ -689,6 +715,7 @@ export class OrganismOriginalFileController {
       annotations: this.annotationViews,
       annotationSupport: this.baseChapters.length > 0 ? 'display' : 'unavailable',
       reader: this.readerSource,
+      readerScan: this.scanState,
       readerAnnotations: this.readerSource ? this.sourceAnnotations : [],
     })
   }

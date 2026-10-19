@@ -583,6 +583,22 @@ describe('mn-sidebar-panel — real custom element', () => {
     expect(row.getAttribute('draggable')).toBe('false')
   })
 
+  it('an imported document (its text read-only) is an ordinary row: it drags into folders and is prefetched on hover', async () => {
+    const el = await mount(node => {
+      node.sections = [{ id: 'tree', label: 'Workspace', icon: 'folder', nodes: [
+        { id: 'folder-a', label: 'Freud', kind: 'folder' },
+        { id: 'doc-book', label: 'The Interpretation of Dreams', kind: 'document', textReadOnly: true, icon: 'book-open' },
+      ] }]
+      node.capabilities = { dragDrop: true }
+    })
+    const intents: MnSidebarNodeDetail[] = []
+    el.addEventListener('mn-sidebar-node-intent', event => { intents.push((event as CustomEvent<MnSidebarNodeDetail>).detail) })
+    const row = sr(el).querySelector('[data-node-id="doc-book"]') as HTMLElement
+    expect(row.getAttribute('draggable')).toBe('true')
+    row.dispatchEvent(new Event('pointerenter'))
+    expect(intents.map(intent => intent.id)).toEqual(['doc-book'])
+  })
+
   it('has one kind filter in the toolbar: it asks for the kind, and shows only that kind', async () => {
     const groups: MnSidebarGroupingChangeDetail[] = []
     const el = await mount(node => {

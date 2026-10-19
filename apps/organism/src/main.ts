@@ -7520,7 +7520,7 @@ function homeDocumentsFromSidebar(): HomeDocumentSource[] {
       if (node.kind === 'document') documents.push({
         id: node.id,
         title: node.label,
-        readOnly: node.readOnly,
+        readOnly: node.textReadOnly,
         createdAt: node.createdAt,
       })
       if (node.children?.length) visit(node.children)

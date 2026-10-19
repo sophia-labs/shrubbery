@@ -357,7 +357,8 @@ interface SidebarNodeDraft {
   readonly createdAt?: number
   readonly active?: boolean
   readonly selected?: boolean
-  readonly readOnly?: boolean
+  /** An imported document's text is read-only; the row moves like any other (see FilePaneNode.textReadOnly). */
+  readonly textReadOnly?: boolean
   readonly sourceFile?: SidebarDocumentSourceFile | null
   readonly badge?: string | null
   readonly mimeType?: string | null
@@ -439,7 +440,7 @@ export function sidebarDocumentTree(
       ...(doc.createdAt === undefined ? {} : { createdAt: doc.createdAt }),
       active: activeId === doc.id,
       selected: activeId === doc.id,
-      readOnly: doc.readOnly,
+      textReadOnly: doc.readOnly,
       sourceFile: doc.sourceFile,
       children: [],
     })
@@ -460,7 +461,7 @@ export function sidebarDocumentTree(
           ...(node.createdAt === undefined ? {} : { createdAt: node.createdAt }),
           active: node.active,
           selected: node.selected,
-          readOnly: node.readOnly,
+          textReadOnly: node.textReadOnly,
           sourceFile: node.sourceFile,
           documentKind: node.documentKind ?? null,
         }
@@ -689,7 +690,7 @@ export function sidebarOneTree(
       id: doc.id, label: doc.label || 'Untitled', kind: 'document', icon: documentIcon(doc), parentId: doc.parentId,
       section: 'documents', order: doc.order, documentKind: doc.documentKind ?? null,
       ...(doc.createdAt === undefined ? {} : { createdAt: doc.createdAt }),
-      active: activeId === doc.id, selected: activeId === doc.id, readOnly: doc.readOnly, sourceFile: doc.sourceFile, children: [],
+      active: activeId === doc.id, selected: activeId === doc.id, textReadOnly: doc.readOnly, sourceFile: doc.sourceFile, children: [],
     })
   }
   for (const artifact of artifacts) {
@@ -707,7 +708,7 @@ export function sidebarOneTree(
       if (node.kind === 'document') {
         return { id: node.id, label: node.label, kind: 'document', icon: node.icon, parentId: node.parentId, section: node.section,
           order: node.order, ...(node.createdAt === undefined ? {} : { createdAt: node.createdAt }), active: node.active,
-          selected: node.selected, readOnly: node.readOnly, sourceFile: node.sourceFile, documentKind: node.documentKind ?? null }
+          selected: node.selected, textReadOnly: node.textReadOnly, sourceFile: node.sourceFile, documentKind: node.documentKind ?? null }
       }
       if (node.kind === 'artifact') {
         return { id: node.id, label: node.label, kind: 'artifact', icon: node.icon, parentId: node.parentId, section: node.section,

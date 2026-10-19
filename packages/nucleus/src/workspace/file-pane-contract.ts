@@ -68,7 +68,13 @@ export interface FilePaneNode {
   readonly selected?: boolean
   readonly active?: boolean
   readonly disabled?: boolean
+  /** The row is a record, not a live item (a parked row): it is not moved, prefetched or renamed. */
   readonly readOnly?: boolean
+  /**
+   * The document's TEXT is read-only (an imported original, until Make Editable). The row itself is an ordinary row:
+   * it moves into folders, reorders and opens like any other.
+   */
+  readonly textReadOnly?: boolean
   readonly sourceFile?: {
     readonly storageKey?: string | null
     readonly originalFilename?: string | null
