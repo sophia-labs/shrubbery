@@ -269,12 +269,33 @@ function contextRange(haystack: QuoteSearchText, context: string | null | undefi
 /** The quote within its block's text, when that block is found here. */
 export function findQuoteInContext(haystack: QuoteSearchText, annotation: Pick<SourceQuoteAnnotation, 'quote' | 'context'>): QuoteRange | null {
   const range = contextRange(haystack, annotation.context)
-  return range ? findQuoteBetween(haystack, searchFormOf(annotation.quote), range.start, range.end) : null
+  if (!range) return null
+  for (const quote of quoteVariants(annotation.quote)) {
+    const found = findQuoteBetween(haystack, searchFormOf(quote), range.start, range.end)
+    if (found) return found
+  }
+  return null
 }
 
 /** The first occurrence of the quote anywhere here. */
 export function findQuote(haystack: QuoteSearchText, quote: string): QuoteRange | null {
-  return findQuoteBetween(haystack, searchFormOf(quote), 0, haystack.text.length)
+  for (const variant of quoteVariants(quote)) {
+    const found = findQuoteBetween(haystack, searchFormOf(variant), 0, haystack.text.length)
+    if (found) return found
+  }
+  return null
+}
+
+/**
+ * The forms a copied quote may arrive in, the most faithful first: as given; with a JSON-escaped line break (a
+ * backslash and an n) read as the break it was; and without the quotation marks a copier put around a sentence it
+ * lifted from the middle of a paragraph. Agents quoting Freud on 2026-10-18 did both; gardend's anchoring forgives
+ * the same two habits, so a quote the margin finds is a quote gardend anchors.
+ */
+export function quoteVariants(quote: string): string[] {
+  const unescaped = quote.replace(/\\[nrt]/g, ' ')
+  const unwrapped = unescaped.replace(/^[\s"'“”‘’«»]+|[\s"'“”‘’«»]+$/g, '')
+  return [...new Set([quote, unescaped, unwrapped])].filter((variant) => variant.trim().length > 0)
 }
 
 /** Where an annotation lands in this text: inside its own block if that block is here, else its first occurrence. */

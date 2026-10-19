@@ -270,3 +270,24 @@ describe('the open document’s side: comments and highlights from its Y.Doc', (
     expect(marksOf(chapter, 'highlight:block-c11fe9ee:0')[0]!.getAttribute('data-kind')).toBe('highlight')
   })
 })
+
+describe('quotes as agents copied them (run wfr-mvev25ht-e755un, 2026-10-18)', () => {
+  it('reads a JSON-escaped line break (a backslash and an n) as the break it was', () => {
+    const document = chapterDocument()
+    // Verbatim from the run graph: the clerk copied the block's text JSON-escaped, so the quote holds `\` + `n`.
+    const thunder = 'Every indistinctly perceived noise gives\\nrise to corresponding dream pictures; the rolling of thunder\\ntakes us into the thick of battle'
+    expect(thunder).toContain('\\n')
+    const drawn = markQuoteAnnotations(document, [comment('thunder', thunder)])
+    expect([...drawn.keys()]).toEqual(['thunder'])
+    expect(markedText(document, 'thunder')).toBe('Every indistinctly perceived noise gives rise to corresponding dream pictures; the rolling of thunder takes us into the thick of battle')
+  })
+
+  it('finds a sentence the copier wrapped in quotation marks it does not have in the book', () => {
+    const document = chapterDocument()
+    const hemmings = '“The same author, according\nto Hemmings (Von den Traumen und Nachtwandeln,\nWeimar, 1784, p. 258) dreamed on another occasion that he\nwas being hanged when his shirt was pinned somewhat tight\naround his neck.”'
+    const drawn = markQuoteAnnotations(document, [comment('hemmings', hemmings)])
+    expect([...drawn.keys()]).toEqual(['hemmings'])
+    expect(markedText(document, 'hemmings')).toBe('The same author, according to Hemmings (Von den Traumen und Nachtwandeln, Weimar, 1784, p. 258) dreamed on another occasion that he was being hanged when his shirt was pinned somewhat tight around his neck.')
+  })
+})
+
