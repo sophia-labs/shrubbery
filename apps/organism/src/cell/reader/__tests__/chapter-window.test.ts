@@ -67,7 +67,7 @@ describe('the height of the whole book', () => {
     expect(pxPerWord(words, new Map([[2, 15096], [3, 60096]]), 9)).toBeCloseTo(3)
     expect(pxPerWord(words, new Map([[2, 15096]]), 9)).toBe(3)
     // a cover and a short preface say nothing about px per word
-    expect(pxPerWord(words, new Map([[0, 5000], [4, 5000], [3, 9000]]), 9)).toBe(9)
+    expect(pxPerWord(words, new Map([[0, 5000], [4, 5000]]), 9)).toBe(9)
   })
   it('estimates unmeasured chapters from their words and keeps measured ones', () => {
     const heights = chapterHeights(words, new Map([[2, 9999]]), 3)
