@@ -50,6 +50,14 @@ export interface MnOriginalViewerAnnotation {
   readonly quote?: string | null
   readonly pageNumber?: number | null
   readonly sourceRef?: string | null
+  /** A comment shows its words and author; a highlight only its passage. */
+  readonly kind?: 'comment' | 'highlight' | null
+  readonly body?: string | null
+  readonly author?: string | null
+  /** EPUB: the chapter whose text holds the quote, with `anchor: 'found'`; `'not-found'` when no chapter does. */
+  readonly chapterId?: string | null
+  readonly chapterTitle?: string | null
+  readonly anchor?: 'found' | 'not-found' | null
 }
 
 export interface MnOriginalViewerIntentDetail {
@@ -497,6 +505,67 @@ export class MnOriginalViewer extends SkinAware(LitElement) {
       line-height: 1.35;
     }
 
+    .annotation-section {
+      padding: 8px 12px 4px;
+      color: var(--mn-color-text-tertiary, #6b7280);
+      font-size: var(--mn-text-xs, 12px);
+      font-weight: 700;
+    }
+
+    .annotation-item {
+      display: grid;
+      gap: 4px;
+      width: 100%;
+    }
+
+    .annotation-passage {
+      display: -webkit-box;
+      overflow: hidden;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 3;
+      margin: 0;
+      padding-left: 8px;
+      border-left: 3px solid var(--mn-color-comment-border-active, #d97706);
+      color: var(--mn-color-text-secondary, #4b5563);
+      font-family: var(--mn-font-prose, Georgia, serif);
+      font-size: var(--mn-text-xs, 12px);
+      font-style: italic;
+      line-height: 1.4;
+    }
+
+    .annotation-item[data-kind='highlight'] .annotation-passage {
+      border-left-color: var(--mn-color-highlight, #facc15);
+    }
+
+    .annotation-body {
+      color: var(--mn-color-text-primary, #111827);
+      line-height: 1.4;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+
+    .annotation-author {
+      color: var(--mn-color-text-tertiary, #6b7280);
+      font-size: var(--mn-text-xs, 12px);
+    }
+
+    .annotation-missing {
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--mn-color-border-subtle, #e5e7eb);
+    }
+
+    .annotation-note {
+      margin: 0;
+      padding: 0 12px 8px;
+      color: var(--mn-color-text-tertiary, #6b7280);
+      font-size: var(--mn-text-xs, 12px);
+      line-height: 1.35;
+    }
+
+    .annotation-note-first {
+      padding-top: 8px;
+    }
+
     .state {
       display: grid;
       flex: 1 1 auto;
@@ -606,11 +675,34 @@ export class MnOriginalViewer extends SkinAware(LitElement) {
   }
 
   private _selectAnnotation(annotation: MnOriginalViewerAnnotation): void {
+    this._revealMark(annotation.id)
     this._emit<MnOriginalViewerAnnotationDetail>('mn-original-viewer-annotation-select', {
       ...this._detail(),
       annotationId: annotation.id,
       annotation,
     })
+  }
+
+  /**
+   * Scroll the chapter to an annotation's mark and outline it. The chapter frame
+   * runs no script; the viewer reaches into it only to find its own marks.
+   */
+  private _revealMark(annotationId: string): void {
+    const frame = this.renderRoot.querySelector<HTMLIFrameElement>('.epub-stage iframe')
+    let document: Document | null = null
+    try {
+      document = frame?.contentDocument ?? null
+    } catch {
+      return
+    }
+    if (!document) return
+    const token = encodeURIComponent(annotationId)
+    const marks = Array.from(document.querySelectorAll<HTMLElement>(`mark[data-annotation-ids~="${token}"]`))
+    for (const active of Array.from(document.querySelectorAll('mark.mn-quote-mark-active'))) {
+      active.classList.remove('mn-quote-mark-active')
+    }
+    for (const mark of marks) mark.classList.add('mn-quote-mark-active')
+    marks[0]?.scrollIntoView({ block: 'center', behavior: 'smooth' })
   }
 
   private _selectPage(pageNumber: number): void {
@@ -787,8 +879,77 @@ export class MnOriginalViewer extends SkinAware(LitElement) {
     return this._renderFileFallback()
   }
 
+  private _annotationItem(annotation: MnOriginalViewerAnnotation): TemplateResult {
+    const kind = annotation.kind === 'highlight' ? 'highlight' : 'comment'
+    const body = trimmed(annotation.body)
+    const author = trimmed(annotation.author)
+    return html`
+      <span class="annotation-item" data-kind=${kind}>
+        ${trimmed(annotation.quote)
+          ? html`<span class="annotation-passage">${annotation.quote}</span>`
+          : html`<span class="annotation-quote">No quoted passage</span>`}
+        ${kind === 'comment' && body ? html`<span class="annotation-body">${body}</span>` : nothing}
+        <span class="annotation-author">${kind === 'highlight' ? 'Highlight' : author || 'Comment'}</span>
+      </span>
+    `
+  }
+
+  /** EPUB: this chapter's comments and highlights, where the others are, and what could not be found. */
+  private _renderEpubAnnotations(): TemplateResult | typeof nothing {
+    const chapter = this._activeChapter()
+    const here = this.annotations.filter((annotation) => annotation.anchor === 'found' && annotation.chapterId === chapter?.id)
+    const elsewhere = new Map<string, { title: string; count: number }>()
+    for (const annotation of this.annotations) {
+      if (annotation.anchor !== 'found' || !annotation.chapterId || annotation.chapterId === chapter?.id) continue
+      const entry = elsewhere.get(annotation.chapterId) ?? { title: trimmed(annotation.chapterTitle) || annotation.chapterId, count: 0 }
+      entry.count += 1
+      elsewhere.set(annotation.chapterId, entry)
+    }
+    const missing = this.annotations.filter((annotation) => annotation.anchor === 'not-found')
+    return html`
+      <aside class="annotation-rail" aria-label="Comments on the original" data-annotation-rail="epub">
+        <div class="annotation-head">In this chapter (${here.length})</div>
+        ${here.length === 0 ? html`<p class="annotation-note annotation-note-first">None in this chapter.</p>` : nothing}
+        ${repeat(here, (annotation) => annotation.id, (annotation) => html`
+          <button
+            type="button"
+            class="annotation-button"
+            data-annotation-id=${annotation.id}
+            @click=${() => this._selectAnnotation(annotation)}
+          >${this._annotationItem(annotation)}</button>
+        `)}
+        ${elsewhere.size > 0 ? html`<section class="annotation-group" aria-label="Comments in other chapters">
+          <div class="annotation-section">In other chapters</div>
+          ${[...elsewhere].map(([chapterId, entry]) => html`
+            <button
+              type="button"
+              class="annotation-button"
+              data-annotation-chapter=${chapterId}
+              @click=${() => {
+                const target = this.chapters.find((item) => item.id === chapterId)
+                if (target) this._selectChapter(target)
+              }}
+            ><span>${entry.count} in ${entry.title}</span></button>
+          `)}
+        </section>` : nothing}
+        ${missing.length > 0 ? html`<section class="annotation-group" aria-label="Comments not found in the original">
+          <div class="annotation-section" data-annotation-missing-head>Not found in the original (${missing.length})</div>
+          <p class="annotation-note">The quoted passage is not in the book's text, so it is not marked.</p>
+          ${repeat(missing, (annotation) => annotation.id, (annotation) => html`
+            <div class="annotation-missing" data-annotation-id=${annotation.id} data-annotation-missing>
+              ${this._annotationItem(annotation)}
+            </div>
+          `)}
+        </section>` : nothing}
+      </aside>
+    `
+  }
+
   private _renderAnnotations(): TemplateResult | typeof nothing {
     if (this.annotations.length === 0) return nothing
+    if (this._kind() === 'epub' && this.status === 'ready' && this.annotations.some((annotation) => annotation.anchor)) {
+      return this._renderEpubAnnotations()
+    }
     return html`
       <aside class="annotation-rail" aria-label="Source annotations">
         <div class="annotation-head">Source annotations</div>

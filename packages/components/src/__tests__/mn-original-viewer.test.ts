@@ -128,6 +128,57 @@ describe('mn-original-viewer - real custom element', () => {
     })
   })
 
+  it('lists an EPUB chapter’s comments beside it, points to the other chapters, and reports what was not found', async () => {
+    const hostile = '<img src=x onerror="alert(1)">Dream-work'
+    const el = await mount((node) => {
+      node.status = 'ready'
+      node.kind = 'epub'
+      node.graphId = 'freud-dreams'
+      node.documentId = 'doc-freud'
+      node.title = 'The Interpretation of Dreams'
+      node.chapters = [
+        { id: 'item9', title: 'I THE SCIENTIFIC LITERATURE', srcdoc: '<!doctype html><p><mark data-annotation-ids="c-stake">drove a stake</mark></p>' },
+        { id: 'item10', title: 'II METHOD OF DREAM INTERPRETATION', text: 'Second chapter' },
+      ]
+      node.annotations = [
+        { id: 'c-stake', kind: 'comment', quote: 'drove a stake into the ground', body: hostile, author: 'Vera', label: 'Vera', chapterId: 'item9', chapterTitle: 'I THE SCIENTIFIC LITERATURE', anchor: 'found' },
+        { id: 'c-method', kind: 'comment', quote: 'free association', body: 'Method', author: 'Lucy', chapterId: 'item10', chapterTitle: 'II METHOD OF DREAM INTERPRETATION', anchor: 'found' },
+        { id: 'c-royal', kind: 'comment', quote: 'the royal road', body: 'Chapter VII?', author: 'Vera', chapterId: null, anchor: 'not-found' },
+      ]
+    })
+    const chapters: MnOriginalViewerChapterDetail[] = []
+    const selected: MnOriginalViewerAnnotationDetail[] = []
+    el.addEventListener('mn-original-viewer-chapter-select', (event) => {
+      chapters.push((event as CustomEvent<MnOriginalViewerChapterDetail>).detail)
+    })
+    el.addEventListener('mn-original-viewer-annotation-select', (event) => {
+      selected.push((event as CustomEvent<MnOriginalViewerAnnotationDetail>).detail)
+    })
+
+    // The chapter frame keeps exactly its sandbox: no scripts, nothing added.
+    expect(sr(el).querySelector('.epub-stage iframe')?.getAttribute('sandbox')).toBe('allow-same-origin allow-popups')
+    const rail = sr(el).querySelector('[data-annotation-rail="epub"]')!
+    expect(rail.querySelector('.annotation-head')?.textContent).toBe('In this chapter (1)')
+    const here = rail.querySelector<HTMLButtonElement>('button[data-annotation-id="c-stake"]')!
+    expect(here.querySelector('.annotation-passage')?.textContent).toBe('drove a stake into the ground')
+    // The comment's words are text in the rail, never markup.
+    expect(here.querySelector('.annotation-body')?.textContent).toBe(hostile)
+    expect(here.querySelector('img')).toBeNull()
+    expect(here.querySelector('.annotation-author')?.textContent).toBe('Vera')
+    here.click()
+    expect(selected[0]).toMatchObject({ annotationId: 'c-stake', documentId: 'doc-freud' })
+
+    const elsewhere = rail.querySelector<HTMLButtonElement>('button[data-annotation-chapter="item10"]')!
+    expect(elsewhere.textContent?.trim()).toBe('1 in II METHOD OF DREAM INTERPRETATION')
+    elsewhere.click()
+    expect(chapters[0]).toMatchObject({ chapterId: 'item10' })
+
+    expect(rail.querySelector('[data-annotation-missing-head]')?.textContent).toBe('Not found in the original (1)')
+    const missing = rail.querySelector('[data-annotation-missing][data-annotation-id="c-royal"]')!
+    expect(missing.querySelector('.annotation-passage')?.textContent).toBe('the royal road')
+    expect(missing.querySelector('.annotation-body')?.textContent).toBe('Chapter VII?')
+  })
+
   it('renders controlled PDF page previews and file fallback actions', async () => {
     const pdf = await mount((node) => {
       node.status = 'ready'

@@ -597,6 +597,8 @@ export class MnEditorToolbar extends SkinAware(LitElement) {
   @property({ type: Boolean }) ttsAvailable = false
   @property({ type: Boolean }) originalViewAvailable = false
   @property({ type: Boolean }) originalViewActive = false
+  /** The original shows the document's comments and highlights (they are still added in Document View). */
+  @property({ type: Boolean }) originalAnnotationsShown = false
   @property({ type: Boolean }) readOnly = false
   /** Read-only because a trustworthy cached copy is still joining its live room. */
   @property({ type: Boolean }) activationPending = false
@@ -1076,11 +1078,17 @@ export class MnEditorToolbar extends SkinAware(LitElement) {
             @click=${() => this.emitEmpty('mn-editor-original-view-toggle')}
           ></mn-button>
         </mn-toolbar-group>
-        <span
-          class="original-view-note"
-          data-original-annotation-unavailable
-          role="status"
-        >To add highlights or comments, return to Document View. Source-region highlights are read-only.</span>
+        ${this.originalAnnotationsShown
+          ? html`<span
+              class="original-view-note"
+              data-original-annotation-shown
+              role="status"
+            >Comments and highlights from Document View are shown here. To add one, return to Document View.</span>`
+          : html`<span
+              class="original-view-note"
+              data-original-annotation-unavailable
+              role="status"
+            >To add highlights or comments, return to Document View. Source-region highlights are read-only.</span>`}
         <span class="toolbar-spacer" aria-hidden="true"></span>
         <mn-toolbar-group label="Annotations">
           <mn-icon-button

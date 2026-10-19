@@ -207,6 +207,7 @@ export {
   type EditorHostVars,
   type EditorImageInsert,
   type EditorImageInserter,
+  type EditorOriginalFileAnnotation,
   type EditorOriginalFileChapter,
   type EditorOriginalFileView,
   type EditorPdfSourceLocation,

@@ -280,6 +280,20 @@ describe('mn-editor-toolbar', () => {
     expect(events).toEqual(['toggle', 'toggle'])
   })
 
+  it('says comments are shown in the original, and added in Document View, when the original draws them', async () => {
+    const el = await mountToolbar((node) => {
+      node.originalViewAvailable = true
+      node.originalViewActive = true
+      node.originalAnnotationsShown = true
+    })
+    expect(sr(el).querySelector('[data-original-annotation-unavailable]')).toBeNull()
+    expect(sr(el).querySelector('[data-original-annotation-shown]')?.textContent).toBe(
+      'Comments and highlights from Document View are shown here. To add one, return to Document View.',
+    )
+    const comment = await shadowButton(sr(el).querySelector('[data-original-comment-unavailable]'))
+    expect(comment.disabled).toBe(true)
+  })
+
   it('hides toolbar-group captions without hiding nested mn-button labels (regression: --mn-toolbar-group-label-display must not leak to --mn-label-display consumers)', async () => {
     const el = await mountToolbar((node) => { node.originalViewAvailable = true; node.originalViewActive = true })
     const group = sr(el).querySelector('mn-toolbar-group')

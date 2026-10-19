@@ -47,6 +47,13 @@ import { createFlowAppFeature } from './flow-feature.js'
 import { flowAppEnabled } from './flow-workspace.js'
 import { OrganismOriginalFileController } from './original-file-controller.js'
 import {
+  documentQuoteState,
+  isQuoteSourceDoc,
+  quoteAnnotationsFor,
+  type DocumentQuoteState,
+  type QuoteSourceDoc,
+} from './document-quote-sources.js'
+import {
   PHANES_CONTROL_GRAPH_ID,
   PhanesControlApi,
   type PhanesControlMcp,
@@ -695,6 +702,18 @@ function originalFileFeature<TContract>(): ShellFeature<TContract> {
   let makeEditableStatus: 'idle' | 'saving' | 'error' = 'idle'
   let makeEditableError = ''
   const madeEditable = new Set<string>()
+  // The open document's Y.Doc, read for block text and highlights while its original is shown.
+  let quoteDoc: QuoteSourceDoc | null = null
+  let quoteDocVersion = 0
+  let quoteState: { readonly doc: QuoteSourceDoc; readonly version: number; readonly state: DocumentQuoteState } | null = null
+  const currentQuoteState = (): DocumentQuoteState | null => {
+    const doc = quoteDoc
+    if (!doc) return null
+    if (quoteState?.doc !== doc || quoteState.version !== quoteDocVersion) {
+      quoteState = { doc, version: quoteDocVersion, state: documentQuoteState(doc) }
+    }
+    return quoteState.state
+  }
 
   const requestRender = (): void => {
     if (renderQueued) return
@@ -791,11 +810,29 @@ function originalFileFeature<TContract>(): ShellFeature<TContract> {
 
   return {
     id: 'original-file-controller',
-    bindProvider(_provider, context) {
+    bindProvider(provider, context) {
       latestContext = context
       const contract = originalFileContract(context.contract)
       ensure().setScope(contract, context.graphId, context.documentId)
-      return () => controller?.releaseScope(context.graphId, context.documentId)
+      const doc = provider.doc as unknown
+      const observable = doc as { on?(event: 'update', cb: () => void): void; off?(event: 'update', cb: () => void): void }
+      const onUpdate = (): void => {
+        quoteDocVersion += 1
+        if (controller?.annotationsWanted) requestRender()
+      }
+      if (isQuoteSourceDoc(doc)) {
+        quoteDoc = doc
+        quoteDocVersion += 1
+        observable.on?.('update', onUpdate)
+      }
+      return () => {
+        observable.off?.('update', onUpdate)
+        if (quoteDoc === doc) {
+          quoteDoc = null
+          quoteState = null
+        }
+        controller?.releaseScope(context.graphId, context.documentId)
+      }
     },
     workspaceSnapshot(context, snapshot) {
       latestContext = context
@@ -808,12 +845,17 @@ function originalFileFeature<TContract>(): ShellFeature<TContract> {
         makeEditableError = ''
       }
       if (node && !node.readOnly) madeEditable.delete(scope)
-      ensure().setScope(
+      const active = ensure()
+      active.setScope(
         originalFileContract(context.contract),
         context.graphId,
         context.documentId,
         node?.sourceFile ?? null,
       )
+      // The comments (and highlights) of this document, drawn over its original while it is open.
+      if (active.annotationsWanted) {
+        active.setAnnotations(quoteAnnotationsFor(snapshot.comments?.comments ?? [], currentQuoteState()))
+      }
       return {
         editorDocumentAccess: context.documentId
           ? {

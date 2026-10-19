@@ -10,6 +10,7 @@
 import { inspectPdfSourceAnchor, sha256PdfSourceBytes, type PdfSourceAnchorV1, type ShrubberyContract } from '@shrubbery/nucleus'
 import { cellAuthHeaders } from './cell-auth-headers.js'
 import type {
+  EditorOriginalFileAnnotation,
   EditorOriginalFileChapter,
   EditorOriginalFileView,
   EditorOriginalPdfPage,
@@ -17,6 +18,13 @@ import type {
   EditorPdfSourceMapping,
 } from '@shrubbery/runtime'
 import { createPdfOriginalPreview, type PdfOriginalPreview, type PdfOriginalPreviewFactory } from './pdf-original-preview.js'
+import {
+  locateQuoteAnnotations,
+  markQuoteAnnotations,
+  quoteSearchText,
+  type QuoteChapterText,
+  type SourceQuoteAnnotation,
+} from './source-quote-annotations.js'
 
 type OriginalFileContract = Pick<ShrubberyContract, 'auth' | 'runtime'>
 
@@ -167,6 +175,8 @@ function safeSrcdoc(
   source: string,
   title: string,
   resolveImage?: (src: string) => string | null,
+  /** Runs on the cleaned document, before the policy is added and it is serialised. */
+  decorate?: (document: Document) => void,
 ): string {
   if (typeof DOMParser === 'undefined') {
     return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title></head><body><pre>${escapeHtml(source)}</pre></body></html>`
@@ -198,6 +208,7 @@ function safeSrcdoc(
       element.removeAttribute('href')
     }
   }
+  decorate?.(parsed)
 
   const charset = parsed.createElement('meta')
   charset.setAttribute('charset', 'utf-8')
@@ -384,6 +395,81 @@ function anchoredOriginalUrl(scope: OriginalScope, anchor: PdfSourceAnchorV1 | n
     : `${artifact}/download?inline=true`
 }
 
+function keepDataImage(src: string): string | null {
+  return /^data:image\//i.test(src) ? src : null
+}
+
+function chapterSearchText(chapter: EditorOriginalFileChapter): QuoteChapterText {
+  const document = new DOMParser().parseFromString(chapter.srcdoc ?? '', 'text/html')
+  return { id: chapter.id, ...quoteSearchText(document.body ?? document.documentElement) }
+}
+
+function annotationKey(annotations: readonly SourceQuoteAnnotation[]): string {
+  return JSON.stringify(annotations.map(annotation => [
+    annotation.id, annotation.kind, annotation.quote, annotation.text ?? '', annotation.author ?? '', annotation.context ?? '',
+  ]))
+}
+
+/**
+ * Draw the document's comments and highlights into its EPUB chapters. A chapter
+ * is decorated by running it through the same cleaning pass again with its
+ * marks added (`safeSrcdoc`), so what reaches the frame is always that pass's
+ * output. Annotations that are not found are kept, as `not-found`.
+ */
+export function projectEpubAnnotations(
+  chapters: readonly EditorOriginalFileChapter[],
+  annotations: readonly SourceQuoteAnnotation[],
+  searchTexts: readonly QuoteChapterText[] = chapters.filter(chapter => chapter.srcdoc).map(chapterSearchText),
+): { readonly chapters: readonly EditorOriginalFileChapter[]; readonly annotations: readonly EditorOriginalFileAnnotation[] } {
+  if (annotations.length === 0) return { chapters, annotations: Object.freeze([]) }
+  const located = locateQuoteAnnotations(searchTexts, annotations)
+  const byChapter = new Map<string, SourceQuoteAnnotation[]>()
+  for (const annotation of annotations) {
+    const chapterId = located.get(annotation.id)
+    if (!chapterId) continue
+    const list = byChapter.get(chapterId) ?? []
+    list.push(annotation)
+    byChapter.set(chapterId, list)
+  }
+  const drawnAt = new Map<string, { readonly chapterIndex: number; readonly position: number }>()
+  const decorated = chapters.map((chapter, chapterIndex) => {
+    const list = byChapter.get(chapter.id)
+    if (!list || !chapter.srcdoc) return chapter
+    let drawn: ReadonlyMap<string, number> = new Map()
+    const srcdoc = safeSrcdoc(chapter.srcdoc, chapter.title, keepDataImage, document => {
+      drawn = markQuoteAnnotations(document, list)
+    })
+    for (const [id, position] of drawn) drawnAt.set(id, { chapterIndex, position })
+    return drawn.size > 0 ? Object.freeze({ ...chapter, srcdoc }) : chapter
+  })
+  const views = annotations.map((annotation, order) => {
+    const at = drawnAt.get(annotation.id)
+    const chapter = at ? chapters[at.chapterIndex] : undefined
+    const view: EditorOriginalFileAnnotation = Object.freeze({
+      id: annotation.id,
+      kind: annotation.kind,
+      label: annotation.kind === 'comment' ? (annotation.author?.trim() || 'Comment') : 'Highlight',
+      quote: annotation.quote,
+      body: annotation.text ?? null,
+      author: annotation.author ?? null,
+      chapterId: chapter?.id ?? null,
+      chapterTitle: chapter?.title ?? null,
+      anchor: chapter ? 'found' : 'not-found',
+    })
+    return { view, order, at }
+  })
+  // Reading order: by chapter, then by place in the chapter; what was not found comes last, as given.
+  views.sort((left, right) => {
+    if (left.at && right.at) {
+      return left.at.chapterIndex - right.at.chapterIndex || left.at.position - right.at.position || left.order - right.order
+    }
+    if (left.at) return -1
+    if (right.at) return 1
+    return left.order - right.order
+  })
+  return { chapters: Object.freeze(decorated), annotations: Object.freeze(views.map(item => item.view)) }
+}
+
 function responseError(status: number): string {
   if (status === 404) return 'No original file is attached to this document.'
   if (status === 401 || status === 403) return 'You do not have access to this original file.'
@@ -407,6 +493,12 @@ export class OrganismOriginalFileController {
   private srcdoc = ''
   private text = ''
   private chapters: readonly EditorOriginalFileChapter[] = []
+  /** The EPUB's chapters as cleaned, before any annotation is drawn into them. */
+  private baseChapters: readonly EditorOriginalFileChapter[] = []
+  private chapterSearchTexts: readonly QuoteChapterText[] | null = null
+  private sourceAnnotations: readonly SourceQuoteAnnotation[] = []
+  private sourceAnnotationKey = annotationKey([])
+  private annotationViews: readonly EditorOriginalFileAnnotation[] = []
   private selectedChapterId = ''
   private objectUrl = ''
   private abort: AbortController | null = null
@@ -467,6 +559,9 @@ export class OrganismOriginalFileController {
     this.srcdoc = ''
     this.text = ''
     this.chapters = []
+    this.baseChapters = []
+    this.chapterSearchTexts = null
+    this.annotationViews = []
     this.selectedChapterId = ''
   }
 
@@ -504,7 +599,43 @@ export class OrganismOriginalFileController {
     this.active = false
     this.pdfLocation = null
     this.scope = nextScope
+    // Another document's comments must never be drawn on this one's original.
+    this.sourceAnnotations = []
+    this.sourceAnnotationKey = annotationKey([])
     this.render()
+  }
+
+  /** True while the original is open, when the document's comments and highlights are worth reading. */
+  get annotationsWanted(): boolean {
+    return this.active && this.scope !== null && !this.destroyed
+  }
+
+  /**
+   * The open document's comments and highlights, by quoted text. They are drawn
+   * over an EPUB original's chapters; the same set again is a no-op.
+   */
+  setAnnotations(annotations: readonly SourceQuoteAnnotation[]): void {
+    if (this.destroyed) return
+    const key = annotationKey(annotations)
+    if (key === this.sourceAnnotationKey) return
+    this.sourceAnnotations = Object.freeze([...annotations])
+    this.sourceAnnotationKey = key
+    if (this.baseChapters.length === 0) return
+    this.projectAnnotations()
+    this.render()
+  }
+
+  private projectAnnotations(): void {
+    if (this.baseChapters.length === 0 || typeof DOMParser === 'undefined') {
+      this.annotationViews = []
+      return
+    }
+    if (this.sourceAnnotations.length > 0) {
+      this.chapterSearchTexts ??= this.baseChapters.filter(chapter => chapter.srcdoc).map(chapterSearchText)
+    }
+    const projected = projectEpubAnnotations(this.baseChapters, this.sourceAnnotations, this.chapterSearchTexts ?? [])
+    this.chapters = projected.chapters
+    this.annotationViews = projected.annotations
   }
 
   releaseScope(graphId: string, documentId: string | null): void {
@@ -539,8 +670,8 @@ export class OrganismOriginalFileController {
       pdfPageCount: this.pdfPageCount,
       pdfPageNumber: this.pdfPageNumber,
       pdfSourceMapping: this.pdfSourceMapping,
-      annotations: Object.freeze([]),
-      annotationSupport: 'unavailable',
+      annotations: this.annotationViews,
+      annotationSupport: this.baseChapters.length > 0 ? 'display' : 'unavailable',
     })
   }
 
@@ -664,6 +795,9 @@ export class OrganismOriginalFileController {
       this.text = loaded.text
       this.srcdoc = loaded.srcdoc
       this.chapters = loaded.chapters
+      this.baseChapters = loaded.chapters
+      this.chapterSearchTexts = null
+      this.projectAnnotations()
       this.selectedChapterId = loaded.chapters[0]?.id ?? ''
       this.src = loaded.text || loaded.srcdoc || loaded.chapters.length > 0 ? '' : objectUrl
       this.status = 'ready'

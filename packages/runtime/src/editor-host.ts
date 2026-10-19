@@ -438,6 +438,26 @@ export interface EditorPdfSourceMapping {
 }
 
 /**
+ * A comment or highlight of the document, shown over its original. Comments and
+ * highlights are anchored by their quoted text; `anchor` says whether that text
+ * was found in the original (`chapterId` names the EPUB chapter it is in).
+ */
+export interface EditorOriginalFileAnnotation {
+  readonly id: string
+  readonly label?: string | null
+  readonly quote?: string | null
+  readonly pageNumber?: number | null
+  readonly sourceRef?: string | null
+  readonly kind?: 'comment' | 'highlight' | null
+  /** The comment's own words. */
+  readonly body?: string | null
+  readonly author?: string | null
+  readonly chapterId?: string | null
+  readonly chapterTitle?: string | null
+  readonly anchor?: 'found' | 'not-found' | null
+}
+
+/**
  * Shell-owned original-file state reflected into the persistent editor host.
  * Auth, fetch, Blob/object-URL lifetime, and downloads remain outside runtime.
  */
@@ -463,15 +483,12 @@ export interface EditorOriginalFileView {
   readonly pdfPageCount?: number
   readonly pdfPageNumber?: number
   readonly pdfSourceMapping?: EditorPdfSourceMapping | null
-  readonly annotations: readonly {
-    readonly id: string
-    readonly label?: string | null
-    readonly quote?: string | null
-    readonly pageNumber?: number | null
-    readonly sourceRef?: string | null
-  }[]
-  /** Source-selection persistence is not wired; the UI must say so explicitly. */
-  readonly annotationSupport: 'unavailable'
+  readonly annotations: readonly EditorOriginalFileAnnotation[]
+  /**
+   * `display`: the document's comments and highlights are drawn over the original (an EPUB), and new ones are
+   * still made in Document View. `unavailable`: none are shown here. Either way the UI says so.
+   */
+  readonly annotationSupport: 'unavailable' | 'display'
 }
 
 /** Shell-owned access state for the open document. */
@@ -5532,6 +5549,7 @@ export class ShEditorHost extends LitElement {
         .makeEditableError=${this.documentAccess?.makeEditableError ?? ''}
         .originalViewAvailable=${original?.available ?? false}
         .originalViewActive=${showOriginal}
+        .originalAnnotationsShown=${original?.annotationSupport === 'display'}
         @mn-editor-font-family=${this._onFontFamilyChange}
         @mn-editor-font-size=${this._onFontSizeChange}
         @mn-editor-format=${this._onToolbarFormat}
