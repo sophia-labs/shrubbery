@@ -42,7 +42,7 @@ import {
   type ReaderColor,
   type ReaderPlace,
 } from './reader-model.js'
-import { PDF_VIEWER_STYLES, READER_BAR_STYLES, READER_STYLES, READER_TOKENS, highlightRules } from './reader-styles.js'
+import { PDF_VIEWER_STYLES, READER_BAR_STYLES, READER_SIDE_STYLES, READER_STYLES, READER_TOKENS, highlightRules } from './reader-styles.js'
 import type { ReaderBook, ReaderTocEntry } from './epub-book.js'
 import type { OcrTextLayer } from './ocr-text-layer.js'
 
@@ -88,7 +88,7 @@ interface Composer extends Pop {
 
 @customElement('mn-reader')
 export class MnReader extends LitElement {
-  static override styles = [PDF_VIEWER_STYLES, READER_TOKENS, READER_BAR_STYLES, READER_STYLES]
+  static override styles = [PDF_VIEWER_STYLES, READER_TOKENS, READER_BAR_STYLES, READER_SIDE_STYLES, READER_STYLES]
 
   @property({ attribute: false }) source: ReaderSource | null = null
   @property({ type: String }) override title = ''

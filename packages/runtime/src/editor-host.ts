@@ -1079,6 +1079,9 @@ export class ShEditorHost extends LitElement {
       display: none !important;
     }
     .reader-text-bar-slot { display: contents; }
+    /* The Contents panel of the Text view: under the bar, beside the page (the page makes room for it). */
+    .reader-contents { position: absolute; left: 0; top: var(--rd-bar-h, 44px); bottom: 0; width: 248px; z-index: 3; }
+    .reader-contents ~ .editor-mount { margin-left: 248px; width: calc(100% - 248px); }
     .original-file-view {
       display: flex;
       width: 100%;
@@ -1127,7 +1130,8 @@ export class ShEditorHost extends LitElement {
     :host([zen]) mn-editor-toolbar {
       display: none;
     }
-    :host([zen]) mn-reader-bar[data-reader-text-bar] {
+    :host([zen]) mn-reader-bar[data-reader-text-bar],
+    :host([zen]) .reader-contents {
       display: none;
     }
 
@@ -2866,6 +2870,13 @@ export class ShEditorHost extends LitElement {
   @state()
   private searchOpen = false
 
+  /** The Contents panel of a read-only document's Text view (the bar's sidebar button), and the headings it lists. */
+  @state()
+  private _readerContentsOpen = false
+
+  @state()
+  private _readerHeadings: readonly LiveHeadingOutlineEntry[] = []
+
   @state()
   private searchQuery = ''
 
@@ -3817,7 +3828,9 @@ export class ShEditorHost extends LitElement {
       this._teardownHeadingObserver()
       return
     }
-    const ids = liveHeadingOutline(editor as never).map((h) => h.id)
+    const outline = liveHeadingOutline(editor as never)
+    if (this._readerContentsOpen) this._readerHeadings = outline
+    const ids = outline.map((h) => h.id)
     const unchanged = ids.length === this._headingObservedIds.length
       && ids.every((id, i) => id === this._headingObservedIds[i])
     if (unchanged) return
@@ -3871,6 +3884,7 @@ export class ShEditorHost extends LitElement {
   private _setCurrentHeadingId(blockId: string | null): void {
     if (blockId === this._currentHeadingId) return
     this._currentHeadingId = blockId
+    if (this._readerContentsOpen) this.requestUpdate()
     this._emitHeadingInViewChange()
   }
 
@@ -5609,6 +5623,7 @@ export class ShEditorHost extends LitElement {
         @mn-editor-shortcuts-open=${this._openShortcuts}
       ></mn-editor-toolbar>
       <div class="reader-text-bar-slot">${textBar && original ? this._renderReaderTextBar(original) : nothing}</div>
+      ${textBar ? this._renderReaderContents() : nothing}
       <div
         class="original-file-view"
         ?hidden=${!showOriginal}
@@ -5662,6 +5677,7 @@ export class ShEditorHost extends LitElement {
       <div
         class="editor-mount"
         data-mode="live"
+        @contextmenu=${this._onReaderTextContextMenu}
         ?hidden=${showOriginal}
         ?inert=${showOriginal}
         aria-hidden=${showOriginal ? 'true' : 'false'}
@@ -5712,12 +5728,14 @@ export class ShEditorHost extends LitElement {
       title=${original.readerMeta?.title || original.title}
       author=${original.readerMeta?.author || ''}
       view-toggle
-      no-sidebar
+      ?sidebar-pressed=${this._readerContentsOpen}
       ?find-pressed=${this.searchOpen}
       .status=${status}
       .error=${access?.makeEditableStatus === 'error' ? access.makeEditableError ?? '' : ''}
       .find=${find}
       .menu=${menu}
+      @rd-bar-sidebar=${this._toggleReaderContents}
+      @rd-bar-context=${this._onReaderTextContextSelect}
       @rd-bar-find=${(event: CustomEvent<{ open: boolean }>) => { if (event.detail.open) this._openSearch(); else this._closeSearch() }}
       @rd-bar-menu=${this._onReaderTextBarMenu}
       @mn-editor-search-input=${this._onSearchInput}
@@ -5726,6 +5744,104 @@ export class ShEditorHost extends LitElement {
       @mn-editor-search-next=${this._nextSearchResult}
       @mn-editor-search-close=${this._closeSearch}
     ></mn-reader-bar>`
+  }
+
+  /** The text of a read-only document that has an original wears the Reader's bar: it has the Reader's right-click menu too. */
+  private _readerTextBarShown(): boolean {
+    const original = this.originalFileView
+    return !original?.active && original?.available === true && original.readerBar === true && this._toolbarReadOnly()
+      && Boolean(customElements.get('mn-reader-bar'))
+  }
+
+  /** What is selected in the text, and the heading it is under (the words that say where it is from). */
+  private _readerTextSelection(): { quote: string; where: string } | null {
+    const editor = this._editor
+    const root = this.renderRoot as ShadowRoot & { getSelection?: () => Selection | null }
+    const selection = root.getSelection?.() ?? document.getSelection()
+    if (!editor || !selection || selection.rangeCount === 0) return null
+    let range: Range | null = null
+    // WebKit calls a selection inside a shadow tree collapsed: its composed range is the real one.
+    const composed = (selection as Selection & { getComposedRanges?: (...args: unknown[]) => StaticRange[] }).getComposedRanges
+    if (typeof composed === 'function') {
+      // Every shadow root up the tree: the composed range needs them all to see through the page's nested hosts.
+      const roots: ShadowRoot[] = []
+      for (let node: Node | null = root; node; node = node instanceof ShadowRoot ? node.host : node.parentNode) if (node instanceof ShadowRoot) roots.push(node)
+      let ranges: StaticRange[] = []
+      try { ranges = composed.call(selection, { shadowRoots: roots }) } catch { ranges = composed.call(selection, ...roots) }
+      const first = ranges[0]
+      if (first && !first.collapsed && root.contains(first.startContainer)) {
+        range = document.createRange()
+        range.setStart(first.startContainer, first.startOffset)
+        range.setEnd(first.endContainer, first.endOffset)
+      }
+    }
+    if (!range && !selection.isCollapsed) {
+      const own = selection.getRangeAt(0)
+      if (root.contains(own.startContainer)) range = own
+    }
+    const quote = range?.toString().replace(/\s+/g, ' ').trim()
+    if (!range || !quote) return null
+    let where = ''
+    for (const heading of liveHeadingOutline(editor as never)) {
+      const element = this._blockElement(heading.id)
+      if (element && heading.text.trim() && (element.contains(range.startContainer) || element.compareDocumentPosition(range.startContainer) & Node.DOCUMENT_POSITION_FOLLOWING)) where = heading.text.trim()
+    }
+    return { quote, where: where || 'the text' }
+  }
+
+  private _readerContextSelection: { quote: string; where: string } | null = null
+
+  private _onReaderTextContextMenu = (event: MouseEvent): void => {
+    if (!this._readerTextBarShown()) return
+    const bar = this.renderRoot.querySelector<HTMLElement & { showContextMenu?: (items: unknown[], point: { x: number; y: number }) => void }>('mn-reader-bar[data-reader-text-bar]')
+    if (!bar?.showContextMenu) return
+    event.preventDefault()
+    const sel = this._readerTextSelection()
+    // The menu's own click may move the selection (WebKit): what the menu was asked about is kept.
+    this._readerContextSelection = sel
+    bar.showContextMenu([
+      { id: 'copy', label: 'Copy', icon: 'copy', disabled: !sel },
+      { type: 'divider' },
+      { id: 'ask', label: 'Ask Sophia about this passage', icon: 'bot', disabled: !sel },
+      { id: 'find', label: 'Find in this document', icon: 'search' },
+    ], { x: event.clientX, y: event.clientY })
+  }
+
+  private _onReaderTextContextSelect = (event: Event): void => {
+    const id = (event as CustomEvent<{ id: string }>).detail.id
+    const sel = this._readerContextSelection
+    this._readerContextSelection = null
+    if (id === 'copy' && sel) void navigator.clipboard?.writeText(sel.quote)
+    else if (id === 'ask' && sel) {
+      const original = this.originalFileView
+      this.dispatchEvent(new CustomEvent('reader-ask-sophia', {
+        bubbles: true,
+        composed: true,
+        detail: { quote: sel.quote, scope: 'passage', where: sel.where, title: original?.readerMeta?.title || original?.title || '' },
+      }))
+    } else if (id === 'find') {
+      this._openSearch()
+      if (sel) {
+        this.searchQuery = sel.quote.slice(0, 120)
+        this._runSearch()
+      }
+    }
+  }
+
+  private _toggleReaderContents = (): void => {
+    this._readerContentsOpen = !this._readerContentsOpen
+    if (this._readerContentsOpen && this._editor) this._readerHeadings = liveHeadingOutline(this._editor as never)
+  }
+
+  /** The Contents panel beside the text: the headings, the one in view marked; a click scrolls the editor there. */
+  private _renderReaderContents(): TemplateResult | typeof nothing {
+    if (!this._readerContentsOpen || !customElements.get('mn-reader-contents')) return nothing
+    return html`<mn-reader-contents
+      class="reader-contents"
+      .headings=${this._readerHeadings}
+      active-id=${this._currentHeadingId ?? ''}
+      @rd-contents-navigate=${(event: CustomEvent<{ id: string }>) => { this._blockElement(event.detail.id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }) }}
+    ></mn-reader-contents>`
   }
 
   private _onReaderTextBarMenu = (event: Event): void => {
