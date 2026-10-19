@@ -122,7 +122,7 @@ import type {
 import type { EditorHostBinding } from './editor-host-binding.js'
 import type { SalienceBundle } from './editor-services/salience-bundle-service.js'
 import type { WireBundle } from './editor-services/wire-bundle-service.js'
-import { workflowPlanScene } from './excalidraw/workflow-scene.js'
+import './workflow-scene.js'
 import { renderFilesPane, type WorkspaceFilesOptions } from './files-pane.js'
 import { mountGraphHost } from './graph-host.js'
 import { isPersistentCenter, mountEditorHost, renderCenterSlotAnchor } from './mount.js'
@@ -1929,7 +1929,7 @@ const WORKFLOW_PLAN_STYLE = `
 .wfp-run { font: 600 13px inherit; padding: 7px 14px; border-radius: 4px; border: 1px solid currentColor; background: transparent; color: inherit; cursor: pointer; }
 .wfp-run[disabled] { opacity: .4; cursor: default; }
 .wfp-problems { margin: 14px 0 0; padding: 10px 14px 10px 30px; border-left: 2px solid #b4483c; font-size: 13px; }
-.wfp-scene { margin-top: 18px; border: 1px solid color-mix(in srgb, currentColor 18%, transparent); border-radius: 6px; overflow: hidden; }
+.wfp-scene { margin-top: 18px; border: 1px solid var(--mn-color-border-subtle); border-radius: var(--mn-radius-control, 6px); overflow: hidden; }
 .wfp-steps-title { font: 500 17px/1.3 var(--mn-font-serif, Georgia, serif); margin: 22px 0 0; }
 .wfp-lanes { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(220px, 1fr); gap: 14px; margin-top: 20px; overflow-x: auto; padding-bottom: 6px; }
 .wfp-lane-title { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; opacity: .65; margin-bottom: 8px; border-bottom: 1px solid color-mix(in srgb, currentColor 18%, transparent); padding-bottom: 6px; }
@@ -1971,7 +1971,7 @@ function renderWorkflowPlan(plan: WorkflowPlanOptions): TemplateResult {
     </header>
     ${plan.problems && plan.problems.length > 0 ? html`<ul class="wfp-problems">${plan.problems.map((p) => html`<li>${p}</li>`)}</ul>` : nothing}
     ${plan.phases.length > 0
-      ? html`<div class="wfp-scene"><sh-workflow-scene .layoutKey=${plan.definition} .scene=${workflowPlanScene(plan)}></sh-workflow-scene></div>
+      ? html`<div class="wfp-scene"><sh-workflow-scene .plan=${plan}></sh-workflow-scene></div>
         <h2 class="wfp-steps-title">What each step is told</h2>`
       : nothing}
     <div class="wfp-lanes">
