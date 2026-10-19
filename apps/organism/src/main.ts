@@ -2107,8 +2107,13 @@ let revealInOriginal: string | null = null
 function showCommentInText(id: string): void {
   const host = activeEditorHostElement()
   if (host?.originalFileView?.active) hostEl.dispatchEvent(new CustomEvent('mn-editor-original-view-toggle', { bubbles: true, composed: true, detail: {} }))
-  // The text view mounts on the next render; then the comment's mark is scrolled to and lit.
-  window.setTimeout(() => currentLiveEditor()?.setActiveComment(id, { scroll: true }), 350)
+  // The text view mounts on a later render (a long book takes a while): the mark is scrolled to and lit once it is there.
+  let tries = 0
+  const attempt = (): void => {
+    if (currentLiveEditor()?.setActiveComment(id, { scroll: true }) || ++tries > 50) return
+    window.setTimeout(attempt, 150)
+  }
+  window.setTimeout(attempt, 150)
 }
 
 function showCommentInOriginal(id: string): void {
@@ -8944,7 +8949,7 @@ function renderConfig(config: WorkspaceConfig, app: string | undefined): string 
   hostEl.querySelector(':scope > .boot-placeholder')?.remove()
   clearCellErrorPanel(hostEl)
   applyOpenDocumentAccess(paneEditorHosts, workspaceSnapshot.editorDocumentAccess ?? null)
-  renderWorkspace(config, { container: hostEl, ...workspaceSnapshot, surface: true })
+  renderWorkspace(config, { container: hostEl, ...workspaceSnapshot, editorCommentPaint: currentCommentPaint(), surface: true })
   // Install the config's selection edges over the real faces + bus, right after
   // the render host builds the panes. Idempotent on reload (disposer runs first).
   installSelectionEdges(config)
@@ -10836,6 +10841,11 @@ hostEl.addEventListener('reader-annotations-placed', ((event: CustomEvent<{ key:
 hostEl.addEventListener('reader-show-in-text', ((event: CustomEvent<{ id: string }>) => {
   if (event.detail?.id) showCommentInText(event.detail.id)
 }) as EventListener)
+
+// The Reader's notes button: its notes and highlights are listed in the comments sidebar, which it opens and closes.
+hostEl.addEventListener('reader-notes-toggle', () => {
+  setRightPanel(currentRightPanel === 'comments' ? 'none' : 'comments', 'reader notes')
+})
 
 document.addEventListener('mn-editor-history-open', ((event: CustomEvent<{ documentId?: string | null }>) => {
   openDocHistory(event.detail?.documentId ?? openDocId, 'editor toolbar')

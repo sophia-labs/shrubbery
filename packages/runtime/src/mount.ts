@@ -42,6 +42,7 @@ import type {
   EditorBlockFocusRequest,
   EditorDocumentAccess,
   EditorImageInserter,
+  ShEditorHost,
   WireRadialContextMap,
 } from './editor-host.js'
 import type { WireBundle } from './editor-services/wire-bundle-service.js'
@@ -73,6 +74,8 @@ export interface EditorHostMountOptions {
   readonly imageInserter?: EditorImageInserter | null
   /** Authoritative access state for the open document. */
   readonly documentAccess?: EditorDocumentAccess | null
+  /** How some comments look in the text (a Reader highlight's colour): see ShEditorHost.commentPaint. */
+  readonly commentPaint?: ShEditorHost['commentPaint']
   /** Controlled browser TTS state reflected into the editor toolbar. */
   readonly ttsStatus?: 'idle' | 'loading' | 'playing' | 'paused'
   readonly ttsAvailable?: boolean
@@ -163,6 +166,7 @@ export function mountEditorHost(
       .salienceBundle=${options.salienceBundle ?? null}
       .imageInserter=${options.imageInserter ?? null}
       .documentAccess=${options.documentAccess ?? null}
+      .commentPaint=${options.commentPaint ?? null}
       .ttsStatus=${options.ttsStatus ?? 'idle'}
       .ttsAvailable=${options.ttsAvailable ?? false}
     ></sh-editor-host>`,

@@ -1,5 +1,5 @@
 /**
- * The Reader's look: one quiet bar, the work in the middle, a margin for notes. House tokens only, with the Reader's own
+ * The Reader's look: one quiet bar, the work in the middle (notes are the shell's comments sidebar). House tokens only, with the Reader's own
  * names (`--rd-*`) as the seam a skin can re-point. pdf.js's viewer stylesheet is adopted into the same shadow root
  * (its `:root` variables re-scoped to `:host`), so nothing is injected into the page.
  */
@@ -150,7 +150,7 @@ export const READER_STYLES: CSSResult = css`
   button { font: inherit; color: inherit; }
   [hidden] { display: none !important; }
 
-  /* --- body: sidebar | stage | margin -------------------------------------------------------------------------------- */
+  /* --- body: sidebar | stage --------------------------------------------------------------------------------------- */
   .body { flex: 1 1 auto; display: flex; min-height: 0; position: relative; }
   .side {
     flex: 0 0 248px; display: flex; flex-direction: column; min-height: 0;
@@ -274,31 +274,7 @@ export const READER_STYLES: CSSResult = css`
   .chapter-nav button[data-next] { text-align: right; margin-left: auto; }
   .chapter-nav small { color: var(--rd-quiet); font-size: var(--mn-text-xs, 12px); }
 
-  /* --- margin ------------------------------------------------------------------------------------------------------- */
-  .margin {
-    flex: 0 0 272px; position: relative; overflow: hidden;
-    background: var(--rd-chrome); border-left: 1px solid var(--rd-rule);
-  }
-  :host([data-kind='epub']) .margin { background: var(--rd-paper); border-left-color: transparent; }
-  .margin-note {
-    position: absolute; left: 12px; right: 14px; top: 0;
-    padding: 8px 10px 9px; border-radius: var(--mn-radius-md, 8px);
-    background: var(--rd-raised); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06); border: 1px solid var(--rd-rule);
-    border-left: 3px solid var(--rd-note-color, rgb(234, 179, 8));
-    font-size: var(--mn-text-sm, 13px); line-height: 1.45; cursor: pointer;
-    transition: box-shadow 120ms ease;
-  }
-  .margin-note[data-active] { box-shadow: var(--rd-shadow-pop); border-color: var(--rd-rule-strong); }
-  .margin-note .who { color: var(--rd-quiet); font-size: var(--mn-text-xs, 12px); margin-bottom: 2px; display: flex; gap: 6px; }
-  .margin-note[data-unplaced] { visibility: hidden; pointer-events: none; }
-  .margin-note .words { white-space: pre-wrap; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-  .margin-note:hover { z-index: 1; box-shadow: var(--rd-shadow-pop); }
-  .margin-note:hover .words { -webkit-line-clamp: unset; display: block; }
-  .margin-note[data-active] .words { -webkit-line-clamp: unset; display: block; }
-  .margin-empty { position: absolute; top: 18px; left: 16px; right: 16px; color: var(--rd-quiet); line-height: 1.5; }
-
-  /* A narrow Reader keeps the page whole: the sidebar and the margin open over it, when asked for. */
-  :host([data-narrow]) .margin { position: absolute; right: 0; top: 0; bottom: 0; width: 272px; z-index: 2; box-shadow: var(--rd-shadow-pop); background: var(--rd-chrome); border-left: 1px solid var(--rd-rule); }
+  /* A narrow Reader keeps the page whole: the sidebar opens over it, when asked for. */
   :host([data-narrow]) .side { position: absolute; left: 0; top: 0; bottom: 0; width: 248px; z-index: 2; box-shadow: var(--rd-shadow-pop); }
 
   /* --- floating things ---------------------------------------------------------------------------------------------- */

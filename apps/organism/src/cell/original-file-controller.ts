@@ -529,6 +529,8 @@ export class OrganismOriginalFileController {
   private readerSource: ReaderSource | null = null
   /** Reading the scan's text, when the original is a PDF without any. */
   private scanState: ReaderScanState | null = null
+  /** The shell's comments sidebar is open: the Reader's notes button shows it pressed. */
+  private notesOpen = false
 
   constructor(private readonly options: OriginalFileControllerOptions) {
     const fetchImpl = options.fetch ?? globalThis.fetch
@@ -624,6 +626,13 @@ export class OrganismOriginalFileController {
     this.render()
   }
 
+  /** Whether the comments sidebar (where the Reader's notes and highlights are listed) is open. */
+  setNotesOpen(open: boolean): void {
+    if (this.destroyed || open === this.notesOpen) return
+    this.notesOpen = open
+    if (this.readerSource) this.render()
+  }
+
   /** True while the original is open, when the document's comments and highlights are worth reading. */
   get annotationsWanted(): boolean {
     return this.active && this.scope !== null && !this.destroyed
@@ -717,6 +726,7 @@ export class OrganismOriginalFileController {
       reader: this.readerSource,
       readerScan: this.scanState,
       readerAnnotations: this.readerSource ? this.sourceAnnotations : [],
+      readerNotesOpen: this.notesOpen,
     })
   }
 

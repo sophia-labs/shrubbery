@@ -3,9 +3,11 @@
  *
  *   bar        sidebar · title and author | where you are (page "12 of 310", or chapter and %) | zoom or type · find ·
  *              notes · Original / Text · more (download)
- *   sidebar    Contents (the PDF's outline or the book's table of contents) · Pages (PDF thumbnails) · Notes
+ *   sidebar    Contents (the PDF's outline or the book's table of contents) · Pages (PDF thumbnails)
  *   stage      pdf.js pages on a canvas, or one chapter set as a book page (printed page numbers in the gutter)
- *   margin     each note beside its passage, never above it
+ *
+ * Notes and highlights are listed where every document's comments are, in the shell's comments sidebar: the bar's
+ * notes button asks for it (`reader-notes-toggle`) and shows whether it is open (`notes-open`).
  *
  * Select text and a small bar offers four highlighter colours and Note. Highlights and notes are painted with the CSS
  * Custom Highlight API over the text itself; they are asked for with events and drawn from `annotations`, which the
@@ -105,10 +107,11 @@ export class MnReader extends LitElement {
   @property({ type: Boolean }) downloadable = false
   /** A scan's reading (OCR) as the shell knows it: offered, running with progress, failed, or not installed here. */
   @property({ attribute: false }) scan: ReaderScanState | null = null
+  /** The shell's comments sidebar, where this original's notes and highlights are listed, is open. */
+  @property({ type: Boolean, attribute: 'notes-open' }) notesOpen = false
 
   @state() private sidebar = false
-  @state() private tab: 'contents' | 'pages' | 'notes' = 'contents'
-  @state() private margin = true
+  @state() private tab: 'contents' | 'pages' = 'contents'
   @state() private menu: 'type' | 'fit' | null = null
   @state() private findOpen = false
   @state() private findQuery = ''
@@ -122,15 +125,12 @@ export class MnReader extends LitElement {
   @state() private composer: Composer | null = null
   @state() private active: string | null = null
   @state() private activePop: (Pop & { readonly id: string }) | null = null
-  @state() private notePlaces: ReadonlyMap<string, number> = new Map()
   @state() private bookFind: { readonly results: readonly { chapter: number; nth: number }[]; readonly current: number } | null = null
   @state() private failure = ''
   @state() private pending: readonly ReaderAnnotation[] = []
-  /** Narrower than a page and a margin: the sidebar and the margin open over the page, only when asked for. */
+  /** Narrower than a page and a sidebar: the sidebar opens over the page, only when asked for. */
   @state() private narrow = false
-  @state() private overlay: 'sidebar' | 'margin' | null = null
-  /** The margin was opened by hand: shown even before there is a note in it. */
-  @state() private marginAsked = false
+  @state() private overlay: 'sidebar' | null = null
   private sizer: ResizeObserver | null = null
 
   private readonly highlights = new ReaderHighlights(`rd${++instances}`)
@@ -143,7 +143,6 @@ export class MnReader extends LitElement {
   private bookRanges = new Map<string, Range>()
   private chapterTexts = new Map<number, QuoteSearchText>()
   private bookChapterOf = new Map<string, number>()
-  private placeFrame = 0
   private memoryTimer = 0
   private pendingSeq = 0
   private thumbsDrawn = new Set<number>()
@@ -152,9 +151,8 @@ export class MnReader extends LitElement {
 
   constructor() {
     super()
-    const panels = readJson<{ sidebar?: boolean; margin?: boolean }>(PANEL_KEY)
+    const panels = readJson<{ sidebar?: boolean }>(PANEL_KEY)
     if (typeof panels?.sidebar === 'boolean') this.sidebar = panels.sidebar
-    if (typeof panels?.margin === 'boolean') this.margin = panels.margin
   }
 
   override connectedCallback(): void {
@@ -181,7 +179,6 @@ export class MnReader extends LitElement {
     this.surface = null
     this.openedKey = ''
     this.highlights.clear()
-    cancelAnimationFrame(this.placeFrame)
     super.disconnectedCallback()
   }
 
@@ -221,8 +218,6 @@ export class MnReader extends LitElement {
     if (changed.has('annotations') || changed.has('pending')) void this.placeAnnotations()
     if (changed.has('win') && this.source?.kind === 'epub') this.afterWindow()
     if (changed.has('type') && this.source?.kind === 'epub' && this.typeAnchor) this.afterType()
-    if (changed.has('notePlaces')) this.queuePlaceNotes()
-    if (changed.has('sidebar') || changed.has('margin') || changed.has('type') || changed.has('overlay') || changed.has('narrow')) this.queuePlaceNotes()
   }
 
   private metaSaid = ''
@@ -263,7 +258,6 @@ export class MnReader extends LitElement {
         changed: state => {
           if (this.surface !== surface) return
           this.pdfState = state
-          this.queuePlaceNotes()
           // A scan reads itself the first time it is opened (the shell keeps the words, so once per scan).
           if (state.ready && !state.hasText && !source.ocr && !this.scanAsked.has(source.key) && (!this.scan || this.scan.state === 'idle')) {
             this.scanAsked.add(source.key)
@@ -435,47 +429,9 @@ export class MnReader extends LitElement {
     this.highlights.paint('note', notes)
     const active = this.active ? ranges.get(this.active) : null
     this.highlights.paint('active', active ? [active] : [])
-    this.queuePlaceNotes()
-  }
-
-  /** Each note beside its passage: wanted at the passage's top, pushed down past the one above, never above its passage. */
-  private queuePlaceNotes(): void {
-    cancelAnimationFrame(this.placeFrame)
-    this.placeFrame = requestAnimationFrame(() => this.placeNotes())
-  }
-
-  private placeNotes(): void {
-    const margin = this.renderRoot.querySelector<HTMLElement>('.margin')
-    if (!margin || !this.marginShown) return
-    const top = margin.getBoundingClientRect().top
-    const height = margin.clientHeight
-    const ranges = this.allRanges()
-    const wanted: { id: string; y: number }[] = []
-    for (const annotation of this.shown) {
-      if (annotation.kind !== 'comment') continue
-      const range = ranges.get(annotation.id)
-      if (!range) continue
-      const rect = range.getBoundingClientRect()
-      if (rect.height === 0 && rect.width === 0) continue
-      wanted.push({ id: annotation.id, y: rect.top - top })
-    }
-    wanted.sort((a, b) => a.y - b.y)
-    const places = new Map<string, number>()
-    let floor = -Infinity
-    for (const item of wanted) {
-      const el = margin.querySelector<HTMLElement>(`[data-note="${CSS.escape(item.id)}"]`)
-      const h = el && el.offsetHeight > 0 ? el.offsetHeight : 72
-      const y = Math.max(item.y, floor)
-      floor = y + h + 8
-      if (y + h < -40 || y > height + 40) continue
-      places.set(item.id, y)
-    }
-    const same = places.size === this.notePlaces.size && [...places].every(([id, y]) => Math.abs((this.notePlaces.get(id) ?? NaN) - y) < 0.5)
-    if (!same) this.notePlaces = places
   }
 
   private readonly onScroll = (): void => {
-    this.queuePlaceNotes()
     if (this.pop) this.pop = null
     if (this.activePop) this.activePop = null
     if (this.source?.kind === 'epub') this.trackBookProgress()
@@ -552,7 +508,7 @@ export class MnReader extends LitElement {
   private afterType(): void {
     const anchor = this.typeAnchor
     this.typeAnchor = null
-    requestAnimationFrame(() => { this.restoreAnchor(anchor); this.queuePlaceNotes(); this.syncBook() })
+    requestAnimationFrame(() => { this.restoreAnchor(anchor); this.syncBook() })
   }
 
   /**
@@ -780,7 +736,7 @@ export class MnReader extends LitElement {
       if (sel) void this.updateComplete.then(() => this.runFind(false))
     } else if (id === 'contents') {
       this.tab = 'contents'
-      if (!this.sidebarShown) this.togglePanel('sidebar')
+      if (!this.sidebarShown) this.toggleSidebar()
     } else if (id === 'download') this.say('mn-original-viewer-download', {})
   }
 
@@ -826,7 +782,7 @@ export class MnReader extends LitElement {
     this.paint()
   }
 
-  /** Go to an annotation from the Notes list or the margin. */
+  /** Go to an annotation (the comments sidebar asks with `reader-reveal`). */
   private reveal(annotation: ReaderAnnotation): void {
     const show = () => {
       const range = this.rangeOf(annotation.id)
@@ -967,25 +923,13 @@ export class MnReader extends LitElement {
     }
     this.type = { ...this.type, ...patch }
     writeJson(TYPE_KEY, this.type)
-    this.queuePlaceNotes()
   }
 
   private get sidebarShown(): boolean { return this.narrow ? this.overlay === 'sidebar' : this.sidebar }
-  private get marginShown(): boolean {
-    if (this.narrow) return this.overlay === 'margin'
-    return this.margin && (this.marginAsked || this.shown.some(a => a.kind === 'comment'))
-  }
-
-  private togglePanel(which: 'sidebar' | 'margin'): void {
-    if (this.narrow) { this.overlay = this.overlay === which ? null : which; return }
-    if (which === 'margin' && !this.marginShown) { this.marginAsked = true; this.setPanels({ margin: true }); return }
-    this.setPanels(which === 'sidebar' ? { sidebar: !this.sidebar } : { margin: !this.margin })
-  }
-
-  private setPanels(patch: { sidebar?: boolean; margin?: boolean }): void {
-    if (patch.sidebar !== undefined) this.sidebar = patch.sidebar
-    if (patch.margin !== undefined) this.margin = patch.margin
-    writeJson(PANEL_KEY, { sidebar: this.sidebar, margin: this.margin })
+  private toggleSidebar(): void {
+    if (this.narrow) { this.overlay = this.overlay === 'sidebar' ? null : 'sidebar'; return }
+    this.sidebar = !this.sidebar
+    writeJson(PANEL_KEY, { sidebar: this.sidebar })
   }
 
   private say<T>(type: string, detail: T): void {
@@ -1004,13 +948,11 @@ export class MnReader extends LitElement {
     return this.author || book?.author || this.pdfState?.docAuthor || ''
   }
 
-  private notesCount(): number { return this.shown.filter(a => a.kind === 'comment').length }
-
   private bar(): TemplateResult {
     const source = this.source
     const pdf = source?.kind === 'pdf' ? this.pdfState : null
     const book = source?.kind === 'epub' ? source.book : null
-    const notes = this.notesCount()
+    const notes = this.shown.length
     const more: MenuEntry[] = [
       { id: 'download', label: 'Download original', icon: 'download', disabled: !this.downloadable },
       ...(this.textView ? [{ id: 'text', label: 'Show the text', icon: 'file-text' }] : []),
@@ -1018,7 +960,7 @@ export class MnReader extends LitElement {
     return html`<mn-reader-bar view="original" title=${this.displayTitle(book)} author=${this.displayAuthor(book)}
         ?view-toggle=${this.textView} ?sidebar-pressed=${this.sidebarShown} ?sidebar-disabled=${!source}
         ?find-pressed=${this.findOpen} ?find-disabled=${!source} .progress=${book ? this.progress : null} .menu=${more}
-        @rd-bar-sidebar=${() => this.togglePanel('sidebar')}
+        @rd-bar-sidebar=${() => this.toggleSidebar()}
         @rd-bar-find=${() => { if (this.findOpen) this.closeFind(); else this.openFind() }}
         @rd-bar-menu=${(e: CustomEvent<{ id: string }>) => this.onBarMenu(e.detail.id)}>
       <div slot="location" class="loc-slot">${pdf ? this.pdfLocation(pdf) : book ? this.bookLocation(book) : nothing}</div>
@@ -1027,8 +969,8 @@ export class MnReader extends LitElement {
           <button type="button" class="btn zoom" aria-label="Fit" title="Fit and zoom" aria-haspopup="menu" ?disabled=${!pdf.ready} @click=${() => { this.menu = this.menu === 'fit' ? null : 'fit' }}>${Math.round(pdf.scale * 100)}%</button>
           <button type="button" class="btn" aria-label="Zoom in" title="Zoom in (⌘+)" ?disabled=${!pdf.ready} @click=${() => this.surface?.zoomBy(1.15)}>${icon('plus')}</button></span>` : nothing}
       ${book ? html`<button slot="tools" type="button" class="btn" aria-label="Type" title="Type size, face and width" aria-pressed=${this.menu === 'type' ? 'true' : 'false'} @click=${() => { this.menu = this.menu === 'type' ? null : 'type' }}>${icon('type')}</button>` : nothing}
-      <button slot="tools-end" type="button" class="btn" aria-label="Margin notes" title="Notes in the margin" aria-pressed=${this.marginShown ? 'true' : 'false'} ?disabled=${!source}
-        @click=${() => this.togglePanel('margin')}>${icon('margin')}${notes ? html`<span class="count">${notes}</span>` : nothing}</button>
+      <button slot="tools-end" type="button" class="btn" aria-label="Notes and highlights" title="Notes and highlights, in the comments sidebar" aria-pressed=${this.notesOpen ? 'true' : 'false'} ?disabled=${!source}
+        @click=${() => this.say('reader-notes-toggle', {})}>${icon('margin')}${notes ? html`<span class="count">${notes}</span>` : nothing}</button>
     </mn-reader-bar>`
   }
 
@@ -1092,13 +1034,13 @@ export class MnReader extends LitElement {
   private sidePanel(): TemplateResult | typeof nothing {
     if (!this.sidebarShown || !this.source) return nothing
     const pdf = this.source.kind === 'pdf'
-    const tabs: { id: 'contents' | 'pages' | 'notes'; label: string }[] = [
-      { id: 'contents', label: 'Contents' }, ...(pdf ? [{ id: 'pages' as const, label: 'Pages' }] : []), { id: 'notes', label: 'Notes' },
+    const tabs: { id: 'contents' | 'pages'; label: string }[] = [
+      { id: 'contents', label: 'Contents' }, ...(pdf ? [{ id: 'pages' as const, label: 'Pages' }] : []),
     ]
     const tab = tabs.some(t => t.id === this.tab) ? this.tab : 'contents'
     return html`<aside class="side" aria-label="Contents">
       <div class="tabs" role="tablist">${tabs.map(t => html`<button type="button" role="tab" aria-selected=${tab === t.id ? 'true' : 'false'} @click=${() => { this.tab = t.id }}>${t.label}</button>`)}</div>
-      <div class="side-scroll">${tab === 'contents' ? this.contents() : tab === 'pages' ? this.thumbs() : this.notesList()}</div>
+      <div class="side-scroll">${tab === 'contents' ? this.contents() : this.thumbs()}</div>
     </aside>`
   }
 
@@ -1137,25 +1079,6 @@ export class MnReader extends LitElement {
       void this.surface?.renderThumb(n, canvas).catch(() => this.thumbsDrawn.delete(n))
     }, { root: scroller, rootMargin: '300px' })
     observer.observe(canvas)
-  }
-
-  private notesList(): TemplateResult {
-    const list = this.ordered()
-    if (!list.length) {
-      return html`<p class="empty">${this.canAnnotate ? 'Select a passage to highlight it or write a note.' : this.annotateNote || 'No highlights or notes yet.'}</p>`
-    }
-    return html`<div class="notes-list">${list.map(annotation => html`<button type="button" class="note-row" @click=${() => this.reveal(annotation)}>
-      <q>${annotation.quote}</q>
-      ${annotation.kind === 'comment' && annotation.text ? html`<span>${annotation.text}</span>` : nothing}
-      <span class="meta"><i class="dot" data-color=${annotation.color}></i>${annotation.kind === 'comment' ? annotation.author || 'Note' : 'Highlight'}${this.where(annotation)}</span>
-    </button>`)}</div>`
-  }
-
-  private where(annotation: ReaderAnnotation): string {
-    if (this.source?.kind === 'pdf') { const page = this.pdfPages.get(annotation.id); return page ? ` · p. ${page}` : ' · not found' }
-    const chapter = this.bookChapterOf.get(annotation.id)
-    const book = this.source?.kind === 'epub' ? this.source.book : null
-    return chapter !== undefined && book ? ` · ${book.chapters[chapter]?.title ?? ''}` : ' · not found'
   }
 
   /** Reading order: by page or chapter, then as given. */
@@ -1272,23 +1195,6 @@ export class MnReader extends LitElement {
     </div>`
   }
 
-  private marginView(): TemplateResult | typeof nothing {
-    if (!this.marginShown || !this.source) return nothing
-    const notes = this.shown.filter(a => a.kind === 'comment')
-    return html`<aside class="margin" aria-label="Notes">
-      ${notes.length === 0 ? html`<p class="margin-empty">${this.canAnnotate ? 'Notes appear here, beside their passage. Select text to write one.' : this.annotateNote || 'No notes on this original.'}</p>` : nothing}
-      ${repeat(notes, a => a.id, a => {
-        const y = this.notePlaces.get(a.id)
-        return html`<div class="margin-note" data-note=${a.id} ?data-active=${this.active === a.id} ?data-unplaced=${y === undefined}
-          style=${`top:${y ?? 0}px;--rd-note-color:var(--rd-dot-${a.color}, ${({ yellow: 'rgb(234,179,8)', green: 'rgb(34,160,90)', blue: 'rgb(59,130,246)', pink: 'rgb(219,39,119)' } as const)[a.color]})`}
-          @click=${() => { const range = this.rangeOf(a.id); if (range) this.showAnnotation(a.id, range) }}>
-          <div class="who" title=${a.signedBy ? `Published by ${a.signedBy}` : ''}>${a.author || 'Note'}</div>
-          <div class="words">${a.text}</div>
-        </div>`
-      })}
-    </aside>`
-  }
-
   private veil(): TemplateResult | typeof nothing {
     const message = this.failure || this.error
     if (message) return html`<div class="veil" role="alert"><p>${message}</p></div>`
@@ -1305,7 +1211,6 @@ export class MnReader extends LitElement {
       <div class="body">
         ${this.sidePanel()}
         ${this.stage()}
-        ${this.marginView()}
         ${this.menus()}
       </div>
       <mn-context-menu class="ctx" @mn-select=${(e: CustomEvent<MenuSelectDetail>) => this.onContextSelect(e)}></mn-context-menu>`

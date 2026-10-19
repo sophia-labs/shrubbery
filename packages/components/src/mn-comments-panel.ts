@@ -202,13 +202,19 @@ export class MnCommentsPanel extends SkinAware(LitElement) {
       color: var(--mn-color-text-primary, #1f2937);
       margin-bottom: var(--mn-space-1-5, 6px);
     }
+    /* Where the passage is (a chapter, a page), on its own line under the quote, as Kindle lists highlights. */
     .comment-location {
+      margin: calc(-1 * var(--mn-space-1, 4px)) 0 var(--mn-space-1-5, 6px);
       color: var(--mn-color-text-tertiary, #8a9099);
       font-size: var(--mn-text-xs, 12px);
+      letter-spacing: 0.02em;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      min-width: 0;
+    }
+    .comment-kind {
+      color: var(--mn-color-text-tertiary, #8a9099);
+      font-size: var(--mn-text-xs, 12px);
     }
     .comment-cross {
       margin-left: auto;
@@ -506,10 +512,10 @@ export class MnCommentsPanel extends SkinAware(LitElement) {
           @mouseenter=${() => this.hoverComment(comment)}
           @mouseleave=${() => this.hoverComment(null)}
         >
-          <div class="comment-quoted-text">${highlight ? comment.quotedText : `"${comment.quotedText || 'Selected text...'}"`}</div>
+          <div class="comment-quoted-text">${comment.quotedText || 'Selected text...'}</div>
+          ${comment.location ? html`<div class="comment-location" title=${comment.location}>${comment.location}</div>` : nothing}
           <div class="comment-card-header">
-            ${comment.location ? html`<span class="comment-location" title=${comment.location}>${comment.location}</span>` : nothing}
-            ${highlight ? nothing : html`<span class="comment-author">${comment.author}</span>`}
+            ${highlight ? html`<span class="comment-kind">Highlight</span>` : html`<span class="comment-author">${comment.author}</span>`}
             <span class="comment-date">${formatDate(comment.createdAt)}</span>
           </div>
           ${editing

@@ -951,7 +951,9 @@ function originalFileFeature<TContract>(): ShellFeature<TContract> {
         scanChecked.add(`${scan.graphId}\u0000${scan.documentId}`)
         followScan(scan.graphId, scan.documentId)
       }
-      // The comments (and highlights) of this document, drawn over its original while it is open.
+      // The comments (and highlights) of this document, drawn over its original while it is open, and listed in the
+      // comments sidebar (the Reader's notes button shows whether that is open).
+      active.setNotesOpen(snapshot.chrome?.rightPanel === 'comments')
       if (active.annotationsWanted) {
         active.setAnnotations(readerAnnotationsFor(snapshot.comments?.comments ?? [], currentQuoteState()))
       }

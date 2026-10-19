@@ -1203,6 +1203,8 @@ export interface RenderWorkspaceOptions {
   readonly editorImageInserter?: EditorImageInserter | null
   /** Authoritative access/source projection for the open document. */
   readonly editorDocumentAccess?: EditorDocumentAccess | null
+  /** How the open document's Reader-made highlights and notes look in its text: their colours, by comment id. */
+  readonly editorCommentPaint?: ReadonlyMap<string, { readonly kind: 'comment' | 'highlight'; readonly color: string }> | null
   /** Browser/local TTS state and intents, owned by the surrounding shell. */
   readonly tts?: WorkspaceTtsOptions | null
   /** Optional shell-owned Garden document history overlay state. */
@@ -3528,6 +3530,7 @@ function renderSurfacePaneEditor(
       .commentInserter=${editor?.commentInserter ?? null}
       .originalFileView=${editor?.originalFileView ?? null}
       .documentAccess=${editor?.documentAccess ?? null}
+      .commentPaint=${editor?.commentPaint ?? null}
       .ttsStatus=${editor?.ttsStatus ?? 'idle'}
       .ttsAvailable=${editor?.ttsAvailable ?? false}
     ></sh-editor-host>
@@ -4670,6 +4673,7 @@ function renderWorkspaceSurfaceFrame(
         salienceBundle: opts.editorSalienceBundle ?? null,
         imageInserter: opts.editorImageInserter ?? null,
         documentAccess: opts.editorDocumentAccess ?? null,
+        commentPaint: opts.editorCommentPaint ?? null,
         ttsStatus: opts.tts?.status ?? 'idle',
         ttsAvailable: opts.tts?.available ?? false,
         parked: editorParked,
@@ -4854,6 +4858,7 @@ export function renderWorkspaceTemplate(
     editorSalienceBundle,
     editorImageInserter,
     editorDocumentAccess,
+    editorCommentPaint,
     tts = null,
     docHistory,
     wirePanel,
@@ -5006,6 +5011,7 @@ export function renderWorkspaceTemplate(
         salienceBundle: editorSalienceBundle ?? null,
         imageInserter: editorImageInserter ?? null,
         documentAccess: editorDocumentAccess ?? null,
+        commentPaint: editorCommentPaint ?? null,
         ttsStatus: tts?.status ?? 'idle',
         ttsAvailable: tts?.available ?? false,
         parked: editorParked,

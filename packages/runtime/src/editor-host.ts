@@ -498,6 +498,8 @@ export interface EditorOriginalFileView {
   readonly readerAnnotations?: readonly unknown[]
   /** May this person highlight and write notes on the original? */
   readonly readerCanAnnotate?: boolean
+  /** The comments sidebar, where the Reader's notes and highlights are listed, is open. */
+  readonly readerNotesOpen?: boolean
   /**
    * The shell has the Reader's bar (`<mn-reader-bar>`): a read-only document with an original shows it, in Text as in
    * Original, so the two views have one bar with the Original / Text control at one place.
@@ -5658,6 +5660,7 @@ export class ShEditorHost extends LitElement {
               .error=${original.error}
               .annotations=${original.readerAnnotations ?? []}
               ?can-annotate=${original.readerCanAnnotate ?? false}
+              ?notes-open=${original.readerNotesOpen ?? false}
               annotate-note=${original.readerCanAnnotate ? '' : 'Highlights and notes need the document to be open and connected.'}
               ?text-view=${true}
               ?downloadable=${original.downloadable}
