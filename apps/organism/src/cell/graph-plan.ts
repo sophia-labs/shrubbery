@@ -6,6 +6,8 @@
  * digests differ and Choreograph refuses the run: the failure is loud, never a silent mismatch. Extract one shared
  * package when a third consumer appears.
  */
+import { sha256Digest } from '@shrubbery/nucleus/web-crypto'
+
 export const GRAPH_PLAN_WORKFLOW_NAME = "graph-plan-v1";
 export const GRAPH_PLAN_SCHEMA = "sophia.graph-plan.v1" as const;
 export const WF = "http://mnemosyne.dev/workflow#";
@@ -320,7 +322,7 @@ export function compileGraphPlan(triples: readonly Triple[]): GraphPlanV1 {
 /** The digest a run pins: sha256 over the canonical JSON of the compiled plan (Choreograph computes the same). */
 export async function graphPlanDigest(plan: GraphPlanV1): Promise<string> {
   const bytes = new TextEncoder().encode(canonicalJson(plan))
-  const hash = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))
+  const hash = new Uint8Array(await sha256Digest(bytes))
   return `sha256:${[...hash].map((b) => b.toString(16).padStart(2, '0')).join('')}`
 }
 
