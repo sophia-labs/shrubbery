@@ -507,3 +507,33 @@ export async function loadGraphPlanResults(rest: GraphPlanReader, graphId: strin
   items.sort((a, b) => a.collection.localeCompare(b.collection) || a.position - b.position)
   return { items, refused }
 }
+
+/**
+ * A finding a person may publish as a comment on a document: the run found it, the person decides it goes in the
+ * margin (Vera, 2026-10-18: findings live in the run's graph until an explicit publish). By convention, not grammar: any
+ * item of the plan's last collection that names the `documentId` it is about, the exact `quote` it rests on and the
+ * `note` to write beside it (and, when the plan read blocks, the `blockId` that holds the quote).
+ */
+export interface PublishableFinding {
+  readonly documentId: string
+  readonly quote: string
+  readonly note: string
+  readonly blockId?: string
+}
+
+export function publishableFindings(values: readonly unknown[]): PublishableFinding[] {
+  const out: PublishableFinding[] = []
+  for (const value of values) {
+    if (!isRecord(value)) continue
+    const { documentId, quote, note, blockId } = value as Record<string, unknown>
+    if (typeof documentId !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(documentId)) continue
+    if (typeof quote !== 'string' || !quote.trim() || typeof note !== 'string' || !note.trim()) continue
+    out.push({ documentId, quote: quote.trim(), note: note.trim(), ...(typeof blockId === 'string' && blockId ? { blockId } : {}) })
+  }
+  return out
+}
+
+/** A stable comment id per run and finding: publishing a run twice updates its comments, never doubles them. */
+export function findingCommentId(runId: string, index: number): string {
+  return `wf-${runId.replace(/[^A-Za-z0-9_-]/g, '_')}-${index + 1}`
+}

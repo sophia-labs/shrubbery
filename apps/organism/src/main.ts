@@ -485,10 +485,13 @@ import {
 } from './cell/mobile-file-mutation-flow.js'
 import { loadTagLensBlocks } from './cell/tag-lens.js'
 import {
+  findingCommentId,
   type GraphPlanV1,
   loadGraphPlan,
   loadGraphPlanResults,
   localId as graphPlanLocalId,
+  type PublishableFinding,
+  publishableFindings,
   readGraphPlanRun,
   startGraphPlanRun,
 } from './cell/graph-plan.js'
@@ -1354,6 +1357,9 @@ type CurrentWorkflowPlan = {
   changedAt: Map<string, number>
   runId: string | null
   runStatus: string | null
+  /** The run's findings a person may publish as comments, and how the last publish went. */
+  findings: readonly PublishableFinding[]
+  publish: { status: 'ready' | 'publishing' | 'done' | 'error'; message: string | null }
   progress: ReadonlyMap<string, { readonly started: number; readonly done: number; readonly failed: number }>
   timer: ReturnType<typeof setInterval> | null
   inFlight: boolean
@@ -1415,6 +1421,8 @@ function openWorkflowPlan(graphId: string, definition: string, inputs: Record<st
     changedAt: new Map(),
     runId: null,
     runStatus: null,
+    findings: [],
+    publish: { status: 'ready', message: null },
     progress: new Map(),
     timer: null,
     inFlight: false,
@@ -1482,6 +1490,7 @@ async function loadWorkflowPlanResults(state: CurrentWorkflowPlan): Promise<void
   const results = await loadGraphPlanResults(reader, state.graphId, runGraph)
   const last = state.plan.phases.at(-1)?.steps.find((step) => step.produces)?.produces
   const shown = results.items.filter((item) => item.collection === last).map((item) => item.value)
+  state.findings = publishableFindings(shown)
   const columns = [...new Set(shown.flatMap((value) => (value && typeof value === 'object' ? Object.keys(value) : ['value'])))].slice(0, 7)
   const cell = (value: unknown): string => (value === undefined || value === null ? '' : typeof value === 'string' ? value : JSON.stringify(value))
   state.view = {
@@ -1493,8 +1502,52 @@ async function loadWorkflowPlanResults(state: CurrentWorkflowPlan): Promise<void
         what: cell(r.item && typeof r.item === 'object' ? ((r.item as Record<string, unknown>).quote ?? r.item) : r.item),
         why: cell(r.verdict && typeof r.verdict === 'object' ? ((r.verdict as Record<string, unknown>).reason ?? r.verdict) : r.verdict),
       })),
+      publish: { count: state.findings.length, ...state.publish },
     },
   }
+}
+
+/**
+ * Publish: each finding becomes a comment on the document it names, anchored to its exact quote, written as the person
+ * who pressed the button. A stable id per run and finding makes it safe to press twice.
+ */
+async function publishWorkflowFindings(state: CurrentWorkflowPlan): Promise<void> {
+  const caller = store?.contract.rawMcp
+  if (!caller || !state.runId || state.findings.length === 0 || state.publish.status === 'publishing') return
+  const runId = state.runId
+  const author = state.plan?.title ?? 'Workflow'
+  const setPublish = (publish: CurrentWorkflowPlan['publish']): void => {
+    state.publish = publish
+    if (state.view.results) state.view = { ...state.view, results: { ...state.view.results, publish: { count: state.findings.length, ...publish } } }
+    if (currentWorkflowPlan === state) rerenderCurrentSource()
+  }
+  setPublish({ status: 'publishing', message: null })
+  let placed = 0
+  const missed: string[] = []
+  for (const [index, finding] of state.findings.entries()) {
+    try {
+      await caller.callTool('edit_comment', {
+        graphId: state.graphId,
+        action: 'set',
+        comment_id: findingCommentId(runId, index),
+        document_id: finding.documentId,
+        ...(finding.blockId ? { blockId: finding.blockId } : {}),
+        find: finding.quote,
+        quoted_text: finding.quote,
+        text: finding.note,
+        author,
+      })
+      placed += 1
+    } catch (error) {
+      missed.push(`${finding.quote.slice(0, 48)}… (${error instanceof Error ? error.message : String(error)})`)
+    }
+  }
+  const documents = [...new Set(state.findings.map((finding) => finding.documentId))]
+  const where = documents.length === 1 ? (sidebarNodeById(documents[0]!)?.label ?? documents[0]) : `${documents.length} documents`
+  setPublish({
+    status: missed.length ? 'error' : 'done',
+    message: `Published ${placed} of ${state.findings.length} to the margin of ${where}.${missed.length ? ` Not placed: ${missed.slice(0, 3).join('; ')}` : ''}`,
+  })
 }
 
 function workflowPlanView(state: CurrentWorkflowPlan, problems: readonly string[], now: number): WorkflowPlanOptions {
@@ -1525,6 +1578,7 @@ function workflowPlanView(state: CurrentWorkflowPlan, problems: readonly string[
     run: state.runId ? { id: state.runId, status: state.runStatus ?? 'running' } : null,
     ...(state.view.results ? { results: state.view.results } : {}),
     onRun: () => void runWorkflowPlan(state),
+    onPublish: () => void publishWorkflowFindings(state),
   }
 }
 

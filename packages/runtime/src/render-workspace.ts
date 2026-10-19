@@ -295,8 +295,11 @@ export interface WorkflowPlanOptions {
     readonly columns: readonly string[]
     readonly rows: readonly (readonly string[])[]
     readonly refused: readonly { readonly what: string; readonly why: string }[]
+    /** Findings that name a document, a quote and a note may go in that document's margin, when the person says so. */
+    readonly publish?: { readonly count: number; readonly status: 'ready' | 'publishing' | 'done' | 'error'; readonly message?: string | null } | null
   } | null
   readonly onRun?: () => void
+  readonly onPublish?: () => void
 }
 
 export interface ZoteroSourceItem {
@@ -1931,6 +1934,7 @@ const WORKFLOW_PLAN_STYLE = `
 .wfp-problems { margin: 14px 0 0; padding: 10px 14px 10px 30px; border-left: 2px solid #b4483c; font-size: 13px; }
 .wfp-scene { margin-top: 18px; border: 1px solid var(--mn-color-border-subtle); border-radius: var(--mn-radius-control, 6px); overflow: hidden; }
 .wfp-steps-title { font: 500 17px/1.3 var(--mn-font-serif, Georgia, serif); margin: 22px 0 0; }
+.wfp-results-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .wfp-lanes { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(220px, 1fr); gap: 14px; margin-top: 20px; overflow-x: auto; padding-bottom: 6px; }
 .wfp-lane-title { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; opacity: .65; margin-bottom: 8px; border-bottom: 1px solid color-mix(in srgb, currentColor 18%, transparent); padding-bottom: 6px; }
 .wfp-card { border: 1px solid color-mix(in srgb, currentColor 18%, transparent); border-radius: 6px; padding: 10px 12px; margin-bottom: 10px; transition: box-shadow .4s, border-color .4s; }
@@ -1994,7 +1998,15 @@ function renderWorkflowPlan(plan: WorkflowPlanOptions): TemplateResult {
     </div>
     ${plan.run ? html`<div class="wfp-section"><div class="wfp-meta">Run <code>${plan.run.id}</code> · ${plan.run.status}${plan.run.message ? html` · ${plan.run.message}` : nothing}</div></div>` : nothing}
     ${plan.results ? html`<div class="wfp-section">
-      <h2>What the run found (${plan.results.rows.length})</h2>
+      <div class="wfp-results-head">
+        <h2>What the run found (${plan.results.rows.length})</h2>
+        ${plan.results.publish && plan.results.publish.count > 0
+          ? html`<button class="wfp-run" ?disabled=${plan.results.publish.status === 'publishing'} @click=${() => plan.onPublish?.()}>${plan.results.publish.status === 'publishing'
+            ? 'Publishing…'
+            : `Publish ${plan.results.publish.count} to the margin`}</button>`
+          : nothing}
+      </div>
+      ${plan.results.publish?.message ? html`<div class="wfp-meta">${plan.results.publish.message}</div>` : nothing}
       <div class="wfp-table"><table>
         <thead><tr>${plan.results.columns.map((c) => html`<th>${c}</th>`)}</tr></thead>
         <tbody>${plan.results.rows.map((row) => html`<tr>${row.map((cell) => html`<td>${cell}</td>`)}</tr>`)}</tbody>
