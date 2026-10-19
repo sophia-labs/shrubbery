@@ -570,6 +570,7 @@ export {
 export {
   MnCommentsPanel,
   type MnComment,
+  type MnCommentCrossDetail,
   type MnCommentDetail,
   type MnCommentEditDetail,
   type MnCommentHoverDetail,

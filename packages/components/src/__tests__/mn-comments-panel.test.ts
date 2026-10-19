@@ -136,3 +136,43 @@ describe('mn-comments-panel — real custom element', () => {
     expect(edited[0]).toMatchObject({ id: 'comment-first', text: 'Edited comment' })
   })
 })
+
+describe('notes and highlights on an imported document, as Kindle lists them', () => {
+  const reading: readonly MnComment[] = [
+    { id: 'note-ch7', author: 'Sleepers, catalogued', text: 'Sleeper: Giron', quotedText: 'He left his knee exposed', createdAt: Date.now() - 60_000, location: 'I THE SCIENTIFIC LITERATURE', order: 2 },
+    { id: 'hl-p1', author: 'You', text: '', quotedText: 'Designing Ecosystems of Intelligence', createdAt: Date.now() - 30_000, kind: 'highlight', color: 'blue', location: 'p. 1', order: 0 },
+    { id: 'hl-p2', author: 'You', text: '', quotedText: 'This white paper lays out a vision', createdAt: Date.now(), kind: 'highlight', color: 'pink', location: 'p. 2', order: 1 },
+  ]
+
+  it('lists them in reading order with where each sits, a highlight as its passage in its colour', async () => {
+    const el = await mount(node => { node.comments = reading })
+    const cards = [...sr(el).querySelectorAll<HTMLElement>('.comment-card')]
+    expect(cards.map(card => card.dataset.commentId)).toEqual(['hl-p1', 'hl-p2', 'note-ch7'])
+    expect(cards[0]!.dataset.kind).toBe('highlight')
+    expect(cards[0]!.dataset.color).toBe('blue')
+    expect(cards[0]!.querySelector('.comment-location')?.textContent).toBe('p. 1')
+    expect(cards[0]!.querySelector('.comment-quoted-text')?.textContent).toBe('Designing Ecosystems of Intelligence')
+    expect(cards[0]!.querySelector('.comment-author')).toBeNull()
+    expect(cards[0]!.querySelector('.comment-text')?.textContent?.trim()).toBe('Add a note…')
+    expect(cards[2]!.querySelector('.comment-author')?.textContent).toBe('Sleepers, catalogued')
+    expect(sr(el).querySelector('.header-title')?.textContent).toBe('Notes & Highlights')
+  })
+
+  it('offers to show a comment in the other view, and asks for it without selecting the card', async () => {
+    const crosses: { id: string; to: string }[] = []
+    const selects: string[] = []
+    const el = await mount(node => { node.comments = reading; node.crossView = 'text' })
+    el.addEventListener('mn-comment-cross', event => { const detail = (event as CustomEvent<{ id: string; to: string }>).detail; crosses.push({ id: detail.id, to: detail.to }) })
+    el.addEventListener('mn-comment-select', event => { selects.push((event as CustomEvent<MnCommentDetail>).detail.id) })
+    const button = sr(el).querySelector<HTMLButtonElement>('[data-comment-id="hl-p2"] .comment-cross')!
+    expect(button.textContent?.trim()).toBe('Show in text')
+    button.click()
+    expect(crosses).toEqual([{ id: 'hl-p2', to: 'text' }])
+    expect(selects).toEqual([])
+  })
+
+  it('offers nothing of the kind on an ordinary document', async () => {
+    const el = await mount(node => { node.comments = reading })
+    expect(sr(el).querySelector('.comment-cross')).toBeNull()
+  })
+})

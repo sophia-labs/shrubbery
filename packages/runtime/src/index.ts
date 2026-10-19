@@ -133,6 +133,7 @@ export {
   type ZoteroSourcePromoteAnnotationDetail,
   type WorkspaceComment,
   type WorkspaceCommentAnchor,
+  type WorkspaceCommentCrossDetail,
   type WorkspaceCommentDetail,
   type WorkspaceCommentEditDetail,
   type WorkspaceCommentHoverDetail,

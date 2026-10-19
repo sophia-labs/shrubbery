@@ -161,6 +161,7 @@ export class MnReader extends LitElement {
     super.connectedCallback()
     this.addEventListener('keydown', this.onKey)
     document.addEventListener('selectionchange', this.onSelectionChange)
+    document.addEventListener('reader-reveal', this.onRevealRequest)
     this.sizer = new ResizeObserver(entries => {
       const width = entries[0]?.contentRect.width ?? 0
       const narrow = width > 0 && width < 900
@@ -172,6 +173,7 @@ export class MnReader extends LitElement {
   override disconnectedCallback(): void {
     this.removeEventListener('keydown', this.onKey)
     document.removeEventListener('selectionchange', this.onSelectionChange)
+    document.removeEventListener('reader-reveal', this.onRevealRequest)
     window.clearTimeout(this.settleTimer)
     this.sizer?.disconnect()
     this.sizer = null
@@ -316,6 +318,36 @@ export class MnReader extends LitElement {
       this.rangeChapters()
       this.paint()
     }
+    this.announcePlaces()
+    if (this.revealWanted) {
+      const wanted = this.shown.find(a => a.id === this.revealWanted)
+      if (wanted) { this.revealWanted = null; this.reveal(wanted) }
+    }
+  }
+
+  /** Where each annotation sits, for the comments list beside the document: "p. 12" or the chapter, and reading order. */
+  private announcePlaces(): void {
+    const source = this.source
+    if (!source) return
+    const places = this.ordered().map((annotation, order) => {
+      if (source.kind === 'pdf') {
+        const page = this.pdfPages.get(annotation.id)
+        return { id: annotation.id, order, location: page ? `p. ${this.surface?.pageLabelOf(page) ?? page}` : null }
+      }
+      const chapter = this.bookChapterOf.get(annotation.id)
+      return { id: annotation.id, order, location: chapter === undefined ? null : source.book.chapters[chapter]?.title ?? null }
+    })
+    this.say('reader-annotations-placed', { key: source.key, places })
+  }
+
+  /** Something outside asked to see an annotation here (a comment picked in the comments list). */
+  private revealWanted: string | null = null
+  private readonly onRevealRequest = (event: Event): void => {
+    const id = (event as CustomEvent<{ id?: string }>).detail?.id
+    if (!id) return
+    const annotation = this.shown.find(a => a.id === id)
+    if (annotation && (this.pdfPages.has(id) || this.bookChapterOf.has(id))) this.reveal(annotation)
+    else this.revealWanted = id
   }
 
   private pageReady(page: number, repaint = true): void {
@@ -1216,6 +1248,8 @@ export class MnReader extends LitElement {
       ${mine ? html`<span class="vsep"></span>` : nothing}
       ${mine ? html`<button type="button" class="act" @click=${() => this.openComposer({ ...pop, quote: annotation.quote, prefix: annotation.prefix ?? '', suffix: annotation.suffix ?? '', place: annotation.place ?? { kind: 'page', page: 1 } }, annotation.color, annotation.kind === 'comment' ? annotation.id : null, annotation.text ?? '')}>${annotation.kind === 'comment' ? 'Edit note' : 'Note'}</button>` : nothing}
       <button type="button" class="act" @click=${() => { void navigator.clipboard?.writeText(annotation.quote); this.activePop = null }}>Copy</button>
+      ${this.textView && !pending ? html`<button type="button" class="act" title="Show this passage in the text made from the original"
+        @click=${() => { this.activePop = null; this.say('reader-show-in-text', { id: annotation.id }) }}>Show in text</button>` : nothing}
       ${mine ? html`<button type="button" class="act" @click=${() => this.change({ id: annotation.id, action: 'delete' })}>Delete</button>` : nothing}
     </div>`
   }

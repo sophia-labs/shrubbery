@@ -2859,6 +2859,15 @@ export class ShEditorHost extends LitElement {
   @property({ attribute: false })
   documentAccess: EditorDocumentAccess | null = null
 
+  /**
+   * How some of the document's comments look in the text: a highlight made over the original, in its colour; a note
+   * made there, with its colour. Keyed by comment id (the comment mark's `data-comment-id`).
+   */
+  @property({ attribute: false })
+  commentPaint: ReadonlyMap<string, { readonly kind: 'comment' | 'highlight'; readonly color: string }> | null = null
+
+  private commentPaintSheet: CSSStyleSheet | null = null
+
   /** The last state read from the binding (drives the placeholder render). */
   @state()
   private hostState: EditorHostState | null = null
@@ -3247,7 +3256,33 @@ export class ShEditorHost extends LitElement {
     super.disconnectedCallback()
   }
 
+  /** Paint the comments named in `commentPaint` in their colours (a constructed sheet: no runtime <style>, CSP-safe). */
+  private paintComments(): void {
+    const root = this.shadowRoot
+    if (!root || typeof CSSStyleSheet !== 'function') return
+    if (!this.commentPaintSheet) {
+      this.commentPaintSheet = new CSSStyleSheet()
+      root.adoptedStyleSheets = [...root.adoptedStyleSheets, this.commentPaintSheet]
+    }
+    const washes: Readonly<Record<string, readonly [string, string]>> = {
+      yellow: ['rgba(250, 204, 21, 0.40)', 'rgb(202, 138, 4)'],
+      green: ['rgba(74, 200, 120, 0.32)', 'rgb(22, 128, 61)'],
+      blue: ['rgba(86, 156, 245, 0.30)', 'rgb(37, 99, 235)'],
+      pink: ['rgba(240, 110, 170, 0.28)', 'rgb(190, 24, 93)'],
+    }
+    const rules: string[] = []
+    for (const [id, paint] of this.commentPaint ?? []) {
+      const [wash, line] = washes[paint.color] ?? washes.yellow!
+      const selector = `.editor-mount .ProseMirror .comment-mark[data-comment-id="${id.replace(/["\\]/g, '\\$&')}"]`
+      rules.push(paint.kind === 'highlight'
+        ? `${selector} { background: ${wash}; border-bottom-color: transparent; }`
+        : `${selector} { background: ${wash}; border-bottom-color: ${line}; }`)
+    }
+    try { this.commentPaintSheet.replaceSync(rules.join('\n')) } catch { /* an id the sheet could not take is left unpainted */ }
+  }
+
   override updated(changed: Map<string, unknown>): void {
+    if (changed.has('commentPaint')) this.paintComments()
     if (changed.has('binding')) this._subscribe()
     // Reconcile the live body AFTER render() has stamped/removed the mount target.
     this._reconcileEditor()

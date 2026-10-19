@@ -671,6 +671,14 @@ export interface WorkspaceComment {
   readonly anchor?: WorkspaceCommentAnchor | null
   /** Made in the Reader by this person (theirs to recolour and delete). */
   readonly madeInReader?: boolean
+  /** Where it sits in the original, as a reader says it ("p. 12", a chapter's title), when known. */
+  readonly location?: string | null
+  /** Its place in the original's reading order, when known: the comments list follows the book. */
+  readonly order?: number | null
+}
+
+export interface WorkspaceCommentCrossDetail extends WorkspaceCommentDetail {
+  readonly to: 'original' | 'text'
 }
 
 export interface WorkspaceCommentAnchor {
@@ -707,6 +715,9 @@ export interface WorkspaceCommentsOptions {
   readonly onEdit?: (detail: WorkspaceCommentEditDetail) => void
   readonly onResolve?: (detail: WorkspaceCommentResolveDetail) => void
   readonly onDelete?: (detail: WorkspaceCommentDetail) => void
+  /** An imported document: each comment offers to show itself in the other view ('original' or 'text'). */
+  readonly crossView?: 'original' | 'text' | null
+  readonly onCross?: (detail: WorkspaceCommentCrossDetail) => void
 }
 
 export interface WorkspaceInspectorIdentityChip {
@@ -2390,15 +2401,12 @@ function renderDocHistoryOverlay(docHistory: DocHistoryOptions | null | undefine
   `
 }
 
-/** The list as given (the same array) unless it holds a Reader highlight to leave out. */
-function withoutHighlights(comments: readonly WorkspaceComment[]): readonly WorkspaceComment[] {
-  return comments.some(comment => comment.kind === 'highlight') ? comments.filter(comment => comment.kind !== 'highlight') : comments
-}
-
 function renderCommentsPanel(comments: WorkspaceCommentsOptions | null | undefined): TemplateResult {
-  // A highlight made in the Reader has no words of its own: it lives in the Reader's Notes, not among comments.
+  // Notes and highlights together, as Kindle lists them; a Reader highlight is a comment without words of its own.
   return html`<mn-comments-panel
-    .comments=${withoutHighlights(comments?.comments ?? [])}
+    .comments=${comments?.comments ?? []}
+    .crossView=${comments?.crossView ?? null}
+    @mn-comment-cross=${(event: Event) => comments?.onCross?.(customDetail<WorkspaceCommentCrossDetail>(event))}
     .hoveredCommentId=${comments?.hoveredCommentId ?? null}
     .emptyShortcut=${comments?.emptyShortcut ?? null}
     @mn-comment-select=${(event: Event) =>

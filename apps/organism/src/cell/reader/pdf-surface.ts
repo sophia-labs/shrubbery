@@ -159,6 +159,11 @@ export class PdfSurface {
     })
   }
 
+  /** Page `n` as the PDF labels it ("xii", "23"), else its number. */
+  pageLabelOf(n: number): string {
+    return this.labelOf(n) ?? String(n)
+  }
+
   private labelOf(page: number): string | null {
     const label = this.labels?.[page - 1]
     return label && label !== String(page) ? label : null

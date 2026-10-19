@@ -24,6 +24,19 @@ export interface MnComment {
   readonly resolved?: boolean
   readonly documentPosition?: number | null
   readonly blockId?: string | null
+  /** A highlight (made over an original in the Reader) has a quote and a colour but no words of its own. */
+  readonly kind?: 'comment' | 'highlight' | null
+  /** The highlighter's colour name: yellow, green, blue or pink. */
+  readonly color?: string | null
+  /** Where it sits in the original, as a reader says it: "p. 12", a chapter's title. */
+  readonly location?: string | null
+  /** Its place in reading order (when the host knows it): the list follows the book, as Kindle's does. */
+  readonly order?: number | null
+}
+
+/** Ask to see a comment in the other view of an imported document (its original, or the text made from it). */
+export interface MnCommentCrossDetail extends MnCommentDetail {
+  readonly to: 'original' | 'text'
 }
 
 export interface MnCommentDetail {
@@ -173,6 +186,32 @@ export class MnCommentsPanel extends SkinAware(LitElement) {
 
     .comment-card.resolved {
       opacity: 0.62;
+    }
+
+    .comment-card[data-color='yellow'] { --mn-comment-stripe: rgb(234, 179, 8); }
+    .comment-card[data-color='green'] { --mn-comment-stripe: rgb(34, 160, 90); }
+    .comment-card[data-color='blue'] { --mn-comment-stripe: rgb(59, 130, 246); }
+    .comment-card[data-color='pink'] { --mn-comment-stripe: rgb(219, 39, 119); }
+    .comment-card[data-color] .comment-quoted-text {
+      border-left: 3px solid var(--mn-comment-stripe);
+      background: color-mix(in srgb, var(--mn-comment-stripe) 12%, var(--mn-color-surface-base, #fff));
+    }
+    .comment-card[data-kind='highlight'] .comment-quoted-text {
+      font-style: normal;
+      font-size: var(--mn-text-sm, 13px);
+      color: var(--mn-color-text-primary, #1f2937);
+      margin-bottom: var(--mn-space-1-5, 6px);
+    }
+    .comment-location {
+      color: var(--mn-color-text-tertiary, #8a9099);
+      font-size: var(--mn-text-xs, 12px);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      min-width: 0;
+    }
+    .comment-cross {
+      margin-left: auto;
     }
 
     .comment-quoted-text {
@@ -336,12 +375,21 @@ export class MnCommentsPanel extends SkinAware(LitElement) {
   @property({ attribute: false }) comments: readonly MnComment[] = []
   @property({ type: String }) hoveredCommentId: string | null = null
   @property({ type: String }) emptyShortcut: string | null = null
+  /**
+   * An imported document has two views: each comment offers to show itself in the other one ('original' while the
+   * text is showing, 'text' while the original is). Null: no such offer.
+   */
+  @property({ type: String, attribute: 'cross-view' }) crossView: 'original' | 'text' | null = null
 
   @state() private inlineEditingId: string | null = null
   @state() private inlineEditContent = ''
 
   private orderedComments(): MnComment[] {
     return [...this.comments].sort((a, b) => {
+      // Reading order first, when the host knows it (an original's pages and chapters), as Kindle lists them.
+      const orderA = a.order ?? Number.POSITIVE_INFINITY
+      const orderB = b.order ?? Number.POSITIVE_INFINITY
+      if (orderA !== orderB) return orderA - orderB
       const posA = a.documentPosition ?? Number.POSITIVE_INFINITY
       const posB = b.documentPosition ?? Number.POSITIVE_INFINITY
       if (posA !== posB) return posA - posB
@@ -431,9 +479,16 @@ export class MnCommentsPanel extends SkinAware(LitElement) {
     `
   }
 
+  private crossComment(comment: MnComment, event: Event): void {
+    event.stopPropagation()
+    if (!this.crossView) return
+    this.emit<MnCommentCrossDetail>('mn-comment-cross', { id: comment.id, comment, to: this.crossView })
+  }
+
   private renderComment(comment: MnComment): TemplateResult {
     const editing = this.inlineEditingId === comment.id
     const resolved = comment.resolved === true
+    const highlight = comment.kind === 'highlight'
     const classes = {
       'comment-card': true,
       hovered: this.hoveredCommentId === comment.id,
@@ -444,14 +499,17 @@ export class MnCommentsPanel extends SkinAware(LitElement) {
         <article
           class=${classMap(classes)}
           data-comment-id=${comment.id}
+          data-kind=${highlight ? 'highlight' : 'comment'}
+          data-color=${comment.color || nothing}
           data-private="true"
           @click=${(event: Event) => this.selectComment(comment, event)}
           @mouseenter=${() => this.hoverComment(comment)}
           @mouseleave=${() => this.hoverComment(null)}
         >
-          <div class="comment-quoted-text">"${comment.quotedText || 'Selected text...'}"</div>
+          <div class="comment-quoted-text">${highlight ? comment.quotedText : `"${comment.quotedText || 'Selected text...'}"`}</div>
           <div class="comment-card-header">
-            <span class="comment-author">${comment.author}</span>
+            ${comment.location ? html`<span class="comment-location" title=${comment.location}>${comment.location}</span>` : nothing}
+            ${highlight ? nothing : html`<span class="comment-author">${comment.author}</span>`}
             <span class="comment-date">${formatDate(comment.createdAt)}</span>
           </div>
           ${editing
@@ -475,13 +533,19 @@ export class MnCommentsPanel extends SkinAware(LitElement) {
                   class="comment-text ${comment.text ? '' : 'placeholder'}"
                   @click=${(event: Event) => this.startInlineEdit(comment, event)}
                 >
-                  ${comment.text || '(Click to add comment...)'}
+                  ${comment.text || (highlight ? 'Add a note…' : '(Click to add comment...)')}
                 </div>
               `}
           ${editing
             ? nothing
             : html`
                 <div class="comment-actions">
+                  ${this.crossView ? html`<button
+                    type="button"
+                    class="comment-action-btn comment-cross"
+                    title=${this.crossView === 'original' ? 'Show it in the original' : 'Show it in the text'}
+                    @click=${(event: Event) => this.crossComment(comment, event)}
+                  >${this.crossView === 'original' ? 'Show in original' : 'Show in text'}</button>` : nothing}
                   <button
                     type="button"
                     class="comment-action-btn resolve"
@@ -519,7 +583,7 @@ export class MnCommentsPanel extends SkinAware(LitElement) {
     return html`
       <header class="header">
         <div class="header-left">
-          <span class="header-title">Comments</span>
+          <span class="header-title">${ordered.some(comment => comment.kind === 'highlight') ? 'Notes & Highlights' : 'Comments'}</span>
           ${unresolvedCount > 0 ? html`<span class="header-count">${unresolvedCount}</span>` : nothing}
         </div>
       </header>

@@ -2080,7 +2080,55 @@ function setRightPanel(panel: RightPanelMode, origin: string): void {
 }
 
 function currentDocumentComments(): readonly WorkspaceComment[] {
-  return currentCommentsSource?.get() ?? []
+  const comments = currentCommentsSource?.get() ?? []
+  const places = openDocId ? readerPlaces.get(`${currentGraphId}:${openDocId}`) : undefined
+  if (!places && !comments.some(comment => comment.anchor?.page)) return comments
+  // Where each sits in the original (as the Reader placed it, else as it was made), in the original's reading order.
+  return comments.map(comment => {
+    const place = places?.get(comment.id)
+    const location = place?.location ?? (comment.anchor?.page ? `p. ${comment.anchor.page}` : null)
+    return location || place ? { ...comment, location, order: place?.order ?? null } : comment
+  })
+}
+
+/** Where the Reader placed each annotation of an original ("p. 12", a chapter), by `graph:document`. */
+const readerPlaces = new Map<string, Map<string, { readonly location: string | null; readonly order: number }>>()
+
+/** The view of an imported document that is not showing, for a comment to offer: null when the document has no original. */
+function commentsCrossView(): 'original' | 'text' | null {
+  const view = activeEditorHostElement()?.originalFileView
+  if (!view?.available) return null
+  return view.active ? 'text' : 'original'
+}
+
+/** A comment the person asked to see in the original, waiting for the Reader to open and place it. */
+let revealInOriginal: string | null = null
+
+function showCommentInText(id: string): void {
+  const host = activeEditorHostElement()
+  if (host?.originalFileView?.active) hostEl.dispatchEvent(new CustomEvent('mn-editor-original-view-toggle', { bubbles: true, composed: true, detail: {} }))
+  // The text view mounts on the next render; then the comment's mark is scrolled to and lit.
+  window.setTimeout(() => currentLiveEditor()?.setActiveComment(id, { scroll: true }), 350)
+}
+
+function showCommentInOriginal(id: string): void {
+  const host = activeEditorHostElement()
+  if (host?.originalFileView?.active) {
+    document.dispatchEvent(new CustomEvent('reader-reveal', { detail: { id } }))
+    return
+  }
+  revealInOriginal = id
+  hostEl.dispatchEvent(new CustomEvent('mn-editor-original-view-toggle', { bubbles: true, composed: true, detail: {} }))
+}
+
+/** How the document's Reader-made highlights and notes look in its text: their colours. */
+function currentCommentPaint(): ReadonlyMap<string, { readonly kind: 'comment' | 'highlight'; readonly color: string }> | null {
+  const paint = new Map<string, { readonly kind: 'comment' | 'highlight'; readonly color: string }>()
+  for (const comment of currentCommentsSource?.get() ?? []) {
+    if (comment.resolved || !comment.color || (comment.kind !== 'highlight' && !comment.madeInReader)) continue
+    paint.set(comment.id, { kind: comment.kind === 'highlight' ? 'highlight' : 'comment', color: comment.color })
+  }
+  return paint.size ? paint : null
 }
 
 function currentInspectorInput(): InspectorProjectionInput {
@@ -2480,20 +2528,56 @@ function handleReaderAnnotate(detail: ReaderAnnotateDetail | undefined): void {
     anchor: { ...place, prefix: detail.prefix, suffix: detail.suffix },
     madeIn: 'reader',
   })
-  const caller = store?.contract.rawMcp
-  if (detail.kind !== 'comment' || !caller || !detail.text.trim()) return
-  const graphId = currentGraphId
   // After the entry has reached the room, so gardend edits it rather than creating a bare one.
-  window.setTimeout(() => {
-    void caller.callTool('crdt_operation', {
-      graphId,
-      kind: 'document.editComments',
+  window.setTimeout(() => placeReaderCommentsInText(documentId, [{
+    commentId, text: detail.text, quote: detail.quote, kind: detail.kind, color: detail.color, anchor: { ...place, prefix: detail.prefix, suffix: detail.suffix },
+  }]), 400)
+}
+
+/**
+ * Highlights and notes made over an original, marked in the text made from it: gardend finds each quote there
+ * (forgiving how text was copied) and marks it, so the two views point at each other. A quote it cannot find is
+ * left unmarked: the comment still lists and shows on the original.
+ */
+function placeReaderCommentsInText(documentId: string, entries: readonly {
+  readonly commentId: string; readonly text: string; readonly quote: string; readonly kind: string; readonly color: string
+  readonly anchor: Record<string, unknown>
+}[]): void {
+  const caller = store?.contract.rawMcp
+  if (!caller || entries.length === 0) return
+  void caller.callTool('crdt_operation', {
+    graphId: currentGraphId,
+    kind: 'document.editComments',
+    documentId,
+    payload: {
       documentId,
-      payload: { documentId, comments: [{ commentId, text: detail.text, find: detail.quote, quotedText: detail.quote }] },
-    }).catch((error: unknown) => {
-      err(`reader note kept as written (not marked in the text): ${error instanceof Error ? error.message : String(error)}`)
-    })
-  }, 400)
+      comments: entries.map(entry => ({
+        commentId: entry.commentId, text: entry.text, find: entry.quote, quotedText: entry.quote,
+        kind: entry.kind, color: entry.color, anchor: entry.anchor, madeIn: 'reader',
+      })),
+    },
+  }).catch((error: unknown) => {
+    err(`reader comments kept as made (not marked in the text): ${error instanceof Error ? error.message : String(error)}`)
+  })
+}
+
+/** Reader comments made before they were marked in the text (or whose marking failed): marked once per session. */
+const readerCommentsPlaced = new Set<string>()
+function placeUnmarkedReaderComments(): void {
+  const documentId = openDocId
+  if (!documentId || !store) return
+  const unmarked = (currentCommentsSource?.get() ?? []).filter(comment =>
+    comment.madeInReader && !comment.blockId && !comment.resolved && comment.quotedText && !readerCommentsPlaced.has(comment.id))
+  if (!unmarked.length) return
+  for (const comment of unmarked) readerCommentsPlaced.add(comment.id)
+  placeReaderCommentsInText(documentId, unmarked.map(comment => {
+    const anchor = comment.anchor ?? {}
+    const place = typeof anchor.page === 'number' ? { page: anchor.page } : typeof anchor.chapter === 'number' ? { chapter: anchor.chapter } : {}
+    return {
+      commentId: comment.id, text: comment.text, quote: comment.quotedText!, kind: comment.kind === 'highlight' ? 'highlight' : 'comment',
+      color: comment.color ?? 'yellow', anchor: { ...place, ...(anchor.prefix ? { prefix: anchor.prefix } : {}), ...(anchor.suffix ? { suffix: anchor.suffix } : {}) },
+    }
+  }))
 }
 
 function handleReaderAnnotationChange(detail: ReaderAnnotationChangeDetail | undefined): void {
@@ -2508,6 +2592,13 @@ function handleReaderAnnotationChange(detail: ReaderAnnotationChangeDetail | und
 }
 
 function handleCommentSelect(detail: WorkspaceCommentDetail): void {
+  // The original is showing: the Reader shows the comment where it sits there.
+  if (activeEditorHostElement()?.originalFileView?.active) {
+    document.dispatchEvent(new CustomEvent('reader-reveal', { detail: { id: detail.id } }))
+    currentHoveredCommentId = detail.id
+    rerenderCurrentSource()
+    return
+  }
   currentHoveredCommentId = detail.id
   // The inspector stamp (comments→inspector drivesSelection) AND the editor
   // scroll (comments→editor reveals) are now installed by the edge-interpreter:
@@ -2531,7 +2622,9 @@ function handleCommentHover(detail: WorkspaceCommentHoverDetail): void {
 }
 
 function handleCommentEdit(detail: WorkspaceCommentEditDetail): void {
-  currentCommentsSource?.update(detail.id, { text: detail.text, updatedAt: Date.now() })
+  // A highlight given words becomes a note on its passage (keeping its colour), as on Kindle.
+  const becomesNote = detail.comment.kind === 'highlight' && detail.text.trim().length > 0
+  currentCommentsSource?.update(detail.id, { text: detail.text, updatedAt: Date.now(), ...(becomesNote ? { kind: 'comment' as const } : {}) })
 }
 
 function handleCommentResolve(detail: WorkspaceCommentResolveDetail): void {
@@ -7663,6 +7756,7 @@ function centerPaneEditorHostOptions(): ReadonlyMap<CenterPaneId, CenterPaneEdit
       salienceBundle: active ? currentSalienceBundle : null,
       imageInserter: claim.imageInserter,
       documentAccess: visitorPaneDocumentAccess(claim) ?? salienceEditorDocumentAccess(),
+      commentPaint: claim.graphId === currentGraphId && claim.documentId === openDocId ? currentCommentPaint() : null,
     })
   }
   return hosts
@@ -8615,6 +8709,8 @@ function renderConfig(config: WorkspaceConfig, app: string | undefined): string 
       onEdit: handleCommentEdit,
       onResolve: handleCommentResolve,
       onDelete: handleCommentDelete,
+      crossView: commentsCrossView(),
+      onCross: detail => { if (detail.to === 'text') showCommentInText(detail.id); else showCommentInOriginal(detail.id) },
     },
     inspector: {
       info: filesShellNow?.infoOpen ? {
@@ -10719,6 +10815,26 @@ hostEl.addEventListener('reader-ask-sophia', ((event: CustomEvent<ReaderAskDetai
 
 hostEl.addEventListener('reader-annotation-change', ((event: CustomEvent<ReaderAnnotationChangeDetail>) => {
   handleReaderAnnotationChange(event.detail)
+}) as EventListener)
+
+hostEl.addEventListener('reader-annotations-placed', ((event: CustomEvent<{ key: string; places: { id: string; order: number; location: string | null }[] }>) => {
+  const { key, places } = event.detail ?? { key: '', places: [] }
+  if (!key) return
+  const next = new Map(places.map(place => [place.id, { location: place.location, order: place.order }]))
+  const known = readerPlaces.get(key)
+  const same = known && known.size === next.size && [...next].every(([id, place]) => known.get(id)?.location === place.location && known.get(id)?.order === place.order)
+  readerPlaces.set(key, next)
+  placeUnmarkedReaderComments()
+  if (revealInOriginal && next.has(revealInOriginal)) {
+    const id = revealInOriginal
+    revealInOriginal = null
+    document.dispatchEvent(new CustomEvent('reader-reveal', { detail: { id } }))
+  }
+  if (!same) rerenderCurrentSource()
+}) as EventListener)
+
+hostEl.addEventListener('reader-show-in-text', ((event: CustomEvent<{ id: string }>) => {
+  if (event.detail?.id) showCommentInText(event.detail.id)
 }) as EventListener)
 
 document.addEventListener('mn-editor-history-open', ((event: CustomEvent<{ documentId?: string | null }>) => {

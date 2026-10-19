@@ -51,6 +51,8 @@ export interface CenterPaneEditorHostOptions {
   readonly commentInserter?: EditorCommentInserter | null
   readonly originalFileView?: EditorOriginalFileView | null
   readonly documentAccess?: EditorDocumentAccess | null
+  /** How some comments look in the text (a Reader highlight's colour): see ShEditorHost.commentPaint. */
+  readonly commentPaint?: ReadonlyMap<string, { readonly kind: 'comment' | 'highlight'; readonly color: string }> | null
   readonly ttsStatus?: 'idle' | 'loading' | 'playing' | 'paused'
   readonly ttsAvailable?: boolean
 }
@@ -839,6 +841,7 @@ export class ShCenterPanes extends LitElement {
           .commentInserter=${config?.commentInserter ?? null}
           .originalFileView=${config?.originalFileView ?? null}
           .documentAccess=${config?.documentAccess ?? null}
+          .commentPaint=${config?.commentPaint ?? null}
           .ttsStatus=${config?.ttsStatus ?? 'idle'}
           .ttsAvailable=${config?.ttsAvailable ?? false}
         ></sh-editor-host>

@@ -23,7 +23,8 @@ export function readerAnnotationsFor(
     .map((annotation): ReaderAnnotation => {
       const comment = byId.get(annotation.id)
       if (!comment) return { ...annotation, color: 'yellow', mine: false }
-      const highlight = comment.kind === 'highlight'
+      // A highlight given words (a note added in the comments list) is a note on its passage.
+      const highlight = comment.kind === 'highlight' && !comment.text?.trim()
       return {
         ...annotation,
         kind: highlight ? 'highlight' : 'comment',
