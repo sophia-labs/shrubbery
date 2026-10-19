@@ -25,7 +25,7 @@ import { locateQuoteAnnotations, quoteSearchText, type QuoteChapterText, type Qu
 import './reader-bar.js'
 import { chapterAtLine, nextChapterWindow, windowAt, type ChapterWindow } from './chapter-window.js'
 import type { MenuEntry, MenuSelectDetail } from '@shrubbery/nucleus'
-import type { MnContextMenu } from '@shrubbery/components'
+import type { MnContextMenu } from '@shrubbery/components/context-menu'
 import { icon } from './reader-icons.js'
 import { PdfSurface, type PdfOutlineItem, type PdfSurfaceState, type PdfZoom } from './pdf-surface.js'
 import {

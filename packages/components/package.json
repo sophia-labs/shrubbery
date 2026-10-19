@@ -10,7 +10,8 @@
     "./top-bar": "./src/mn-top-bar.ts",
     "./bottom-bar": "./src/mn-bottom-bar.ts",
     "./sophia-suite": "./src/sophia-suite.ts",
-    "./app-toolbar": "./src/app-toolbar.ts"
+    "./app-toolbar": "./src/app-toolbar.ts",
+    "./context-menu": "./src/mn-context-menu.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",

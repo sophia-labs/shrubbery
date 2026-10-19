@@ -398,7 +398,8 @@ describe('createOrganismShellFeatureHost', () => {
           id: 'doc-a',
           label: 'Imported Paper',
           kind: 'document' as const,
-          readOnly: true,
+          // An import's TEXT is read-only; its row moves like any other.
+          textReadOnly: true,
           sourceFile: {
             storageKey: 'local://artifacts/paper/original/paper.pdf',
             originalFilename: 'paper.pdf',
@@ -427,7 +428,7 @@ describe('createOrganismShellFeatureHost', () => {
     const otherGraph = context(root, rerender, { graphId: 'graph-b', toolsCall })
     const isolated = host.workspaceSnapshot(otherGraph, {
       sidebar: { sections: [{ id: 'documents', label: 'Documents', nodes: [{
-        id: 'doc-a', label: 'Same ID, no source', kind: 'document', readOnly: true,
+        id: 'doc-a', label: 'Same ID, no source', kind: 'document', textReadOnly: true,
       }] }] },
     })
     host.afterWorkspaceRender(otherGraph, isolated)

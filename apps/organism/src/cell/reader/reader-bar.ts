@@ -17,8 +17,9 @@
 import { LitElement, html, nothing, type PropertyValues, type TemplateResult } from 'lit'
 import { customElement, property, query } from 'lit/decorators.js'
 import type { MenuEntry, MenuSelectDetail } from '@shrubbery/nucleus'
-import '@shrubbery/components'
-import type { MnContextMenu } from '@shrubbery/components'
+// The context menu alone: the components barrel would bring every component (an xterm terminal among them).
+import '@shrubbery/components/context-menu'
+import type { MnContextMenu } from '@shrubbery/components/context-menu'
 import { icon } from './reader-icons.js'
 import { READER_BAR_STYLES, READER_TOKENS } from './reader-styles.js'
 
