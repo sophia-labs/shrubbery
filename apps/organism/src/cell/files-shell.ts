@@ -424,7 +424,7 @@ export class FilesShell {
   }
 
   /** Open the viewer of the page's file when its source section is open and nothing is showing it yet. */
-  private ensureSource(): void {
+  private ensureSource(force = false): void {
     const b = this.binding
     const file = this.pages.current
     if (!b || !file) return
@@ -432,7 +432,7 @@ export class FilesShell {
     if (opened.kind !== 'none' && opened.artifactId === file.id) return
     const evidence = this.evidence.get(file.id)
     const kind = (this.deps.kinds ?? FILE_KINDS).find(k => k.id === evidence?.kind)
-    if (!this.pages.sourceOpen(kind, this.kindPending(file.id))) return
+    if (!force && !this.pages.sourceOpen(kind, this.kindPending(file.id))) return
     const entry = this.tree().get('artifact', file.id)
     if (!entry) return
     void this.preview.open(b.graphId, { id: entry.id, label: entry.label, mimeType: entry.mimeType, fileType: entry.fileType, originalFilename: entry.label })
@@ -763,8 +763,13 @@ export class FilesShell {
     const readOf = pageFile?.id ?? (opened.kind === 'pdf' ? opened.artifactId : null)
     const readEvidence = readOf ? this.evidence.get(readOf) : undefined
     this.assertions.sync(b.graphId, readOf, readEvidence?.kind ?? null, readEvidence?.state ?? '', pageFile?.label ?? (opened.kind !== 'none' ? opened.name : ''))
-    const page = pageFile ? this.pageModel(pageFile, view) : null
-    if (page) queueMicrotask(() => this.ensureSource())
+    // A plain PDF (no datasheet kind read from it) opens in the Reader, whole: no page, no sections around it. The slim row
+    // above it keeps Back, Reload and Download.
+    const pageEntry = pageFile ? this.tree().get('artifact', pageFile.id) : null
+    const isPdf = !!pageEntry && (pageEntry.mimeType === 'application/pdf' || /^pdf$/i.test(pageEntry.fileType ?? ''))
+    const plainPdf = !!pageFile && isPdf && !this.kindPending(pageFile.id) && !readEvidence?.kind
+    const page = pageFile && !plainPdf ? this.pageModel(pageFile, view) : null
+    if (page || plainPdf) queueMicrotask(() => this.ensureSource(plainPdf))
     const sourceShown = !!page && page.sections.some(sec => sec.face === 'source' && sec.open)
     return {
       graphId: b.graphId,

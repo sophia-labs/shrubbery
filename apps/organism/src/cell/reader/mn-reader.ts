@@ -159,6 +159,7 @@ export class MnReader extends LitElement {
   override disconnectedCallback(): void {
     this.removeEventListener('keydown', this.onKey)
     document.removeEventListener('selectionchange', this.onSelectionChange)
+    window.clearTimeout(this.settleTimer)
     this.sizer?.disconnect()
     this.sizer = null
     this.surface?.close()
@@ -571,12 +572,18 @@ export class MnReader extends LitElement {
 
   // --- selection, highlight, note -----------------------------------------------------------------------------------------
 
+  /** How the last press on the stage was made: a touch selection ends without a pointerup, so it is read as it settles. */
+  private lastPointer = 'mouse'
+  private settleTimer = 0
+
   private readonly onSelectionChange = (): void => {
     if (this.composer) return
     const root = this.shadowRoot
     if (!root) return
     const range = selectionIn(root)
+    window.clearTimeout(this.settleTimer)
     if (!range) { if (this.pop) this.pop = null; return }
+    if (this.lastPointer === 'touch') this.settleTimer = window.setTimeout(() => this.selectionPop(), 350)
   }
 
   /** What is selected in the page: its words with context, where it is, and where it is on the screen. */
@@ -664,6 +671,8 @@ export class MnReader extends LitElement {
   private onStageContextMenu(event: MouseEvent): void {
     if (!this.source) return
     event.preventDefault()
+    // A long press on a touch screen selects a word and asks for this menu: the selection bar is what a finger wants.
+    if (this.lastPointer === 'touch') { this.selectionPop(); return }
     const found = this.readSelection()
     const sel: SelectionQuote | null = found ? { quote: found.quote, prefix: found.prefix, suffix: found.suffix, place: found.place } : null
     this.pop = null; this.activePop = null
@@ -1104,7 +1113,7 @@ export class MnReader extends LitElement {
     const source = this.source
     const book = source?.kind === 'epub' ? source.book : null
     const pdf = source?.kind === 'pdf' ? this.pdfState : null
-    return html`<main class="stage" @pointerup=${(e: PointerEvent) => this.onStagePointerUp(e)} @contextmenu=${(e: MouseEvent) => this.onStageContextMenu(e)} @click=${(e: MouseEvent) => this.onStageClick(e)}
+    return html`<main class="stage" @pointerdown=${(e: PointerEvent) => { this.lastPointer = e.pointerType || 'mouse' }} @pointerup=${(e: PointerEvent) => this.onStagePointerUp(e)} @contextmenu=${(e: MouseEvent) => this.onStageContextMenu(e)} @click=${(e: MouseEvent) => this.onStageClick(e)}
         @keyup=${(e: KeyboardEvent) => { if (e.shiftKey) this.selectionPop() }}>
       ${source?.kind === 'pdf' ? html`<div class="pdf" tabindex="0" role="document" aria-label=${this.title || 'PDF'}><div class="pdfViewer"></div></div>` : nothing}
       ${book ? html`<div class="book" tabindex="0" role="document" aria-label=${book.title}>

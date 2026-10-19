@@ -327,6 +327,15 @@ export const READER_STYLES: CSSResult = css`
   .pop .act:hover, .pop .swatch:hover { background: color-mix(in srgb, var(--rd-paper) 16%, transparent); }
   .pop .vsep { width: 1px; height: 18px; background: color-mix(in srgb, var(--rd-paper) 28%, transparent); margin: 0 3px; }
 
+  @media (pointer: coarse) {
+    .pop { padding: 5px; }
+    .pop .swatch { width: 40px; height: 40px; }
+    .pop .swatch i { width: 22px; height: 22px; }
+    .pop .act { height: 40px; padding: 0 14px; }
+    .btn { min-width: 40px; height: 40px; }
+    .menu button, .tabs button, .toc button { min-height: 40px; }
+  }
+
   .composer {
     position: absolute; z-index: 5; width: 300px; padding: 10px; display: grid; gap: 8px;
     background: var(--rd-raised); border: 1px solid var(--rd-rule-strong); border-radius: var(--mn-radius-md, 8px); box-shadow: var(--rd-shadow-pop);
