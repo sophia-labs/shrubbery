@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { adoptedStyleSheetText } from '@shrubbery/nucleus'
 import {
   EXCALIDRAW_NODE_DND_MIME,
   EXCALIDRAW_SCENE_MIME,
@@ -259,9 +260,11 @@ describe('mountExcalidrawRuntime — named-slot React lifecycle', () => {
     expect(h.host.projection).toMatchObject({ anchors: 1 })
     expect(h.project).toHaveBeenCalledWith(expect.objectContaining({ reason: 'load' }))
     expect(h.refresh).toHaveBeenCalledOnce()
-    const style = h.handle.mountElement.shadowRoot?.querySelector('style[data-excalidraw-runtime-style]')
-    expect(style?.textContent).toContain('.excalidraw { --zIndex-layerUI: 2; }')
-    expect(document.head.querySelector('style[data-excalidraw-runtime-style]')).toBeNull()
+    // Adopted onto the mount's shadow root, never the document: the app's CSP
+    // refuses runtime <style> elements.
+    expect(adoptedStyleSheetText(h.handle.mountElement.shadowRoot!, 'excalidraw-runtime'))
+      .toContain('.excalidraw { --zIndex-layerUI: 2; }')
+    expect(adoptedStyleSheetText(document, 'excalidraw-runtime')).toBeNull()
   })
 
   it('lets a rapid reload supersede an aborted initial load without rejecting readiness', async () => {

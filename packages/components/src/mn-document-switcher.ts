@@ -461,6 +461,13 @@ export class MnDocumentSwitcher extends SkinAware(LitElement) {
   @property({ type: String }) statusText = ''
   @property({ type: String }) graphId = ''
   @property({ type: Number }) selectedIndex = 0
+
+  /**
+   * Set by the arrow keys: the next render scrolls the selected row into the
+   * list's view. Hover never sets it, so the list does not move under the
+   * pointer.
+   */
+  private _revealSelection = false
   @property({ attribute: false }) items: readonly MnDocumentSwitcherItem[] = []
   @property({ attribute: false }) actions: readonly MnDocumentSwitcherAction[] = []
 
@@ -470,6 +477,10 @@ export class MnDocumentSwitcher extends SkinAware(LitElement) {
   @query('mn-context-menu') private contextMenu?: MnContextMenu
 
   protected updated(changed: PropertyValues<this>): void {
+    if (this._revealSelection) {
+      this._revealSelection = false
+      this._scrollSelectedRowIntoView()
+    }
     if (changed.has('open') && this.open) {
       void this.updateComplete.then(() => this.inputEl?.focus())
     }
@@ -673,11 +684,13 @@ export class MnDocumentSwitcher extends SkinAware(LitElement) {
 
     if (event.key === 'ArrowDown') {
       event.preventDefault()
+      this._revealSelection = true
       this.selectedIndex = this._clampedIndex(this.selectedIndex + 1)
       return
     }
     if (event.key === 'ArrowUp') {
       event.preventDefault()
+      this._revealSelection = true
       this.selectedIndex = this._clampedIndex(this.selectedIndex - 1)
       return
     }
@@ -688,6 +701,24 @@ export class MnDocumentSwitcher extends SkinAware(LitElement) {
       } else {
         this._selectItem(this.items[this.selectedIndex], event.metaKey || event.ctrlKey)
       }
+    }
+  }
+
+  /**
+   * Keep the selected row inside the results list's view: scroll the list
+   * just enough, up or down. Sets scrollTop on the list itself, not
+   * scrollIntoView, which would also scroll the page around the dialog.
+   */
+  private _scrollSelectedRowIntoView(): void {
+    const list = this.renderRoot.querySelector<HTMLElement>('.results')
+    const row = list?.querySelector<HTMLElement>('[role="option"][aria-selected="true"]')
+    if (!list || !row) return
+    const rowBox = row.getBoundingClientRect()
+    const listBox = list.getBoundingClientRect()
+    if (rowBox.top < listBox.top) {
+      list.scrollTop -= listBox.top - rowBox.top
+    } else if (rowBox.bottom > listBox.bottom) {
+      list.scrollTop += rowBox.bottom - listBox.bottom
     }
   }
 
@@ -835,6 +866,10 @@ export class MnDocumentSwitcher extends SkinAware(LitElement) {
                 >${icon('search', { size: 14 })}</button>
               `}
           <input
+            autocapitalize="off"
+            autocorrect="off"
+            spellcheck="false"
+            writingsuggestions="false"
             class="input"
             type="text"
             placeholder=${actionsMode ? 'Run a command...' : 'Search graph...'}

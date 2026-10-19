@@ -1500,6 +1500,9 @@ export class MnEditorToolbar extends SkinAware(LitElement) {
                 <div class="find-bar" popover="manual" data-open="true">
                   <div class="find-row">
                     <input
+                      autocapitalize="off"
+                      autocorrect="off"
+                      writingsuggestions="false"
                       data-search-input
                       type="search"
                       autocomplete="off"
@@ -1538,6 +1541,9 @@ export class MnEditorToolbar extends SkinAware(LitElement) {
                   </div>
                   <div class="replace-row">
                     <input
+                      autocapitalize="off"
+                      autocorrect="off"
+                      writingsuggestions="false"
                       data-replace-input
                       type="text"
                       autocomplete="off"

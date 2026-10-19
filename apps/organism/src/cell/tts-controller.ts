@@ -8,6 +8,7 @@
  * SpeechSynthesis lifecycle, document block segmentation, and cleanup.
  */
 
+import { adoptStyleSheet, dropAdoptedStyleSheet } from '@shrubbery/nucleus'
 import type {
   WorkspaceTtsActionDetail,
   WorkspaceTtsOptions,
@@ -399,9 +400,8 @@ export class OrganismTtsController {
     this.editorHost?.shadowRoot
       ?.querySelectorAll(`.${HIGHLIGHT_CLASS}`)
       .forEach(element => element.classList.remove(HIGHLIGHT_CLASS))
-    this.editorHost?.shadowRoot
-      ?.querySelectorAll(`[${HIGHLIGHT_STYLE_ATTRIBUTE}]`)
-      .forEach(element => element.remove())
+    const root = this.editorHost?.shadowRoot
+    if (root) dropAdoptedStyleSheet(root, HIGHLIGHT_STYLE_ATTRIBUTE)
   }
 
   private highlight(block: SpeechBlock): void {
@@ -410,15 +410,14 @@ export class OrganismTtsController {
     // ProseMirror is allowed to reconcile classes on managed block nodes. A
     // host-shadow style keyed by the durable block id keeps the visual cue
     // stable without mutating editor state or introducing a decoration plugin.
-    const style = this.editorHost.ownerDocument.createElement('style')
-    style.setAttribute(HIGHLIGHT_STYLE_ATTRIBUTE, '')
-    style.textContent = `
+    // Adopted, not a <style> element: the app's CSP refuses runtime <style>
+    // elements (see adoptStyleSheet).
+    adoptStyleSheet(this.editorHost.shadowRoot, HIGHLIGHT_STYLE_ATTRIBUTE, `
       .editor-mount .ProseMirror [data-block-id="${cssAttributeValue(block.id)}"] {
         background: var(--mn-color-surface-accent-subtle, rgba(61, 127, 95, 0.14)) !important;
         box-shadow: inset 3px 0 0 var(--mn-color-border-accent, #3d7f5f) !important;
       }
-    `
-    this.editorHost.shadowRoot.append(style)
+    `)
   }
 
   private setStatus(status: WorkspaceTtsOptions['status']): void {

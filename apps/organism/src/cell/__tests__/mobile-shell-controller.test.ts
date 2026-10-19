@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
+import { adoptedStyleSheetText } from '@shrubbery/nucleus'
 import '@shrubbery/components'
 import type {
   EditorHostState,
@@ -257,7 +258,7 @@ describe('OrganismMobileShellController', () => {
     expect(portal.querySelector('.organism-mobile-continuity')?.getAttribute('data-visible')).toBe('true')
     expect(continuity.state).toBe('loading')
     expect(continuity.label).toBe('Connecting to Garden')
-    const mobileCss = document.querySelector<HTMLStyleElement>('#organism-mobile-shell-styles')?.textContent ?? ''
+    const mobileCss = adoptedStyleSheetText(document, 'organism-mobile-shell-styles') ?? ''
     expect(mobileCss).toContain("sl-split-panel::part(divider)")
     expect(mobileCss).toContain(".main > .collapse-rail")
     expect(mobileCss).toContain(".main .panel-edge-btns")
@@ -364,7 +365,7 @@ describe('OrganismMobileShellController', () => {
     expect(controller.state.activeRoot).toBe('sophia')
     expect(portal.getAttribute('data-root')).toBe('sophia')
     expect((portal.querySelector('.organism-mobile-search') as HTMLButtonElement).hidden).toBe(true)
-    const mobileCss = document.querySelector<HTMLStyleElement>('#organism-mobile-shell-styles')?.textContent ?? ''
+    const mobileCss = adoptedStyleSheetText(document, 'organism-mobile-shell-styles') ?? ''
     expect(mobileCss).toContain("[data-mobile-root='sophia'] > .app-container")
     expect(mobileCss).toContain("[data-root='sophia'] .organism-mobile-top-bar")
     expect(host.querySelector('sh-chat-host')).toBe(chat)
@@ -656,7 +657,7 @@ describe('OrganismMobileShellController', () => {
     expect(document.documentElement.style.getPropertyValue('--organism-vvw')).toBe('386px')
     expect(editorUpdateCount).toBe(updatesBeforeKeyboard + 1)
 
-    const mobileCss = document.querySelector<HTMLStyleElement>('#organism-mobile-shell-styles')?.textContent ?? ''
+    const mobileCss = adoptedStyleSheetText(document, 'organism-mobile-shell-styles') ?? ''
     expect(mobileCss).toContain('--organism-safe-area-top')
     expect(mobileCss).toContain('--organism-mobile-content-bottom')
     expect(mobileCss).toContain('var(--organism-vvh, 100dvh)')
@@ -766,7 +767,7 @@ describe('OrganismMobileShellController', () => {
     }))
     expect(controller.state.modalOpen).toBe(false)
     expect(portal.getAttribute('data-modal')).toBe('false')
-    const mobileCss = document.querySelector<HTMLStyleElement>('#organism-mobile-shell-styles')?.textContent ?? ''
+    const mobileCss = adoptedStyleSheetText(document, 'organism-mobile-shell-styles') ?? ''
     expect(mobileCss).toContain("[data-modal='true'] > mn-mobile-tabs")
     controller.destroy()
   })

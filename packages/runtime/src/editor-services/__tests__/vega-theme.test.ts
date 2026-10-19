@@ -10,6 +10,7 @@
  * lens; this file is the module's own direct proof.
  */
 import { afterEach, describe, expect, it } from 'vitest'
+import { adoptedStyleSheetText } from '@shrubbery/nucleus'
 import {
   OBSERVATORY_CHART_CATEGORICAL,
   OBSERVATORY_CHART_DIVERGING,
@@ -423,21 +424,21 @@ describe('resolveVegaThemeMode', () => {
 })
 
 describe('ensureVegaTooltipStyles', () => {
-  it('injects a real stylesheet, once, using var(--mn-color-*) references (real cascading CSS, not baked spec JSON)', () => {
-    expect(document.getElementById('sh-vega-tooltip-style')).toBeNull()
+  it('adopts a real stylesheet, once, using var(--mn-color-*) references (real cascading CSS, not baked spec JSON)', () => {
     ensureVegaTooltipStyles(document)
-    const style = document.getElementById('sh-vega-tooltip-style')
-    expect(style).not.toBeNull()
-    expect(style?.tagName).toBe('STYLE')
-    expect(style?.textContent).toContain('#vg-tooltip-element')
-    expect(style?.textContent).toContain('var(--mn-color-surface-elevated')
-    expect(style?.textContent).toContain('font-variant-numeric: tabular-nums')
+    // Adopted, not a <style> element: the app's CSP refuses runtime <style>.
+    expect(document.getElementById('sh-vega-tooltip-style')).toBeNull()
+    const css = adoptedStyleSheetText(document, 'sh-vega-tooltip-style')
+    expect(css).toContain('#vg-tooltip-element')
+    expect(css).toContain('var(--mn-color-surface-elevated')
+    expect(css).toContain('font-variant-numeric: tabular-nums')
   })
 
-  it('is idempotent — a second call never appends a second <style>', () => {
+  it('is idempotent — a second call never adopts a second sheet', () => {
     ensureVegaTooltipStyles(document)
+    const count = document.adoptedStyleSheets.length
     ensureVegaTooltipStyles(document)
-    expect(document.querySelectorAll('#sh-vega-tooltip-style')).toHaveLength(1)
+    expect(document.adoptedStyleSheets).toHaveLength(count)
   })
 })
 

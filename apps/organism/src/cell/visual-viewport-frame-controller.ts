@@ -18,6 +18,8 @@
  * containment must move to avoiding the caret-reveal trigger instead.
  */
 
+import { adoptStyleSheet } from '@shrubbery/nucleus'
+
 const FRAME_STYLE_ID = 'organism-visual-viewport-frame-styles'
 const DEBUG_OUTPUT_ID = 'organism-visual-viewport-debug'
 const ADAPTIVE_BREAKPOINT = '(max-width: 1024px)'
@@ -235,11 +237,9 @@ export class OrganismVisualViewportFrameController {
   }
 
   private ensureStyle(): void {
-    if (this.doc.getElementById(FRAME_STYLE_ID)) return
-    const style = this.doc.createElement('style')
-    style.id = FRAME_STYLE_ID
-    style.textContent = VISUAL_VIEWPORT_FRAME_CSS
-    this.doc.head.append(style)
+    // Adopted, not a <style> element: the app's CSP refuses runtime <style>
+    // elements (see adoptStyleSheet).
+    adoptStyleSheet(this.doc, FRAME_STYLE_ID, VISUAL_VIEWPORT_FRAME_CSS)
   }
 
   private ensureDebugOutput(): void {

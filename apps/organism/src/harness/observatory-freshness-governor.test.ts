@@ -11,6 +11,7 @@
  * of `Date` or `document.visibilityState` (P3a contract step 7).
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { adoptedStyleSheetText } from '@shrubbery/nucleus'
 import type { QueryBlockResult, QueryBlockRow, QueryBlockService } from '@shrubbery/runtime'
 import {
   OBSERVATORY_FRESHNESS_STYLE_ID,
@@ -259,7 +260,7 @@ describe('createObservatoryFreshnessGovernor', () => {
     expect(hostEl.children).toHaveLength(1)
     expect(stampEl.dataset.stale).toBe('true')
     expect(registerEl.classList.contains('obs-stale')).toBe(true)
-    expect(document.getElementById(OBSERVATORY_FRESHNESS_STYLE_ID)).not.toBeNull()
+    expect(adoptedStyleSheetText(document, OBSERVATORY_FRESHNESS_STYLE_ID)).not.toBeNull()
 
     const callsBeforeDispose = service.calls
     governor.dispose()
@@ -267,8 +268,8 @@ describe('createObservatoryFreshnessGovernor', () => {
     expect(hostEl.children).toHaveLength(0)
     expect(stampEl.getAttributeNames()).toEqual([])
     expect(registerEl.getAttributeNames()).toEqual([])
-    // The injected <style> is deliberately left in place.
-    expect(document.getElementById(OBSERVATORY_FRESHNESS_STYLE_ID)).not.toBeNull()
+    // The adopted stylesheet is deliberately left in place.
+    expect(adoptedStyleSheetText(document, OBSERVATORY_FRESHNESS_STYLE_ID)).not.toBeNull()
 
     // No further queries: neither a wall-clock jump nor a visibility flip revives it.
     nowMs += 10_000

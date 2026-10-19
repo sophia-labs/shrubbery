@@ -451,6 +451,9 @@ export class MnAppBar extends SkinAware(LitElement) {
         ? html`<div class="search" part="search">
             <span class="search-glyph" aria-hidden="true">${icon('search', { size: 14 })}</span>
             <input
+              autocapitalize="off"
+              autocorrect="off"
+              writingsuggestions="false"
               class="search-input"
               type="text"
               .value=${this.query}

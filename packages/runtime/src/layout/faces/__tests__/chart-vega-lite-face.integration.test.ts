@@ -21,6 +21,7 @@
  *   - `dispose()` really clears the poll timer.
  */
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { adoptedStyleSheetText } from '@shrubbery/nucleus'
 import { existsSync } from 'node:fs'
 import { McpClient } from '@shrubbery/source'
 import { resolveGardendBin, spawnGardend, type GardendCell } from '@shrubbery/source/node'
@@ -169,8 +170,8 @@ describe('chart.vega-lite — real gardend cell, real SPARQL query, real vega-em
     // REAL rendered SVG rather than the face's pre-theme spec property.)
     const bar = svg.querySelector('.mark-rect path, .mark-rect rect') as SVGElement | null
     expect(bar?.getAttribute('fill')).toBe(CATEGORICAL_PALETTE[0].light)
-    // The tooltip stylesheet — real CSS, injected once into the real document.
-    expect(document.getElementById('sh-vega-tooltip-style')).not.toBeNull()
+    // The tooltip stylesheet — real CSS, adopted once onto the real document.
+    expect(adoptedStyleSheetText(document, 'sh-vega-tooltip-style')).not.toBeNull()
 
     await interpreter.dispose()
   }, 25000)
