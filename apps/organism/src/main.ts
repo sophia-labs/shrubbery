@@ -7553,6 +7553,33 @@ function workspaceSummaries(): WorkspaceSummary[] {
   }))
 }
 
+/**
+ * The pane showing the open document takes the shell's answer about it: an imported original is read-only until
+ * Make Editable (the original-file feature knows both). Panes are built before the features run, and used to get
+ * `readOnly: false` always, so an imported book opened as an editable document with no way to its original.
+ */
+function applyOpenDocumentAccess(
+  hosts: ReadonlyMap<CenterPaneId, CenterPaneEditorHostOptions>,
+  access: EditorDocumentAccess | null,
+): void {
+  if (!openDocId || !access) return
+  const writable = hosts as Map<CenterPaneId, CenterPaneEditorHostOptions>
+  for (const [paneId, claim] of editorClaims) {
+    const host = writable.get(paneId)
+    if (!host || claim.graphId !== currentGraphId || claim.documentId !== openDocId) continue
+    const current = host.documentAccess ?? { readOnly: false }
+    writable.set(paneId, {
+      ...host,
+      documentAccess: {
+        ...current,
+        readOnly: current.readOnly || access.readOnly,
+        ...(access.makeEditableStatus ? { makeEditableStatus: access.makeEditableStatus } : {}),
+        ...(access.makeEditableError ? { makeEditableError: access.makeEditableError } : {}),
+      },
+    })
+  }
+}
+
 function centerPaneEditorHostOptions(): ReadonlyMap<CenterPaneId, CenterPaneEditorHostOptions> {
   const hosts = new Map<CenterPaneId, CenterPaneEditorHostOptions>()
   for (const [paneId, claim] of editorClaims) {
@@ -8751,6 +8778,7 @@ function renderConfig(config: WorkspaceConfig, app: string | undefined): string 
   // rule) — a successful render supersedes it.
   hostEl.querySelector(':scope > .boot-placeholder')?.remove()
   clearCellErrorPanel(hostEl)
+  applyOpenDocumentAccess(paneEditorHosts, workspaceSnapshot.editorDocumentAccess ?? null)
   renderWorkspace(config, { container: hostEl, ...workspaceSnapshot, surface: true })
   // Install the config's selection edges over the real faces + bus, right after
   // the render host builds the panes. Idempotent on reload (disposer runs first).
