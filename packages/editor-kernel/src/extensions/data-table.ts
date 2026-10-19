@@ -143,7 +143,7 @@ export const DATA_TABLE_CSS = `
   border-radius: var(--mn-radius-control, 6px);
   background: var(--mn-color-surface-base, #fff);
   color: var(--mn-color-text-primary, #222a25);
-  font: var(--mn-text-sm, 13px) / 1.2 var(--mn-font-ui, system-ui, sans-serif);
+  font: var(--mn-text-sm, 13px) / 1.2 var(--mn-font-sans, system-ui, sans-serif);
   overflow: hidden;
   white-space: normal;
 }

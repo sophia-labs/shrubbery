@@ -68,7 +68,7 @@ export class MnFileInfo extends SkinAware(LitElement) {
     .header {
       display: flex; align-items: center; justify-content: space-between; gap: var(--mn-space-3, 12px);
       min-height: var(--mn-y-slice-1-height, 44px); padding: 0 var(--mn-space-4, 16px); box-sizing: border-box; flex: 0 0 auto;
-      border-bottom: var(--mn-panel-header-rule, 1px solid var(--mn-color-border-subtle, #e5e7eb));
+      border-bottom: 1px solid var(--mn-color-border-subtle, #e5e7eb);
     }
     .header-left { display: inline-flex; align-items: center; gap: var(--mn-space-2, 8px); min-width: 0; color: var(--mn-color-text-muted, #6b7280); }
     .header-title {
@@ -81,7 +81,7 @@ export class MnFileInfo extends SkinAware(LitElement) {
       border-radius: var(--mn-radius-md, 6px); background: transparent; color: var(--mn-color-text-muted, #6b7280); cursor: pointer;
     }
     .close-btn:hover, .row-action:hover, .copy:hover { background: var(--mn-color-surface-hover, #f3f4f6); color: var(--mn-color-text-primary, #111827); }
-    button:focus-visible, input:focus-visible { outline: 2px solid var(--mn-color-focus-ring, var(--mn-color-text-accent, #2563eb)); outline-offset: 1px; }
+    button:focus-visible, input:focus-visible { outline: 2px solid var(--mn-color-border-focus, var(--mn-color-text-accent, #2563eb)); outline-offset: 1px; }
     .body {
       display: flex; flex: 1 1 auto; min-height: 0; flex-direction: column; gap: var(--mn-space-4, 16px); overflow: auto;
       padding: var(--mn-space-4, 16px); box-sizing: border-box;

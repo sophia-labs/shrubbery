@@ -235,7 +235,7 @@ describe('skin-aware chrome — icon-only structure: the caption stays in the DO
   it('mn-bottom-bar: each toggle carries BOTH an icon glyph and the label caption', async () => {
     const { el } = await mountUnder<MnBottomBar>('mn-bottom-bar', 'emporium', 'light')
     const toggles = Array.from(el.shadowRoot!.querySelectorAll('.toggle-btn'))
-    expect(toggles.length).toBe(6) // Files/Graph/Outline (left) + Sophia/Comments/Wires (right)
+    expect(toggles.length).toBe(7) // Files/Graph/Outline (left) + Sophia/Comments/Wires/Graph (right)
     for (const t of toggles) {
       expect(t.querySelector('.toggle-icon')).not.toBeNull()
       expect(t.querySelector('.toggle-label')).not.toBeNull()

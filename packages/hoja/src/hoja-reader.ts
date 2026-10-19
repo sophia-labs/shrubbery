@@ -46,7 +46,7 @@ hoja-reader .ProseMirror {
 hoja-reader .ProseMirror > :first-child { margin-top: 0; }
 hoja-reader .ProseMirror h1, hoja-reader .ProseMirror h2, hoja-reader .ProseMirror h3,
 hoja-reader .ProseMirror h4, hoja-reader .ProseMirror h5, hoja-reader .ProseMirror h6 {
-  font-family: var(--mn-font-title, var(--mn-font-ui, system-ui, sans-serif));
+  font-family: var(--mn-font-display, var(--mn-font-sans, system-ui, sans-serif));
   color: var(--mn-color-text-title, var(--mn-color-text-primary, #222a25));
   line-height: 1.25;
   margin: 1.4em 0 0.5em;
@@ -62,23 +62,23 @@ hoja-reader .ProseMirror blockquote { margin: 0 0 0.8em; padding: 0.1em 0 0.1em 
   border-left: 3px solid var(--mn-color-border-default, #c9d2cc); }
 hoja-reader .ProseMirror hr { border: 0; border-top: 1px solid var(--mn-color-border-default, #c9d2cc); margin: 1.5em 0; }
 hoja-reader .ProseMirror a { color: var(--mn-color-text-link, var(--mn-color-text-accent, #2e6a4f)); text-decoration: underline; text-underline-offset: 0.15em; cursor: pointer; }
-hoja-reader .ProseMirror mark { background: var(--mn-color-highlight, var(--mn-color-surface-warning, #fff3c4)); color: inherit; }
+hoja-reader .ProseMirror mark { background: #fff3c4; color: inherit; }
 hoja-reader .ProseMirror :not(pre) > code {
   font-family: var(--mn-font-mono, ui-monospace, monospace);
   font-size: 0.88em;
   padding: 0.08em 0.3em;
-  border-radius: var(--mn-radius-xs, 4px);
+  border-radius: var(--mn-radius-sm, 4px);
   background: var(--mn-color-surface-sunken, #f1f3f1);
   border: 1px solid var(--mn-color-border-subtle, #e1e7e3);
 }
-hoja-reader .ProseMirror table { border-collapse: collapse; margin: 0 0 1em; font: var(--mn-text-sm, 13px) / 1.4 var(--mn-font-ui, system-ui, sans-serif);
+hoja-reader .ProseMirror table { border-collapse: collapse; margin: 0 0 1em; font: var(--mn-text-sm, 13px) / 1.4 var(--mn-font-sans, system-ui, sans-serif);
   display: block; overflow-x: auto; max-width: 100%; }
 hoja-reader .ProseMirror th, hoja-reader .ProseMirror td { border: 1px solid var(--mn-color-border-default, #c9d2cc); padding: 4px 8px; vertical-align: top; text-align: left; min-width: 3em; }
 hoja-reader .ProseMirror th { background: var(--mn-color-surface-subtle, #f4f6f4); font-weight: 600; }
 hoja-reader .ProseMirror td > p, hoja-reader .ProseMirror th > p { margin: 0; }
 hoja-reader .ProseMirror img { max-width: 100%; height: auto; }
 hoja-reader .hoja-reader-image-load, hoja-reader .hoja-reader-image[data-source='absent'] {
-  font: var(--mn-text-sm, 13px) / 1.3 var(--mn-font-ui, system-ui, sans-serif);
+  font: var(--mn-text-sm, 13px) / 1.3 var(--mn-font-sans, system-ui, sans-serif);
   color: var(--mn-color-text-secondary, #4d5952);
 }
 hoja-reader .hoja-reader-image-load { cursor: pointer; background: var(--mn-color-surface-raised, #fff); border: 1px dashed var(--mn-color-border-default, #c9d2cc);
@@ -100,14 +100,14 @@ hoja-reader .ProseMirror pre {
   border-radius: var(--mn-radius-control, 6px);
 }
 hoja-reader .ProseMirror pre code { font: inherit; background: none; border: 0; padding: 0; }
-hoja-reader .code-copy-btn { position: absolute; top: 6px; right: 6px; z-index: 1; font: var(--mn-text-xs, 11px) / 1 var(--mn-font-chrome, var(--mn-font-ui, system-ui, sans-serif));
+hoja-reader .code-copy-btn { position: absolute; top: 6px; right: 6px; z-index: 1; font: var(--mn-text-xs, 11px) / 1 var(--mn-font-chrome, var(--mn-font-sans, system-ui, sans-serif));
   color: var(--mn-color-text-secondary, #4d5952); background: var(--mn-color-surface-raised, #fff); border: 1px solid var(--mn-color-border-default, #c9d2cc);
   border-radius: var(--mn-radius-control, 6px); padding: 4px 8px; cursor: pointer; opacity: 0; transition: opacity 120ms ease; }
 hoja-reader .code-block-wrapper:hover .code-copy-btn, hoja-reader .code-copy-btn:focus-visible { opacity: 1; }
 hoja-reader .code-block-wrapper[data-language]::after {
   content: attr(data-language);
   position: absolute; top: 8px; right: 64px;
-  font: var(--mn-text-xs, 11px) / 1 var(--mn-font-chrome, var(--mn-font-ui, system-ui, sans-serif));
+  font: var(--mn-text-xs, 11px) / 1 var(--mn-font-chrome, var(--mn-font-sans, system-ui, sans-serif));
   color: var(--mn-color-text-muted, #768079);
   letter-spacing: 0.04em; text-transform: uppercase; pointer-events: none;
 }

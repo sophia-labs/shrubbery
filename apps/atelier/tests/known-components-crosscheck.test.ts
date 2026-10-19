@@ -44,7 +44,7 @@ import { ShEditorHost, ShChatHost, ShWirePinnedLayer, ShWiresPanel } from '@shru
  *    is LAZILY defined by the runtime at surface render time (exactly like
  *    sh-workspace-surface, which is likewise unregistered at import time), so
  *    at this import-only crosscheck it is deliberately not registered.
- *  - The three Organism-owned extensions are registered/tested by that rich
+ *  - The Organism-owned extensions are registered/tested by that rich
  *    host, which Atelier does not import. These are exact external tags, not
  *    permission for arbitrary unregistered components. */
 const UNREGISTERED_ALLOWLIST_TAGS = [
@@ -55,6 +55,8 @@ const UNREGISTERED_ALLOWLIST_TAGS = [
   'mn-phanes-control-editor',
   'mn-agent-studio-editor',
   'mn-grapevine-pane',
+  // The Flow app frame (apps/organism/src/cell/flow-app-frame.ts): Organism-owned, like the others.
+  'sh-flow-app-frame',
 ] as const
 
 describe('KNOWN_COMPONENTS drift cross-check (test-only, not gate-time)', () => {

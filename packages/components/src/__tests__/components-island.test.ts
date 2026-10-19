@@ -70,7 +70,7 @@ describe('ISLAND — components import only lit + nucleus(types) + pure visuals;
     expect(files.length).toBeGreaterThan(0)
   })
 
-  it('every external import is lit, lucide, three, fabric, or @shrubbery/nucleus (relative = sibling .js only)', () => {
+  it('every external import is lit, lucide, three, fabric, xterm, @pierre/trees, or @shrubbery/nucleus (relative = sibling .js only)', () => {
     const offenders: Array<{ file: string; spec: string }> = []
     for (const file of files) {
       const src = readFileSync(file, 'utf8')
@@ -90,7 +90,12 @@ describe('ISLAND — components import only lit + nucleus(types) + pure visuals;
         // fabric is allowed only as a pure local canvas editing dependency for
         // mn-artifact-editor. Generation/save effects stay host-owned events.
         const isFabric = spec === 'fabric' || spec.startsWith('fabric/')
-        if (!isRelative && !isLit && !isNucleus && !isLucide && !isThree && !isFabric) {
+        // xterm (the terminal emulator in wf-development-terminal) and @pierre/trees (the file tree
+        // in wf-repository-tree) are pure rendering libraries: they draw into a node this package
+        // gives them, and the host owns every effect (the pty, the repository) as events.
+        const isXterm = spec === '@xterm/xterm' || spec.startsWith('@xterm/')
+        const isPierreTrees = spec === '@pierre/trees' || spec.startsWith('@pierre/trees/')
+        if (!isRelative && !isLit && !isNucleus && !isLucide && !isThree && !isFabric && !isXterm && !isPierreTrees) {
           offenders.push({ file, spec })
         }
       }

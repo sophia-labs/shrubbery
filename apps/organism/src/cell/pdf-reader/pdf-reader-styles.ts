@@ -13,7 +13,7 @@ mn-pdf-reader {
   --pr-read: var(--mn-color-info, #2f6fb0);
   --pr-check: var(--mn-color-warning, #b87a00);
   --pr-checked: var(--mn-color-success, #2e7d4f);
-  --pr-corrected: var(--mn-color-accent-secondary, #7a4fb0);
+  --pr-corrected: #7a4fb0;
   --pr-contested: var(--mn-color-danger, #b3261e);
   display: flex; flex-direction: column; min-width: 0; min-height: 0; width: 100%; height: 100%;
   container-type: inline-size; container-name: pdfr;
@@ -33,7 +33,7 @@ mn-pdf-reader .pr-btn:hover:not(:disabled) { background: var(--pr-hover); color:
 mn-pdf-reader .pr-btn:disabled { opacity: 0.4; cursor: default; }
 mn-pdf-reader .pr-btn[aria-pressed='true'] { background: var(--mn-color-surface-accent, #e3efe8); color: var(--pr-accent); border-color: var(--pr-line-strong); }
 mn-pdf-reader .pr-btn:focus-visible, mn-pdf-reader input:focus-visible, mn-pdf-reader select:focus-visible, mn-pdf-reader .pr-item:focus-visible,
-mn-pdf-reader .pr-thumb:focus-visible, mn-pdf-reader .pr-abox:focus-visible { outline: 2px solid var(--mn-color-focus-ring, var(--pr-accent)); outline-offset: 1px; }
+mn-pdf-reader .pr-thumb:focus-visible, mn-pdf-reader .pr-abox:focus-visible { outline: 2px solid var(--mn-color-border-focus, var(--pr-accent)); outline-offset: 1px; }
 mn-pdf-reader .pr-btn svg { width: 16px; height: 16px; flex: 0 0 auto; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 mn-pdf-reader .pr-page { display: inline-flex; align-items: center; gap: 4px; color: var(--pr-ink3); flex: 0 0 auto; }
 mn-pdf-reader .pr-page input { width: 3.2em; height: 26px; box-sizing: border-box; text-align: center; border: 1px solid var(--pr-line-strong); border-radius: var(--mn-radius-md, 6px);

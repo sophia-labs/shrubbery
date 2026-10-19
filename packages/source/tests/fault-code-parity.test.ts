@@ -44,14 +44,14 @@ const HERE = dirname(fileURLToPath(import.meta.url))
 
 const GARDEN_APP_ERROR_CODES_CANDIDATES: readonly string[] = [
   ...(process.env.GARDEN_SOURCE_ROOT ? [resolve(process.env.GARDEN_SOURCE_ROOT, 'src-tauri/src/app_error_codes.rs')] : []),
-  // Sibling-repo checkout: shrubbery/packages/source/tests/ → ../../../garden/...
-  resolve(HERE, '../../../garden/src-tauri/src/app_error_codes.rs'),
-  '/Users/vera/dev/sophia/garden/src-tauri/src/app_error_codes.rs',
+  // Sibling-repo checkouts (gardend and shrubbery side by side): packages/source/tests/ → ../../../../gardend/...
+  resolve(HERE, '../../../../gardend/src-tauri/src/app_error_codes.rs'),
+  resolve(HERE, '../../../../garden/src-tauri/src/app_error_codes.rs'),
 ]
 
 const GATEWAY_FAULT_CODES_CANDIDATES: readonly string[] = [
-  resolve(HERE, '../../../platform-next/gateway/src/fault_codes.rs'),
-  '/Users/vera/dev/sophia/platform-next/gateway/src/fault_codes.rs',
+  ...(process.env.GATEWAY_SOURCE_ROOT ? [resolve(process.env.GATEWAY_SOURCE_ROOT, 'gateway/src/fault_codes.rs')] : []),
+  resolve(HERE, '../../../../platform-next/gateway/src/fault_codes.rs'),
 ]
 
 function findExisting(candidates: readonly string[]): string | null {
@@ -124,9 +124,9 @@ if (gardenPath !== null) {
     const stillPresent = existsSync(gardenPath)
     const gatewayPresent = gatewayPath !== null && existsSync(gatewayPath)
 
-    it.skipIf(!stillPresent)('Garden originates exactly 15 codes, all snake_case', () => {
+    it.skipIf(!stillPresent)('Garden originates exactly 16 codes, all snake_case', () => {
       const gardenAll = readRustAllArray(gardenPath)
-      expect(gardenAll).toHaveLength(15)
+      expect(gardenAll).toHaveLength(16)
       for (const code of gardenAll) expect(code).toMatch(/^[a-z][a-z0-9_]*$/)
       expect(new Set(gardenAll).size).toBe(gardenAll.length) // no duplicates
     })
@@ -146,13 +146,13 @@ if (gardenPath !== null) {
     })
 
     it.skipIf(!stillPresent)(
-      'the client union is exactly Garden ∪ the 3 gateway-only codes — 18 total, each shared spelling counted once',
+      'the client union is exactly Garden ∪ the 3 gateway-only codes — 19 total, each shared spelling counted once',
       () => {
         const gardenAll = readRustAllArray(gardenPath)
         expect(new Set(gardenAll)).toEqual(
           new Set(SOURCE_FAULT_CODES.filter(code => !(GATEWAY_ONLY as readonly string[]).includes(code))),
         )
-        expect(SOURCE_FAULT_CODES).toHaveLength(18)
+        expect(SOURCE_FAULT_CODES).toHaveLength(19)
         expect(new Set(SOURCE_FAULT_CODES)).toEqual(new Set([...gardenAll, ...GATEWAY_ONLY]))
       },
     )

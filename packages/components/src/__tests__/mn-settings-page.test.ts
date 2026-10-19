@@ -40,7 +40,7 @@ describe('mn-settings-page - controlled Garden settings page', () => {
     expect(sr(el).querySelector('[data-identity="username"]')?.textContent).toBe('vera')
     expect(sr(el).querySelector('[data-identity="id"]')?.textContent).toBe('cognito-subject-1')
     expect(sr(el).textContent).not.toContain('On-device')
-    expect(sr(el).textContent).toContain('Cognito user ID')
+    expect(sr(el).textContent).toContain('Account ID')
     el.userEmail = 'vera@example.test'
     el.emailVerified = true
     await el.updateComplete

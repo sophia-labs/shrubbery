@@ -2565,7 +2565,7 @@ export class MnSettingsPage extends SkinAware(LitElement) {
         ` : nothing}
         ${hosted && trimmed(this.userId) ? html`
           <div class="identity-row">
-            <div class="field-label">Cognito user ID</div>
+            <div class="field-label">Account ID</div>
             <div class="identity-value" data-identity="id" style="user-select:all;overflow-wrap:anywhere">${this.userId}</div>
           </div>
         ` : nothing}

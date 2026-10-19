@@ -38,6 +38,9 @@ export const SOURCE_FAULT_CODES = [
   'document_exists',
   'document_tombstoned',
   'recreate_boundary_mismatch',
+  // A retained document's body is missing on the cell; not a fence and not a verdict on the
+  // operation, so it keeps the default disposition (retryable) until the cell repairs the body.
+  'source_body_unavailable',
   'stale_sync_conflict',
   'causal_cycle',
   'operation_id_reused',
