@@ -149,6 +149,8 @@ export class MnReader extends LitElement {
   private memoryTimer = 0
   private pendingSeq = 0
   private thumbsDrawn = new Set<number>()
+  /** Scans this Reader has already asked the shell to read (it asks once, unprompted). */
+  private readonly scanAsked = new Set<string>()
 
   constructor() {
     super()
@@ -241,7 +243,16 @@ export class MnReader extends LitElement {
       const viewer = this.renderRoot.querySelector<HTMLElement>('.pdfViewer')
       if (!container || !viewer) return
       const surface = new PdfSurface({
-        changed: state => { if (this.surface === surface) { this.pdfState = state; this.queuePlaceNotes() } },
+        changed: state => {
+          if (this.surface !== surface) return
+          this.pdfState = state
+          this.queuePlaceNotes()
+          // A scan reads itself the first time it is opened (the shell keeps the words, so once per scan).
+          if (state.ready && !state.hasText && !source.ocr && !this.scanAsked.has(source.key) && (!this.scan || this.scan.state === 'idle')) {
+            this.scanAsked.add(source.key)
+            this.say('reader-read-scan', { auto: true })
+          }
+        },
         textLayerRendered: page => { if (this.surface === surface) this.pageReady(page) },
         failed: message => { if (this.surface === surface) this.failure = message },
       }, source.key)
