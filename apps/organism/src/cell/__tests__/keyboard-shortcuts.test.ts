@@ -64,6 +64,30 @@ describe('registry document keyboard parity', () => {
     expect(calls).toEqual(['doc-a'])
   })
 
+  it('executes view.zen from Mod+\\ , including from inside the editor, and nothing else while typing', () => {
+    const registry = new CommandRegistryImpl()
+    const calls: string[] = []
+    registry.register({
+      id: 'view.zen', label: 'Zen Mode', category: 'View', shortcut: 'Mod+\\',
+      surfaces: ['palette', 'shortcut'], run: () => { calls.push('zen') },
+    })
+    registry.register({
+      id: 'document.new', label: 'New Document', category: 'Document', shortcut: 'Mod+Alt+N',
+      surfaces: ['palette', 'shortcut'], run: () => { calls.push('new') },
+    })
+    const editor = document.body.appendChild(document.createElement('input'))
+    dispatchKey(document.body, { key: '\\', code: 'Backslash', metaKey: true }, key => {
+      expect(handleRegistryDocumentShortcut(key, registry, ctx)).toBe('view.zen')
+    })
+    dispatchKey(editor, { key: '\\', code: 'Backslash', ctrlKey: true }, key => {
+      expect(handleRegistryDocumentShortcut(key, registry, ctx)).toBe('view.zen')
+    })
+    dispatchKey(editor, { key: '˜', code: 'KeyN', metaKey: true, altKey: true }, key => {
+      expect(handleRegistryDocumentShortcut(key, registry, ctx)).toBeNull()
+    })
+    expect(calls).toEqual(['zen', 'zen'])
+  })
+
   it('does not consume unavailable, repeated, text-entry, contenteditable, or modal shortcuts', () => {
     const registry = new CommandRegistryImpl()
     const calls: string[] = []

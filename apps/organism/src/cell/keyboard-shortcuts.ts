@@ -8,7 +8,9 @@
 
 import type { CommandContext, CommandRegistry } from '@shrubbery/nucleus'
 
-const DOCUMENT_SHORTCUT_IDS = new Set(['document.new', 'document.rename'])
+const DOCUMENT_SHORTCUT_IDS = new Set(['document.new', 'document.rename', 'view.zen'])
+// A chord that means the same thing while you are typing (zen is toggled from inside the page you are writing on).
+const TEXT_ENTRY_SHORTCUT_IDS = new Set(['view.zen'])
 const LANDMARK_SELECTOR = '[role="navigation"], [role="main"], [role="complementary"]'
 const MODAL_SELECTOR = '[role="dialog"], [role="alertdialog"], [aria-modal="true"]'
 
@@ -73,11 +75,13 @@ export function registryDocumentShortcutId(
   registry: Pick<CommandRegistry, 'available'>,
   ctx: CommandContext,
 ): string | null {
-  if (event.defaultPrevented || event.repeat || isTextEntryEvent(event) || isModalEvent(event)) return null
+  if (event.defaultPrevented || event.repeat || isModalEvent(event)) return null
+  const typing = isTextEntryEvent(event)
   const command = registry
     .available(ctx, 'shortcut')
     .find(candidate =>
       DOCUMENT_SHORTCUT_IDS.has(candidate.id)
+      && (!typing || TEXT_ENTRY_SHORTCUT_IDS.has(candidate.id))
       && candidate.disabled !== true
       && typeof candidate.shortcut === 'string'
       && shortcutMatches(candidate.shortcut, event))
