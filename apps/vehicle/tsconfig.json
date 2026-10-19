@@ -13,7 +13,7 @@
     "experimentalDecorators": true,
     "emitDecoratorMetadata": false,
     "strict": true,
-    "types": ["node"]
+    "types": ["node", "vite/client"]
   },
   "include": ["src/**/*.ts"],
   "exclude": ["node_modules", "dist"]
