@@ -23,7 +23,7 @@ import { repeat } from 'lit/directives/repeat.js'
 import { ref } from 'lit/directives/ref.js'
 import { locateQuoteAnnotations, quoteSearchText, type QuoteChapterText, type QuoteSearchText } from '../source-quote-annotations.js'
 import './reader-bar.js'
-import { chapterAtLine, nextChapterWindow, windowAt, type ChapterWindow } from './chapter-window.js'
+import { DEFAULT_PX_PER_WORD, bookLayout, chapterAtLine, chapterHeights, gapsAround, isJump, nextChapterWindow, placeAtY, pxPerWord, windowAt, type BookLayout, type ChapterWindow } from './chapter-window.js'
 import type { MenuEntry, MenuSelectDetail } from '@shrubbery/nucleus'
 import type { MnContextMenu } from '@shrubbery/components/context-menu'
 import { icon } from './reader-icons.js'
@@ -116,6 +116,11 @@ export class MnReader extends LitElement {
   @state() private chapter = 0
   /** The chapters in the page: one in By chapter, a few around the reading line in Continuous. */
   @state() private win: ChapterWindow = { first: 0, last: 0 }
+  /** Continuous: px per word of the chapters measured now (the estimate for the gaps of the chapters not in the page). */
+  @state() private perWord = DEFAULT_PX_PER_WORD
+  /** The measured height of each chapter that has been in the page at this type size and width. */
+  private measuredHeights = new Map<number, number>()
+  private measuredWidth = 0
   @state() private progress = 0
   @state() private type: TypeSettings = { size: 2, face: 'serif', measure: 'medium', justify: true, layout: 'continuous', ...readJson<Partial<TypeSettings>>(TYPE_KEY) }
   @state() private pop: SelectionPop | null = null
@@ -163,6 +168,7 @@ export class MnReader extends LitElement {
     document.addEventListener('selectionchange', this.onSelectionChange)
     this.sizer = new ResizeObserver(entries => {
       const width = entries[0]?.contentRect.width ?? 0
+      if (Math.abs(width - this.measuredWidth) > 1) { this.measuredWidth = width; this.measuredHeights.clear() }
       const narrow = width > 0 && width < 900
       if (narrow !== this.narrow) { this.narrow = narrow; this.overlay = null; this.toggleAttribute('data-narrow', narrow) }
     })
@@ -280,6 +286,8 @@ export class MnReader extends LitElement {
       const count = source.book.chapters.length
       const start = Math.max(0, Math.min(count - 1, Math.floor(memory?.chapter ?? this.firstReadableChapter(source.book))))
       this.chapter = start
+      this.measuredHeights.clear()
+      this.perWord = DEFAULT_PX_PER_WORD
       this.win = windowAt(start, count)
       await this.updateComplete
       const scroller = this.scroller()
@@ -559,6 +567,11 @@ export class MnReader extends LitElement {
     const els = this.chapterEls()
     if (!els.length) return
     const first = els[0]!.getBoundingClientRect().top
+    this.measureChapters(els, book)
+    if (isJump(scroller.getBoundingClientRect().top - first, scroller.clientHeight, els.reduce((sum, el) => sum + el.getBoundingClientRect().height, 0))) {
+      this.jumpTo(book, scroller)
+      return
+    }
     const next = nextChapterWindow({
       count: book.chapters.length,
       current: this.win,
@@ -570,6 +583,36 @@ export class MnReader extends LitElement {
       this.winAnchor = this.captureAnchor()
       this.win = next
     }
+  }
+
+  /** Remember the height of every chapter in the page, and the px per word they give for the ones that are not. */
+  private measureChapters(els: readonly HTMLElement[], book: ReaderBook): void {
+    for (const el of els) this.measuredHeights.set(Number(el.dataset.chapter), el.getBoundingClientRect().height)
+    const words = book.chapters.map(c => c.wordCount)
+    const per = pxPerWord(words, this.measuredHeights, this.perWord)
+    if (Math.abs(per - this.perWord) / this.perWord > 0.03) {
+      // The gaps are estimates: change them without moving the text being read.
+      const anchor = this.captureAnchor()
+      this.perWord = per
+      void this.updateComplete.then(() => this.restoreAnchor(anchor))
+    }
+  }
+
+  private bookLayout(book: ReaderBook): BookLayout {
+    return bookLayout(chapterHeights(book.chapters.map(c => c.wordCount), this.measuredHeights, this.perWord))
+  }
+
+  /** The scrollbar was dragged to where nothing is rendered: the chapter there, through the heights of the whole book. */
+  private jumpTo(book: ReaderBook, scroller: HTMLElement): void {
+    const { chapter, fraction } = placeAtY(this.bookLayout(book), scroller.scrollTop)
+    this.pop = null; this.activePop = null
+    this.scrollAfterWin = () => {
+      const el = this.chapterEls().find(e => Number(e.dataset.chapter) === chapter)
+      if (!el) return
+      scroller.scrollTop += (el.getBoundingClientRect().top - scroller.getBoundingClientRect().top) + fraction * el.getBoundingClientRect().height
+    }
+    this.chapter = chapter
+    this.win = windowAt(chapter, book.chapters.length)
   }
 
   private trackBookProgress(): void {
@@ -923,6 +966,7 @@ export class MnReader extends LitElement {
 
   private setType(patch: Partial<TypeSettings>): void {
     if (this.source?.kind === 'epub') {
+      this.measuredHeights.clear()
       if (patch.layout && patch.layout !== this.type.layout) {
         // Another layout: the same place in the book, in the other arrangement.
         const place = this.bookPlace()
@@ -1140,7 +1184,9 @@ export class MnReader extends LitElement {
         @keyup=${(e: KeyboardEvent) => { if (e.shiftKey) this.selectionPop() }}>
       ${source?.kind === 'pdf' ? html`<div class="pdf" tabindex="0" role="document" aria-label=${this.title || 'PDF'}><div class="pdfViewer"></div></div>` : nothing}
       ${book ? html`<div class="book" tabindex="0" role="document" aria-label=${book.title}>
+        ${this.gap(book, 'before')}
         ${repeat(book.chapters.slice(this.win.first, this.win.last + 1), c => c.index, c => html`<article class="chapter" id=${`rd-c${c.index}`} data-chapter=${c.index} lang=${book.language || nothing}>${unsafeHTML(c.html)}</article>`)}
+        ${this.gap(book, 'after')}
         ${this.continuous ? nothing : html`<nav class="chapter-nav" aria-label="Chapters">
           ${this.chapter > 0 ? html`<button type="button" @click=${() => this.goChapter(this.chapter - 1)}><small>Previous</small>${book.chapters[this.chapter - 1]?.title}</button>` : nothing}
           ${this.chapter < book.chapters.length - 1 ? html`<button type="button" data-next @click=${() => this.goChapter(this.chapter + 1)}><small>Next</small>${book.chapters[this.chapter + 1]?.title}</button>` : nothing}
@@ -1153,6 +1199,13 @@ export class MnReader extends LitElement {
       ${this.composerView()}
       ${this.veil()}
     </main>`
+  }
+
+  /** The unrendered chapters before or after the window, as one block of their estimated height: the scrollbar is the whole book. */
+  private gap(book: ReaderBook, side: 'before' | 'after'): TemplateResult | typeof nothing {
+    if (!this.continuous) return nothing
+    const height = gapsAround(this.bookLayout(book), this.win)[side]
+    return html`<div class="gap" data-gap=${side} style=${`height:${Math.round(height)}px`} aria-hidden="true"></div>`
   }
 
   /** A scan without words: offer to read it, show the reading, or say why it cannot be read here. */

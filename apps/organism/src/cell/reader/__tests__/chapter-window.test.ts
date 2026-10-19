@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { chapterAtLine, nextChapterWindow, windowAt } from '../chapter-window.js'
+import { DEFAULT_PX_PER_WORD, bookLayout, chapterAtLine, chapterAtY, chapterHeights, gapsAround, isJump, nextChapterWindow, placeAtY, pxPerWord, windowAt } from '../chapter-window.js'
 
 const V = 800
 const win = (first: number, last: number, heights: number[], scrollTop: number, count = 21, extra = {}) =>
@@ -57,5 +57,56 @@ describe('chapterAtLine', () => {
     expect(chapterAtLine({ first: 3, last: 5 }, heights, 1000)).toBe(4)
     expect(chapterAtLine({ first: 3, last: 5 }, heights, 3200)).toBe(5)
     expect(chapterAtLine({ first: 3, last: 5 }, heights, 99999)).toBe(5)
+  })
+})
+
+describe('the height of the whole book', () => {
+  const words = [100, 1000, 5000, 20000, 50]
+  it('measures px per word over the rendered chapters, or falls back', () => {
+    expect(pxPerWord(words, new Map())).toBe(DEFAULT_PX_PER_WORD)
+    expect(pxPerWord(words, new Map([[2, 15096], [3, 60096]]), 9)).toBeCloseTo(3)
+    expect(pxPerWord(words, new Map([[2, 15096]]), 9)).toBe(3)
+    // a cover and a short preface say nothing about px per word
+    expect(pxPerWord(words, new Map([[0, 5000], [4, 5000], [3, 9000]]), 9)).toBe(9)
+  })
+  it('estimates unmeasured chapters from their words and keeps measured ones', () => {
+    const heights = chapterHeights(words, new Map([[2, 9999]]), 3)
+    expect(heights).toEqual([396, 3096, 9999, 60096, 246])
+  })
+  it('lays out cumulative tops and finds the chapter at a position', () => {
+    const layout = bookLayout([100, 200, 300])
+    expect(layout.tops).toEqual([0, 100, 300])
+    expect(layout.total).toBe(600)
+    expect([0, 99, 100, 299, 300, 599, 5000, -5].map(y => chapterAtY(layout, y))).toEqual([0, 0, 1, 1, 2, 2, 2, 0])
+  })
+  it('puts the rest of the book in two gaps around the window', () => {
+    const layout = bookLayout([100, 200, 300, 400, 500])
+    expect(gapsAround(layout, { first: 1, last: 2 })).toEqual({ before: 100, after: 900 })
+    expect(gapsAround(layout, { first: 0, last: 4 })).toEqual({ before: 0, after: 0 })
+  })
+  it('the gaps and the window add up to the whole book at any window', () => {
+    const layout = bookLayout(chapterHeights(words, new Map([[2, 7777]]), 2.5))
+    for (const w of [{ first: 0, last: 0 }, { first: 1, last: 3 }, { first: 4, last: 4 }]) {
+      const { before, after } = gapsAround(layout, w)
+      let inside = 0
+      for (let i = w.first; i <= w.last; i++) inside += layout.heights[i]!
+      expect(before + inside + after).toBeCloseTo(layout.total)
+    }
+  })
+  it('a jump is a view that shares no pixel with the rendered chapters', () => {
+    expect(isJump(0, 800, 9000)).toBe(false)
+    expect(isJump(-300, 800, 9000)).toBe(false)
+    expect(isJump(-800, 800, 9000)).toBe(true)
+    expect(isJump(8999, 800, 9000)).toBe(false)
+    expect(isJump(9000, 800, 9000)).toBe(true)
+  })
+  it('a drag to half of the scroll height lands in the middle chapter', () => {
+    const layout = bookLayout(chapterHeights(Array(21).fill(4000), new Map(), 2.7))
+    const placed = placeAtY(layout, layout.total / 2)
+    expect(placed.chapter).toBe(10)
+    expect(placed.fraction).toBeGreaterThan(0)
+    expect(placed.fraction).toBeLessThan(1)
+    expect(placeAtY(layout, 0)).toEqual({ chapter: 0, fraction: 0 })
+    expect(placeAtY(layout, layout.total * 2).chapter).toBe(20)
   })
 })

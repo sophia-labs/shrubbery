@@ -201,6 +201,7 @@ export const READER_STYLES: CSSResult = css`
 
   /* --- EPUB --------------------------------------------------------------------------------------------------------- */
   .book { position: absolute; inset: 0; overflow: auto; background: var(--rd-paper); outline: none; scroll-behavior: auto; overflow-anchor: none; }
+  .gap { pointer-events: none; }
   .chapter {
     max-width: var(--rd-measure);
     margin: 0 auto;
