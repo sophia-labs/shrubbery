@@ -330,6 +330,11 @@ export const READER_STYLES: CSSResult = css`
     padding: 8px 14px; border-radius: 999px; background: var(--rd-raised); border: 1px solid var(--rd-rule-strong);
     color: var(--rd-muted); box-shadow: var(--rd-shadow-pop); font-size: var(--mn-text-xs, 12px); text-align: center;
   }
+  .banner { display: flex; align-items: center; gap: 10px; justify-content: center; }
+  .banner-act {
+    flex: none; height: 26px; padding: 0 12px; border: 0; border-radius: 999px; cursor: pointer;
+    background: var(--mn-color-action-primary, var(--rd-accent)); color: var(--mn-color-text-on-accent, #fff); font-weight: 500;
+  }
   .veil { position: absolute; inset: 0; z-index: 4; display: grid; place-items: center; background: var(--rd-canvas); color: var(--rd-muted); padding: 24px; text-align: center; }
   .veil p { max-width: 36em; line-height: 1.5; }
   .bar-progress { position: absolute; left: 0; bottom: -1px; height: 2px; background: var(--rd-accent); opacity: 0.55; transition: width 200ms ease; }

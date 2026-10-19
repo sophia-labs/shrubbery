@@ -48,6 +48,7 @@ import { flowAppEnabled } from './flow-workspace.js'
 import { OrganismOriginalFileController } from './original-file-controller.js'
 import './reader/mn-reader.js'
 import { readerAnnotationsFor } from './reader/reader-annotations.js'
+import type { OcrTextLayer } from './reader/ocr-text-layer.js'
 import {
   documentQuoteState,
   isQuoteSourceDoc,
@@ -749,6 +750,45 @@ function originalFileFeature<TContract>(): ShellFeature<TContract> {
     void controller?.toggle(assignedHost?.getPdfSourceLocation?.() ?? null)
   }
   const onReload = (): void => { void controller?.reload() }
+  // A scan's words: gardend reads them (read_scan_text, a background job) and keeps them (scan_text_layer).
+  const scanChecked = new Set<string>()
+  let scanPoll = 0
+  const mcpCall = async (name: string, args: Record<string, unknown>): Promise<Record<string, unknown> | null> => {
+    const mcp = (latestContext?.contract as ImportedDocumentContract | null)?.mcp
+    if (!mcp || typeof mcp.toolsCall !== 'function') return null
+    const raw = await mcp.toolsCall(name, args) as { structuredContent?: unknown; content?: { type?: string; text?: string }[] } | null
+    if (raw?.structuredContent && typeof raw.structuredContent === 'object') return raw.structuredContent as Record<string, unknown>
+    const text = raw?.content?.find(item => item.type === 'text')?.text
+    try { return text ? JSON.parse(text) as Record<string, unknown> : null } catch { return null }
+  }
+  const followScan = (graphId: string, documentId: string): void => {
+    window.clearTimeout(scanPoll)
+    void mcpCall('scan_text_layer', { graphId, documentId }).then(answer => {
+      const status = String(answer?.status ?? 'none')
+      const progress = (answer?.progress ?? {}) as { done?: number; total?: number }
+      if (status === 'done' && answer?.layer) {
+        controller?.attachOcr(graphId, documentId, answer.layer as OcrTextLayer)
+      } else if (status === 'running') {
+        controller?.setScan(graphId, documentId, { state: 'reading', done: progress.done, total: progress.total })
+        scanPoll = window.setTimeout(() => followScan(graphId, documentId), 2000)
+      } else if (status === 'failed' || status === 'unavailable') {
+        controller?.setScan(graphId, documentId, { state: status, message: typeof answer?.message === 'string' ? answer.message : undefined })
+      }
+    }).catch(() => { /* an older gardend has no scan tools: the Reader keeps offering, and says so when asked */ })
+  }
+  const onReadScan = (): void => {
+    const scan = controller?.scanWithoutWords
+    if (!scan) return
+    controller?.setScan(scan.graphId, scan.documentId, { state: 'reading' })
+    void mcpCall('read_scan_text', { graphId: scan.graphId, documentId: scan.documentId }).then(answer => {
+      const status = String(answer?.status ?? '')
+      if (status === 'unavailable' || status === 'failed') {
+        controller?.setScan(scan.graphId, scan.documentId, { state: status, message: typeof answer?.message === 'string' ? answer.message : undefined })
+      } else followScan(scan.graphId, scan.documentId)
+    }).catch((error: unknown) => {
+      controller?.setScan(scan.graphId, scan.documentId, { state: 'unavailable', message: error instanceof Error ? error.message : String(error) })
+    })
+  }
   const onDownload = (): void => controller?.download()
   const onOpenExternal = (): void => controller?.openExternal()
   const onChapterSelect = (event: Event): void => {
@@ -811,6 +851,7 @@ function originalFileFeature<TContract>(): ShellFeature<TContract> {
       listeningRoot.removeEventListener('mn-original-viewer-chapter-select', onChapterSelect)
       listeningRoot.removeEventListener('mn-original-viewer-page-select', onPageSelect)
       listeningRoot.removeEventListener('mn-editor-make-editable', onMakeEditable)
+      listeningRoot.removeEventListener('reader-read-scan', onReadScan)
     }
     listeningRoot = root
     root.addEventListener('mn-editor-original-view-toggle', onToggle)
@@ -820,6 +861,7 @@ function originalFileFeature<TContract>(): ShellFeature<TContract> {
     root.addEventListener('mn-original-viewer-chapter-select', onChapterSelect)
     root.addEventListener('mn-original-viewer-page-select', onPageSelect)
     root.addEventListener('mn-editor-make-editable', onMakeEditable)
+    root.addEventListener('reader-read-scan', onReadScan)
   }
 
   return {
@@ -872,6 +914,12 @@ function originalFileFeature<TContract>(): ShellFeature<TContract> {
         openedOriginalFor = scope
         if (!active.snapshot().active && !prefersText(scope)) void active.toggle(null)
       }
+      // A scan shown in the Reader: ask once whether gardend has read its words (or is reading them).
+      const scan = active.scanWithoutWords
+      if (scan && !scanChecked.has(`${scan.graphId}\u0000${scan.documentId}`)) {
+        scanChecked.add(`${scan.graphId}\u0000${scan.documentId}`)
+        followScan(scan.graphId, scan.documentId)
+      }
       // The comments (and highlights) of this document, drawn over its original while it is open.
       if (active.annotationsWanted) {
         active.setAnnotations(readerAnnotationsFor(snapshot.comments?.comments ?? [], currentQuoteState()))
@@ -906,6 +954,7 @@ function originalFileFeature<TContract>(): ShellFeature<TContract> {
         listeningRoot.removeEventListener('mn-original-viewer-chapter-select', onChapterSelect)
         listeningRoot.removeEventListener('mn-original-viewer-page-select', onPageSelect)
         listeningRoot.removeEventListener('mn-editor-make-editable', onMakeEditable)
+        listeningRoot.removeEventListener('reader-read-scan', onReadScan)
       }
       if (assignedHost) assignedHost.originalFileView = null
       controller?.destroy()

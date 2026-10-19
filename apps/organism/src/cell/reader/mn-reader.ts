@@ -40,9 +40,18 @@ import {
 } from './reader-model.js'
 import { PDF_VIEWER_STYLES, READER_STYLES, highlightRules } from './reader-styles.js'
 import type { ReaderBook, ReaderTocEntry } from './epub-book.js'
+import type { OcrTextLayer } from './ocr-text-layer.js'
+
+/** Where reading a scan's text stands. */
+export interface ReaderScanState {
+  readonly state: 'idle' | 'reading' | 'failed' | 'unavailable'
+  readonly done?: number
+  readonly total?: number
+  readonly message?: string
+}
 
 export type ReaderSource =
-  | { readonly kind: 'pdf'; readonly key: string; readonly data: Uint8Array }
+  | { readonly kind: 'pdf'; readonly key: string; readonly data: Uint8Array; readonly ocr?: OcrTextLayer | null }
   | { readonly kind: 'epub'; readonly key: string; readonly book: ReaderBook }
 
 const ICONS: Readonly<Record<string, string>> = {
@@ -98,6 +107,8 @@ export class MnReader extends LitElement {
   /** A Text view exists (the document made from this original). */
   @property({ type: Boolean, attribute: 'text-view' }) textView = false
   @property({ type: Boolean }) downloadable = false
+  /** A scan's reading (OCR) as the shell knows it: offered, running with progress, failed, or not installed here. */
+  @property({ attribute: false }) scan: ReaderScanState | null = null
 
   @state() private sidebar = false
   @state() private tab: 'contents' | 'pages' | 'notes' = 'contents'
@@ -211,7 +222,8 @@ export class MnReader extends LitElement {
 
   private async openSource(): Promise<void> {
     const source = this.source
-    const key = source ? `${source.kind}:${source.key}` : ''
+    // A scan reopens when its words arrive: they become its pages' text.
+    const key = source ? `${source.kind}:${source.key}${source.kind === 'pdf' && source.ocr ? ':ocr' : ''}` : ''
     if (key === this.openedKey) return
     this.openedKey = key
     this.surface?.close()
@@ -235,7 +247,7 @@ export class MnReader extends LitElement {
       }, source.key)
       this.surface = surface
       container.addEventListener('scroll', this.onScroll, { passive: true })
-      await surface.open(source.data, container, viewer)
+      await surface.open(source.data, container, viewer, source.ocr ?? null)
       void this.placeAnnotations()
     } else {
       const memory = readJson<{ chapter?: number; fraction?: number }>(bookKey(source.key))
@@ -919,13 +931,28 @@ export class MnReader extends LitElement {
           ${this.chapter < book.chapters.length - 1 ? html`<button type="button" data-next @click=${() => this.goChapter(this.chapter + 1)}><small>Next</small>${book.chapters[this.chapter + 1]?.title}</button>` : nothing}
         </nav>
       </div>` : nothing}
-      ${pdf?.ready && !pdf.hasText ? html`<div class="banner" role="note">This PDF is a scan: its pages are pictures, so there is no text to search, select or highlight.</div>` : nothing}
+      ${pdf?.ready && !pdf.hasText ? this.scanBanner() : nothing}
       ${this.findBar()}
       ${this.selectionBar()}
       ${this.annotationBar()}
       ${this.composerView()}
       ${this.veil()}
     </main>`
+  }
+
+  /** A scan without words: offer to read it, show the reading, or say why it cannot be read here. */
+  private scanBanner(): TemplateResult {
+    const scan = this.scan
+    if (scan?.state === 'reading') {
+      const of = scan.total ? ` ${scan.done ?? 0} of ${scan.total} pages` : ''
+      return html`<div class="banner" role="status" data-scan="reading">Reading the scan…${of}</div>`
+    }
+    if (scan?.state === 'unavailable') return html`<div class="banner" role="note" data-scan="unavailable">This PDF is a scan, and reading scans is not set up here. ${scan.message ?? ''}</div>`
+    const failed = scan?.state === 'failed'
+    return html`<div class="banner" role="note" data-scan=${failed ? 'failed' : 'idle'}>
+      ${failed ? `Reading the scan failed${scan?.message ? `: ${scan.message}` : '.'}` : 'This PDF is a scan: its pages are pictures, with no text to search, select or highlight.'}
+      <button type="button" class="banner-act" @click=${() => this.say('reader-read-scan', {})}>${failed ? 'Try again' : 'Read its text'}</button>
+    </div>`
   }
 
   private findBar(): TemplateResult | typeof nothing {

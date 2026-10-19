@@ -7,6 +7,7 @@ import { loadPdfJs } from '../pdfjs-runtime.js'
 import { readMemory, writeMemory } from '../pdf-reader/pdf-reader-memory.js'
 import { locateQuoteAnnotations, quoteSearchText, type QuoteChapterText } from '../source-quote-annotations.js'
 import { annotationRange, quoteTextIndex, type ReaderAnnotation } from './reader-model.js'
+import { withOcrText, type OcrTextLayer } from './ocr-text-layer.js'
 
 // biome-ignore lint/suspicious/noExplicitAny: pdf.js's viewer layer is used through the narrow surface below
 type Loose = any
@@ -72,7 +73,8 @@ export class PdfSurface {
     this.host.changed(this.state)
   }
 
-  async open(data: Uint8Array, container: HTMLElement, viewerEl: HTMLElement): Promise<void> {
+  /** Open a PDF; a scan's OCR words (`ocr`), when there are some, are its pages' text. */
+  async open(data: Uint8Array, container: HTMLElement, viewerEl: HTMLElement, ocr: OcrTextLayer | null = null): Promise<void> {
     this.close()
     const generation = this.generation
     try {
@@ -89,7 +91,7 @@ export class PdfSurface {
       const task = pdfjs.getDocument({ data: data.slice(), disableFontFace: true, useSystemFonts: true, useWorkerFetch: false, useWasm: false,
         isOffscreenCanvasSupported: false, isImageDecoderSupported: false, stopAtErrors: false })
       this.task = task
-      const pdf = await task.promise
+      const pdf = withOcrText(await task.promise, ocr)
       if (generation !== this.generation) { void pdf.destroy(); return }
       this.pdf = pdf
       pv.setDocument(pdf)

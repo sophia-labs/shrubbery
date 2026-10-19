@@ -498,6 +498,8 @@ export interface EditorOriginalFileView {
   readonly readerAnnotations?: readonly unknown[]
   /** May this person highlight and write notes on the original? */
   readonly readerCanAnnotate?: boolean
+  /** Reading a scan's text: offered, running (with pages done), failed, or not set up (opaque here; the Reader's). */
+  readonly readerScan?: unknown
 }
 
 /** Shell-owned access state for the open document. */
@@ -5608,6 +5610,7 @@ export class ShEditorHost extends LitElement {
               annotate-note=${original.readerCanAnnotate ? '' : 'Highlights and notes need the document to be open and connected.'}
               ?text-view=${true}
               ?downloadable=${original.downloadable}
+              .scan=${original.readerScan ?? null}
             ></mn-reader>`
           : showOriginal && original
           ? html`<mn-original-viewer
