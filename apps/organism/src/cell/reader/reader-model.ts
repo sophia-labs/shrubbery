@@ -8,6 +8,7 @@
  */
 import {
   findAnnotationRange,
+  quoteSearchText,
   quoteTextIndex,
   type QuoteTextIndex,
   type SourceQuoteAnnotation,
@@ -96,28 +97,106 @@ function shadowAncestry(root: ShadowRoot): ShadowRoot[] {
   return roots
 }
 
-/** The quote and its context for a selection inside `scope` (one PDF page's text layer, or one chapter). */
+/** The first position in [0, n) where `test` holds (it holds from some position to the end), or n. */
+function firstWhere(n: number, test: (position: number) => boolean): number {
+  let low = 0
+  let high = n
+  while (low < high) {
+    const middle = (low + high) >> 1
+    if (test(middle)) high = middle
+    else low = middle + 1
+  }
+  return low
+}
+
+/**
+ * The original characters of index positions [start, end), with a space wherever the index put a boundary (a line or
+ * block break with no whitespace in the DOM, as between the lines of a PDF's text layer).
+ */
+function rawText(index: QuoteTextIndex, start: number, end: number): string {
+  let out = ''
+  let lastNode = -1
+  let lastOffset = -1
+  for (let position = Math.max(0, start); position < Math.min(end, index.text.length); position += 1) {
+    const node = index.pointNode[position] ?? -1
+    const offset = index.pointOffset[position] ?? -1
+    const char = index.text[position] ?? ''
+    if (node < 0) { out += char; continue }
+    const raw = index.nodes[node]?.data[offset] ?? ''
+    if (char === ' ' && !/\s/.test(raw)) { out += ' '; continue }
+    if (node === lastNode && offset === lastOffset) continue
+    lastNode = node
+    lastOffset = offset
+    out += raw
+  }
+  return out
+}
+
+/**
+ * The quote and its context for a selection inside `scope` (one PDF page's text layer, or one chapter), read through
+ * the same index the matcher uses: where the page has no character between two lines, the quote gets a space, so the
+ * words stored are words the matcher finds again.
+ */
 export function selectionQuote(scope: Element, range: Range): { quote: string; prefix: string; suffix: string } | null {
-  const quote = range.toString().replace(/\s+/g, ' ').trim()
-  if (quote.length < 2) return null
-  const before = document.createRange()
-  before.selectNodeContents(scope)
-  before.setEnd(range.startContainer, range.startOffset)
-  const after = document.createRange()
-  after.selectNodeContents(scope)
-  after.setStart(range.endContainer, range.endOffset)
+  const index = quoteTextIndex(scope)
+  const n = index.text.length
+  const point = (position: number): [Node, number] | null => {
+    let at = position
+    while (at < n && (index.pointNode[at] ?? -1) < 0) at += 1
+    const node = index.nodes[index.pointNode[at] ?? -1]
+    return node ? [node, index.pointOffset[at]!] : null
+  }
+  const compare = (position: number, after: boolean): number => {
+    const at = point(position)
+    if (!at) return 1
+    try { return range.comparePoint(at[0], Math.min(at[0].nodeValue?.length ?? 0, at[1] + (after ? 1 : 0))) } catch { return 1 }
+  }
+  const start = firstWhere(n, position => compare(position, false) !== -1)
+  const end = firstWhere(n, position => compare(position, true) === 1)
   const squash = (value: string) => value.replace(/\s+/g, ' ')
+  const quote = squash(rawText(index, start, end)).trim()
+  if (end <= start || quote.length < 2) return null
   return {
     quote,
-    prefix: squash(before.toString()).trimEnd().slice(-CONTEXT_CHARS).trimStart(),
-    suffix: squash(after.toString()).trimStart().slice(0, CONTEXT_CHARS).trimEnd(),
+    prefix: squash(rawText(index, Math.max(0, start - CONTEXT_CHARS - 16), start)).trimEnd().slice(-CONTEXT_CHARS).trimStart(),
+    suffix: squash(rawText(index, end, end + CONTEXT_CHARS + 16)).trimStart().slice(0, CONTEXT_CHARS).trimEnd(),
   }
 }
 
-/** The DOM Range of an annotation inside an indexed root, or null when its words are not there. */
+/** The index's folded text without whitespace, and where each of its characters sits in the index (memoised). */
+const squeezedIndexes = new WeakMap<QuoteTextIndex, { readonly text: string; readonly at: readonly number[] }>()
+function squeezedIndex(index: QuoteTextIndex): { readonly text: string; readonly at: readonly number[] } {
+  let squeezed = squeezedIndexes.get(index)
+  if (!squeezed) {
+    let text = ''
+    const at: number[] = []
+    for (let position = 0; position < index.folded.length; position += 1) {
+      const char = index.folded[position]!
+      if (/\s/.test(char)) continue
+      text += char
+      at.push(position)
+    }
+    squeezed = { text, at }
+    squeezedIndexes.set(index, squeezed)
+  }
+  return squeezed
+}
+
+/**
+ * The DOM Range of an annotation inside an indexed root, or null when its words are not there. A quote saved with two
+ * lines run together ("Millidge1,11,Dalton", as a PDF text layer once gave it) is found with whitespace ignored.
+ */
 export function annotationRange(index: QuoteTextIndex, annotation: ReaderAnnotation): Range | null {
   const context = [annotation.prefix, annotation.quote, annotation.suffix].filter(Boolean).join(' ')
-  const found = findAnnotationRange(index, { quote: annotation.quote, context: annotation.context ?? (context || null) })
+  let found = findAnnotationRange(index, { quote: annotation.quote, context: annotation.context ?? (context || null) })
+  if (!found || found.end <= found.start) {
+    const squeezed = squeezedIndex(index)
+    const holder = document.createElement('span')
+    holder.textContent = annotation.quote
+    const quote = quoteSearchText(holder).folded.replace(/\s+/g, '')
+    const at = quote.length >= 2 ? squeezed.text.indexOf(quote) : -1
+    found = at >= 0 ? { start: squeezed.at[at]!, end: squeezed.at[at + quote.length - 1]! + 1 } : null
+  }
   if (!found || found.end <= found.start) return null
   // A match can begin or end on a boundary the index inserted between blocks (no text node): step inward to text.
   let first = found.start

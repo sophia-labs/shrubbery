@@ -46,6 +46,32 @@ describe('the Reader finds a quote in the text it shows', () => {
   })
 })
 
+describe('a selection across the lines of a PDF text layer', () => {
+  // pdf.js lays a page's text out as one span per run, with <br> between lines and nothing else: no space, no newline.
+  const layer = (): HTMLElement => chapter(
+    '<div class="textLayer"><span>Riddhi J. Pitliya1,6, Conor Heins1,7,8,9, Brennan Klein1,10, Beren Millidge1,11,</span><br>'
+    + '<span>Dalton A.R. Sakthivadivel</span><span>†1,12,13,14, Toby St Clere Smithe1,6,15,</span></div>',
+  )
+
+  it('quotes the words with a space where the lines meet, and finds that quote again on the page', () => {
+    const root = layer()
+    const spans = root.querySelectorAll('span')
+    const range = document.createRange()
+    range.setStart(spans[0]!.firstChild!, spans[0]!.textContent!.indexOf('Brennan'))
+    range.setEnd(spans[1]!.firstChild!, 'Dalton A.R.'.length)
+    const quoted = selectionQuote(root, range)
+    expect(quoted?.quote).toBe('Brennan Klein1,10, Beren Millidge1,11, Dalton A.R.')
+    expect(quoted?.prefix).toBe('Riddhi J. Pitliya1,6, Conor Heins1,7,8,9,')
+    expect(annotationRange(quoteTextIndex(root), annotation(quoted!.quote, quoted!))?.toString()).toBe('Brennan Klein1,10, Beren Millidge1,11,Dalton A.R.')
+  })
+
+  it('still finds a quote saved with the lines run together (as the first Reader stored them)', () => {
+    const root = layer()
+    expect(annotationRange(quoteTextIndex(root), annotation('Beren Millidge1,11,Dalton A.R. Sakthivadivel'))?.toString())
+      .toBe('Beren Millidge1,11,Dalton A.R. Sakthivadivel')
+  })
+})
+
 describe('the document\'s comments, as the Reader draws them', () => {
   const comment = (fields: Partial<WorkspaceComment> & Pick<WorkspaceComment, 'id'>): WorkspaceComment =>
     ({ author: 'You', text: '', createdAt: 0, resolved: false, ...fields })
