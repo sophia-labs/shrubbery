@@ -518,6 +518,7 @@ import {
   type DocumentCommentsSource,
 } from './cell/document-comments.js'
 import type { ReaderAnnotateDetail, ReaderAnnotationChangeDetail } from './cell/reader/reader-model.js'
+import type { ReaderAskDetail } from './cell/reader/mn-reader.js'
 import {
   activeDocumentSelection,
   projectInspectorActions,
@@ -2445,6 +2446,24 @@ function handleEditorCommentInserted(detail: EditorCommentInsertedDetail | undef
  * to gardend (`document.editComments`), which marks the passage in the text made from the original and signs it; an
  * entry gardend already holds keeps these extra keys. A gardend without that operation leaves the note as written.
  */
+function askSophiaAboutReader(detail: ReaderAskDetail | undefined): void {
+  if (!detail || chatHidden()) return
+  const title = detail.title.replace(/[\]\[]/g, '')
+  const quote = detail.quote.trim().replace(/\s+/g, ' ').slice(0, 1200)
+  const text = detail.scope === 'passage' && quote
+    ? `From "${title}", ${detail.where}:\n\n> ${quote}\n\n`
+    : `About ${detail.scope === 'page' ? '' : 'the chapter '}${detail.where} of "${title}": `
+  if (currentRightPanel !== 'chat') setRightPanel('chat', 'reader: ask Sophia')
+  // The chat host mounts when the panel opens: offer the words until it has taken them.
+  let tries = 0
+  const offer = (): void => {
+    const compose = { text, handled: false }
+    document.dispatchEvent(new CustomEvent('mn-chat-compose', { detail: compose }))
+    if (!compose.handled && ++tries < 30) window.setTimeout(offer, 100)
+  }
+  window.setTimeout(offer, 0)
+}
+
 function handleReaderAnnotate(detail: ReaderAnnotateDetail | undefined): void {
   const source = currentCommentsSource
   const documentId = openDocId
@@ -10693,6 +10712,12 @@ hostEl.addEventListener('mn-editor-comment-inserted', ((event: CustomEvent<Edito
 
 hostEl.addEventListener('reader-annotate', ((event: CustomEvent<ReaderAnnotateDetail>) => {
   handleReaderAnnotate(event.detail)
+}) as EventListener)
+
+// "Ask Sophia" from the Reader: the passage, quoted, and the document it is from go into the chat's composer, which
+// opens; nothing is sent. The document is also in the chat's `contextRefs` (the open document), as for any turn.
+hostEl.addEventListener('reader-ask-sophia', ((event: CustomEvent<ReaderAskDetail>) => {
+  askSophiaAboutReader(event.detail)
 }) as EventListener)
 
 hostEl.addEventListener('reader-annotation-change', ((event: CustomEvent<ReaderAnnotationChangeDetail>) => {

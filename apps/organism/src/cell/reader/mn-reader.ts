@@ -23,7 +23,9 @@ import { repeat } from 'lit/directives/repeat.js'
 import { ref } from 'lit/directives/ref.js'
 import { locateQuoteAnnotations, quoteSearchText, type QuoteChapterText, type QuoteSearchText } from '../source-quote-annotations.js'
 import './reader-bar.js'
-import type { MenuEntry } from '@shrubbery/nucleus'
+import { chapterAtLine, nextChapterWindow, windowAt, type ChapterWindow } from './chapter-window.js'
+import type { MenuEntry, MenuSelectDetail } from '@shrubbery/nucleus'
+import type { MnContextMenu } from '@shrubbery/components'
 import { icon } from './reader-icons.js'
 import { PdfSurface, type PdfOutlineItem, type PdfSurfaceState, type PdfZoom } from './pdf-surface.js'
 import {
@@ -43,6 +45,9 @@ import {
 import { PDF_VIEWER_STYLES, READER_BAR_STYLES, READER_STYLES, READER_TOKENS, highlightRules } from './reader-styles.js'
 import type { ReaderBook, ReaderTocEntry } from './epub-book.js'
 
+/** `reader-ask-sophia`: what a person asked Sophia about; the shell puts it in the chat. */
+export interface ReaderAskDetail { readonly quote: string; readonly scope: 'passage' | 'page' | 'chapter'; readonly where: string; readonly title: string }
+
 export type ReaderSource =
   | { readonly kind: 'pdf'; readonly key: string; readonly data: Uint8Array }
   | { readonly kind: 'epub'; readonly key: string; readonly book: ReaderBook }
@@ -50,7 +55,7 @@ export type ReaderSource =
 const TYPE_SIZES = [0.95, 1.05, 1.125, 1.25, 1.4, 1.6] as const
 const MEASURES = { narrow: '28em', medium: '34em', wide: '42em' } as const
 type Measure = keyof typeof MEASURES
-interface TypeSettings { size: number; face: 'serif' | 'sans'; measure: Measure; justify: boolean }
+interface TypeSettings { size: number; face: 'serif' | 'sans'; measure: Measure; justify: boolean; layout: 'continuous' | 'chapter' }
 const TYPE_KEY = 'mn-reader:v1:type'
 const PANEL_KEY = 'mn-reader:v1:panels'
 const bookKey = (key: string) => `mn-reader:v1:book:${key}`
@@ -64,6 +69,7 @@ function writeJson(key: string, value: unknown): void {
 
 let instances = 0
 
+type SelectionQuote = { readonly quote: string; readonly prefix: string; readonly suffix: string; readonly place: ReaderPlace }
 interface Pop { readonly x: number; readonly y: number; readonly below: boolean }
 interface SelectionPop extends Pop { readonly quote: string; readonly prefix: string; readonly suffix: string; readonly place: ReaderPlace }
 interface Composer extends Pop {
@@ -97,8 +103,10 @@ export class MnReader extends LitElement {
   @state() private findQuery = ''
   @state() private pdfState: PdfSurfaceState | null = null
   @state() private chapter = 0
+  /** The chapters in the page: one in By chapter, a few around the reading line in Continuous. */
+  @state() private win: ChapterWindow = { first: 0, last: 0 }
   @state() private progress = 0
-  @state() private type: TypeSettings = { size: 2, face: 'serif', measure: 'medium', justify: true, ...readJson<Partial<TypeSettings>>(TYPE_KEY) }
+  @state() private type: TypeSettings = { size: 2, face: 'serif', measure: 'medium', justify: true, layout: 'continuous', ...readJson<Partial<TypeSettings>>(TYPE_KEY) }
   @state() private pop: SelectionPop | null = null
   @state() private composer: Composer | null = null
   @state() private active: string | null = null
@@ -195,7 +203,8 @@ export class MnReader extends LitElement {
     if (changed.has('source')) void this.openSource()
     this.announceMeta()
     if (changed.has('annotations') || changed.has('pending')) void this.placeAnnotations()
-    if (changed.has('chapter') && this.source?.kind === 'epub') this.afterChapter()
+    if (changed.has('win') && this.source?.kind === 'epub') this.afterWindow()
+    if (changed.has('type') && this.source?.kind === 'epub' && this.typeAnchor) this.afterType()
     if (changed.has('notePlaces')) this.queuePlaceNotes()
     if (changed.has('sidebar') || changed.has('margin') || changed.has('type') || changed.has('overlay') || changed.has('narrow')) this.queuePlaceNotes()
   }
@@ -247,13 +256,14 @@ export class MnReader extends LitElement {
       const count = source.book.chapters.length
       const start = Math.max(0, Math.min(count - 1, Math.floor(memory?.chapter ?? this.firstReadableChapter(source.book))))
       this.chapter = start
+      this.win = windowAt(start, count)
       await this.updateComplete
-      const scroller = this.renderRoot.querySelector<HTMLElement>('.book')
+      const scroller = this.scroller()
       if (scroller) {
         scroller.addEventListener('scroll', this.onScroll, { passive: true })
-        if (memory?.fraction) scroller.scrollTop = memory.fraction * Math.max(0, scroller.scrollHeight - scroller.clientHeight)
+        this.placeAt(start, memory?.fraction ?? 0)
       }
-      this.afterChapter()
+      this.syncBook()
     }
   }
 
@@ -279,7 +289,7 @@ export class MnReader extends LitElement {
       this.paint()
     } else {
       this.locateInBook(source.book, all)
-      this.rangeChapter()
+      this.rangeChapters()
       this.paint()
     }
   }
@@ -321,18 +331,23 @@ export class MnReader extends LitElement {
     for (const [id, chapter] of locateQuoteAnnotations(chapters, rest)) if (chapter !== null) this.bookChapterOf.set(id, Number(chapter))
   }
 
-  private chapterElement(): HTMLElement | null { return this.renderRoot.querySelector<HTMLElement>('.chapter') }
+  private chapterEls(): HTMLElement[] { return Array.from(this.renderRoot.querySelectorAll<HTMLElement>('article.chapter[data-chapter]')) }
+  private scroller(): HTMLElement | null { return this.renderRoot.querySelector<HTMLElement>('.book') }
+  private get continuous(): boolean { return this.source?.kind === 'epub' && this.type.layout !== 'chapter' }
+  private isRendered(chapter: number): boolean { return chapter >= this.win.first && chapter <= this.win.last }
 
-  private rangeChapter(): void {
+  /** Ranges for every annotation in the chapters now in the page. */
+  private rangeChapters(): void {
     this.bookRanges.clear()
-    const root = this.chapterElement()
-    if (!root) return
-    const here = this.shown.filter(a => this.bookChapterOf.get(a.id) === this.chapter)
-    if (!here.length) return
-    const index = quoteTextIndex(root)
-    for (const annotation of here) {
-      const range = annotationRange(index, annotation)
-      if (range) this.bookRanges.set(annotation.id, range)
+    for (const root of this.chapterEls()) {
+      const chapter = Number(root.dataset.chapter)
+      const here = this.shown.filter(a => this.bookChapterOf.get(a.id) === chapter)
+      if (!here.length) continue
+      const index = quoteTextIndex(root)
+      for (const annotation of here) {
+        const range = annotationRange(index, annotation)
+        if (range) this.bookRanges.set(annotation.id, range)
+      }
     }
   }
 
@@ -412,46 +427,130 @@ export class MnReader extends LitElement {
 
   // --- EPUB ---------------------------------------------------------------------------------------------------------------
 
-  private afterChapter(): void {
-    const scroller = this.renderRoot.querySelector<HTMLElement>('.book')
-    if (scroller && !this.scrollAfterChapter) scroller.scrollTop = 0
-    const target = this.scrollAfterChapter
-    this.scrollAfterChapter = null
-    this.rangeChapter()
-    this.paint()
-    if (target) requestAnimationFrame(() => target())
-    this.trackBookProgress()
+  private scrollAfterWin: (() => void) | null = null
+  private winAnchor: { readonly chapter: number; readonly offset: number } | null = null
+  private typeAnchor: { readonly chapter: number; readonly offset: number } | null = null
+  private bookFrame = 0
+
+  /** The chapter at the top of the page and how far down the page it starts, to keep it still while things change above it. */
+  private captureAnchor(): { chapter: number; offset: number } | null {
+    const scroller = this.scroller()
+    if (!scroller) return null
+    const top = scroller.getBoundingClientRect().top
+    for (const el of this.chapterEls()) {
+      const rect = el.getBoundingClientRect()
+      if (rect.bottom > top + 1) return { chapter: Number(el.dataset.chapter), offset: rect.top - top }
+    }
+    return null
   }
 
-  private scrollAfterChapter: (() => void) | null = null
+  private restoreAnchor(anchor: { chapter: number; offset: number } | null): void {
+    const scroller = this.scroller()
+    if (!scroller || !anchor) return
+    const el = this.chapterEls().find(e => Number(e.dataset.chapter) === anchor.chapter)
+    if (!el) return
+    scroller.scrollTop += (el.getBoundingClientRect().top - scroller.getBoundingClientRect().top) - anchor.offset
+  }
 
-  private goChapter(index: number, anchor: string | null = null, then?: () => void): void {
+  /** Scroll so `fraction` of the way through `chapter` is at the top. */
+  private placeAt(chapter: number, fraction: number): void {
+    const scroller = this.scroller()
+    const el = this.chapterEls().find(e => Number(e.dataset.chapter) === chapter)
+    if (!scroller || !el) return
+    const rect = el.getBoundingClientRect()
+    const span = Math.max(0, rect.height - scroller.clientHeight)
+    scroller.scrollTop += (rect.top - scroller.getBoundingClientRect().top) + Math.max(0, Math.min(1, fraction)) * span
+  }
+
+  /** Where the page is read from: the chapter at the reading line, and how far through it the top of the page is. */
+  private bookPlace(): { chapter: number; fraction: number } | null {
+    const scroller = this.scroller()
+    const els = this.chapterEls()
+    if (!scroller || !els.length) return null
+    const top = scroller.getBoundingClientRect().top
+    const first = els[0]!.getBoundingClientRect().top
+    const heights = els.map(el => el.getBoundingClientRect().height)
+    const chapter = chapterAtLine(this.win, heights, top + Math.min(120, scroller.clientHeight / 4) - first)
+    const el = els.find(e => Number(e.dataset.chapter) === chapter) ?? els[0]!
+    const rect = el.getBoundingClientRect()
+    const fraction = Math.max(0, Math.min(1, (top - rect.top) / Math.max(1, rect.height - scroller.clientHeight)))
+    return { chapter, fraction }
+  }
+
+  /** The window changed: range the annotations in what is now in the page, keep the reading place, go on growing. */
+  private afterWindow(): void {
+    this.rangeChapters()
+    this.paint()
+    if (this.bookFind) this.paintBookFind(false)
+    const pending = this.scrollAfterWin
+    this.scrollAfterWin = null
+    const anchor = this.winAnchor
+    this.winAnchor = null
+    if (pending) pending()
+    else if (anchor) this.restoreAnchor(anchor)
+    else if (!this.continuous) { const scroller = this.scroller(); if (scroller) scroller.scrollTop = 0 }
+    cancelAnimationFrame(this.bookFrame)
+    this.bookFrame = requestAnimationFrame(() => this.syncBook())
+  }
+
+  private afterType(): void {
+    const anchor = this.typeAnchor
+    this.typeAnchor = null
+    requestAnimationFrame(() => { this.restoreAnchor(anchor); this.queuePlaceNotes(); this.syncBook() })
+  }
+
+  /**
+   * Ask for the chapter. Continuous: it is put in the page (with its neighbours as they are reached) and scrolled to
+   * (`align`: its top, or the `anchor` within it); By chapter: it replaces the page. `then` runs once it is there.
+   */
+  private goChapter(index: number, anchor: string | null = null, then?: () => void, align = true): void {
     const book = this.source?.kind === 'epub' ? this.source.book : null
     if (!book || index < 0 || index >= book.chapters.length) return
     const scrollTo = () => {
       if (anchor) this.renderRoot.querySelector<HTMLElement>(`#${CSS.escape(anchor)}`)?.scrollIntoView({ block: 'start' })
+      else if (align) this.placeAt(index, 0)
       then?.()
     }
-    if (index === this.chapter) { scrollTo(); return }
-    this.scrollAfterChapter = anchor || then ? scrollTo : null
-    this.chapter = index
     this.pop = null; this.activePop = null; this.active = null
+    if (this.isRendered(index) && (this.continuous || index === this.chapter)) { scrollTo(); if (this.continuous) this.syncBook(); return }
+    this.scrollAfterWin = scrollTo
+    this.chapter = index
+    this.win = windowAt(index, book.chapters.length)
+  }
+
+  private syncBook(): void {
+    const book = this.source?.kind === 'epub' ? this.source.book : null
+    const scroller = this.scroller()
+    const place = this.bookPlace()
+    if (!book || !scroller || !place) return
+    if (place.chapter !== this.chapter) this.chapter = place.chapter
+    const total = book.chapters.reduce((sum, chapter) => sum + Math.max(1, chapter.wordCount), 0)
+    const before = book.chapters.slice(0, place.chapter).reduce((sum, chapter) => sum + Math.max(1, chapter.wordCount), 0)
+    const here = Math.max(1, book.chapters[place.chapter]?.wordCount ?? 1)
+    this.progress = (before + place.fraction * here) / total
+    window.clearTimeout(this.memoryTimer)
+    const key = this.source?.key ?? ''
+    this.memoryTimer = window.setTimeout(() => writeJson(bookKey(key), place), 300)
+    if (!this.continuous) return
+    const els = this.chapterEls()
+    if (!els.length) return
+    const first = els[0]!.getBoundingClientRect().top
+    const next = nextChapterWindow({
+      count: book.chapters.length,
+      current: this.win,
+      heights: els.map(el => el.getBoundingClientRect().height),
+      scrollTop: scroller.getBoundingClientRect().top - first,
+      viewport: scroller.clientHeight,
+    })
+    if (next.first !== this.win.first || next.last !== this.win.last) {
+      this.winAnchor = this.captureAnchor()
+      this.win = next
+    }
   }
 
   private trackBookProgress(): void {
-    const book = this.source?.kind === 'epub' ? this.source.book : null
-    const scroller = this.renderRoot.querySelector<HTMLElement>('.book')
-    if (!book || !scroller) return
-    const span = Math.max(1, scroller.scrollHeight - scroller.clientHeight)
-    const fraction = Math.max(0, Math.min(1, scroller.scrollTop / span))
-    const total = book.chapters.reduce((sum, chapter) => sum + Math.max(1, chapter.wordCount), 0)
-    const before = book.chapters.slice(0, this.chapter).reduce((sum, chapter) => sum + Math.max(1, chapter.wordCount), 0)
-    const here = Math.max(1, book.chapters[this.chapter]?.wordCount ?? 1)
-    this.progress = (before + fraction * here) / total
-    window.clearTimeout(this.memoryTimer)
-    const key = this.source?.key ?? ''
-    const chapter = this.chapter
-    this.memoryTimer = window.setTimeout(() => writeJson(bookKey(key), { chapter, fraction }), 300)
+    cancelAnimationFrame(this.bookFrame)
+    this.bookFrame = requestAnimationFrame(() => this.syncBook())
   }
 
   private onBookClick(event: MouseEvent): void {
@@ -480,29 +579,40 @@ export class MnReader extends LitElement {
     if (!range) { if (this.pop) this.pop = null; return }
   }
 
-  private selectionPop(): void {
+  /** What is selected in the page: its words with context, where it is, and where it is on the screen. */
+  private readSelection(): (SelectionQuote & { readonly rect: DOMRect }) | null {
     const root = this.shadowRoot
-    const stage = this.renderRoot.querySelector<HTMLElement>('.stage')
-    if (!root || !stage) return
+    if (!root) return null
     const range = selectionIn(root)
-    if (!range) { this.pop = null; return }
+    if (!range) return null
     const place = this.placeOf(range.startContainer)
     const scope = this.scopeOf(range.startContainer)
-    if (!place || !scope) { this.pop = null; return }
-    const quoted = selectionQuote(scope, range)
-    if (!quoted) { this.pop = null; return }
-    const rect = range.getBoundingClientRect()
+    if (!place || !scope) return null
+    // A selection may run on into the next chapter: the note is made on the part in the first.
+    let within = range
+    if (!scope.contains(range.endContainer)) { within = range.cloneRange(); within.setEnd(scope, scope.childNodes.length) }
+    const quoted = selectionQuote(scope, within)
+    if (!quoted) return null
+    return { ...quoted, place, rect: within.getBoundingClientRect() }
+  }
+
+  private selectionPop(): void {
+    const stage = this.renderRoot.querySelector<HTMLElement>('.stage')
+    if (!stage) return
+    const found = this.readSelection()
+    if (!found) { this.pop = null; return }
+    const { rect, ...quoted } = found
     const s = stage.getBoundingClientRect()
     const x = Math.max(120, Math.min(s.width - 120, rect.left + rect.width / 2 - s.left))
     const below = rect.top - s.top < 64
     const y = below ? rect.bottom - s.top : rect.top - s.top
     this.activePop = null
-    this.pop = { x, y, below, ...quoted, place }
+    this.pop = { x, y, below, ...quoted }
   }
 
   private placeOf(node: Node): ReaderPlace | null {
     const element = node instanceof Element ? node : node.parentElement
-    if (this.source?.kind === 'epub') return element?.closest('.chapter') ? { kind: 'chapter', chapterIndex: this.chapter } : null
+    if (this.source?.kind === 'epub') { const chapter = element?.closest<HTMLElement>('.chapter'); return chapter ? { kind: 'chapter', chapterIndex: Number(chapter.dataset.chapter) } : null }
     const page = element?.closest<HTMLElement>('.page')
     const n = Number(page?.dataset.pageNumber)
     return page && element?.closest('.textLayer') && n >= 1 ? { kind: 'page', page: n } : null
@@ -518,8 +628,8 @@ export class MnReader extends LitElement {
     ;(root?.getSelection?.() ?? document.getSelection())?.removeAllRanges()
   }
 
-  private highlight(color: ReaderColor): void {
-    const pop = this.pop
+  private highlight(color: ReaderColor, from: SelectionQuote | null = this.pop): void {
+    const pop = from
     if (!pop || !this.canAnnotate) return
     const detail: ReaderAnnotateDetail = { kind: 'highlight', color, quote: pop.quote, prefix: pop.prefix, suffix: pop.suffix, place: pop.place, text: '' }
     this.say('reader-annotate', detail)
@@ -549,7 +659,78 @@ export class MnReader extends LitElement {
     this.clearSelection()
   }
 
-  private onStagePointerUp(): void {
+  // --- the contextual menu ------------------------------------------------------------------------------------------------
+
+  private onStageContextMenu(event: MouseEvent): void {
+    if (!this.source) return
+    event.preventDefault()
+    const found = this.readSelection()
+    const sel: SelectionQuote | null = found ? { quote: found.quote, prefix: found.prefix, suffix: found.suffix, place: found.place } : null
+    this.pop = null; this.activePop = null
+    const stage = this.renderRoot.querySelector<HTMLElement>('.stage')
+    const box = stage?.getBoundingClientRect()
+    const menu = this.renderRoot.querySelector<MnContextMenu>('mn-context-menu.ctx')
+    if (!menu) return
+    this.ctx = { sel, x: event.clientX - (box?.left ?? 0), y: event.clientY - (box?.top ?? 0) }
+    menu.items = this.contextEntries(sel)
+    menu.show({ x: event.clientX, y: event.clientY })
+  }
+
+  private ctx: { readonly sel: SelectionQuote | null; readonly x: number; readonly y: number } | null = null
+
+  private get hereLabel(): 'page' | 'chapter' { return this.source?.kind === 'pdf' ? 'page' : 'chapter' }
+
+  private contextEntries(sel: SelectionQuote | null): MenuEntry[] {
+    const off = !this.canAnnotate
+    if (sel) {
+      return [
+        { id: 'copy', label: 'Copy', icon: 'copy' },
+        { type: 'divider' },
+        ...READER_COLORS.map(color => ({ id: `highlight-${color}`, label: `Highlight ${color}`, icon: 'highlighter', disabled: off })),
+        { id: 'note', label: 'Add note', icon: 'message-square', disabled: off },
+        { type: 'divider' },
+        { id: 'ask', label: 'Ask Sophia about this passage', icon: 'bot' },
+        { id: 'find', label: 'Find in this document', icon: 'search' },
+      ]
+    }
+    return [
+      { id: 'ask', label: `Ask Sophia about this ${this.hereLabel}`, icon: 'bot' },
+      { id: 'find', label: 'Find…', icon: 'search', shortcut: '⌘F' },
+      { id: 'contents', label: 'Contents', icon: 'list' },
+      { type: 'divider' },
+      { id: 'download', label: 'Download original', icon: 'download', disabled: !this.downloadable },
+    ]
+  }
+
+  private onContextSelect(event: CustomEvent<MenuSelectDetail>): void {
+    event.stopPropagation()
+    const id = event.detail.id
+    const { sel, x, y } = this.ctx ?? { sel: null, x: 0, y: 0 }
+    if (id === 'copy' && sel) void navigator.clipboard?.writeText(sel.quote)
+    else if (id.startsWith('highlight-') && sel) this.highlight(id.slice(10) as ReaderColor, sel)
+    else if (id === 'note' && sel) this.openComposer({ x, y, below: y < 200, ...sel }, 'yellow', null, '')
+    else if (id === 'ask') this.askSophia(sel)
+    else if (id === 'find') {
+      if (sel) this.findQuery = sel.quote.slice(0, 120)
+      this.openFind()
+      if (sel) void this.updateComplete.then(() => this.runFind(false))
+    } else if (id === 'contents') {
+      this.tab = 'contents'
+      if (!this.sidebarShown) this.togglePanel('sidebar')
+    } else if (id === 'download') this.say('mn-original-viewer-download', {})
+  }
+
+  /** The passage (or the page or chapter in view) goes to the Sophia chat: the shell writes it into the composer. */
+  private askSophia(sel: SelectionQuote | null): void {
+    const book = this.source?.kind === 'epub' ? this.source.book : null
+    const where = this.source?.kind === 'pdf'
+      ? `page ${this.pdfState?.pageLabel ?? this.pdfState?.page ?? 1}`
+      : `${book?.chapters[this.chapter]?.title ?? 'this chapter'}`
+    this.say('reader-ask-sophia', { quote: sel?.quote ?? '', scope: sel ? 'passage' : this.hereLabel, where, title: this.displayTitle(book) } satisfies ReaderAskDetail)
+  }
+
+  private onStagePointerUp(event?: PointerEvent): void {
+    if (event && event.button !== 0) return
     // Let the selection settle (a double-click's word, a drag's end) before asking for it.
     requestAnimationFrame(() => this.selectionPop())
   }
@@ -593,7 +774,7 @@ export class MnReader extends LitElement {
     if (this.source?.kind === 'epub') {
       const chapter = this.bookChapterOf.get(annotation.id)
       if (chapter === undefined) return
-      if (chapter === this.chapter) show(); else this.goChapter(chapter, null, show)
+      if (this.isRendered(chapter)) show(); else this.goChapter(chapter, null, show, false)
     } else {
       const page = this.pdfPages.get(annotation.id)
       if (!page) return
@@ -645,29 +826,34 @@ export class MnReader extends LitElement {
       this.bookFind = { ...this.bookFind, current: (this.bookFind.current + (previous ? n - 1 : 1)) % n }
     }
     const hit = this.bookFind.results[this.bookFind.current]
-    if (hit) this.goChapter(hit.chapter, null, () => this.paintBookFind())
+    if (hit) this.goChapter(hit.chapter, null, () => this.paintBookFind(), false)
     else this.paintBookFind()
   }
 
-  private paintBookFind(): void {
-    const root = this.chapterElement()
+  private paintBookFind(scroll = true): void {
     const found = this.bookFind
-    if (!root || !found) return
+    if (!found) return
     const query = this.findQuery.trim().replace(/\s+/g, ' ').toLowerCase()
-    const index = quoteTextIndex(root)
     const ranges: Range[] = []
-    let at = index.folded.indexOf(query)
-    while (at >= 0 && query) {
-      const range = annotationRange(index, { id: 'find', kind: 'highlight', color: 'yellow', quote: index.text.slice(at, at + query.length) })
-      if (range) ranges.push(range)
-      at = index.folded.indexOf(query, at + query.length)
+    const byChapter = new Map<number, Range[]>()
+    for (const root of this.chapterEls()) {
+      const chapter = Number(root.dataset.chapter)
+      const index = quoteTextIndex(root)
+      const list: Range[] = []
+      let at = index.folded.indexOf(query)
+      while (at >= 0 && query) {
+        const range = annotationRange(index, { id: 'find', kind: 'highlight', color: 'yellow', quote: index.text.slice(at, at + query.length) })
+        if (range) list.push(range)
+        at = index.folded.indexOf(query, at + query.length)
+      }
+      byChapter.set(chapter, list)
+      ranges.push(...list)
     }
     const hit = found.results[found.current]
-    const current = hit && hit.chapter === this.chapter ? ranges[hit.nth] : undefined
+    const current = hit ? byChapter.get(hit.chapter)?.[hit.nth] : undefined
     this.highlights.paint('find', ranges)
     this.highlights.paint('find-current', current ? [current] : [])
-    const start = current?.startContainer.parentElement
-    start?.scrollIntoView({ block: 'center' })
+    if (scroll) current?.startContainer.parentElement?.scrollIntoView({ block: 'center' })
   }
 
   // --- keys ---------------------------------------------------------------------------------------------------------------
@@ -704,6 +890,17 @@ export class MnReader extends LitElement {
   }
 
   private setType(patch: Partial<TypeSettings>): void {
+    if (this.source?.kind === 'epub') {
+      if (patch.layout && patch.layout !== this.type.layout) {
+        // Another layout: the same place in the book, in the other arrangement.
+        const place = this.bookPlace()
+        if (place) {
+          this.scrollAfterWin = () => this.placeAt(place.chapter, place.fraction)
+          this.chapter = place.chapter
+          this.win = windowAt(place.chapter, this.source.book.chapters.length)
+        }
+      } else this.typeAnchor = this.captureAnchor()
+    }
     this.type = { ...this.type, ...patch }
     writeJson(TYPE_KEY, this.type)
     this.queuePlaceNotes()
@@ -821,6 +1018,8 @@ export class MnReader extends LitElement {
       <div class="choices">${choice('face', 'serif', 'Serif')}${choice('face', 'sans', 'Sans')}</div>
       <div class="label">Line length</div>
       <div class="choices">${choice('measure', 'narrow', 'Narrow')}${choice('measure', 'medium', 'Medium')}${choice('measure', 'wide', 'Wide')}</div>
+      <div class="label">Layout</div>
+      <div class="choices">${choice('layout', 'continuous', 'Continuous')}${choice('layout', 'chapter', 'By chapter')}</div>
       <div class="label">Alignment</div>
       <div class="choices">${choice('justify', true, 'Justified')}${choice('justify', false, 'Ragged')}</div>
     </div>`
@@ -904,17 +1103,16 @@ export class MnReader extends LitElement {
   private stage(): TemplateResult {
     const source = this.source
     const book = source?.kind === 'epub' ? source.book : null
-    const chapter = book?.chapters[this.chapter]
     const pdf = source?.kind === 'pdf' ? this.pdfState : null
-    return html`<main class="stage" @pointerup=${() => this.onStagePointerUp()} @click=${(e: MouseEvent) => this.onStageClick(e)}
+    return html`<main class="stage" @pointerup=${(e: PointerEvent) => this.onStagePointerUp(e)} @contextmenu=${(e: MouseEvent) => this.onStageContextMenu(e)} @click=${(e: MouseEvent) => this.onStageClick(e)}
         @keyup=${(e: KeyboardEvent) => { if (e.shiftKey) this.selectionPop() }}>
       ${source?.kind === 'pdf' ? html`<div class="pdf" tabindex="0" role="document" aria-label=${this.title || 'PDF'}><div class="pdfViewer"></div></div>` : nothing}
-      ${book && chapter ? html`<div class="book" tabindex="0" role="document" aria-label=${book.title}>
-        <article class="chapter" id=${`rd-c${chapter.index}`} lang=${book.language || nothing}>${unsafeHTML(chapter.html)}</article>
-        <nav class="chapter-nav" aria-label="Chapters">
+      ${book ? html`<div class="book" tabindex="0" role="document" aria-label=${book.title}>
+        ${repeat(book.chapters.slice(this.win.first, this.win.last + 1), c => c.index, c => html`<article class="chapter" id=${`rd-c${c.index}`} data-chapter=${c.index} lang=${book.language || nothing}>${unsafeHTML(c.html)}</article>`)}
+        ${this.continuous ? nothing : html`<nav class="chapter-nav" aria-label="Chapters">
           ${this.chapter > 0 ? html`<button type="button" @click=${() => this.goChapter(this.chapter - 1)}><small>Previous</small>${book.chapters[this.chapter - 1]?.title}</button>` : nothing}
           ${this.chapter < book.chapters.length - 1 ? html`<button type="button" data-next @click=${() => this.goChapter(this.chapter + 1)}><small>Next</small>${book.chapters[this.chapter + 1]?.title}</button>` : nothing}
-        </nav>
+        </nav>`}
       </div>` : nothing}
       ${pdf?.ready && !pdf.hasText ? html`<div class="banner" role="note">This PDF is a scan: its pages are pictures, so there is no text to search, select or highlight.</div>` : nothing}
       ${this.findBar()}
@@ -1028,7 +1226,8 @@ export class MnReader extends LitElement {
         ${this.stage()}
         ${this.marginView()}
         ${this.menus()}
-      </div>`
+      </div>
+      <mn-context-menu class="ctx" @mn-select=${(e: CustomEvent<MenuSelectDetail>) => this.onContextSelect(e)}></mn-context-menu>`
   }
 }
 

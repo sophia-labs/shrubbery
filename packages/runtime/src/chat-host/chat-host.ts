@@ -103,6 +103,12 @@ import type { ChatArtifactPreviewPort } from './chat-artifact-preview.js'
 /** Generic shell seam for every message-level action the pure kernel emits. */
 export const CHAT_MESSAGE_ACTION_EVENT = 'mn-chat-message-action'
 export const CHAT_CODE_COPY_EVENT = 'mn-chat-code-copy'
+/**
+ * The shell asks the chat to put words in the composer (a passage quoted from the Reader, say): a `detail` of
+ * `{ text, handled? }` on the document. The text is added to the draft of the conversation shown, never sent; the host
+ * sets `handled` when it was here to take it.
+ */
+export const CHAT_COMPOSE_EVENT = 'mn-chat-compose'
 export const CHAT_HEADER_ACTION_EVENT = 'mn-chat-header-action'
 export const CHAT_SESSION_ACTION_EVENT = 'mn-chat-session-action'
 /**
@@ -698,9 +704,24 @@ export class ShChatHost extends LitElement {
     if (isContinueIntent(intent)) void this.continueWith(intent)
   }
 
+  private readonly _onComposeEvent = (event: Event): void => {
+    const detail = (event as CustomEvent<{ text?: unknown; handled?: boolean }>).detail
+    if (!detail || typeof detail.text !== 'string' || !detail.text.trim()) return
+    const sessionId = this._store?.getState().sessionId ?? this.sessionId
+    const existing = this._readDraft(sessionId)?.trimEnd() ?? ''
+    this._writeDraft(sessionId, existing ? `${existing}\n\n${detail.text}` : detail.text, null, 'edit')
+    this._applyToPanel()
+    detail.handled = true
+    void this.updateComplete.then(() => {
+      const composer = this._panel?.querySelector<HTMLElement>('hoja-editor[posture="composer"]')
+      composer?.focus()
+    })
+  }
+
   override connectedCallback(): void {
     super.connectedCallback()
     this.addEventListener(CHAT_CONTINUE_WITH_EVENT, this._onContinueEvent)
+    this.ownerDocument.addEventListener(CHAT_COMPOSE_EVENT, this._onComposeEvent)
     this.ownerDocument.addEventListener('keydown', this._documentKeyDown)
     this._observeAmbientTheme()
     this._reconcileStore()
@@ -709,6 +730,7 @@ export class ShChatHost extends LitElement {
 
   override disconnectedCallback(): void {
     this.removeEventListener(CHAT_CONTINUE_WITH_EVENT, this._onContinueEvent)
+    this.ownerDocument.removeEventListener(CHAT_COMPOSE_EVENT, this._onComposeEvent)
     this.ownerDocument.removeEventListener('keydown', this._documentKeyDown)
     this._leaveTopLayer()
     this._unsub?.()

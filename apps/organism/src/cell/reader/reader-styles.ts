@@ -200,7 +200,7 @@ export const READER_STYLES: CSSResult = css`
   .pdf .textLayer ::selection { background: rgba(86, 156, 245, 0.32); }
 
   /* --- EPUB --------------------------------------------------------------------------------------------------------- */
-  .book { position: absolute; inset: 0; overflow: auto; background: var(--rd-paper); outline: none; scroll-behavior: auto; }
+  .book { position: absolute; inset: 0; overflow: auto; background: var(--rd-paper); outline: none; scroll-behavior: auto; overflow-anchor: none; }
   .chapter {
     max-width: var(--rd-measure);
     margin: 0 auto;

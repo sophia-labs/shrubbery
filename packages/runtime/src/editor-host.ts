@@ -5713,6 +5713,11 @@ export class ShEditorHost extends LitElement {
       .menu=${menu}
       @rd-bar-find=${(event: CustomEvent<{ open: boolean }>) => { if (event.detail.open) this._openSearch(); else this._closeSearch() }}
       @rd-bar-menu=${this._onReaderTextBarMenu}
+      @mn-editor-search-input=${this._onSearchInput}
+      @mn-editor-search-keydown=${this._onToolbarSearchKeyDown}
+      @mn-editor-search-prev=${this._previousSearchResult}
+      @mn-editor-search-next=${this._nextSearchResult}
+      @mn-editor-search-close=${this._closeSearch}
     ></mn-reader-bar>`
   }
 
