@@ -157,7 +157,8 @@ function isComponentSource(path: string): boolean {
 
 function walk(directory: string, out: string[]): void {
   for (const entry of readdirSync(directory)) {
-    if (SKIPPED_DIRECTORIES.has(entry)) continue
+    // Build output (dist, dist-selfhost, ...) is not source: a build must not turn this test red.
+    if (SKIPPED_DIRECTORIES.has(entry) || entry.startsWith('dist-')) continue
     const full = join(directory, entry)
     if (statSync(full).isDirectory()) walk(full, out)
     else if (isComponentSource(full)) out.push(full)
