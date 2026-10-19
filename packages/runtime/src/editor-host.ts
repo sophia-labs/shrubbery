@@ -1076,6 +1076,7 @@ export class ShEditorHost extends LitElement {
     .original-file-view[hidden] {
       display: none !important;
     }
+    .reader-text-bar-slot { display: contents; }
     .original-file-view {
       display: flex;
       width: 100%;
@@ -1121,7 +1122,9 @@ export class ShEditorHost extends LitElement {
     }
 
     /* Zen mode (the shell's view.zen): the page alone, without the toolbar. */
-    :host([zen]) mn-editor-toolbar,
+    :host([zen]) mn-editor-toolbar {
+      display: none;
+    }
     :host([zen]) mn-reader-bar[data-reader-text-bar] {
       display: none;
     }
@@ -5547,7 +5550,7 @@ export class ShEditorHost extends LitElement {
     // The text of a read-only document that has an original wears the same bar as the original does.
     const textBar = !showOriginal && original?.available === true && original.readerBar === true && this._toolbarReadOnly()
       && Boolean(customElements.get('mn-reader-bar'))
-    return html`${textBar && original ? this._renderReaderTextBar(original) : nothing}<mn-editor-toolbar
+    return html`<mn-editor-toolbar
         ?hidden=${inReader || textBar}
         @pointerdown=${this._captureToolbarSelection}
         @focusin=${this._captureToolbarSelection}
@@ -5603,6 +5606,7 @@ export class ShEditorHost extends LitElement {
         @mn-editor-replace-all=${this._replaceAllSearchResults}
         @mn-editor-shortcuts-open=${this._openShortcuts}
       ></mn-editor-toolbar>
+      <div class="reader-text-bar-slot">${textBar && original ? this._renderReaderTextBar(original) : nothing}</div>
       <div
         class="original-file-view"
         ?hidden=${!showOriginal}
