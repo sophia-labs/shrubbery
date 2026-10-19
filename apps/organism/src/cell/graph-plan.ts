@@ -459,18 +459,37 @@ export async function readGraphPlanRun(service: GraphPlanService, runId: string)
     headers: serviceHeaders(service),
   })
   if (!response.ok) throw new Error(`the run could not be read: HTTP ${response.status}`)
-  const body = (await response.json()) as { header?: { status?: string }; events?: { type?: string; label?: string | null }[] }
-  const byLabel = new Map<string, { done: number; failed: number; started: number }>()
-  for (const event of body.events ?? []) {
+  const body = (await response.json()) as { header?: { status?: string }; events?: readonly RunEvent[] }
+  return { status: body.header?.status ?? 'unknown', byLabel: stepTallies(body.events ?? []) }
+}
+
+export interface RunEvent {
+  readonly type?: string
+  readonly label?: string | null
+}
+
+/**
+ * Per step, how its items stand, from the run's events in order. An item is one node (`<step> #<n>`); a step that
+ * answered without submit() is asked once more as `<step> #<n> again`, and the item's last word is what counts, so a
+ * recovered item reads done, not failed.
+ */
+export function stepTallies(events: readonly RunEvent[]): Map<string, { done: number; failed: number; started: number }> {
+  const items = new Map<string, { step: string; state: 'running' | 'done' | 'failed' }>()
+  for (const event of events) {
     if (!event.label || !['node_started', 'node_done', 'error'].includes(event.type ?? '')) continue
-    const label = event.label.replace(/ #\d+$/, '')
-    const counts = byLabel.get(label) ?? { done: 0, failed: 0, started: 0 }
-    if (event.type === 'node_started') counts.started += 1
-    else if (event.type === 'node_done') counts.done += 1
-    else counts.failed += 1
-    byLabel.set(label, counts)
+    const item = event.label.replace(/ again$/, '')
+    const state = event.type === 'node_started' ? 'running' : event.type === 'node_done' ? 'done' : 'failed'
+    items.set(item, { step: item.replace(/ #\d+$/, ''), state })
   }
-  return { status: body.header?.status ?? 'unknown', byLabel }
+  const byLabel = new Map<string, { done: number; failed: number; started: number }>()
+  for (const { step, state } of items.values()) {
+    const counts = byLabel.get(step) ?? { done: 0, failed: 0, started: 0 }
+    counts.started += 1
+    if (state === 'done') counts.done += 1
+    if (state === 'failed') counts.failed += 1
+    byLabel.set(step, counts)
+  }
+  return byLabel
 }
 
 export interface GraphPlanResults {
