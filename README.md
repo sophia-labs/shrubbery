@@ -62,10 +62,11 @@ GARDEN_BIN=/path/to/gardend pnpm test:run # full Garden contract/integration sui
 pnpm --filter @shrubbery/organism test:browser # real Chromium shell/settings/editor/art journey
 ```
 
-Garden consumes this repository through the root composite action, pinned
-to an immutable commit SHA. The action materializes the exact source
-archive inside Garden's workflow; Garden then rebuilds it and records the
-revision in its packaged bundle.
+This repository is the canonical Shrubbery source: it is where the hosted app
+is built and shipped from, and where contributions land. Gardend consumes it
+through the root composite action, pinned to an immutable commit SHA. The
+action materializes the exact source archive inside gardend's workflow;
+gardend then rebuilds it and records the revision in its packaged bundle.
 
 **The Emporium app** (live vocabulary catalogue, emporium skin):
 ```bash
@@ -114,7 +115,7 @@ Dated per-iteration and per-slice worklogs — kept for provenance, not maintain
 
 ## Provenance
 
-Extracted from `garden/frontend` (read-only — Garden was never modified). The name & idea descend from the 2025 Python prototype at `sophia-labs/shrubbery-2025` (`rhizome` / `mdttl`). Sophia project · `sophia-labs`.
+This repository is canonical (there is no separate private copy). Extracted from `garden/frontend` (read-only — Garden was never modified). The name & idea descend from the 2025 Python prototype at `sophia-labs/shrubbery-2025` (`rhizome` / `mdttl`). Sophia project · `sophia-labs`.
 
 ## Licensing
 

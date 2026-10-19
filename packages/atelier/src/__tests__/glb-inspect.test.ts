@@ -21,7 +21,7 @@ function loadFixture(relativePath: string): ArrayBuffer {
 // child `it` skipped individually), which would still run loadFixture()
 // below and throw before any test could be registered. An `if` around the
 // whole block is the only way to make this suite skip cleanly rather than
-// crash when fixtures/vrm/*.vrm is absent (Shrubbery's public export).
+// crash when fixtures/vrm/*.vrm is absent (the fixtures are not part of this repository).
 if (hasVrmFixtures) {
 describe('inspectGlb: seed-san.vrm (VRM 1.0, VirtualCast Seed-san)', () => {
   const report = inspectGlb(loadFixture('../../fixtures/vrm/seed-san.vrm'))

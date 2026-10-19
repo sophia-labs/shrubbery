@@ -2,12 +2,9 @@
  * vrm-fixtures.ts — shared existence guard for the two real VRM binaries in
  * fixtures/vrm/ (seed-san.vrm, avatar-sample-a.vrm).
  *
- * These fixtures are deliberately excluded from Shrubbery's public export
- * (see EXPORT-MANIFEST.md at the repo root and fixtures/vrm/PROVENANCE.md):
- * they're real third-party VRM avatar binaries whose own PROVENANCE.md says
- * "Neither file is redistributed as part of any Sophia product build." A
- * tree built from the export manifest omits packages/atelier/fixtures/vrm/
- * entirely.
+ * These fixtures are not part of this repository: they are real third-party
+ * VRM avatar binaries whose licence terms do not allow redistribution here.
+ * This tree therefore has no packages/atelier/fixtures/vrm/ directory.
  *
  * The three fixture-dependent suites (glb-inspect, ingest-base,
  * ingest-garment) call loadFixture() inside each `describe()` body — i.e.
@@ -45,8 +42,8 @@ const AVATAR_SAMPLE_A = join(HERE, '../../../fixtures/vrm/avatar-sample-a.vrm')
 export const hasVrmFixtures: boolean = existsSync(SEED_SAN) && existsSync(AVATAR_SAMPLE_A)
 
 export const VRM_FIXTURES_SKIP_MESSAGE =
-  'SKIPPED (fixtures/vrm/*.vrm not found — excluded from Shrubbery\'s public export; ' +
-  'see EXPORT-MANIFEST.md and packages/atelier/fixtures/vrm/PROVENANCE.md for sources)'
+  'SKIPPED (fixtures/vrm/*.vrm not found — not part of this repository, licence terms; ' +
+  'drop your own VRM files there to run these suites)'
 
 if (!hasVrmFixtures) {
   // Printed once at collection time regardless of the test reporter's verbosity,

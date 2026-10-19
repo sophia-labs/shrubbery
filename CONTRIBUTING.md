@@ -3,7 +3,9 @@
 Shrubbery is a pure RDF→UI interpreter and component library from Sophia
 Labs, licensed **source-available** under the
 [PolyForm Noncommercial License 1.0.0](LICENSE) — not open source / OSS.
-See the README's Provenance section for its history.
+This repository is the canonical Shrubbery source: pull requests here are
+what ships, and there is no private copy behind it. See the README's
+Provenance section for its history.
 
 ## Setup
 
@@ -49,7 +51,7 @@ point at a built binary) and is skipped on every ordinary PR/push, so the
 gap is explicit rather than silent.
 
 To run those suites locally, build `gardend` from the public
-**`sophia-labs/gardend`** repository (published in a parallel campaign) and
+**`sophia-labs/gardend`** repository and
 point the `GARDEN_BIN` environment variable at the resulting binary — see
 `packages/source/src/node/spawn-gardend.ts` for the exact contract.
 

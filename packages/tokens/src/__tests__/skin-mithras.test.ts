@@ -28,7 +28,7 @@ import { extractFlowTokens, flowTokenSource, renderFlowTokensCss } from '../flow
 
 const here = dirname(fileURLToPath(import.meta.url))
 const REPO = resolve(here, '../../../..')
-// The public export carries no apps/flow/ (EXPORT-MANIFEST.md): the two tests that read Flow's vendored
+// This repository carries no apps/flow/ (a vendored app that is not redistributable): the two tests that read Flow's vendored
 // stylesheet skip there and run wherever the vendor drop is present.
 const FLOW_VENDORED = existsSync(resolve(REPO, 'apps/flow/vendor/flow/src/styles.css'))
 const CSS_DIR = resolve(here, '../../css')

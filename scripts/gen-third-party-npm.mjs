@@ -3,11 +3,10 @@
 // license inventory for the pnpm workspace's PRODUCTION dependency closure
 // (satisfies NOTICE.md's forward obligation to complete this review).
 //
-// Scope mirrors EXPORT-MANIFEST.md: every workspace member that ships in the
-// public export, i.e. all of them EXCEPT @shrubbery/flow-app (apps/flow/ is
-// permanently excluded — verbatim third-party vendor, no license grant).
-// packages/atelier/fixtures/vrm/ is not an npm package and has no bearing on
-// this closure.
+// Scope: every workspace member in this repository, i.e. all of them EXCEPT
+// @shrubbery/flow-app (apps/flow is a verbatim third-party vendor with no
+// redistribution grant, so it is not part of this repository). The VRM test
+// fixtures are not an npm package and have no bearing on this closure.
 //
 // Method: `pnpm licenses list --json --prod --filter '!@shrubbery/flow-app'`
 // — pnpm's own license checker, not a hand-rolled pnpm-lock.yaml walk. Tried
@@ -118,7 +117,7 @@ function buildMarkdown(rows, flagged, packageCount) {
   lines.push('# Third-Party npm Dependencies — Production Closure')
   lines.push('')
   lines.push(
-    'This inventory covers the **production dependency closure of the pnpm workspace members that ship in the public export** — every `apps/*` and `packages/*` member except `@shrubbery/flow-app` (`apps/flow/` is permanently excluded from the export; see `EXPORT-MANIFEST.md`). It does **not** cover devDependencies (the tooling that builds and tests Shrubbery, never shipped) or `packages/atelier/fixtures/vrm/` (binary test fixtures, not an npm package). Satisfies the forward obligation in `NOTICE.md` to complete this review before a first tagged release.',
+    'This inventory covers the **production dependency closure of the pnpm workspace members in this repository** — every `apps/*` and `packages/*` member except `@shrubbery/flow-app` (`apps/flow` is vendored and not redistributable, so it is not part of this repository). It does **not** cover devDependencies (the tooling that builds and tests Shrubbery, never shipped) or the VRM test fixtures (licence terms; not part of this repository, and not an npm package). Satisfies the forward obligation in `NOTICE.md` to complete this review before a first tagged release.',
   )
   lines.push('')
   lines.push(

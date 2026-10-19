@@ -23,8 +23,8 @@ workspace member's `package.json` and pinned in `pnpm-lock.yaml`. Each
 retains its own license and notices.
 
 A full third-party license inventory for the production dependency closure
-of the workspace members that ship in the export (i.e. everything except
-`apps/flow/`, which is permanently excluded — see `EXPORT-MANIFEST.md`) is
+of the workspace members in this repository (i.e. everything except
+`apps/flow/`, which is not part of this repository: it is vendored and not redistributable) is
 published in [`THIRD-PARTY-NPM.md`](THIRD-PARTY-NPM.md), generated via
 `scripts/gen-third-party-npm.mjs`. A handful of entries there are flagged
 for missing or unusual upstream license metadata — see that file's own
