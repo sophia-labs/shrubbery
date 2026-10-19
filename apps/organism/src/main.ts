@@ -1552,8 +1552,10 @@ async function publishWorkflowFindings(state: CurrentWorkflowPlan): Promise<void
 
 function workflowPlanView(state: CurrentWorkflowPlan, problems: readonly string[], now: number): WorkflowPlanOptions {
   const plan = state.plan
+  // An empty or unfinished plan has no title of its own yet: the workflow document's name stands in for it.
+  const documentTitle = state.documentId ? (sidebarNodeById(state.documentId)?.label ?? null) : null
   return {
-    title: plan?.title ?? state.definition,
+    title: plan?.title ?? documentTitle ?? state.definition,
     definition: state.definition,
     status: plan ? 'ready' : 'invalid',
     problems,
