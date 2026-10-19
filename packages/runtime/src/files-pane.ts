@@ -546,7 +546,25 @@ function renderRowNaming(value: WorkspaceFilesOptions, key: string, naming: NonN
 
 const EMPTY: readonly object[] = Object.freeze([])
 
+/** One source object per file and bytes, so the Reader does not reopen the PDF on every render. */
+const pdfSources = new WeakMap<Uint8Array, { readonly kind: 'pdf'; readonly key: string; readonly data: Uint8Array }>()
+function pdfReaderSource(key: string, data: Uint8Array): { readonly kind: 'pdf'; readonly key: string; readonly data: Uint8Array } {
+  let source = pdfSources.get(data)
+  if (!source || source.key !== key) { source = { kind: 'pdf', key, data }; pdfSources.set(data, source) }
+  return source
+}
+
 function renderPreview(value: WorkspaceFilesOptions, preview: FilesPanePreview): TemplateResult {
+  // A PDF opens in the Reader, as an imported one does; a datasheet keeps the reader with its "What we read" overlay.
+  if (preview.kind === 'pdf' && !(preview.assertions?.length) && !preview.assertionsInfo && customElements.get('mn-reader')) {
+    return html`<section class="opened pdf" aria-label=${`Original of ${preview.name}`}><mn-reader
+      .source=${preview.data ? pdfReaderSource(preview.fileKey || preview.name, preview.data) : null}
+      .title=${preview.name}
+      .status=${preview.status === 'loading' ? 'loading' : preview.status === 'error' ? 'error' : 'ready'}
+      .error=${preview.status === 'error' ? preview.error : ''}
+      annotate-note="Import the PDF to highlight it and write notes on it."
+    ></mn-reader></section>`
+  }
   if (preview.kind === 'pdf') {
     return html`<section class="opened pdf" aria-label=${`Original of ${preview.name}`}><mn-pdf-reader
       .data=${preview.data ?? null} .fileKey=${preview.fileKey ?? ''} .name=${preview.name}

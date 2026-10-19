@@ -489,6 +489,15 @@ export interface EditorOriginalFileView {
    * still made in Document View. `unavailable`: none are shown here. Either way the UI says so.
    */
   readonly annotationSupport: 'unavailable' | 'display'
+  /**
+   * The Reader's input, when the shell has the Reader (`<mn-reader>`, defined by the app): opaque here, it is the
+   * PDF's bytes or the parsed book. Present: the original opens in the Reader instead of the original viewer.
+   */
+  readonly reader?: unknown
+  /** The annotations the Reader draws (opaque here; the app's Reader types them). */
+  readonly readerAnnotations?: readonly unknown[]
+  /** May this person highlight and write notes on the original? */
+  readonly readerCanAnnotate?: boolean
 }
 
 /** Shell-owned access state for the open document. */
@@ -1055,6 +1064,7 @@ export class ShEditorHost extends LitElement {
       pointer-events: none;
     }
     .editor-mount[hidden],
+    mn-editor-toolbar[hidden],
     .original-file-view[hidden] {
       display: none !important;
     }
@@ -1067,6 +1077,7 @@ export class ShEditorHost extends LitElement {
       overflow: hidden;
       background: var(--mn-color-surface-base, #fff);
     }
+    .original-file-view mn-reader,
     .original-file-view mn-original-viewer {
       flex: 1 1 auto;
       min-width: 0;
@@ -5522,7 +5533,10 @@ export class ShEditorHost extends LitElement {
     const fs = this.formatState
     const original = this.originalFileView
     const showOriginal = Boolean(original?.active)
+    // The Reader has its own bar (Original / Text, find, notes); the editor's toolbar steps aside while it shows.
+    const inReader = showOriginal && original?.reader != null && Boolean(customElements.get('mn-reader'))
     return html`<mn-editor-toolbar
+        ?hidden=${inReader}
         @pointerdown=${this._captureToolbarSelection}
         @focusin=${this._captureToolbarSelection}
         .formatState=${fs}
@@ -5583,7 +5597,19 @@ export class ShEditorHost extends LitElement {
         role="region"
         aria-label="Original document view"
       >
-        ${showOriginal && original
+        ${inReader && original
+          ? html`<mn-reader
+              .source=${original.reader}
+              .title=${original.title}
+              .status=${original.status}
+              .error=${original.error}
+              .annotations=${original.readerAnnotations ?? []}
+              ?can-annotate=${original.readerCanAnnotate ?? false}
+              annotate-note=${original.readerCanAnnotate ? '' : 'Highlights and notes need the document to be open and connected.'}
+              ?text-view=${true}
+              ?downloadable=${original.downloadable}
+            ></mn-reader>`
+          : showOriginal && original
           ? html`<mn-original-viewer
               .graphId=${original.graphId}
               .documentId=${original.documentId}

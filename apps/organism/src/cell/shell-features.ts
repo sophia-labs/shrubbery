@@ -46,10 +46,11 @@ import { createChoreographModesFeature } from './choreograph-modes-feature.js'
 import { createFlowAppFeature } from './flow-feature.js'
 import { flowAppEnabled } from './flow-workspace.js'
 import { OrganismOriginalFileController } from './original-file-controller.js'
+import './reader/mn-reader.js'
+import { readerAnnotationsFor } from './reader/reader-annotations.js'
 import {
   documentQuoteState,
   isQuoteSourceDoc,
-  quoteAnnotationsFor,
   type DocumentQuoteState,
   type QuoteSourceDoc,
 } from './document-quote-sources.js'
@@ -723,8 +724,18 @@ function originalFileFeature<TContract>(): ShellFeature<TContract> {
       latestContext?.rerender()
     })
   }
+  // Which view a person last chose for each imported document: the Reader opens on the original unless they chose Text.
+  const viewKey = (scope: string): string => `mn-reader:v1:view:${scope}`
+  const prefersText = (scope: string): boolean => {
+    try { return globalThis.localStorage?.getItem(viewKey(scope)) === 'text' } catch { return false }
+  }
+  const rememberView = (scope: string, view: 'text' | 'original'): void => {
+    try { globalThis.localStorage?.setItem(viewKey(scope), view) } catch { /* the default is the original */ }
+  }
+  let openedOriginalFor = ''
   const ensure = (): OrganismOriginalFileController => {
     controller ??= new OrganismOriginalFileController({
+      readerMode: true,
       requestRender,
       fetch: (input, init) => {
         const harnessFetch = (latestContext?.contract as { fetch?: typeof fetch } | null)?.fetch
@@ -733,7 +744,10 @@ function originalFileFeature<TContract>(): ShellFeature<TContract> {
     })
     return controller
   }
-  const onToggle = (): void => { void controller?.toggle(assignedHost?.getPdfSourceLocation?.() ?? null) }
+  const onToggle = (): void => {
+    if (mutationScope) rememberView(mutationScope, controller?.snapshot().active ? 'text' : 'original')
+    void controller?.toggle(assignedHost?.getPdfSourceLocation?.() ?? null)
+  }
   const onReload = (): void => { void controller?.reload() }
   const onDownload = (): void => controller?.download()
   const onOpenExternal = (): void => controller?.openExternal()
@@ -852,9 +866,15 @@ function originalFileFeature<TContract>(): ShellFeature<TContract> {
         context.documentId,
         node?.sourceFile ?? null,
       )
+      // An imported, read-only document opens on its original, in the Reader, unless its reader chose Text last time.
+      if (!scope) openedOriginalFor = ''
+      else if (scope !== openedOriginalFor && node?.readOnly && !madeEditable.has(scope) && active.snapshot().available) {
+        openedOriginalFor = scope
+        if (!active.snapshot().active && !prefersText(scope)) void active.toggle(null)
+      }
       // The comments (and highlights) of this document, drawn over its original while it is open.
       if (active.annotationsWanted) {
-        active.setAnnotations(quoteAnnotationsFor(snapshot.comments?.comments ?? [], currentQuoteState()))
+        active.setAnnotations(readerAnnotationsFor(snapshot.comments?.comments ?? [], currentQuoteState()))
       }
       return {
         editorDocumentAccess: context.documentId
@@ -874,7 +894,8 @@ function originalFileFeature<TContract>(): ShellFeature<TContract> {
         | null
       if (assignedHost && assignedHost !== host) assignedHost.originalFileView = null
       assignedHost = host
-      if (host) host.originalFileView = ensure().snapshot()
+      // Highlights and notes are saved into the open document's comments, so they need its live Y.Doc.
+      if (host) host.originalFileView = { ...ensure().snapshot(), readerCanAnnotate: quoteDoc !== null }
     },
     destroy() {
       if (listeningRoot) {

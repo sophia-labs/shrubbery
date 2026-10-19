@@ -660,6 +660,24 @@ export interface WorkspaceComment {
   readonly resolved?: boolean
   readonly documentPosition?: number | null
   readonly blockId?: string | null
+  readonly authorId?: string | null
+  /** The name an agent or workflow gave when it wrote this; `author` is who gardend signed it as. */
+  readonly claimedAuthor?: string | null
+  /** A highlight is a comment without words, made over an original in the Reader. Absent: a comment. */
+  readonly kind?: 'comment' | 'highlight' | null
+  /** The highlighter's colour name (yellow, green, blue, pink). */
+  readonly color?: string | null
+  /** Where on the original it was made, and the words around it. */
+  readonly anchor?: WorkspaceCommentAnchor | null
+  /** Made in the Reader by this person (theirs to recolour and delete). */
+  readonly madeInReader?: boolean
+}
+
+export interface WorkspaceCommentAnchor {
+  readonly page?: number | null
+  readonly chapter?: number | null
+  readonly prefix?: string | null
+  readonly suffix?: string | null
 }
 
 export interface WorkspaceCommentDetail {
@@ -2372,9 +2390,15 @@ function renderDocHistoryOverlay(docHistory: DocHistoryOptions | null | undefine
   `
 }
 
+/** The list as given (the same array) unless it holds a Reader highlight to leave out. */
+function withoutHighlights(comments: readonly WorkspaceComment[]): readonly WorkspaceComment[] {
+  return comments.some(comment => comment.kind === 'highlight') ? comments.filter(comment => comment.kind !== 'highlight') : comments
+}
+
 function renderCommentsPanel(comments: WorkspaceCommentsOptions | null | undefined): TemplateResult {
+  // A highlight made in the Reader has no words of its own: it lives in the Reader's Notes, not among comments.
   return html`<mn-comments-panel
-    .comments=${comments?.comments ?? []}
+    .comments=${withoutHighlights(comments?.comments ?? [])}
     .hoveredCommentId=${comments?.hoveredCommentId ?? null}
     .emptyShortcut=${comments?.emptyShortcut ?? null}
     @mn-comment-select=${(event: Event) =>

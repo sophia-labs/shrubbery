@@ -517,6 +517,7 @@ import {
   type DocumentCommentData,
   type DocumentCommentsSource,
 } from './cell/document-comments.js'
+import type { ReaderAnnotateDetail, ReaderAnnotationChangeDetail } from './cell/reader/reader-model.js'
 import {
   activeDocumentSelection,
   projectInspectorActions,
@@ -2436,6 +2437,58 @@ function handleEditorCommentInserted(detail: EditorCommentInsertedDetail | undef
   ensureCommentsPanelVisible()
   source.set(commentId, next)
   ok(`comment added → rightPanel=${describeRightPanel()}`)
+}
+
+/**
+ * A highlight or a note made over an original in the Reader. It is a comment of the open document, carrying its colour
+ * and where on the original it was made, so it is drawn in the Reader and listed beside the text. A note is then given
+ * to gardend (`document.editComments`), which marks the passage in the text made from the original and signs it; an
+ * entry gardend already holds keeps these extra keys. A gardend without that operation leaves the note as written.
+ */
+function handleReaderAnnotate(detail: ReaderAnnotateDetail | undefined): void {
+  const source = currentCommentsSource
+  const documentId = openDocId
+  if (!detail || !source || !documentId) return
+  const commentId = `rd-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+  const now = Date.now()
+  const place = detail.place.kind === 'page' ? { page: detail.place.page } : { chapter: detail.place.chapterIndex }
+  source.set(commentId, {
+    ...localCommentAuthor(),
+    text: detail.text,
+    quotedText: detail.quote,
+    createdAt: now,
+    updatedAt: now,
+    resolved: false,
+    kind: detail.kind,
+    color: detail.color,
+    anchor: { ...place, prefix: detail.prefix, suffix: detail.suffix },
+    madeIn: 'reader',
+  })
+  const caller = store?.contract.rawMcp
+  if (detail.kind !== 'comment' || !caller || !detail.text.trim()) return
+  const graphId = currentGraphId
+  // After the entry has reached the room, so gardend edits it rather than creating a bare one.
+  window.setTimeout(() => {
+    void caller.callTool('crdt_operation', {
+      graphId,
+      kind: 'document.editComments',
+      documentId,
+      payload: { documentId, comments: [{ commentId, text: detail.text, find: detail.quote, quotedText: detail.quote }] },
+    }).catch((error: unknown) => {
+      err(`reader note kept as written (not marked in the text): ${error instanceof Error ? error.message : String(error)}`)
+    })
+  }, 400)
+}
+
+function handleReaderAnnotationChange(detail: ReaderAnnotationChangeDetail | undefined): void {
+  const source = currentCommentsSource
+  if (!detail || !source) return
+  if (detail.action === 'recolor' && detail.color) source.update(detail.id, { color: detail.color, updatedAt: Date.now() })
+  else if (detail.action === 'edit' && typeof detail.text === 'string') source.update(detail.id, { text: detail.text, updatedAt: Date.now() })
+  else if (detail.action === 'delete') {
+    currentLiveEditor()?.removeComment(detail.id)
+    source.delete(detail.id)
+  }
 }
 
 function handleCommentSelect(detail: WorkspaceCommentDetail): void {
@@ -10636,6 +10689,14 @@ hostEl.addEventListener('mn-zoom-change', ((event: CustomEvent<{ blockId: string
 
 hostEl.addEventListener('mn-editor-comment-inserted', ((event: CustomEvent<EditorCommentInsertedDetail>) => {
   handleEditorCommentInserted(event.detail)
+}) as EventListener)
+
+hostEl.addEventListener('reader-annotate', ((event: CustomEvent<ReaderAnnotateDetail>) => {
+  handleReaderAnnotate(event.detail)
+}) as EventListener)
+
+hostEl.addEventListener('reader-annotation-change', ((event: CustomEvent<ReaderAnnotationChangeDetail>) => {
+  handleReaderAnnotationChange(event.detail)
 }) as EventListener)
 
 document.addEventListener('mn-editor-history-open', ((event: CustomEvent<{ documentId?: string | null }>) => {

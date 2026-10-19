@@ -21,6 +21,23 @@ export interface DocumentCommentData {
   readonly quotedText?: string
   readonly documentPosition?: number
   readonly blockId?: string
+  /** A highlight made over an original in the Reader (no words of its own). Absent: a comment. */
+  readonly kind?: 'comment' | 'highlight'
+  readonly color?: string
+  /** Where on the original it was made: a PDF page or an EPUB chapter, and the words around the quote. */
+  readonly anchor?: { readonly page?: number; readonly chapter?: number; readonly prefix?: string; readonly suffix?: string }
+  /** `reader` when a person made it in the Reader. */
+  readonly madeIn?: string
+  /** What an agent or workflow called itself; gardend signs the entry as the person behind it. */
+  readonly claimedAuthor?: string
+}
+
+function commentAnchor(value: unknown): WorkspaceComment['anchor'] {
+  if (!value || typeof value !== 'object') return null
+  const anchor = value as Record<string, unknown>
+  const count = (v: unknown) => typeof v === 'number' && Number.isInteger(v) && v >= 0 ? v : null
+  const words = (v: unknown) => typeof v === 'string' ? v.slice(0, 200) : null
+  return { page: count(anchor.page), chapter: count(anchor.chapter), prefix: words(anchor.prefix), suffix: words(anchor.suffix) }
 }
 
 export interface DocumentCommentsSource extends ReactiveSource<readonly WorkspaceComment[]> {
@@ -50,6 +67,12 @@ function workspaceCommentFromEntry(id: string, data: DocumentCommentData): Works
     resolved: data.resolved,
     documentPosition: data.documentPosition ?? null,
     blockId: data.blockId ?? null,
+    // What the Reader adds, only when an entry carries it (an ordinary comment projects as it always has).
+    ...(typeof data.claimedAuthor === 'string' && data.claimedAuthor.trim() ? { claimedAuthor: data.claimedAuthor.trim() } : {}),
+    ...(data.kind === 'highlight' ? { kind: 'highlight' as const } : {}),
+    ...(typeof data.color === 'string' ? { color: data.color } : {}),
+    ...(data.anchor ? { anchor: commentAnchor(data.anchor) } : {}),
+    ...(data.madeIn === 'reader' ? { madeInReader: true } : {}),
   }
 }
 

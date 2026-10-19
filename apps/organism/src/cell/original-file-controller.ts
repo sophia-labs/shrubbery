@@ -25,6 +25,9 @@ import {
   type QuoteChapterText,
   type SourceQuoteAnnotation,
 } from './source-quote-annotations.js'
+import { readEpubBook } from './reader/epub-book.js'
+import type { ReaderSource } from './reader/mn-reader.js'
+import type { ReaderAnnotation } from './reader/reader-model.js'
 
 type OriginalFileContract = Pick<ShrubberyContract, 'auth' | 'runtime'>
 
@@ -40,6 +43,11 @@ export interface OriginalFileControllerOptions {
   readonly download?: (url: string, filename: string) => void
   readonly openExternal?: (url: string) => void
   readonly pdfPreview?: PdfOriginalPreviewFactory
+  /**
+   * Hand a PDF's bytes and an EPUB's parsed book to the Reader (`<mn-reader>`) instead of rendering page pictures and
+   * chapter frames, and pass the document's annotations as a list for it to draw.
+   */
+  readonly readerMode?: boolean
 }
 
 interface OriginalScope {
@@ -405,9 +413,13 @@ function chapterSearchText(chapter: EditorOriginalFileChapter): QuoteChapterText
 }
 
 function annotationKey(annotations: readonly SourceQuoteAnnotation[]): string {
-  return JSON.stringify(annotations.map(annotation => [
-    annotation.id, annotation.kind, annotation.quote, annotation.text ?? '', annotation.author ?? '', annotation.context ?? '',
-  ]))
+  return JSON.stringify(annotations.map(annotation => {
+    const drawn = annotation as Partial<ReaderAnnotation>
+    return [
+      annotation.id, annotation.kind, annotation.quote, annotation.text ?? '', annotation.author ?? '', annotation.context ?? '',
+      drawn.color ?? '', drawn.place ?? null, drawn.prefix ?? '', drawn.suffix ?? '', drawn.mine ?? false,
+    ]
+  }))
 }
 
 /**
@@ -512,6 +524,8 @@ export class OrganismOriginalFileController {
   private pdfPageNumber = 1
   private pdfSourceMapping: EditorPdfSourceMapping | null = null
   private pdfPageUrl = ''
+  /** What the Reader shows, in reader mode: the PDF's bytes or the parsed book. */
+  private readerSource: ReaderSource | null = null
 
   constructor(private readonly options: OriginalFileControllerOptions) {
     const fetchImpl = options.fetch ?? globalThis.fetch
@@ -563,6 +577,7 @@ export class OrganismOriginalFileController {
     this.chapterSearchTexts = null
     this.annotationViews = []
     this.selectedChapterId = ''
+    this.readerSource = null
   }
 
   private revokePdfPage(): void {
@@ -620,6 +635,7 @@ export class OrganismOriginalFileController {
     if (key === this.sourceAnnotationKey) return
     this.sourceAnnotations = Object.freeze([...annotations])
     this.sourceAnnotationKey = key
+    if (this.readerSource) { this.render(); return }
     if (this.baseChapters.length === 0) return
     this.projectAnnotations()
     this.render()
@@ -672,6 +688,8 @@ export class OrganismOriginalFileController {
       pdfSourceMapping: this.pdfSourceMapping,
       annotations: this.annotationViews,
       annotationSupport: this.baseChapters.length > 0 ? 'display' : 'unavailable',
+      reader: this.readerSource,
+      readerAnnotations: this.readerSource ? this.sourceAnnotations : [],
     })
   }
 
@@ -771,7 +789,15 @@ export class OrganismOriginalFileController {
         srcdoc: '',
         chapters: [],
       }
-      if (isEpub(filename, mimeType)) {
+      let readerSource: ReaderSource | null = null
+      const pdfFile = fileType === 'pdf' || mimeType === 'application/pdf'
+      if (this.options.readerMode && isEpub(filename, mimeType)) {
+        const book = await readEpubBook(bytes, filename)
+        readerSource = { kind: 'epub', key: `${scope.graphId}:${scope.documentId}`, book }
+        loaded = { ...loaded, title: book.title || loaded.title }
+      } else if (this.options.readerMode && pdfFile) {
+        readerSource = { kind: 'pdf', key: `${scope.graphId}:${scope.documentId}`, data: bytes }
+      } else if (isEpub(filename, mimeType)) {
         const preview = await epubPreview(bytes, filename)
         loaded = { ...loaded, title: preview.title, chapters: preview.chapters }
       } else if (isHtml(filename, mimeType)) {
@@ -802,7 +828,13 @@ export class OrganismOriginalFileController {
       this.src = loaded.text || loaded.srcdoc || loaded.chapters.length > 0 ? '' : objectUrl
       this.status = 'ready'
       this.error = ''
-      if (fileType === 'pdf' || mimeType === 'application/pdf') {
+      this.readerSource = readerSource
+      if (readerSource) {
+        this.src = ''
+        this.render()
+        return
+      }
+      if (pdfFile) {
         this.status = 'loading'
         this.render()
         this.pdfSourceMapping = inspection.status === 'mapped'

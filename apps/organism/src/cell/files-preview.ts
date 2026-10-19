@@ -175,6 +175,7 @@ export class FilesPreviewController {
     const base = { kind: 'pdf', artifactId: file.id, name, pageCount: 0, pageNumber: 1 } as const
     // The reader (pdf.js's viewer layer) is a lazy chunk, loaded while the bytes come down.
     void import('./pdf-reader/pdf-reader.js')
+    void import('./reader/mn-reader.js')
     this.set({ ...base, status: 'loading', error: '', data: null, loaded: 0, total: 0 })
     try {
       let last = 0
