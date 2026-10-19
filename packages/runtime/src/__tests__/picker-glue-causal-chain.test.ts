@@ -182,6 +182,29 @@ async function wikilinkPredicateOptions(mount: HTMLElement): Promise<Element[]> 
   return Array.from(picker.shadowRoot?.querySelectorAll('[data-wikilink-predicate]') ?? [])
 }
 
+async function pickerRoot(mount: HTMLElement): Promise<ShadowRoot | null> {
+  const picker = mount.querySelector('mn-wikilink-picker') as
+    | (HTMLElement & { updateComplete?: Promise<unknown> })
+    | null
+  if (!picker) return null
+  await picker.updateComplete
+  return picker.shadowRoot
+}
+
+async function wholeDocumentRow(mount: HTMLElement): Promise<Element | null> {
+  return (await pickerRoot(mount))?.querySelector('[data-wikilink-whole-document]') ?? null
+}
+
+async function selectedDrumPredicate(mount: HTMLElement): Promise<string | null> {
+  const root = await pickerRoot(mount)
+  return root?.querySelector('[data-wire-drum] [aria-selected="true"]')?.getAttribute('data-predicate-uri') ?? null
+}
+
+async function wireSentence(mount: HTMLElement): Promise<string> {
+  const text = (await pickerRoot(mount))?.querySelector('[data-wire-sentence]')?.textContent ?? ''
+  return text.replace(/\s+/g, ' ').trim()
+}
+
 async function wikilinkBlockOptions(mount: HTMLElement): Promise<Element[]> {
   const picker = mount.querySelector('mn-wikilink-picker') as
     | (HTMLElement & { updateComplete?: Promise<unknown> })
@@ -1267,6 +1290,16 @@ describe('picker glue — the full causal chain through SHIPPED code (no mock on
 
     const options = await wikilinkCandidateOptions(mount)
     expect(options.map((o) => o.textContent?.trim())).toEqual(['Billing'])
+    // The quick wire flow: document, then "Wire to document", then the drum,
+    // which opens on "is related to". Three Enters, and no step is skipped.
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }))
+    await flushMicrotasks()
+    expect(await wholeDocumentRow(mount)).not.toBeNull()
+    expect(wire.creates).toHaveLength(0)
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }))
+    await flushMicrotasks()
+    expect(await selectedDrumPredicate(mount)).toBe(DEFAULT_WIRE_PREDICATE_URI)
+    expect(wire.creates).toHaveLength(0)
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }))
     await flushMicrotasks()
 
@@ -1286,8 +1319,110 @@ describe('picker glue — the full causal chain through SHIPPED code (no mock on
         predicate: DEFAULT_WIRE_PREDICATE_URI,
         direction: 'forward',
         bidirectional: false,
+        pin: {
+          source: { documentId: DOC_ID, blockId: 'block-a', title: '', text: '' },
+          target: { documentId: 'doc-billing', title: 'Billing', text: '' },
+          predicateLabel: 'is related to',
+          x: expect.any(Number),
+          y: expect.any(Number),
+        },
       },
     ])
+  })
+
+  it('quick wire flow → a target block, a drum predicate and the reverse direction reach the wire and the pin', async () => {
+    const store = seedWorkspaceStore(GRAPH_ID, [
+      {
+        id: 'doc-billing',
+        title: 'Billing',
+        blocks: [
+          { id: 'block-title', type: 'heading', level: 2, text: 'Billing model', order: 0 },
+          { id: 'block-price', type: 'paragraph', text: 'Pricing plans and invoices', order: 1 },
+        ],
+      },
+    ])
+    const rest = makeOxigraphRestClient(store)
+    const wire = recordingWireWriter()
+    const getScope = documentScope()
+    const services = assembleEditorServices(rest, wire, getScope)
+    const mount = document.createElement('div')
+    mount.className = 'sh-wikilink-picker-mount'
+    document.body.appendChild(mount)
+    const created: Array<Record<string, unknown>> = []
+    const onCreated: EventListener = (event) => {
+      created.push((event as CustomEvent).detail)
+    }
+    document.addEventListener('mn-wire-created', onCreated)
+    teardowns.push(() => document.removeEventListener('mn-wire-created', onCreated))
+    const sourceBlock = document.createElement('p')
+    sourceBlock.innerHTML = '<span contenteditable="false">&gt; supports Billing</span>Revenue follows   the price.'
+
+    const uninstall = installWikiLinkPickerGlue({
+      getEditor: () => ({
+        insertWikiLink: () => true,
+        getBlockElement: (blockId) => (blockId === 'block-a' ? sourceBlock : null),
+      }),
+      services,
+      getScope,
+      document,
+      mountInto: mount,
+      initialQuery: 'billing',
+    })
+    teardowns.push(uninstall)
+    const key = async (k: string): Promise<void> => {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: k }))
+      await flushMicrotasks()
+    }
+
+    document.dispatchEvent(
+      new CustomEvent('mn-block-wire-request', {
+        detail: {
+          graphId: GRAPH_ID,
+          documentId: DOC_ID,
+          blockId: 'block-a',
+          clientX: 0,
+          clientY: 0,
+          shiftKey: false,
+          altKey: false,
+          metaKey: false,
+          ctrlKey: false,
+        },
+      }),
+    )
+    await flushMicrotasks()
+    await key('Enter')
+    expect((await wikilinkBlockOptions(mount)).map((o) => o.getAttribute('data-block-id'))).toEqual([
+      'block-title',
+      'block-price',
+    ])
+    // Row 0 is the whole document, so two steps down is the second block.
+    await key('ArrowDown')
+    await key('ArrowDown')
+    await key('Enter')
+    // Up from "is related to" wraps to the far end of the ring: exemplifies.
+    await key('ArrowUp')
+    expect(await selectedDrumPredicate(mount)).toBe('http://mnemosyne.ai/vocab#exemplifies')
+    await key('ArrowRight')
+    const sentence = await wireSentence(mount)
+    expect(sentence).toContain('Pricing plans and invoices exemplifies Revenue follows the price.')
+    await key('Enter')
+
+    expect(wire.creates).toHaveLength(1)
+    const params = wire.creates[0].params
+    expect(params.sourceDocumentId).toBe('doc-billing')
+    expect(params.sourceBlockId).toBe('block-price')
+    expect(params.targetDocumentId).toBe(DOC_ID)
+    expect(params.targetBlockId).toBe('block-a')
+    expect(params.predicate).toBe('http://mnemosyne.ai/vocab#exemplifies')
+    expect(created[0]).toMatchObject({
+      direction: 'reverse',
+      targetBlockId: 'block-price',
+      pin: {
+        source: { documentId: 'doc-billing', blockId: 'block-price', title: 'Billing', text: 'Pricing plans and invoices' },
+        target: { documentId: DOC_ID, blockId: 'block-a', text: 'Revenue follows the price.' },
+        predicateLabel: 'exemplifies',
+      },
+    })
   })
 
   it('document wire request → real candidate picker → document-level wire create without inserting a wikilink node', async () => {

@@ -31,6 +31,15 @@ export function workspaceProjectionGraphIri(graphId: string): string {
   return `${graphSubject(graphId)}:projection:workspace`
 }
 
+/**
+ * The named graph holding one document's projection:
+ * {graph}:projection:document:{documentId} (rdf_authority.rs). Block text and
+ * the document's tree live here, not in the workspace projection.
+ */
+export function documentProjectionGraphIri(graphId: string, documentId: string): string {
+  return `${graphSubject(graphId)}:projection:document:${documentId}`
+}
+
 /** document_subject(id) = urn:mnemosyne:local:document:{id} (rdf.rs:126-128). */
 export function documentSubject(documentId: string): string {
   return `urn:mnemosyne:local:document:${documentId}`

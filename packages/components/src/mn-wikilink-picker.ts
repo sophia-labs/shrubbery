@@ -13,6 +13,22 @@ import { icon, iconStyles } from './icons.js'
 
 export type MnWikiLinkPickerPhase = 'document' | 'block' | 'predicate'
 
+/**
+ * 'link' is the [[ picker: Enter on a document links it. 'wire' is the quick
+ * wire flow (Mod-;): document, then block (row 0 wires to the whole
+ * document), then the predicate drum, where the arrow keys left and right
+ * set the direction. Every step takes an Enter, so the predicate is always
+ * seen (2026-10-07).
+ */
+export type MnWikiLinkPickerFlow = 'link' | 'wire'
+
+export type MnWikiLinkWireDirection = 'forward' | 'reverse' | 'bidirectional'
+
+const WIRE_DIRECTIONS: readonly MnWikiLinkWireDirection[] = ['forward', 'reverse', 'bidirectional']
+
+/** Rows the drum shows on each side of the selected predicate. */
+const DRUM_REACH = 3
+
 export interface MnWikiLinkDocumentItem {
   readonly id: string
   readonly label: string
@@ -39,6 +55,8 @@ export interface MnWikiLinkPickerSelectDetail {
   readonly document: MnWikiLinkDocumentItem
   readonly block?: MnWikiLinkBlockItem
   readonly predicate?: MnWikiLinkPredicateItem
+  /** Set by the wire flow only. */
+  readonly direction?: MnWikiLinkWireDirection
 }
 
 export interface MnWikiLinkPickerQueryDetail {
@@ -50,6 +68,18 @@ export interface MnWikiLinkPickerPhaseRequestDetail {
   readonly phase: MnWikiLinkPickerPhase
   readonly document?: MnWikiLinkDocumentItem
   readonly block?: MnWikiLinkBlockItem
+}
+
+const DIRECTION_LABELS: Record<MnWikiLinkWireDirection, string> = {
+  forward: '→ this to that',
+  reverse: '← that to this',
+  bidirectional: '↔ both',
+}
+
+/** A block's text cut to fit the sentence on one or two lines. */
+function clip(text: string, max = 48): string {
+  const flat = text.replace(/\s+/g, ' ').trim()
+  return flat.length > max ? `${flat.slice(0, max - 1)}…` : flat
 }
 
 function stop(event: Event): void {
@@ -214,6 +244,30 @@ export class MnWikiLinkPicker extends SkinAware(LitElement) {
       overflow-y: auto;
     }
 
+    /* The wire flow (Mod+;) reads whole blocks, so it is roomier than the
+       link picker: compact still, just not by so much (2026-10-15). */
+    .container.wire {
+      width: 520px;
+    }
+    .container.wire .results {
+      max-height: 440px;
+    }
+
+    /* A block row is its text, once, up to three lines. No type icon or level
+       badge: headings read as headings by weight (2026-10-14). */
+    .block-text {
+      display: -webkit-box;
+      overflow: hidden;
+      color: var(--mn-color-text-primary, #111827);
+      line-height: 1.4;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 3;
+      line-clamp: 3;
+    }
+    .block-text[data-heading] {
+      font-weight: 600;
+    }
+
     .empty,
     .loading {
       display: flex;
@@ -359,9 +413,99 @@ export class MnWikiLinkPicker extends SkinAware(LitElement) {
       font-family: var(--mn-font-mono, ui-monospace, monospace);
       font-size: var(--mn-text-2xs, 10px);
     }
+
+    .item.whole-document .item-label {
+      color: var(--mn-color-text-accent-strong, #1d4ed8);
+    }
+
+    .sentence {
+      padding: var(--mn-space-3, 12px) var(--mn-space-3, 12px) var(--mn-space-2, 8px);
+      border-bottom: 1px solid var(--mn-color-border-subtle, rgba(15, 23, 42, 0.1));
+      color: var(--mn-color-text-secondary, #374151);
+      font-size: var(--mn-type-ui-size, 13px);
+      line-height: 1.45;
+    }
+
+    .sentence-end {
+      color: var(--mn-color-text-primary, #111827);
+      font-weight: 600;
+    }
+
+    .sentence-predicate {
+      color: var(--mn-color-text-accent-strong, #1d4ed8);
+      font-weight: 700;
+    }
+
+    .directions {
+      display: flex;
+      gap: var(--mn-space-1, 4px);
+      margin-top: var(--mn-space-2, 8px);
+    }
+
+    .direction {
+      flex: 1 1 0;
+      padding: 3px var(--mn-space-1-5, 6px);
+      border: 1px solid var(--mn-color-border-subtle, rgba(15, 23, 42, 0.12));
+      border-radius: var(--mn-radius-sm, 4px);
+      background: transparent;
+      color: var(--mn-color-text-muted, #6b7280);
+      cursor: pointer;
+      font: inherit;
+      font-size: var(--mn-type-ui-xs-size, 12px);
+    }
+
+    .direction.active {
+      border-color: var(--mn-color-border-accent, #2563eb);
+      background: var(--mn-color-surface-accent, #e0ecff);
+      color: var(--mn-color-text-accent-strong, #1d4ed8);
+      font-weight: 650;
+    }
+
+    .drum {
+      padding: var(--mn-space-1, 4px) 0;
+    }
+
+    .drum-row {
+      display: flex;
+      align-items: baseline;
+      justify-content: center;
+      gap: var(--mn-space-2, 8px);
+      width: 100%;
+      min-height: 30px;
+      padding: var(--mn-space-1, 4px) var(--mn-space-3, 12px);
+      border: 0;
+      background: transparent;
+      color: var(--mn-color-text-primary, #111827);
+      cursor: pointer;
+      font: inherit;
+      box-sizing: border-box;
+    }
+
+    .drum-row.selected {
+      background: var(--mn-color-surface-accent, #e0ecff);
+      color: var(--mn-color-text-accent-strong, #1d4ed8);
+      font-weight: 700;
+      font-size: var(--mn-type-ui-md-size, 14px);
+    }
+
+    .drum-row.reach-1 { opacity: 0.72; }
+    .drum-row.reach-2 { opacity: 0.46; }
+    .drum-row.reach-3 { opacity: 0.24; }
+
+    .drum-category {
+      color: var(--mn-color-text-muted, #6b7280);
+      font-size: var(--mn-text-2xs, 10px);
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
   `
 
   @property({ type: Boolean, reflect: true }) open = false
+  @property({ type: String }) flow: MnWikiLinkPickerFlow = 'link'
+  /** The wire flow's source block text, for the sentence on the predicate step. */
+  @property({ attribute: false }) sourceText = ''
+  @property({ type: String }) direction: MnWikiLinkWireDirection = 'forward'
   @property({ type: String }) phase: MnWikiLinkPickerPhase = 'document'
   @property({ type: String }) query = ''
   @property({ type: Number }) selectedIndex = 0
@@ -387,6 +531,13 @@ export class MnWikiLinkPicker extends SkinAware(LitElement) {
   override disconnectedCallback(): void {
     document.removeEventListener('keydown', this.handleDocumentKeydown, true)
     super.disconnectedCallback()
+  }
+
+  protected override willUpdate(changed: PropertyValues<this>): void {
+    // A new step starts at its first row. The shell sends selectedIndex 0 on
+    // every step change, but Lit skips a binding whose value did not change,
+    // so the index the arrow keys set here would carry into the next step.
+    if (changed.has('phase') && changed.get('phase') !== undefined) this.selectedIndex = 0
   }
 
   protected override updated(changed: PropertyValues<this>): void {
@@ -437,8 +588,14 @@ export class MnWikiLinkPicker extends SkinAware(LitElement) {
     return 'No documents found'
   }
 
+  /** Rows in the current list. The wire flow's block step adds the whole-document row. */
+  private get rowCount(): number {
+    if (this.flow === 'wire' && this.phase === 'block') return this.blocks.length + 1
+    return this.items.length
+  }
+
   private clampSelectedIndex(): void {
-    const max = Math.max(0, this.items.length - 1)
+    const max = Math.max(0, this.rowCount - 1)
     if (this.selectedIndex > max) this.selectedIndex = max
     if (this.selectedIndex < 0) this.selectedIndex = 0
   }
@@ -449,6 +606,10 @@ export class MnWikiLinkPicker extends SkinAware(LitElement) {
   }
 
   private handleKeyDown(event: KeyboardEvent): void {
+    if (this.flow === 'wire') {
+      this.handleWireKeyDown(event)
+      return
+    }
     const items = this.items
     switch (event.key) {
       case 'ArrowDown':
@@ -491,6 +652,61 @@ export class MnWikiLinkPicker extends SkinAware(LitElement) {
     }
   }
 
+  private handleWireKeyDown(event: KeyboardEvent): void {
+    const count = Math.max(1, this.rowCount)
+    const drum = this.phase === 'predicate'
+    switch (event.key) {
+      case 'ArrowDown':
+        stop(event)
+        this.selectedIndex = drum ? (this.selectedIndex + 1) % count : Math.min(this.selectedIndex + 1, count - 1)
+        if (!drum) this.scrollToSelected()
+        break
+      case 'ArrowUp':
+        stop(event)
+        this.selectedIndex = drum ? (this.selectedIndex - 1 + count) % count : Math.max(this.selectedIndex - 1, 0)
+        if (!drum) this.scrollToSelected()
+        break
+      case 'ArrowRight':
+        stop(event)
+        if (drum) this.stepDirection(1)
+        else this.selectCurrent()
+        break
+      case 'ArrowLeft':
+        stop(event)
+        if (drum) this.stepDirection(-1)
+        else if (this.phase === 'block') this.requestPhase('document')
+        break
+      case 'Tab':
+        stop(event)
+        if (drum) this.stepDirection(event.shiftKey ? -1 : 1)
+        else if (!event.shiftKey) this.selectCurrent()
+        else if (this.phase === 'block') this.requestPhase('document')
+        break
+      case 'Enter':
+        stop(event)
+        this.selectCurrent()
+        break
+      case 'Escape':
+        stop(event)
+        if (this.phase === 'document') this.close()
+        else this.requestPhase(this.phase === 'predicate' ? 'block' : 'document')
+        break
+      default:
+        break
+    }
+  }
+
+  private stepDirection(step: 1 | -1): void {
+    const index = WIRE_DIRECTIONS.indexOf(this.direction)
+    this.direction = WIRE_DIRECTIONS[(index + step + WIRE_DIRECTIONS.length) % WIRE_DIRECTIONS.length]
+  }
+
+  /** The block the wire flow's block step has selected; undefined on the whole-document row. */
+  private wireBlockAtSelection(): MnWikiLinkBlockItem | undefined {
+    if (this.selectedIndex === 0) return undefined
+    return this.blocks[this.selectedIndex - 1]
+  }
+
   private scrollToSelected(): void {
     window.requestAnimationFrame(() => {
       this.shadowRoot
@@ -521,7 +737,11 @@ export class MnWikiLinkPicker extends SkinAware(LitElement) {
     const document = this.phase === 'document'
       ? this.documents[this.selectedIndex]
       : this.selectedDocument ?? undefined
-    const block = this.phase === 'block' ? this.blocks[this.selectedIndex] : this.selectedBlock ?? undefined
+    const block = this.phase !== 'block'
+      ? this.selectedBlock ?? undefined
+      : this.flow === 'wire'
+        ? this.wireBlockAtSelection()
+        : this.blocks[this.selectedIndex]
     this.dispatchEvent(
       new CustomEvent<MnWikiLinkPickerPhaseRequestDetail>('mn-wikilink-phase-request', {
         detail: { phase, document, block },
@@ -532,6 +752,13 @@ export class MnWikiLinkPicker extends SkinAware(LitElement) {
   }
 
   private selectCurrent(): void {
+    // While a block search is loading, the rows on screen belong to the
+    // previous query; Enter waits for the current ones.
+    if (this.phase === 'block' && this.loading) return
+    if (this.flow === 'wire') {
+      this.advanceWire()
+      return
+    }
     if (this.phase === 'document') {
       const document = this.documents[this.selectedIndex]
       if (!document) return
@@ -563,6 +790,28 @@ export class MnWikiLinkPicker extends SkinAware(LitElement) {
     this.requestPhase('document')
   }
 
+  /** Enter in the wire flow: document, then block, then the wire itself. */
+  private advanceWire(): void {
+    if (this.phase === 'document') {
+      if (!this.documents[this.selectedIndex]) return
+      this.requestPhase('block')
+      return
+    }
+    if (this.phase === 'block') {
+      if (!this.selectedDocument) return
+      this.requestPhase('predicate')
+      return
+    }
+    const predicate = this.predicates[this.selectedIndex]
+    if (!predicate || !this.selectedDocument) return
+    this.dispatchSelect({
+      document: this.selectedDocument,
+      block: this.selectedBlock ?? undefined,
+      predicate,
+      direction: this.direction,
+    })
+  }
+
   private dispatchSelect(detail: MnWikiLinkPickerSelectDetail): void {
     this.dispatchEvent(
       new CustomEvent<MnWikiLinkPickerSelectDetail>('mn-wikilink-select', {
@@ -573,15 +822,8 @@ export class MnWikiLinkPicker extends SkinAware(LitElement) {
     )
   }
 
-  private iconForBlock(block: MnWikiLinkBlockItem): TemplateResult | unknown {
-    if (block.type === 'heading') return icon(`heading-${block.level ?? 1}`, { size: 14 })
-    if (block.type === 'listItem') return icon('list', { size: 14 })
-    if (block.type === 'blockquote') return icon('quote', { size: 14 })
-    if (block.type === 'codeBlock') return icon('code', { size: 14 })
-    return icon('type', { size: 14 })
-  }
-
   private renderContext(): TemplateResult | typeof nothing {
+    if (this.flow === 'wire' && this.phase === 'predicate') return this.renderSentence()
     if (this.phase === 'block' && this.selectedDocument) {
       return html`
         <div class="context">
@@ -654,12 +896,9 @@ export class MnWikiLinkPicker extends SkinAware(LitElement) {
           this.selectCurrent()
         }}
       >
-        <span class="item-icon">${this.iconForBlock(block)}</span>
         <span class="item-content">
-          <span class="item-label">${block.text}</span>
-          ${block.preview && block.preview !== block.text ? html`<span class="item-preview">${block.preview}</span>` : nothing}
+          <span class="block-text" ?data-heading=${block.type === 'heading'}>${block.text}</span>
         </span>
-        ${block.type === 'heading' && block.level ? html`<span class=${`badge h${block.level}`}>H${block.level}</span>` : nothing}
       </button>
     `
   }
@@ -705,19 +944,127 @@ export class MnWikiLinkPicker extends SkinAware(LitElement) {
     return out
   }
 
+  /** The claim the wire will make, in reading order for the chosen direction. */
+  private renderSentence(): TemplateResult {
+    const source = clip(this.sourceText) || 'This block'
+    const target = clip(this.selectedBlock?.text ?? '') || this.selectedDocument?.label || 'the document'
+    const predicate = this.predicates[this.selectedIndex]?.label ?? '…'
+    const [first, second] = this.direction === 'reverse' ? [target, source] : [source, target]
+    return html`
+      <div class="sentence" data-wire-sentence>
+        <span class="sentence-end">${first}</span>
+        <span class="sentence-predicate">${predicate}</span>
+        <span class="sentence-end">${second}</span>${this.direction === 'bidirectional' ? html`, and back` : nothing}
+        <div class="directions" role="radiogroup" aria-label="Direction">
+          ${WIRE_DIRECTIONS.map((direction) => html`
+            <button
+              type="button"
+              class=${direction === this.direction ? 'direction active' : 'direction'}
+              role="radio"
+              aria-checked=${direction === this.direction ? 'true' : 'false'}
+              data-wire-direction=${direction}
+              @mousedown=${(event: Event) => {
+                stop(event)
+                this.direction = direction
+              }}
+            >${DIRECTION_LABELS[direction]}</button>
+          `)}
+        </div>
+      </div>
+    `
+  }
+
+  /** The block step of the wire flow: the whole document first, then its blocks. */
+  private renderWireBlocks(): TemplateResult[] {
+    const wholeDocument = html`
+      <button
+        type="button"
+        class=${this.selectedIndex === 0 ? 'item whole-document selected' : 'item whole-document'}
+        role="option"
+        aria-selected=${this.selectedIndex === 0 ? 'true' : 'false'}
+        data-picker-index="0"
+        data-wikilink-whole-document
+        @mouseenter=${() => {
+          this.selectedIndex = 0
+        }}
+        @mousedown=${(event: Event) => {
+          stop(event)
+          this.selectedIndex = 0
+          this.selectCurrent()
+        }}
+      >
+        <span class="item-icon">${icon('file-text', { size: 14 })}</span>
+        <span class="item-content"><span class="item-label">Wire to document</span></span>
+      </button>
+    `
+    return [wholeDocument, ...this.blocks.map((block, index) => this.renderBlock(block, index + 1))]
+  }
+
+  /**
+   * The predicate drum: the selected predicate in the middle, its neighbours
+   * fading above and below, wrapping at both ends. Each predicate appears at
+   * most once, so a short filtered list shows without repeats.
+   */
+  private renderDrum(): TemplateResult {
+    const count = this.predicates.length
+    const above = Math.min(DRUM_REACH, Math.floor((count - 1) / 2))
+    const below = Math.min(DRUM_REACH, count - 1 - above)
+    const rows: TemplateResult[] = []
+    for (let offset = -above; offset <= below; offset++) {
+      const index = (this.selectedIndex + offset + count) % count
+      const predicate = this.predicates[index]
+      const reach = Math.abs(offset)
+      rows.push(html`
+        <button
+          type="button"
+          class=${reach === 0 ? 'drum-row selected' : `drum-row reach-${reach}`}
+          role="option"
+          aria-selected=${reach === 0 ? 'true' : 'false'}
+          data-picker-index=${index}
+          data-wikilink-predicate
+          data-predicate-uri=${predicate.uri}
+          @mousedown=${(event: Event) => {
+            stop(event)
+            if (reach === 0) this.selectCurrent()
+            else this.selectedIndex = index
+          }}
+        >
+          <span>${predicate.label}</span>
+          ${predicate.category && predicate.category !== 'Default'
+            ? html`<span class="drum-category">${predicate.category}</span>`
+            : nothing}
+        </button>
+      `)
+    }
+    return html`<div class="drum" data-wire-drum>${rows}</div>`
+  }
+
   private renderResults(): TemplateResult | TemplateResult[] {
-    if (this.loading) {
+    // A refresh keeps the rows already on screen; the spinner is only for an
+    // empty list, so typing in a long document does not blank it each key.
+    if (this.loading && this.items.length === 0) {
       return html`<div class="loading"><span class="spinner" aria-hidden="true"></span>Loading...</div>`
     }
+    if (this.flow === 'wire' && this.phase === 'block') return this.renderWireBlocks()
     if (this.items.length === 0) {
       return html`<div class="empty">${this.emptyLabel}</div>`
     }
+    if (this.flow === 'wire' && this.phase === 'predicate') return this.renderDrum()
     if (this.phase === 'block') return this.blocks.map((block, index) => this.renderBlock(block, index))
     if (this.phase === 'predicate') return this.renderPredicateGroups()
     return this.documents.map((doc, index) => this.renderDocument(doc, index))
   }
 
   private renderHint(): TemplateResult {
+    if (this.flow === 'wire') {
+      return html`
+        <div class="hint">
+          ${this.phase === 'predicate'
+            ? html`<span><kbd>↑↓</kbd> predicate</span><span><kbd>←→</kbd> direction</span><span><kbd>Enter</kbd> wire</span><span><kbd>Esc</kbd> back</span>`
+            : html`<span><kbd>↑↓</kbd> navigate</span><span><kbd>Enter</kbd> next</span><span><kbd>Esc</kbd> ${this.phase === 'document' ? 'close' : 'back'}</span>`}
+        </div>
+      `
+    }
     return html`
       <div class="hint">
         <span><kbd>↑↓</kbd> navigate</span>
@@ -737,7 +1084,7 @@ export class MnWikiLinkPicker extends SkinAware(LitElement) {
     return html`
       <div class="overlay" @mousedown=${() => this.close()}></div>
       <section
-        class="container"
+        class=${this.flow === 'wire' ? 'container wire' : 'container'}
         style=${style}
         role="dialog"
         aria-label="Wikilink picker"
@@ -764,7 +1111,7 @@ export class MnWikiLinkPicker extends SkinAware(LitElement) {
           />
         </header>
         ${this.renderContext()}
-        <div class="results" role="listbox" aria-label=${this.phaseLabel} data-wikilink-results>
+        <div class="results" role="listbox" aria-label=${this.phaseLabel} aria-busy=${this.loading ? 'true' : 'false'} data-wikilink-results>
           ${this.renderResults()}
         </div>
         ${this.renderHint()}
