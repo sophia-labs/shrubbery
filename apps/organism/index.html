@@ -666,6 +666,33 @@
       #host sh-workspace-surface [data-layout-divider]:focus-visible {
         outline: 2px solid var(--mn-color-border-focus, #4d8768);
       }
+      /* Zen mode (main.ts toggleZenMode): only the page you are writing on.
+         The side panels are already collapsed by the shell; this hides the
+         chrome that remains. The editor host hides its own toolbar. */
+      :root[data-zen] #host header[data-region="region-top-bar"],
+      :root[data-zen] #host footer[data-region="region-bottom-bar"],
+      :root[data-zen] #host .collapse-rail,
+      :root[data-zen] #host .surface-pane-header {
+        display: none !important;
+      }
+      /* In a split, only the active pane stays, and it takes the whole
+         center. The layout engine positions each leaf inline, so this
+         overrides its geometry rather than re-planning the split. */
+      :root[data-zen] #host [data-role="center"][data-active="false"],
+      :root[data-zen] #host [data-role="center"][data-surface-part="pane-header"],
+      :root[data-zen] #host [data-role="center"][data-surface-part="daily-note-header"],
+      :root[data-zen] #host [data-layout-node-kind="split"][data-layout-node-id^="center-"],
+      :root[data-zen] #host [data-layout-divider^="center-"] {
+        display: none !important;
+      }
+      :root[data-zen] #host [data-role="center"]:is([data-surface-part="center-content"], [data-surface-part="center-route"]):not([data-active="false"]) {
+        inset: 0 !important;
+        width: 100% !important;
+        height: 100% !important;
+      }
+      :root[data-zen] #host [data-surface-main] {
+        background: var(--mn-editor-canvas-surface, var(--mn-color-surface-canvas));
+      }
       #host .surface-pane-header {
         display: flex;
         align-items: center;

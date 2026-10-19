@@ -67,6 +67,19 @@ describe('computeHostVars — pure rect math (R-FIXED-CB)', () => {
     expect(host.hasAttribute('editor-material')).toBe(false)
   })
 
+  it('reflects zen mode onto the host, which then hides its toolbar', async () => {
+    const host = document.createElement('sh-editor-host') as ShEditorHost
+    document.body.appendChild(host)
+    expect(ShEditorHost.styles.cssText).toMatch(/:host\(\[zen\]\) mn-editor-toolbar\s*\{\s*display: none/)
+    expect(host.hasAttribute('zen')).toBe(false)
+    document.documentElement.setAttribute('data-zen', '')
+    await new Promise(resolve => setTimeout(resolve, 0))
+    expect(host.hasAttribute('zen')).toBe(true)
+    document.documentElement.removeAttribute('data-zen')
+    await new Promise(resolve => setTimeout(resolve, 0))
+    expect(host.hasAttribute('zen')).toBe(false)
+  })
+
   it('reflects the ambient skin onto the host, in both directions, so a skin can re-scope the page', async () => {
     document.documentElement.dataset.skin = 'hotdog-stand'
     const host = document.createElement('sh-editor-host') as ShEditorHost

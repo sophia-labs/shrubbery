@@ -5,15 +5,28 @@
  * the skeuomorphism all the way up: white Letter page, cool-gray pasteboard,
  * inch margins, raised rulers, square controls, and old desktop-editor chrome.
  *
+ * The line width (Appearance > Line width) is --mn-editor-line-width on the
+ * root: the measure of the text itself. The continuous canvas and the paper
+ * page add their own horizontal padding to get the sheet width, so one
+ * setting means the same line length on both. The Classic Word page keeps its
+ * fixed Letter width.
+ *
  * This is deliberately honest about what it is: a material/presentation mode,
  * not pagination. ProseMirror remains one continuous document and all editor
  * behavior, selection, collaboration, and block affordances stay unchanged.
  * ──────────────────────────────────────────────────────────────────────────── */
 
 :root {
+  /* Appearance > Editor font, Line width and Text size write these three on
+     the root's inline style. Declared here so the layer names them; at
+     `initial` a var() falls back, which leaves the skin's face and each
+     posture's own default width in charge. */
+  --mn-editor-font: initial;
+  --mn-editor-line-width: initial;
+  --mn-editor-text-scale: 1;
   --mn-editor-canvas-surface: var(--mn-color-surface-canvas);
   --mn-editor-canvas-image: var(--mn-atmosphere);
-  --mn-editor-sheet-width: min(100%, 880px);
+  --mn-editor-sheet-width: min(100%, calc(var(--mn-editor-line-width, 784px) + 2 * var(--mn-space-12, 3rem)));
   --mn-editor-sheet-min-height: 100%;
   --mn-editor-sheet-margin: 0 auto;
   --mn-editor-sheet-padding: var(--mn-space-12, 3rem) var(--mn-space-12, 3rem) var(--mn-space-16, 4rem);
@@ -45,7 +58,7 @@
 }
 
 [data-editor-material="paper"] {
-  --mn-editor-sheet-width: min(calc(100% - 64px), 816px);
+  --mn-editor-sheet-width: min(calc(100% - 64px), calc(var(--mn-editor-line-width, 664px) + 152px));
   --mn-editor-sheet-min-height: max(100%, 1056px);
   --mn-editor-sheet-margin: var(--mn-space-8, 2rem) auto var(--mn-space-16, 4rem);
   --mn-editor-sheet-padding: 72px 76px 96px;

@@ -57,6 +57,8 @@ import {
   readAppearancePreferences,
   readAccessibilityPreferences,
   readEditorMaterialPreference,
+  readEditorTypePreferences,
+  applyEditorTypePreferences,
   resolveThemePreference,
 } from './settings-service.js'
 import type { ShellContext } from './shell-context.js'
@@ -270,12 +272,16 @@ function applyPreference(
       ? detail.value
       : 'continuous'
     applyEditorMaterial({ material, target: root })
+  } else if ('value' in detail && (detail.settingId === 'editorFont' || detail.settingId === 'lineWidth' || detail.settingId === 'textSize')) {
+    // The service persisted the change before calling here.
+    applyEditorTypePreferences(readEditorTypePreferences(browserStorage()), root)
   } else if ('checked' in detail && detail.settingId === 'panelLabels') {
     root.toggleAttribute('data-panel-labels', detail.checked)
   }
 }
 
 function applyStoredAppearance(): void {
+  applyEditorTypePreferences(readEditorTypePreferences(browserStorage()), document.documentElement)
   const appearance = readAppearancePreferences(browserStorage())
   const accessibility = readAccessibilityPreferences(browserStorage())
   const theme = resolveThemePreference(appearance.theme)
