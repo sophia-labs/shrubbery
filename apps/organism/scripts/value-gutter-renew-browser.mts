@@ -137,6 +137,10 @@ try {
   browser = await engine.launch({ headless: process.env.SHRUBBERY_HEADED !== '1' })
   const page = await browser.newPage({ viewport: { width: 1512, height: 944 } })
   const errors: string[] = []
+  // The revised gutter is Appearance > Value markers beside the text, off by default.
+  await page.addInitScript(() => {
+    localStorage.setItem('shrubbery.organism.settings.v1', JSON.stringify({ valueGutter: true }))
+  })
   page.on('pageerror', error => errors.push(error.message.slice(0, 200)))
   page.on('console', message => {
     if (/salience (renew|rate) error/.test(message.text())) errors.push(message.text().slice(0, 300))

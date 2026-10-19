@@ -3075,6 +3075,15 @@ export class ShEditorHost extends LitElement {
     }
     // Zen mode (the shell's view.zen) hides this host's toolbar.
     this.toggleAttribute('zen', root?.hasAttribute('data-zen') === true)
+    // Appearance > Value markers beside the text (off by default): the revised value gutter.
+    // Off, the gutter is the right-edge strip it has always been.
+    const revised = root?.hasAttribute('data-value-gutter') === true
+    if (revised !== this.hasAttribute('value-gutter')) {
+      this.toggleAttribute('value-gutter', revised)
+      this._closeSalienceOverlay()
+      this._syncValueMarks()
+      this.requestUpdate()
+    }
     // The ambient skin rides the same observer: a skin whose page is a coloured surface
     // (Hotdog Stand) re-scopes the page's roles by `:host([editor-skin=…])`, without :host-context.
     // It is deliberately NOT named data-skin: a host carrying data-skin would itself match the
@@ -3095,7 +3104,7 @@ export class ShEditorHost extends LitElement {
     this._editorMaterialObserver = new Observer(() => this._syncEditorMaterial())
     this._editorMaterialObserver.observe(root, {
       attributes: true,
-      attributeFilter: ['data-editor-material', 'data-skin', 'data-zen'],
+      attributeFilter: ['data-editor-material', 'data-skin', 'data-zen', 'data-value-gutter'],
     })
   }
 
@@ -4270,6 +4279,11 @@ export class ShEditorHost extends LitElement {
    */
   private _syncValueMarks(): void {
     if (!this._editor) return
+    if (!this.hasAttribute('value-gutter')) {
+      // The classic gutter draws no resting row.
+      setLiveValueMarks(this._editor, new Map(), '')
+      return
+    }
     const marks = new Map<string, LiveValueMark>()
     for (const [blockId, score] of this.salienceBundle?.scores ?? []) {
       const level = signalIcon(score)
@@ -4400,7 +4414,7 @@ export class ShEditorHost extends LitElement {
     this.salienceOverlayBlockId = blockId
     this.salienceOverlayAnchor = clampSalienceOverlayAnchor(x, y)
     this.salienceOverlayOpen = true
-    setLiveValueMarksOpen(this._editor, blockId)
+    if (this.hasAttribute('value-gutter')) setLiveValueMarksOpen(this._editor, blockId)
   }
 
   private _closeSalienceOverlay(): void {
@@ -4431,6 +4445,10 @@ export class ShEditorHost extends LitElement {
    * receive their first rating).
    */
   private _onEditorSalienceMouseMove(event: MouseEvent): void {
+    if (!this.hasAttribute('value-gutter')) {
+      this._onClassicSalienceMouseMove(event)
+      return
+    }
     const row = event.target instanceof Element
       ? event.target.closest<HTMLElement>('.value-marks')
       : null
@@ -4453,6 +4471,41 @@ export class ShEditorHost extends LitElement {
       const rect = row.getBoundingClientRect()
       this._openSalienceOverlay(blockId, rect.right + 4, rect.top + rect.height / 2)
     }, 120)
+  }
+
+  /** The classic gutter: a 24px strip at the block's right edge opens the controls at the pointer. */
+  private _onClassicSalienceMouseMove(event: MouseEvent): void {
+    const block = this._salienceHitForEvent(event)
+    if (!block) {
+      this._clearSalienceOverlayHoverTimer()
+      this._startSalienceOverlayCloseTimer()
+      return
+    }
+    const blockId = block.getAttribute('data-block-id')
+    if (!blockId) {
+      this._clearSalienceOverlayHoverTimer()
+      this._startSalienceOverlayCloseTimer()
+      return
+    }
+    if (this.salienceOverlayOpen && this.salienceOverlayBlockId === blockId) {
+      this._clearSalienceOverlayCloseTimer()
+      return
+    }
+    if (this._salienceOverlayHoverTimer) return
+    const { clientX, clientY } = event
+    this._salienceOverlayHoverTimer = setTimeout(() => {
+      this._salienceOverlayHoverTimer = null
+      this._openSalienceOverlay(blockId, clientX, clientY)
+    }, 120)
+  }
+
+  private _salienceHitForEvent(event: MouseEvent): HTMLElement | null {
+    const block = this._topLevelGutterBlockForEvent(event)
+    if (!block) return null
+    const rect = block.getBoundingClientRect()
+    const fromRight = rect.right - event.clientX
+    if (fromRight < 0 || fromRight >= 24) return null
+    return block
   }
 
   private _onEditorMouseLeave(): void {
@@ -5586,8 +5639,9 @@ export class ShEditorHost extends LitElement {
         }),
       )
     }
+    const revisedGutter = this.hasAttribute('value-gutter')
     const renew = (): void => {
-      if (!canRate || !canRenewFreshness(score)) return
+      if (!revisedGutter || !canRate || !canRenewFreshness(score)) return
       this.dispatchEvent(
         new CustomEvent<SalienceRenewRequestDetail>(SALIENCE_RENEW_REQUEST_EVENT, {
           bubbles: true,
@@ -5626,7 +5680,8 @@ export class ShEditorHost extends LitElement {
         ?disabled=${!canRate}
         @click=${() => rate(score?.userImportance ?? null, nextValence(score))}
       >${salienceIcon(valenceIcon(score))}</button>
-      <button
+      ${revisedGutter
+        ? html`<button
         type="button"
         class="salience-gutter-icon salience-gutter-renew"
         data-salience-renew
@@ -5634,13 +5689,14 @@ export class ShEditorHost extends LitElement {
         aria-label=${canRate ? renewLabel(score) : writeReason}
         ?disabled=${!canRate || !canRenewFreshness(score)}
         @click=${renew}
-      >${salienceIcon('refresh-cw')}</button>
+      >${salienceIcon('refresh-cw')}</button>`
+        : nothing}
       ${this.salienceOverlayExpanded
         ? html`<div class="salience-gutter-numbers">
             <div>composite ${(score?.compositeScore ?? 0).toFixed(2)}</div>
             <div>importance ${combinedImportance(score) === 0 ? '–' : combinedImportance(score).toFixed(2)}</div>
             <div>valence ${combinedValence(score) === 0 ? '–' : combinedValence(score).toFixed(2)}</div>
-            <div>valued ${lastValuedLabel(score) ?? '–'}</div>
+            ${revisedGutter ? html`<div>valued ${lastValuedLabel(score) ?? '–'}</div>` : nothing}
           </div>`
         : nothing}
     </div>`

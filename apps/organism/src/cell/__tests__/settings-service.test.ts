@@ -5,6 +5,7 @@ import {
   readAppearancePreferences,
   readEditorMaterialPreference,
   readEditorTypePreferences,
+  readValueGutterPreference,
   applyEditorTypePreferences,
   resolveThemePreference,
 } from '../settings-service.js'
@@ -130,6 +131,19 @@ describe('DefaultOrganismSettingsService', () => {
     await service.select({ sectionId: 'appearance', settingId: 'textSize', value: '400' })
     await service.select({ sectionId: 'appearance', settingId: 'lineWidth', value: 'toString' })
     expect(readEditorTypePreferences(storage)).toEqual({ editorFont: 'default', lineWidth: 'default', textSize: '100' })
+  })
+
+  it('keeps the revised value gutter off until Appearance turns it on', async () => {
+    const storage = new MemoryStorage()
+    const service = createDefaultSettingsService({ runtimeMode: 'local', storage })
+    expect(readValueGutterPreference(storage)).toBe(false)
+    const toggle = (await service.load()).sections.find(section => section.id === 'appearance')!
+      .toggles?.find(candidate => candidate.id === 'valueGutter')
+    expect(toggle?.checked).toBe(false)
+    await service.toggle({ sectionId: 'appearance', settingId: 'valueGutter', checked: true })
+    expect(readValueGutterPreference(storage)).toBe(true)
+    await service.toggle({ sectionId: 'appearance', settingId: 'valueGutter', checked: false })
+    expect(readValueGutterPreference(storage)).toBe(false)
   })
 
   it('writes editor typography as root custom properties and removes them at default', () => {

@@ -58,6 +58,7 @@ import {
   readAccessibilityPreferences,
   readEditorMaterialPreference,
   readEditorTypePreferences,
+  readValueGutterPreference,
   applyEditorTypePreferences,
   resolveThemePreference,
 } from './settings-service.js'
@@ -275,6 +276,8 @@ function applyPreference(
   } else if ('value' in detail && (detail.settingId === 'editorFont' || detail.settingId === 'lineWidth' || detail.settingId === 'textSize')) {
     // The service persisted the change before calling here.
     applyEditorTypePreferences(readEditorTypePreferences(browserStorage()), root)
+  } else if ('checked' in detail && detail.settingId === 'valueGutter') {
+    root.toggleAttribute('data-value-gutter', detail.checked)
   } else if ('checked' in detail && detail.settingId === 'panelLabels') {
     root.toggleAttribute('data-panel-labels', detail.checked)
   }
@@ -287,6 +290,7 @@ function applyStoredAppearance(): void {
   const theme = resolveThemePreference(appearance.theme)
   document.documentElement.toggleAttribute('data-reduced-motion', accessibility.reducedMotion)
   document.documentElement.toggleAttribute('data-reduced-transparency', accessibility.reducedTransparency)
+  document.documentElement.toggleAttribute('data-value-gutter', readValueGutterPreference(browserStorage()))
   for (const target of [document.documentElement, document.body]) {
     applySkin({ skin: appearance.skin, target })
     applyTheme({ theme, target })

@@ -125,6 +125,7 @@ const HEADING_SEED =
   '<h2 data-block-id="block-h2">Details</h2>'
 
 afterEach(() => {
+  document.documentElement.removeAttribute('data-value-gutter')
   for (const be of backends) be.destroyAll()
   backends = []
   document.body.replaceChildren()
@@ -1462,11 +1463,15 @@ describe('rung-3 — the live collaborative editor body lifts over a real Y.Doc'
   async function mountSalienceDoc(
     scores: ReadonlyMap<string, BlockScore>,
     documentAccess: EditorDocumentAccess | null = null,
+    // Appearance > Value markers beside the text. The tests below that open the
+    // gutter from its row of marks turn it on; the classic strip is the default.
+    revisedGutter = true,
   ): Promise<{
     h: ShEditorHost
     blockEl: (blockId: string) => HTMLElement
     hoverZone: (clientX: number, clientY: number) => void
   }> {
+    document.documentElement.toggleAttribute('data-value-gutter', revisedGutter)
     const be = backend()
     const provider = be.open({ kind: 'doc', graphId: 'g', docId: 'salience-doc' })
     const binding = makeBinding({
@@ -1587,6 +1592,60 @@ describe('rung-3 — the live collaborative editor body lifts over a real Y.Doc'
     expect(renew.disabled).toBe(false)
     renew.click()
     expect(renewed).toEqual([{ blockId: 'block-b' }])
+  })
+
+  it('keeps the classic right-edge gutter by default: no row of marks, no renew, and a quick flag-then-valence keeps the flag', async () => {
+    const scoredBlock: BlockScore = {
+      blockId: 'block-b',
+      documentId: 'salience-doc',
+      cumulativeImportance: 1,
+      cumulativeValence: 0,
+      rawImportanceSum: 3,
+      rawValenceSum: 0,
+      importanceCount: 1,
+      valenceCount: 0,
+      compositeScore: 0.6,
+      blockWireCount: 0,
+      docWireCount: 0,
+      lastValuatedAt: null,
+      userImportance: 3,
+      userValence: null,
+    }
+    const { h, blockEl } = await mountSalienceDoc(new Map([['block-b', scoredBlock]]), null, false)
+    const el = blockEl('block-b')
+    expect(h.hasAttribute('value-gutter')).toBe(false)
+    expect(h.shadowRoot!.querySelector('.value-marks')).toBeNull()
+
+    const rated: SalienceRateRequestDetail[] = []
+    h.addEventListener(SALIENCE_RATE_REQUEST_EVENT, ((event: CustomEvent<SalienceRateRequestDetail>) => {
+      rated.push(event.detail)
+    }) as EventListener)
+
+    el.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, composed: true, clientX: 490, clientY: 50 }))
+    await until(() => h.shadowRoot!.querySelector('.salience-gutter') !== null)
+    const gutter = h.shadowRoot!.querySelector('.salience-gutter') as HTMLElement
+    // composite, importance, valence: renew belongs to the revised gutter.
+    expect(gutter.querySelectorAll('.salience-gutter-icon')).toHaveLength(3)
+    expect(gutter.querySelector('[data-salience-renew]')).toBeNull()
+    expect(gutter.getAttribute('style')).toContain('left: 490px')
+
+    // The rating-race fix applies in both gutters.
+    ;(gutter.querySelectorAll('.salience-gutter-icon')[1] as HTMLButtonElement).click()
+    await h.updateComplete
+    ;(h.shadowRoot!.querySelectorAll('.salience-gutter .salience-gutter-icon')[2] as HTMLButtonElement).click()
+    expect(rated).toEqual([
+      { blockId: 'block-b', importance: 5, valence: null },
+      { blockId: 'block-b', importance: 5, valence: 4 },
+    ])
+  })
+
+  it('turning the setting on mid-session draws the row of marks, and off removes it', async () => {
+    const { h } = await mountSalienceDoc(new Map(), null, false)
+    expect(h.shadowRoot!.querySelector('.value-marks')).toBeNull()
+    document.documentElement.setAttribute('data-value-gutter', '')
+    await until(() => h.shadowRoot!.querySelector('.value-marks') !== null)
+    document.documentElement.removeAttribute('data-value-gutter')
+    await until(() => h.shadowRoot!.querySelector('.value-marks') === null)
   })
 
   it('opens the value gutter for an UNSCORED block too — not gated behind a prior score', async () => {

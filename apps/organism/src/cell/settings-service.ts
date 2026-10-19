@@ -116,6 +116,7 @@ const DEFAULTS: PreferenceState = {
   editorFont: 'default',
   lineWidth: 'default',
   textSize: '100',
+  valueGutter: false,
   panelLabels: true,
   rightPanelOnLaunch: true,
   restoreLastDocument: true,
@@ -192,6 +193,13 @@ export function readAccessibilityPreferences(
     reducedMotion: preferences.reducedMotion === true,
     reducedTransparency: preferences.reducedTransparency === true,
   }
+}
+
+/** Appearance > Value markers beside the text. Off unless chosen. */
+export function readValueGutterPreference(
+  storage: DefaultSettingsServiceOptions['storage'],
+): boolean {
+  return readPreferences(storage).valueGutter === true
 }
 
 /** Merge appearance state into the Settings record without clobbering other rows. */
@@ -452,6 +460,12 @@ export class DefaultOrganismSettingsService implements OrganismSettingsService {
         toggles: [
           { id: 'reducedMotion', label: 'Reduce motion', checked: p.reducedMotion === true },
           { id: 'reducedTransparency', label: 'Reduce transparency', description: 'Use solid menus and floating controls.', checked: p.reducedTransparency === true },
+          {
+            id: 'valueGutter',
+            label: 'Value markers beside the text',
+            description: 'Show each block\u2019s importance and valence as a faint row of marks beside its first line, with a button to renew a rating. Off keeps the strip at the right edge.',
+            checked: p.valueGutter === true,
+          },
         ],
       }),
       section('interface', 'Interface', 'Workspace chrome behavior.', {

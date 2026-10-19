@@ -85,6 +85,10 @@ try {
 
   browser = await engine.launch({ headless: process.env.SHRUBBERY_HEADED !== '1' })
   const page = await browser.newPage({ viewport: { width: 1512, height: 944 } })
+  // The revised gutter is Appearance > Value markers beside the text, off by default.
+  await page.addInitScript(() => {
+    localStorage.setItem('shrubbery.organism.settings.v1', JSON.stringify({ valueGutter: true }))
+  })
   page.on('pageerror', error => console.error(`[pageerror] ${error.message}`))
   await page.goto(`http://127.0.0.1:${port}/g/${GRAPH_ID}`, { waitUntil: 'domcontentloaded' })
   await page.waitForFunction(() => document.body.dataset.organismMode === 'local-cell', undefined, { timeout: 60_000 })
