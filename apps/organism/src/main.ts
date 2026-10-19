@@ -1507,6 +1507,25 @@ async function loadWorkflowPlanResults(state: CurrentWorkflowPlan): Promise<void
   }
 }
 
+/** An MCP tool result's payload: `structuredContent`, else the JSON of its first text content, else the value itself. */
+function toolResultRecord(result: unknown): Record<string, unknown> {
+  if (!result || typeof result !== 'object') return {}
+  const record = result as { structuredContent?: unknown; content?: unknown }
+  if (record.structuredContent && typeof record.structuredContent === 'object') return record.structuredContent as Record<string, unknown>
+  if (Array.isArray(record.content)) {
+    const text = (record.content[0] as { text?: unknown } | undefined)?.text
+    if (typeof text === 'string') {
+      try {
+        const parsed: unknown = JSON.parse(text)
+        if (parsed && typeof parsed === 'object') return parsed as Record<string, unknown>
+      } catch {
+        /* not JSON */
+      }
+    }
+  }
+  return result as Record<string, unknown>
+}
+
 /**
  * Publish: each finding becomes a comment on the document it names, anchored to its exact quote, written as the person
  * who pressed the button. A stable id per run and finding makes it safe to press twice.
@@ -1522,6 +1541,24 @@ async function publishWorkflowFindings(state: CurrentWorkflowPlan): Promise<void
     if (currentWorkflowPlan === state) rerenderCurrentSource()
   }
   setPublish({ status: 'publishing', message: null })
+  const documents = [...new Set(state.findings.map((finding) => finding.documentId))]
+  const where = documents.length === 1 ? (sidebarNodeById(documents[0]!)?.label ?? documents[0]) : `${documents.length} documents`
+  if (state.documentId) {
+    // A workflow document publishes through gardend in one go: all of a document's comments in one transaction, and
+    // a wf:Publication in the workflow's authoring graph.
+    try {
+      const result = toolResultRecord(await caller.callTool('workflow_plan_publish', { graphId: state.graphId, documentId: state.documentId, runId }))
+      const placedCount = typeof result.placed === 'number' ? result.placed : 0
+      const notFound = Array.isArray(result.notFound) ? result.notFound : []
+      setPublish({
+        status: notFound.length ? 'error' : 'done',
+        message: `Published ${placedCount} of ${state.findings.length} to the margin of ${where}.${notFound.length ? ` ${notFound.length} quote${notFound.length === 1 ? '' : 's'} not found in the text.` : ''}`,
+      })
+    } catch (error) {
+      setPublish({ status: 'error', message: `Publish failed: ${error instanceof Error ? error.message : String(error)}` })
+    }
+    return
+  }
   let placed = 0
   const missed: string[] = []
   for (const [index, finding] of state.findings.entries()) {
@@ -1542,12 +1579,29 @@ async function publishWorkflowFindings(state: CurrentWorkflowPlan): Promise<void
       missed.push(`${finding.quote.slice(0, 48)}… (${error instanceof Error ? error.message : String(error)})`)
     }
   }
-  const documents = [...new Set(state.findings.map((finding) => finding.documentId))]
-  const where = documents.length === 1 ? (sidebarNodeById(documents[0]!)?.label ?? documents[0]) : `${documents.length} documents`
   setPublish({
     status: missed.length ? 'error' : 'done',
     message: `Published ${placed} of ${state.findings.length} to the margin of ${where}.${missed.length ? ` Not placed: ${missed.slice(0, 3).join('; ')}` : ''}`,
   })
+}
+
+/**
+ * The run's line. Choreograph calls a run failed when any item failed; a run whose last step still produced its
+ * collection finished, with failures worth naming, and reads that way.
+ */
+function runLine(state: CurrentWorkflowPlan): { id: string; status: string; message?: string | null } {
+  const id = state.runId ?? '-'
+  const status = state.runStatus ?? 'running'
+  if (status !== 'failed') return { id, status }
+  const failures = [...state.progress.entries()].filter(([, counts]) => counts.failed > 0)
+  const lastStep = state.plan?.phases.at(-1)?.steps.find((step) => step.produces)
+  const lastDone = lastStep ? (state.progress.get(lastStep.label)?.done ?? 0) : 0
+  if (lastDone === 0 || failures.length === 0) return { id, status }
+  return {
+    id,
+    status: 'finished with failures',
+    message: failures.map(([label, counts]) => `${counts.failed} of ${counts.started} ${label} failed`).join('; '),
+  }
 }
 
 function workflowPlanView(state: CurrentWorkflowPlan, problems: readonly string[], now: number): WorkflowPlanOptions {
@@ -1577,7 +1631,7 @@ function workflowPlanView(state: CurrentWorkflowPlan, problems: readonly string[
         progress: state.progress.get(step.label) ?? null,
       })),
     })),
-    run: state.runId ? { id: state.runId, status: state.runStatus ?? 'running' } : null,
+    run: state.runId ? runLine(state) : null,
     ...(state.view.results ? { results: state.view.results } : {}),
     onRun: () => void runWorkflowPlan(state),
     onPublish: () => void publishWorkflowFindings(state),
