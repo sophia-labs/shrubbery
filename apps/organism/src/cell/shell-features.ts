@@ -772,7 +772,7 @@ function originalFileFeature<TContract>(): ShellFeature<TContract> {
   const onMakeEditable = (): void => {
     const context = latestContext
     const node = currentDocumentNode()
-    if (!context?.documentId || !node?.readOnly || makeEditableStatus === 'saving') return
+    if (!context?.documentId || !node?.textReadOnly || makeEditableStatus === 'saving') return
     const mcp = (context.contract as ImportedDocumentContract | null)?.mcp
     if (!mcp || typeof mcp.toolsCall !== 'function') {
       makeEditableStatus = 'error'
@@ -858,7 +858,7 @@ function originalFileFeature<TContract>(): ShellFeature<TContract> {
         makeEditableStatus = 'idle'
         makeEditableError = ''
       }
-      if (node && !node.readOnly) madeEditable.delete(scope)
+      if (node && !node.textReadOnly) madeEditable.delete(scope)
       const active = ensure()
       active.setScope(
         originalFileContract(context.contract),
@@ -868,7 +868,7 @@ function originalFileFeature<TContract>(): ShellFeature<TContract> {
       )
       // An imported, read-only document opens on its original, in the Reader, unless its reader chose Text last time.
       if (!scope) openedOriginalFor = ''
-      else if (scope !== openedOriginalFor && node?.readOnly && !madeEditable.has(scope) && active.snapshot().available) {
+      else if (scope !== openedOriginalFor && node?.textReadOnly && !madeEditable.has(scope) && active.snapshot().available) {
         openedOriginalFor = scope
         if (!active.snapshot().active && !prefersText(scope)) void active.toggle(null)
       }
@@ -879,7 +879,7 @@ function originalFileFeature<TContract>(): ShellFeature<TContract> {
       return {
         editorDocumentAccess: context.documentId
           ? {
-              readOnly: Boolean(node?.readOnly) && !madeEditable.has(scope),
+              readOnly: Boolean(node?.textReadOnly) && !madeEditable.has(scope),
               makeEditableStatus,
               makeEditableError,
             }

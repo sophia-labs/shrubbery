@@ -219,7 +219,7 @@ describe('sidebar document projection', () => {
       id: 'doc-a',
       active: true,
       selected: true,
-      readOnly: true,
+      textReadOnly: true,
       icon: 'book-open',
       sourceFile: { originalFilename: 'a.pdf' },
     })
