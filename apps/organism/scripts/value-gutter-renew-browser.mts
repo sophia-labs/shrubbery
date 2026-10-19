@@ -57,8 +57,13 @@ interface RenewButton {
 
 /** Open the gutter beside paragraph `index` by hovering its zone. */
 async function openGutter(page: Page, index: number): Promise<void> {
+  // Leave the editor and let the previous paragraph's gutter close (its close timer is 250 to 600 ms) before arriving.
   await page.mouse.move(700, 900)
-  await page.waitForTimeout(500)
+  await page.waitForFunction(
+    () => !(document.querySelector('sh-editor-host') as HTMLElement | null)?.shadowRoot?.querySelector('.salience-gutter'),
+    undefined,
+    { timeout: 5_000 },
+  )
   const point = await page.evaluate((i) => {
     const host = document.querySelector('sh-editor-host') as HTMLElement | null
     const paragraph = host?.shadowRoot?.querySelectorAll('.editor-mount [contenteditable="true"] > p')[i] as HTMLElement | undefined
@@ -66,12 +71,17 @@ async function openGutter(page: Page, index: number): Promise<void> {
     return rect ? { x: rect.right + 12, y: rect.top + rect.height / 2 } : null
   }, index)
   assert(point, `paragraph ${index} is on screen`)
-  await page.mouse.move(point.x, point.y)
-  await page.waitForFunction(
-    () => !!(document.querySelector('sh-editor-host') as HTMLElement | null)?.shadowRoot?.querySelector('.salience-gutter'),
-    undefined,
-    { timeout: 5_000 },
-  )
+  await page.mouse.move(point.x, point.y, { steps: 6 })
+  // Wait for the gutter that sits beside THIS paragraph: the one from the previous paragraph may still be open for a
+  // moment, and a click on it would rate the wrong block.
+  await page.waitForFunction((i) => {
+    const host = document.querySelector('sh-editor-host') as HTMLElement | null
+    const gutter = host?.shadowRoot?.querySelector('.salience-gutter') as HTMLElement | null
+    const paragraph = host?.shadowRoot?.querySelectorAll('.editor-mount [contenteditable="true"] > p')[i] as HTMLElement | undefined
+    if (!gutter || !paragraph) return false
+    const rect = paragraph.getBoundingClientRect()
+    return Math.abs(Number.parseFloat(gutter.style.top) - (rect.top + rect.height / 2)) < Math.min(10, rect.height / 3)
+  }, index, { timeout: 5_000 })
 }
 
 function renewButton(page: Page): Promise<RenewButton | null> {
