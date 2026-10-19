@@ -470,6 +470,7 @@ import {
 import {
   createSidebarDocument,
   createSidebarFolder,
+  createSidebarWorkflow,
   deleteSidebarDocument,
   deleteSidebarFolder,
   moveSidebarDocument,
@@ -1342,6 +1343,8 @@ let latestTagLensRequest = 0
 // graph-plan-v1 with the digest of exactly the plan on screen; the pane follows the run and reads back what it found.
 type CurrentWorkflowPlan = {
   readonly definition: string
+  /** The workflow document (kind `workflow`) whose draft this is; null for a bare definition IRI. */
+  readonly documentId: string | null
   readonly graphId: string
   readonly inputs: Record<string, unknown>
   view: WorkflowPlanOptions
@@ -1382,7 +1385,18 @@ function workflowPlanFromUrl(): { definition: string; inputs: Record<string, unk
   }
 }
 
-function openWorkflowPlan(graphId: string, definition: string, inputs: Record<string, unknown>): void {
+/** A workflow is a document of kind `workflow`; its plan is the named graph `urn:sophia:wf:<documentId>:draft`. */
+function workflowDraftGraph(documentId: string): string {
+  return `urn:sophia:wf:${documentId}:draft`
+}
+
+function openWorkflowDocument(documentId: string, inputs: Record<string, unknown> = {}): void {
+  openWorkflowPlan(currentGraphId, workflowDraftGraph(documentId), inputs, documentId)
+  currentSidebarSelectedId = documentId
+  rerenderCurrentSource()
+}
+
+function openWorkflowPlan(graphId: string, definition: string, inputs: Record<string, unknown>, documentId: string | null = null): void {
   closeWorkflowPlan()
   clearTagLensState()
   clearZoteroSourceState()
@@ -1391,6 +1405,7 @@ function openWorkflowPlan(graphId: string, definition: string, inputs: Record<st
   teardownEditorClaim()
   currentWorkflowPlan = {
     definition,
+    documentId,
     graphId,
     inputs,
     view: { title: definition, definition, status: 'loading', phases: [] },
@@ -4272,6 +4287,32 @@ async function createDocumentFromSidebar(
   }, `created document "${title}"`, 'create document error')
 }
 
+async function createWorkflowFromSidebar(title: string, parentId: string | null = null): Promise<void> {
+  const activeStore = liveSidebarMutationStore('create workflow')
+  if (!activeStore) return
+  const graphId = currentGraphId
+  let createdDocumentId: string | null = null
+  ok(`creating workflow "${title}"...`)
+  await runMobileFileMutation({
+    action: 'create-document',
+    graphId,
+    label: title,
+    store: activeStore,
+    perform: async () => {
+      const created = await createSidebarWorkflow(activeStore.contract.mcp, { graphId, title, parentId })
+      createdDocumentId = created.documentId
+      if (!(await refreshAfterSidebarMutation(activeStore, graphId))) {
+        throw new SidebarMutationRejectedError('The workspace changed before the new workflow could be checked.')
+      }
+      openWorkflowDocument(created.documentId)
+      homeActivityStore.markCreated(graphId, created.documentId)
+    },
+    isReflected: () => Boolean(createdDocumentId && sidebarNodeById(createdDocumentId)?.label === title),
+    reflectedMessage: `${title} is present in the current files.`,
+    notReflectedMessage: `Garden did not return ${title} in the refreshed file list.`,
+  }, `created workflow "${title}"`, 'create workflow error')
+}
+
 async function createFolderFromSidebar(
   name: string,
   parentId: string | null = null,
@@ -4550,6 +4591,11 @@ function handleSidebarNodeOpen(detail: SidebarNodeDetail): void {
   }
   if (detail.node.kind !== 'document') {
     ok(`sidebar node "${detail.node.label}" selected (no opener wired for kind=${detail.node.kind ?? 'document'})`)
+    return
+  }
+  if (detail.node.documentKind === 'workflow') {
+    placeReturn = null
+    openWorkflowDocument(detail.id)
     return
   }
   currentSidebarSelectedId = null
@@ -4903,6 +4949,17 @@ function handleSidebarAction(detail: SidebarActionDetail): void {
       }).then((name) => {
         if (!name) return
         void createDocumentFromSidebar(name)
+      })
+      return
+    case 'new-workflow':
+      void promptForText({
+        title: 'New Workflow',
+        message: 'Name the workflow. You and Sophia write its plan together.',
+        placeholder: 'Untitled workflow',
+        confirmText: 'Create',
+      }).then((name) => {
+        if (!name) return
+        void createWorkflowFromSidebar(name)
       })
       return
     case 'new-folder':
@@ -9665,7 +9722,10 @@ function startCellMode(): void {
   store = nextStore
   {
     const fromUrl = workflowPlanFromUrl()
-    if (fromUrl) openWorkflowPlan(graphId, fromUrl.definition, fromUrl.inputs)
+    if (fromUrl) {
+      const isIri = /^[a-z][a-z0-9+.-]*:/i.test(fromUrl.definition)
+      openWorkflowPlan(graphId, isIri ? fromUrl.definition : workflowDraftGraph(fromUrl.definition), fromUrl.inputs, isIri ? null : fromUrl.definition)
+    }
   }
   customCssController = new CustomCssController(nextStore.contract, graphId, roomPoolFor(nextStore.contract.crdt))
   // The tree follows writes made outside this page (Sophia's chat, the conversation mirror, another tab or
@@ -10103,6 +10163,9 @@ function currentChatContextRefs(): string[] {
   } catch {
     activeBlockId = null
   }
+  // An open workflow is "this document" for the chat, and the only one: the panes behind it still hold the last editor.
+  const workflowDocumentId = currentWorkflowPlan?.documentId ?? null
+  if (workflowDocumentId) return chatContextRefs({ activeDocumentId: workflowDocumentId, openDocumentIds: [] })
   return chatContextRefs({
     activeDocumentId: currentArtifactSurface ? null : openDocId,
     activeBlockId,

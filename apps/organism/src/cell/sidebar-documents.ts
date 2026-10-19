@@ -27,6 +27,8 @@ export interface SidebarDocument {
   readonly createdAt?: number
   readonly readOnly: boolean
   readonly sourceFile: SidebarDocumentSourceFile | null
+  /** gardend's `doc:documentKind`, when the document has one (`workflow`, `daily-note`, …). */
+  readonly documentKind?: string
 }
 
 export interface SidebarDocumentSourceFile {
@@ -187,6 +189,7 @@ export function sidebarDocumentFromRow(row: Record<string, string>): SidebarDocu
     ...(createdAt === undefined ? {} : { createdAt }),
     readOnly: parseBoolean(row.readOnly),
     sourceFile: sourceFileFromRow(row),
+    ...(row.documentKind ? { documentKind: unquoteLiteral(row.documentKind) } : {}),
   }
 }
 
@@ -224,7 +227,7 @@ export function sidebarDocumentListSparql(graphId: string): string {
     'PREFIX doc: <http://mnemosyne.dev/doc#>',
     'PREFIX dcterms: <http://purl.org/dc/terms/>',
     'PREFIX nfo: <http://www.semanticdesktop.org/ontologies/2007/03/22/nfo#>',
-    'SELECT ?doc (COALESCE(?dctitle, ?doctitle, "Untitled") AS ?label) ?parent ?order ?createdAt ?readOnly ?sourceStorageKey ?sourceOriginalFilename ?sourceMimeType ?sourceContentSize ?sourceFileType',
+    'SELECT ?doc (COALESCE(?dctitle, ?doctitle, "Untitled") AS ?label) ?parent ?order ?createdAt ?readOnly ?sourceStorageKey ?sourceOriginalFilename ?sourceMimeType ?sourceContentSize ?sourceFileType ?documentKind',
     `WHERE { GRAPH <${ws}> {`,
     '  ?doc a doc:TipTapDocument .',
     '  OPTIONAL { ?doc dcterms:title ?dctitle }',
@@ -238,6 +241,7 @@ export function sidebarDocumentListSparql(graphId: string): string {
     '  OPTIONAL { ?doc doc:sourceMimeType ?sourceMimeType }',
     '  OPTIONAL { ?doc doc:sourceContentSize ?sourceContentSize }',
     '  OPTIONAL { ?doc doc:sourceFileType ?sourceFileType }',
+    '  OPTIONAL { ?doc doc:documentKind ?documentKind }',
     '} }',
     'ORDER BY ?order LCASE(STR(?label))',
   ].join('\n')
@@ -360,7 +364,14 @@ interface SidebarNodeDraft {
   readonly fileType?: string | null
   readonly status?: string | null
   readonly ingestedDocumentId?: string | null
+  readonly documentKind?: string | null
   children: SidebarNodeDraft[]
+}
+
+/** A workflow is a document of kind `workflow` (its plan is RDF); it reads as one in the tree. */
+function documentIcon(doc: Pick<SidebarDocument, 'readOnly' | 'documentKind'>): string {
+  if (doc.documentKind === 'workflow') return 'workflow'
+  return doc.readOnly ? 'book-open' : 'file-text'
 }
 
 function sortTreeNodes(nodes: SidebarNodeDraft[]): SidebarNodeDraft[] {
@@ -420,10 +431,11 @@ export function sidebarDocumentTree(
       id: doc.id,
       label: doc.label || 'Untitled',
       kind: 'document',
-      icon: doc.readOnly ? 'book-open' : 'file-text',
+      icon: documentIcon(doc),
       parentId: doc.parentId,
       section: 'documents',
       order: doc.order,
+      documentKind: doc.documentKind ?? null,
       ...(doc.createdAt === undefined ? {} : { createdAt: doc.createdAt }),
       active: activeId === doc.id,
       selected: activeId === doc.id,
@@ -450,6 +462,7 @@ export function sidebarDocumentTree(
           selected: node.selected,
           readOnly: node.readOnly,
           sourceFile: node.sourceFile,
+          documentKind: node.documentKind ?? null,
         }
       }
       const children = finalize([...node.children])
@@ -673,8 +686,8 @@ export function sidebarOneTree(
 
   for (const doc of docs) {
     pushChild(doc.parentId, {
-      id: doc.id, label: doc.label || 'Untitled', kind: 'document', icon: doc.readOnly ? 'book-open' : 'file-text', parentId: doc.parentId,
-      section: 'documents', order: doc.order,
+      id: doc.id, label: doc.label || 'Untitled', kind: 'document', icon: documentIcon(doc), parentId: doc.parentId,
+      section: 'documents', order: doc.order, documentKind: doc.documentKind ?? null,
       ...(doc.createdAt === undefined ? {} : { createdAt: doc.createdAt }),
       active: activeId === doc.id, selected: activeId === doc.id, readOnly: doc.readOnly, sourceFile: doc.sourceFile, children: [],
     })
@@ -694,7 +707,7 @@ export function sidebarOneTree(
       if (node.kind === 'document') {
         return { id: node.id, label: node.label, kind: 'document', icon: node.icon, parentId: node.parentId, section: node.section,
           order: node.order, ...(node.createdAt === undefined ? {} : { createdAt: node.createdAt }), active: node.active,
-          selected: node.selected, readOnly: node.readOnly, sourceFile: node.sourceFile }
+          selected: node.selected, readOnly: node.readOnly, sourceFile: node.sourceFile, documentKind: node.documentKind ?? null }
       }
       if (node.kind === 'artifact') {
         return { id: node.id, label: node.label, kind: 'artifact', icon: node.icon, parentId: node.parentId, section: node.section,

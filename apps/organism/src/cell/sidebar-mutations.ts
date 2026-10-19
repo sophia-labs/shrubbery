@@ -211,6 +211,23 @@ export async function createSidebarDocument(
   return { documentId: named, existed }
 }
 
+/**
+ * A new, blank workflow: gardend's `workflow_plan_create` makes the document (kind `workflow`, its body saying what it is)
+ * and seeds the definition graph `urn:sophia:wf:<documentId>:draft` with the `wf:Workflow` itself. One definition of what
+ * a new workflow is, shared by this button and any agent.
+ */
+export async function createSidebarWorkflow(
+  mcp: SidebarMutationMcp,
+  input: { readonly graphId: string; readonly title: string; readonly parentId?: string | null },
+): Promise<{ documentId: string }> {
+  const graphId = requiredTrimmed(input.graphId, 'graphId')
+  const title = requiredTrimmed(input.title, 'title')
+  const result = await mcp.toolsCall('workflow_plan_create', { graphId, title, parentId: optionalTrimmed(input.parentId) })
+  const documentId = createdDocumentId(result)
+  if (!documentId) throw new Error('gardend did not say which workflow it made')
+  return { documentId }
+}
+
 /** The `documentId` of a `create_document` answer: the tools/call result's `structuredContent`, or its JSON text. */
 function createdDocumentId(result: unknown): string | null {
   if (typeof result !== 'object' || result === null) return null

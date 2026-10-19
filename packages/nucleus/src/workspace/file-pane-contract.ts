@@ -43,6 +43,7 @@ export type FilePaneOperationAction =
 export type FilePaneOperationState = 'pending' | 'success' | 'terminal-error' | 'indeterminate'
 export type FilePaneAction =
   | 'new-document'
+  | 'new-workflow'
   | 'upload'
   | 'new-folder'
   | 'refresh'
@@ -92,6 +93,8 @@ export interface FilePaneNode {
    */
   readonly status?: string | null
   readonly ingestedDocumentId?: string | null
+  /** A document's kind, when it has one (gardend's `doc:documentKind`): `workflow` opens the workflow plan, not an editor. */
+  readonly documentKind?: string | null
 }
 
 /** The lifecycle states a file node can be in. `ready` is the quiet default. */

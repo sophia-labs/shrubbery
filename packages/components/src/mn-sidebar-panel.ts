@@ -2115,6 +2115,15 @@ export class MnSidebarPanel extends SkinAware(LitElement) {
                       @click=${() => this._action('new-document')}
                     >${icon('plus', { size: 16 })}</button>`
                   : nothing}
+                ${this._hasCapability('createDocument')
+                  ? html`<button
+                      type="button"
+                      class="icon-button"
+                      aria-label="New workflow"
+                      title="New workflow"
+                      @click=${() => this._action('new-workflow')}
+                    >${icon('workflow', { size: 16 })}</button>`
+                  : nothing}
                 ${this._hasCapability('upload')
                   ? html`<button
                       type="button"
