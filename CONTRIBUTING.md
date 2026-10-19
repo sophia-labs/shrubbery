@@ -45,7 +45,7 @@ One command runs the suites that need a real gardend in a real browser. It finds
 3. otherwise a build beside this checkout: `../gardend/src-tauri/target/release/examples/gardend`.
 
 Each suite starts its own gardend on a scratch profile and a random port, and removes it afterwards; nothing touches a
-gardend you already run. Useful options: `--engine webkit`, `--only find`, `--list`, `--all` (adds the long browser
+gardend you already run. Useful options: `--engine webkit`, `--only find`, `--list`, `--integration` (the vitest integration suites, not green yet), `--all` (adds the long browser
 harnesses), `--no-install` (skip the Playwright download). WebKit matters: the desktop app runs in WKWebView, and
 `test:app-csp-built` serves the built app under the exact Content Security Policy that app ships with.
 

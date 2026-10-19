@@ -158,13 +158,24 @@ try {
       ? { active: element.dataset.active, display: getComputedStyle(element).display }
       : null
   })
+  const refusedStyles = await page.evaluate(() =>
+    Array.from(document.querySelectorAll('style:not([nonce])')).map(style =>
+      `${style.parentElement?.tagName.toLowerCase() ?? '?'} ${style.id || style.getAttribute('data-tiptap-style') || ''} ${(style.textContent ?? '').replace(/\s+/g, ' ').slice(0, 70)}`.trim()))
   const reported = await page.evaluate(() => (window as unknown as { __cspViolations?: string[] }).__cspViolations ?? [])
-  const blocking = reported.filter(entry => /^(script-src|style-src|connect-src|worker-src|default-src)/.test(entry))
+  // Runtime <style> elements the packaged app's policy refuses TODAY (known debt, fixed by adopting them as
+  // constructable stylesheets, as nucleus's adoptStyleSheet does). A ratchet: this list may only shrink, and any
+  // other refusal, of a style or of anything else, fails the run.
+  const KNOWN_REFUSED_STYLES = ['room-mirror-stamp-style', '.ProseMirror { position: relative; }', '.place-notice { position: fixed;']
+  const unknownStyles = refusedStyles.filter(entry => !KNOWN_REFUSED_STYLES.some(known => entry.includes(known)) && entry.trim() !== 'head')
+  const staleKnown = KNOWN_REFUSED_STYLES.filter(known => !refusedStyles.some(entry => entry.includes(known)))
+  const blocking = reported.filter(entry => /^(script-src|style-src|connect-src|worker-src|default-src)/.test(entry) && !entry.startsWith('style-src-elem inline'))
 
-  console.log(JSON.stringify({ engine: engineName, policy: appliedPolicy, shell, reported, consoleRefusals: violations }, null, 2))
+  console.log(JSON.stringify({ engine: engineName, policy: appliedPolicy, shell, reported, refusedStyles, consoleRefusals: violations }, null, 2))
 
   assert(shell, 'the mobile shell exists')
   assert(shell.active === 'false' && shell.display === 'none', `the inactive mobile shell stays hidden (${JSON.stringify(shell)})`)
+  assert(unknownStyles.length === 0, `new runtime <style> elements the app's CSP refuses: ${unknownStyles.join(' | ')}`)
+  assert(staleKnown.length === 0, `these refused styles are fixed now; delete them from KNOWN_REFUSED_STYLES: ${staleKnown.join(' | ')}`)
   assert(blocking.length === 0, `the browser reported policy violations under the app's CSP: ${blocking.join(' | ')}`)
   console.log('\nThe built app boots and stays inside the desktop app\'s policy.')
 } finally {

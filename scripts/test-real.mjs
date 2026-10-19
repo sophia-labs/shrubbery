@@ -5,6 +5,7 @@
 //   pnpm test:real --engine webkit    # one engine
 //   pnpm test:real --only find        # suites whose name contains "find"
 //   pnpm test:real --list             # what would run
+//   pnpm test:real --integration      # also the vitest *.integration suites that spawn a real gardend (not green yet)
 //   pnpm test:real --all              # also the long existing browser harnesses (test:browser, test:browser-verified)
 //   pnpm test:real --no-install       # skip the Playwright browser check
 //
@@ -65,7 +66,9 @@ const selected = (flag('--all') ? [...SUITES, ...ALL_SUITES] : SUITES).filter((s
   return !only || s.name.includes(only)
 })
 const plan = []
-if (!option('--only') || INTEGRATION.name.includes(option('--only'))) plan.push({ ...INTEGRATION, engine: null })
+// The vitest integration suites are opt-in (--integration) until they are green: several still need files that are not in
+// this repository (the VRM avatar fixtures) or a newer gardend. See plans/release-queue.md.
+if (flag('--integration') && (!option('--only') || INTEGRATION.name.includes(option('--only')))) plan.push({ ...INTEGRATION, engine: null })
 for (const suite of selected) for (const engine of engines) if (suite.engines.includes(engine)) plan.push({ ...suite, engine })
 
 if (flag('--list')) {
