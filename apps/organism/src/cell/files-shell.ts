@@ -767,7 +767,7 @@ export class FilesShell {
     // above it keeps Back, Reload and Download.
     const pageEntry = pageFile ? this.tree().get('artifact', pageFile.id) : null
     const isPdf = !!pageEntry && (pageEntry.mimeType === 'application/pdf' || /^pdf$/i.test(pageEntry.fileType ?? ''))
-    const plainPdf = !!pageFile && isPdf && !this.kindPending(pageFile.id) && !readEvidence?.kind
+    const plainPdf = !!pageFile && isPdf && this.evidence.answered(pageFile.id) && !this.kindPending(pageFile.id) && !readEvidence?.kind
     const page = pageFile && !plainPdf ? this.pageModel(pageFile, view) : null
     if (page || plainPdf) queueMicrotask(() => this.ensureSource(plainPdf))
     const sourceShown = !!page && page.sections.some(sec => sec.face === 'source' && sec.open)

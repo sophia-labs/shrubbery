@@ -164,8 +164,8 @@ describe('your notes', () => {
 
   it('a file whose name is over 96 characters: its notes are titled with the name cut in its middle, the extension kept', async () => {
     // The cell refuses a new document's title over 96 characters (garden a901a16); the contract server does too.
-    const name = 'Thermal validation report for the OPA2134 headphone amplifier board, revision C, batch 7 – final review.pdf'
-    await upload(name, 'file-long-name', 'application/pdf')
+    const name = 'Thermal validation report for the OPA2134 headphone amplifier board, revision C, batch 7 – final review.txt'
+    await upload(name, 'file-long-name', 'text/plain')
     await refresh()
     shell.openFile('file-long-name'); shell.options(); await settle(200)
     shell.options()!.onNotesChange!(typed('Runs warm at ±18 V'))
@@ -173,7 +173,16 @@ describe('your notes', () => {
     expect((section('notes')!.body as { notes: { message?: string } }).notes.message).toBe('Saved')
     const title = server.documents.get('notes-file-long-name')!.title
     expect(Array.from(title).length).toBeLessThanOrEqual(96)
-    expect(title).toMatch(/^Notes on Thermal validation report for the OPA2134 .*…review\.pdf$/u)
+    expect(title).toMatch(/^Notes on Thermal validation report for the OPA2134 .*…review\.txt$/u)
+  })
+
+  it('a plain PDF opens whole in the Reader: no page around it, its viewer is the center', async () => {
+    await upload('Plain paper.pdf', 'file-plain-pdf', 'application/pdf')
+    await refresh()
+    shell.openFile('file-plain-pdf'); shell.options(); await settle(400)
+    const options = shell.options()!
+    expect(options.page ?? null).toBeNull()
+    expect(options.preview).toMatchObject({ kind: 'pdf', name: 'Plain paper.pdf' })
   })
 
   it('a viewer reads them and cannot write: the editor is read-only and a keystroke makes nothing', async () => {
