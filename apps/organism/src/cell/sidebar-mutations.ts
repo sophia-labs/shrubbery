@@ -48,6 +48,8 @@ export interface CreateSidebarDocumentInput {
    * the existing one untouched, for "make sure it exists".
    */
   readonly ifExists?: 'keep' | null
+  /** A public Sophia's visitor: send no id; gardend names the document and says which (`documentId`). */
+  readonly serverNamed?: boolean
 }
 
 export interface CreateSidebarFolderInput {
@@ -189,10 +191,11 @@ export async function createSidebarDocument(
 ): Promise<{ documentId: string; existed: boolean }> {
   const graphId = requiredTrimmed(input.graphId, 'graphId')
   const title = requiredTrimmed(input.title, 'title')
-  const documentId = idFor('document', title, input.documentId, opts)
+  // A public Sophia's visitor never names a new document: gardend gives it its id.
+  const documentId = input.serverNamed ? undefined : idFor('document', title, input.documentId, opts)
   const result = await mcp.toolsCall('create_document', {
     graphId,
-    documentId,
+    ...(documentId ? { documentId } : {}),
     title,
     parentId: optionalTrimmed(input.parentId),
     order: input.order ?? null,
@@ -202,7 +205,30 @@ export async function createSidebarDocument(
     ...(input.ifExists ? { ifExists: input.ifExists } : {}),
   })
   const existed = typeof result === 'object' && result !== null && (result as { existed?: unknown }).existed === true
-  return { documentId, existed }
+  if (documentId) return { documentId, existed }
+  const named = createdDocumentId(result)
+  if (!named) throw new Error('gardend did not say which document it made')
+  return { documentId: named, existed }
+}
+
+/** The `documentId` of a `create_document` answer: the tools/call result's `structuredContent`, or its JSON text. */
+function createdDocumentId(result: unknown): string | null {
+  if (typeof result !== 'object' || result === null) return null
+  const record = result as { documentId?: unknown; structuredContent?: unknown; content?: unknown }
+  const direct = (value: unknown): string | null => {
+    const id = typeof value === 'object' && value !== null ? (value as { documentId?: unknown }).documentId : undefined
+    return typeof id === 'string' && id.trim() ? id.trim() : null
+  }
+  const found = direct(record) ?? direct(record.structuredContent)
+  if (found) return found
+  if (Array.isArray(record.content)) {
+    for (const item of record.content) {
+      const text = typeof item === 'object' && item !== null ? (item as { text?: unknown }).text : undefined
+      if (typeof text !== 'string') continue
+      try { const id = direct(JSON.parse(text)); if (id) return id } catch { /* not JSON */ }
+    }
+  }
+  return null
 }
 
 export async function createSidebarFolder(

@@ -207,11 +207,19 @@ export class LoopbackRestClient implements RestClient {
   // ── extra read primitive the session-store uses to dump the :ux:config graph ──
   // (Not on the RestClient interface — exposed on the concrete for the store.)
   async dumpUxConfig(graphId: string): Promise<RdfDumpEnvelope> {
-    const result = await this.mcp.toolsCall('rdf_dump', {
-      graphId,
-      format: 'application/n-triples',
-      sourceGraphIri: uxConfigGraphIri(graphId),
-    })
+    let result: Awaited<ReturnType<LoopbackMcpClient['toolsCall']>>
+    try {
+      result = await this.mcp.toolsCall('rdf_dump', {
+        graphId,
+        format: 'application/n-triples',
+        sourceGraphIri: uxConfigGraphIri(graphId),
+      })
+    } catch (error) {
+      // A public Sophia's visitor reads no RDF dump (gardend public mode): the workspace opens with the built-in
+      // layout, as a graph without one does.
+      if (error instanceof Error && /not open to visitors/.test(error.message)) return { data: '' }
+      throw error
+    }
     return JSON.parse(mcpText(result)) as RdfDumpEnvelope
   }
 }
@@ -493,6 +501,9 @@ export interface GardendContractOptions {
   readonly transport: LoopbackTransport
   /** Stable user/presence id for the local session (default 'local-organism'). */
   readonly userId?: string
+  /** The presence name the session starts with (default: the user id). A public Sophia's visitor: gardend's. */
+  readonly displayName?: string
+
   /**
    * Optional confirmation presenter for a non-DOM host (or a host-managed modal
    * queue). Browser organism defaults to the real mn-confirmation-dialog.
@@ -561,13 +572,14 @@ export function createGardendContract(opts: GardendContractOptions): GardendCont
     relatedOperations: (key, documentIncarnation) =>
       sourceMirror?.parkedOperationIdsFor(key, documentIncarnation) ?? [],
   })
-  sourceMirror = new SourceMirrorRuntime({
+  const mirror = new SourceMirrorRuntime({
     liveRest,
     caller: rawMcp,
     auth,
     documentActivation,
   })
-  const mcp = sourceMirror.wrapMcpClient(rawMcp)
+  sourceMirror = mirror
+  const mcp = mirror.wrapMcpClient(rawMcp)
   const wire = new LoopbackWireWriter(mcp)
   const salience = new LoopbackSalienceService(rawMcp)
   return {
@@ -576,13 +588,14 @@ export function createGardendContract(opts: GardendContractOptions): GardendCont
       mcpUrl: opts.transport.mcpUrl,
       token: opts.transport.token,
       userId: opts.userId ?? 'local-organism',
+      ...(opts.displayName ? { displayName: opts.displayName } : {}),
       WebSocketPolyfill: opts.crdtWebSocketPolyfill,
       documentActivation,
       fetchWorkspaceSnapshot: graphId => rawMcp.workspaceSnapshot(graphId),
     }),
     runtime: new LocalRuntimeModeProvider(baseUrl),
     ui: new GardenUiServices(opts.confirmPresenter, opts.promptPresenter),
-    rest: sourceMirror.rest,
+    rest: mirror.rest,
     wire,
     wireMode: createWireModeController({ wire }),
     salience,
@@ -590,6 +603,6 @@ export function createGardendContract(opts: GardendContractOptions): GardendCont
     mcp,
     rawMcp,
     documentActivation,
-    sourceMirror,
+    sourceMirror: mirror,
   }
 }

@@ -84,6 +84,8 @@ export interface LoopbackCrdtOptions {
   readonly token?: string
   /** Stable local identity published through the provider's awareness channel. */
   readonly userId?: string
+  /** The presence name to start with (default: the user id), e.g. a public Sophia's visitor's, from gardend. */
+  readonly displayName?: string
   /** Optional deterministic device/tab identity for tests and embedded hosts. */
   readonly presenceIdentity?: PresenceIdentityControllerOptions
   /**
@@ -177,6 +179,7 @@ export class LoopbackCrdtBackend implements CrdtBackend {
         this.presenceIdentity.next(
           this.opts.userId ?? 'local-organism',
           presenceRoomLocation(room),
+          this.opts.displayName ?? this.opts.userId ?? 'local-organism',
         ),
       )
     }

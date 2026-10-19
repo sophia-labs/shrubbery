@@ -35,6 +35,7 @@ import {
   type OrganismSettingsSnapshot,
 } from './settings-service.js'
 import { openLocalCellGraph } from './tauri-local-bootstrap.js'
+import { parseVisitorFences, readAccountIdToken, type PublicVisitorFolder, type VisitorState } from './visitor-mode.js'
 
 export const SELF_HOST_DESCRIPTOR_PATH = '/self-host.json'
 export const SELF_HOST_KEY_STORAGE_KEY = 'sophia.self-host.key'
@@ -53,6 +54,22 @@ export interface SelfHostServiceState {
   readonly reason?: string
 }
 
+/**
+ * A public Sophia (gardend public mode): the workspaces anyone may read, how a person signs in with a Sophia
+ * account, and the folder signed-in visitors write in.
+ */
+export interface SelfHostPublic {
+  readonly graphs: readonly string[]
+  readonly accounts: {
+    readonly domain: string | null
+    readonly clientId: string | null
+    readonly callbackUrl: string | null
+    /** Where the site's sign-in keeps the tokens in this browser (session or local storage). */
+    readonly tokenStorageKey: string | null
+  } | null
+  readonly visitorFolders: readonly PublicVisitorFolder[]
+}
+
 /** `GET /self-host.json` (gardend serves it, public, no auth). */
 export interface SelfHostDescriptor {
   readonly kind: typeof DESCRIPTOR_KIND
@@ -62,6 +79,44 @@ export interface SelfHostDescriptor {
   readonly user: { readonly email: string } | null
   /** The local services gardend knows of, by id (empty from a gardend older than its supervision). */
   readonly services: Readonly<Record<string, SelfHostServiceState>>
+  /** Present when this gardend is a public Sophia (anyone reads; a signed-in visitor may write in one folder). */
+  readonly public?: SelfHostPublic | null
+}
+
+function parsePublic(value: unknown): SelfHostPublic | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const record = value as Record<string, unknown>
+  const text = (source: Record<string, unknown> | null | undefined, key: string): string | null => {
+    const raw = source?.[key]
+    return typeof raw === 'string' && raw.trim() ? raw.trim() : null
+  }
+  const graphs = Array.isArray(record.graphs)
+    ? record.graphs.filter((graph): graph is string => typeof graph === 'string' && graph.trim() !== '')
+    : []
+  const rawAccounts = record.accounts && typeof record.accounts === 'object' && !Array.isArray(record.accounts)
+    ? record.accounts as Record<string, unknown>
+    : null
+  const visitorFolders: PublicVisitorFolder[] = Array.isArray(record.visitorFolders)
+    ? record.visitorFolders.flatMap(raw => {
+        if (!raw || typeof raw !== 'object') return []
+        const entry = raw as Record<string, unknown>
+        const graphId = text(entry, 'graphId')
+        const folderId = text(entry, 'folderId')
+        return graphId && folderId ? [{ graphId, folderId, open: entry.open !== false }] : []
+      })
+    : []
+  return {
+    graphs,
+    accounts: rawAccounts
+      ? {
+          domain: text(rawAccounts, 'domain'),
+          clientId: text(rawAccounts, 'clientId'),
+          callbackUrl: text(rawAccounts, 'callbackUrl'),
+          tokenStorageKey: text(rawAccounts, 'tokenStorageKey'),
+        }
+      : null,
+    visitorFolders,
+  }
 }
 
 /** The page is on this computer's loopback, where no Cloudflare edge can add an Access pass. */
@@ -123,6 +178,7 @@ export function parseSelfHostDescriptor(value: unknown): SelfHostDescriptor {
     auth: record.auth,
     user: typeof email === 'string' && email.trim() ? { email: email.trim() } : null,
     services,
+    ...(parsePublic(record.public) ? { public: parsePublic(record.public) } : {}),
   }
 }
 
@@ -222,6 +278,8 @@ export interface SelfHostSession {
   /** Who the cell sees: the Access email, else this self-host. */
   readonly userId: string
   readonly email: string | null
+  /** A public Sophia opened without the owner's key: who the visitor is, and where they may write. */
+  readonly visitor?: VisitorState | null
   signOut(): void
 }
 
@@ -248,6 +306,7 @@ function createSession(
     token,
     userId: email ?? 'garden-self-host',
     email,
+    visitor: null,
     signOut() {
       if (auth === 'cloudflare-access') {
         assign(CLOUDFLARE_ACCESS_LOGOUT_PATH)
@@ -327,8 +386,94 @@ export interface SelfHostBootOptions {
   readonly fetch?: typeof fetch
 }
 
+/** The write fences gardend gives the caller of `transport` (`tools/list` `_meta["sophia.writeFence"]`). */
+async function readWriteFences(transport: LoopbackTransport, fetchImpl: typeof fetch) {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json', Accept: 'application/json' }
+  if (transport.token) headers.Authorization = `Bearer ${transport.token}`
+  try {
+    const response = await fetchImpl(transport.mcpUrl, {
+      method: 'POST',
+      headers,
+      credentials: 'same-origin',
+      cache: 'no-store',
+      body: JSON.stringify({ jsonrpc: '2.0', id: 'visitor-fence', method: 'tools/list', params: {} }),
+    })
+    if (!response.ok) return []
+    const body = await response.json() as { result?: { _meta?: Record<string, unknown> } }
+    return parseVisitorFences(body.result?._meta?.['sophia.writeFence'])
+  } catch {
+    return []
+  }
+}
+
+export interface VisitorBootOptions extends SelfHostBootOptions {
+  /** Where the site's sign-in kept the person's tokens (session first, then local storage). */
+  readonly tokenStorages?: readonly (Pick<Storage, 'getItem'> | null)[]
+}
+
+/**
+ * A public Sophia opened without the owner's key: an anonymous reader, or a person signed in with a Sophia
+ * account (the ID token the site's sign-in left in this browser) who may write in the visitors' folder.
+ */
+async function bootstrapVisitor(
+  options: VisitorBootOptions,
+  descriptor: SelfHostDescriptor,
+  publicSophia: SelfHostPublic,
+  fetchImpl: typeof fetch,
+): Promise<SelfHostBoot> {
+  const origin = options.location.origin
+  let token = readAccountIdToken(publicSophia.accounts?.tokenStorageKey, options.tokenStorages ?? []) ?? undefined
+  let transport = selfHostTransport(origin, token)
+  try {
+    await probeAccess(transport, fetchImpl)
+  } catch (error) {
+    if (!(error instanceof SelfHostAccessError) || error.status !== 401 || !token) throw error
+    // An expired or foreign sign-in: read on as an anonymous visitor.
+    token = undefined
+    transport = selfHostTransport(origin, undefined)
+    await probeAccess(transport, fetchImpl)
+  }
+  const fences = token ? await readWriteFences(transport, fetchImpl) : []
+  const fence = fences[0] ?? null
+  const preferred = options.requestedGraphId
+    ?? fence?.graphId
+    ?? publicSophia.visitorFolders[0]?.graphId
+    ?? options.storedGraphId
+    ?? publicSophia.graphs[0]
+    ?? null
+  const signInUrl = new URL('/', origin).toString()
+  const visitor: VisitorState = { kind: token ? 'account' : 'anonymous', fence, signInUrl }
+  const session: SelfHostSession = {
+    descriptor,
+    origin,
+    auth: 'key',
+    token,
+    userId: fence?.account ?? 'visitor',
+    email: null,
+    visitor,
+    signOut() {
+      for (const storage of options.tokenStorages ?? []) {
+        try { (storage as Storage | null)?.removeItem?.(publicSophia.accounts?.tokenStorageKey ?? '') } catch { /* nothing stored */ }
+      }
+      options.assign('/')
+    },
+  }
+  const contract = createGardendContract({
+    transport,
+    userId: session.userId,
+    ...(fence ? { displayName: fence.name } : {}),
+  })
+  const { graphId } = await openLocalCellGraph(contract, {
+    requestedGraphId: preferred && publicSophia.graphs.includes(preferred) ? preferred : publicSophia.graphs[0] ?? null,
+    storedGraphId: null,
+    tolerateRefusal: () => true,
+  })
+  activeSession = session
+  return { kind: 'ready', session, contract, graphId, seededUxConfig: false, mayCreateGraphs: false }
+}
+
 /** Resolve the self-host's own gardend and return the normal live-cell contract on a chosen graph. */
-export async function bootstrapSelfHostCell(options: SelfHostBootOptions): Promise<SelfHostBoot> {
+export async function bootstrapSelfHostCell(options: VisitorBootOptions): Promise<SelfHostBoot> {
   const fetchImpl = options.fetch ?? globalThis.fetch.bind(globalThis)
   const descriptor = await readSelfHostDescriptor(fetchImpl)
   const url = new URL(options.location.href)
@@ -337,6 +482,9 @@ export async function bootstrapSelfHostCell(options: SelfHostBootOptions): Promi
   let token: string | undefined
   if (auth === 'key') {
     token = claimSelfHostKey(url, options.storage, options.replaceUrl) ?? undefined
+    if (!token && descriptor.public && descriptor.public.graphs.length > 0) {
+      return bootstrapVisitor(options, descriptor, descriptor.public, fetchImpl)
+    }
     if (!token) return { kind: 'needs-key', reason: 'missing' }
   } else if (/(^#|&)key=/.test(url.hash)) {
     // A key link opened through Access: the key is not needed, and must not linger in the address.

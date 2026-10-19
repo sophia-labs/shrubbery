@@ -433,6 +433,10 @@ export interface EditorOriginalFileView {
 /** Shell-owned access state for the open document. */
 export interface EditorDocumentAccess {
   readonly readOnly: boolean
+  /** False hides "Make Editable" (a visitor of a public Sophia cannot take a document over). Default true. */
+  readonly makeEditable?: boolean
+  /** The read-only badge's words, when the shell has better ones than "View Only". */
+  readonly readOnlyLabel?: string | null
   readonly makeEditableStatus?: 'idle' | 'saving' | 'error'
   readonly makeEditableError?: string | null
   /**
@@ -5264,6 +5268,8 @@ export class ShEditorHost extends LitElement {
         .activationDurability=${this._activationDurability}
         .activationConflict=${this._activationConflict ?? ''}
         .makeEditableStatus=${this.documentAccess?.makeEditableStatus ?? 'idle'}
+        .makeEditableAllowed=${this.documentAccess?.makeEditable ?? true}
+        .readOnlyLabel=${this.documentAccess?.readOnlyLabel ?? ''}
         .makeEditableError=${this.documentAccess?.makeEditableError ?? ''}
         .originalViewAvailable=${original?.available ?? false}
         .originalViewActive=${showOriginal}

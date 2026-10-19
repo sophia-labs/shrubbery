@@ -325,6 +325,16 @@ describe('mn-editor-toolbar', () => {
     expect(sr(el).querySelector('[role="alert"]')?.textContent).toContain('Workspace update failed')
   })
 
+  it("a public Sophia's visitor gets the shell's words and no Make Editable", async () => {
+    const el = await mountToolbar((node) => {
+      node.readOnly = true
+      node.makeEditableAllowed = false
+      node.readOnlyLabel = 'View only · sign in to write in Moo-vements of the Spirit'
+    })
+    expect(sr(el).querySelector('[data-make-editable]')).toBeNull()
+    expect(sr(el).querySelector('[data-read-only-badge]')?.textContent).toContain('sign in to write')
+  })
+
   it('labels a missing document authority honestly and never offers ACL conversion while waiting', async () => {
     const el = await mountToolbar(node => {
       node.readOnly = true

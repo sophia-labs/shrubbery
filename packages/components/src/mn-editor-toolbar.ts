@@ -605,6 +605,10 @@ export class MnEditorToolbar extends SkinAware(LitElement) {
   @property({ type: String }) activationDurability: 'none' | 'pending' | 'durable' | 'failed' = 'durable'
   @property({ type: String }) activationConflict: 'deleted' | 'replaced' | 'unfenced' | '' = ''
   @property({ type: String }) makeEditableStatus: 'idle' | 'saving' | 'error' = 'idle'
+  /** False: no "Make Editable" (a public Sophia's visitor). */
+  @property({ type: Boolean }) makeEditableAllowed = true
+  /** The read-only badge's words when the shell gives better ones than "View Only". */
+  @property({ type: String }) readOnlyLabel = ''
   @property({ type: String }) makeEditableError = ''
 
   @state() private toolbarOverflows = false
@@ -1111,7 +1115,7 @@ export class MnEditorToolbar extends SkinAware(LitElement) {
           : 'Offline cache cannot be safely fenced'
       : this.activationPending
         ? 'Waiting for document authority…'
-        : 'View Only'
+        : this.readOnlyLabel || 'View Only'
     return html`
       <div
         class="toolbar-scroll-shell"
@@ -1145,7 +1149,7 @@ export class MnEditorToolbar extends SkinAware(LitElement) {
               data-activation-pending=${String(this.activationPending)}
               role="status"
             >${activationLabel}</span>
-            ${this.activationPending || activationConflict
+            ${this.activationPending || activationConflict || !this.makeEditableAllowed
               ? nothing
               : html`<mn-button
                   data-make-editable

@@ -443,6 +443,14 @@ import {
 } from './cell/sidebar-documents.js'
 import { resolveSidebarDrop } from './cell/sidebar-drop.js'
 import {
+  ownedDocumentIds,
+  sidebarNodeIn,
+  visitorDocumentAccess,
+  visitorDropRefusal,
+  visitorSidebarRefusal,
+  type VisitorState,
+} from './cell/visitor-mode.js'
+import {
   documentSwitcherActionRows,
   documentSwitcherDocumentsFromSidebar,
   documentSwitcherOfflineSemanticItems,
@@ -1984,6 +1992,9 @@ function handleGraphPanelNodeOpen(detail: GraphPanelNodeOpenDetail): void {
 }
 
 function localCommentAuthor(): Pick<DocumentCommentData, 'author' | 'authorId'> {
+  // A public Sophia's signed-in visitor signs as its account (gardend refuses any other signature in its room).
+  const fence = activeVisitor()?.fence
+  if (fence) return { author: fence.name, authorId: fence.account }
   return {
     author: 'You',
     authorId: 'local',
@@ -3620,6 +3631,7 @@ async function refreshSidebarSections(): Promise<boolean> {
     )
     currentSidebarStatus = 'ready'
     currentSidebarError = ''
+    void refreshVisitorOwnership(activeStore, graphId)
     // Membership pruning belongs to SourceMirrorRuntime.importCompleteMirror,
     // where it is causally tied to one verified complete source epoch. A
     // sidebar projection can be an older local epoch while another client has
@@ -3679,6 +3691,7 @@ async function refreshAfterSidebarMutation(activeStore: OrganismSessionStore, gr
     )
     currentSidebarStatus = 'ready'
     currentSidebarError = ''
+    await refreshVisitorOwnership(activeStore, graphId)
     // The complete source import owns absence/deletion testimony. This
     // projection is only a Surface face over that epoch plus local intents.
     if (documentSwitcherEl.open) refreshDocumentSwitcherRows()
@@ -3987,7 +4000,11 @@ function openDocumentExport(documentId: string, title: string): void {
   })
 }
 
-async function createDocumentFromSidebar(title: string, parentId: string | null = null): Promise<void> {
+async function createDocumentFromSidebar(
+  title: string,
+  parentId: string | null = null,
+  options: { readonly serverNamed?: boolean } = {},
+): Promise<void> {
   const activeStore = liveSidebarMutationStore('create document')
   if (!activeStore) return
   const graphId = currentGraphId
@@ -3999,7 +4016,12 @@ async function createDocumentFromSidebar(title: string, parentId: string | null 
     label: title,
     store: activeStore,
     perform: async () => {
-      const created = await createSidebarDocument(activeStore.contract.mcp, { graphId, title, parentId })
+      const created = await createSidebarDocument(activeStore.contract.mcp, {
+        graphId,
+        title,
+        parentId,
+        ...(options.serverNamed ? { serverNamed: true } : {}),
+      })
       createdDocumentId = created.documentId
       if (parentId) {
         currentSidebarExpandedFolders = new Set(currentSidebarExpandedFolders)
@@ -4417,6 +4439,11 @@ function handleSidebarNodeDrop(detail: SidebarNodeDropDetail): void {
   const mutation = resolveSidebarDrop(currentSidebarSections, detail)
   if (!mutation) return
   const { source, parentId, order } = mutation
+  const visitor = activeVisitor()
+  if (visitor) {
+    const refusal = visitorDropRefusal(detail, currentSidebarSections, currentGraphId, visitor, parentId, visitorOwnedIds())
+    if (refusal) { placeNoticeLazy().say(refusal, 'info'); ok(`visitor: ${refusal}`); return }
+  }
 
   // One tree: a drag may carry a file or cross kinds. The Files commands move files and say, in words, what an older cell cannot do yet.
   const kind = source.kind === 'artifact' ? 'artifact' : source.kind === 'document' ? 'document' : 'folder'
@@ -4507,7 +4534,70 @@ function selectionForSidebarNode(detail: SidebarActionDetail): SelectedObject | 
   }
 }
 
+/** A public Sophia's visitor (gardend public mode, no owner key), or null. */
+function activeVisitor(): VisitorState | null {
+  return activeSelfHostSession()?.visitor ?? null
+}
+
+/** The documents gardend records as this visitor's (`get_workspace` rows' `extra.createdBy`), by graph. */
+let visitorOwned: { graphId: string; ids: ReadonlySet<string> } = { graphId: '', ids: new Set() }
+
+function visitorOwnedIds(graphId: string = currentGraphId): ReadonlySet<string> {
+  return visitorOwned.graphId === graphId ? visitorOwned.ids : new Set()
+}
+
+/** Ask gardend which documents of the open workspace are this visitor's; re-render when that changes. */
+async function refreshVisitorOwnership(activeStore: OrganismSessionStore, graphId: string): Promise<void> {
+  const fence = activeVisitor()?.fence
+  if (!fence || fence.graphId !== graphId) return
+  try {
+    // The folder's documents, every depth: each row says whose it is (`createdBy`).
+    const workspace = await activeStore.contract.rawMcp.callTool('get_workspace', {
+      graphId,
+      folderId: fence.folderId,
+      depth: 16,
+      limit: 1000,
+    })
+    const ids = ownedDocumentIds(workspace, fence.account)
+    const before = visitorOwned.graphId === graphId ? visitorOwned.ids : null
+    visitorOwned = { graphId, ids }
+    if (!before || before.size !== ids.size || [...ids].some(id => !before.has(id))) rerenderCurrentSource()
+  } catch (error) {
+    err(`visitor: could not read which notes are yours:\n${error instanceof Error ? error.message : String(error)}`)
+  }
+}
+
+/** The visitors' folder's name, as the tree shows it. */
+function visitorFolderLabel(visitor: VisitorState): string {
+  const folderId = visitor.fence?.folderId
+    ?? activeSelfHostSession()?.descriptor.public?.visitorFolders.find(folder => folder.graphId === currentGraphId)?.folderId
+  const label = folderId ? sidebarNodeIn(currentSidebarSections, folderId)?.label : null
+  return label ? `“${label}”` : 'the visitors\' folder'
+}
+
 function handleSidebarAction(detail: SidebarActionDetail): void {
+  const visitor = activeVisitor()
+  if (visitor) {
+    const refusal = visitorSidebarRefusal(detail, currentSidebarSections, currentGraphId, visitor, visitorFolderLabel(visitor), visitorOwnedIds())
+    if (refusal) {
+      placeNoticeLazy().say(refusal, 'info')
+      ok(`visitor: ${refusal}`)
+      return
+    }
+    if (detail.action === 'new-document' && visitor.fence) {
+      const folderId = visitor.fence.folderId
+      void promptForText({
+        title: 'New note',
+        message: `Your note goes in ${visitorFolderLabel(visitor)}. Everyone can read it; only you can change it.`,
+        placeholder: 'Untitled note',
+        confirmText: 'Create',
+      }).then((name) => {
+        if (!name) return
+        void createDocumentFromSidebar(name, folderId, { serverNamed: true })
+      })
+      return
+    }
+  }
   switch (detail.action) {
     case 'refresh':
       if (
@@ -6782,6 +6872,17 @@ function currentSalienceWriteAccess(): SalienceWriteAccess {
   return { writable: true, reason: null }
 }
 
+/** A visitor's pane: view-only unless it is the visitor's own note in its folder (gardend decides; see visitor-mode). */
+function visitorPaneDocumentAccess(claim: EditorClaim): EditorDocumentAccess | null {
+  const visitor = activeVisitor()
+  if (!visitor) return null
+  return {
+    ...visitorDocumentAccess(currentSidebarSections, claim.graphId, claim.documentId, visitor, visitorFolderLabel(visitor), visitorOwnedIds(claim.graphId)),
+    salienceWritable: false,
+    salienceWriteReason: 'Visitors read the ratings.',
+  }
+}
+
 function salienceEditorDocumentAccess(): EditorDocumentAccess {
   const salience = currentSalienceWriteAccess()
   return {
@@ -6843,7 +6944,7 @@ function centerPaneEditorHostOptions(): ReadonlyMap<CenterPaneId, CenterPaneEdit
       wireRadialContexts: active ? currentWireRadialContexts : null,
       salienceBundle: active ? currentSalienceBundle : null,
       imageInserter: claim.imageInserter,
-      documentAccess: salienceEditorDocumentAccess(),
+      documentAccess: visitorPaneDocumentAccess(claim) ?? salienceEditorDocumentAccess(),
     })
   }
   return hosts
@@ -8001,10 +8102,24 @@ function renderConfig(config: WorkspaceConfig, app: string | undefined): string 
         },
       }
     : featureWorkspaceSnapshot
-  const workspaceSnapshot = mobileShellFeatureHost.workspaceSnapshot(
+  const featuredSnapshot = mobileShellFeatureHost.workspaceSnapshot(
     shellContext,
     coreWorkspaceSnapshot,
   )
+  // A public Sophia's visitor edits only its own notes in the visitors' folder (gardend enforces it; the editor
+  // just does not offer the rest). Applied last: no feature may hand a visitor an editable document.
+  const visitor = activeVisitor()
+  const workspaceSnapshot: typeof featuredSnapshot = visitor && openDocId
+    ? {
+        ...featuredSnapshot,
+        editorDocumentAccess: {
+          ...(featuredSnapshot.editorDocumentAccess ?? { readOnly: false }),
+          ...visitorDocumentAccess(currentSidebarSections, currentGraphId, openDocId, visitor, visitorFolderLabel(visitor), visitorOwnedIds()),
+          salienceWritable: false,
+          salienceWriteReason: 'Visitors read the ratings.',
+        },
+      }
+    : featuredSnapshot
   // Lit intentionally preserves unmanaged siblings in its render container.
   // Retire the static pre-module boot shell before the first managed frame so
   // it cannot remain stacked above the live Surface workspace. Same for a
@@ -8728,6 +8843,8 @@ function createLocalGardendContract(): OrganismCellContract {
     return createGardendContract({
       transport: selfHostTransport(selfHost.origin, selfHost.token),
       userId: selfHost.userId,
+      // A public Sophia's visitor starts with the presence name gardend binds to its account.
+      ...(selfHost.visitor?.fence ? { displayName: selfHost.visitor.fence.name } : {}),
     })
   }
   return createGardendContract({
@@ -11103,6 +11220,7 @@ async function bootSelfHost(): Promise<void> {
       ?? url.searchParams.get('graph')
       ?? url.searchParams.get('graph_id'),
     storedGraphId,
+    tokenStorages: [browserSessionStorage(), browserLocalStorage()],
   })
   if (boot.kind === 'needs-key') {
     document.body.dataset.organismMode = 'self-host-key'
@@ -11130,12 +11248,16 @@ async function bootSelfHost(): Promise<void> {
     window.localStorage.setItem(SELF_HOST_GRAPH_STORAGE_KEY, boot.graphId)
   } catch { /* best effort */ }
   document.body.dataset.selfHost = boot.session.auth
+  if (boot.session.visitor) {
+    document.body.dataset.selfHostVisitor = boot.session.visitor.fence ? 'writer' : boot.session.visitor.kind
+  }
   void refreshSelfHostWorkspaces()
   // Chat, when this gardend runs a Choreograph. Asked before the first render so the rail, the toggle
   // and the default panel are right from the start; any doubt leaves chat hidden.
   // The agent core when gardend runs it (`/self-host.json` lists `vehicle`), else the Choreograph chat.
-  selfHostRide = selfHostRideEndpoint(boot.session)
-  selfHostChat = selfHostRide ? null : await readSelfHostChat(boot.session)
+  // An anonymous visitor talks to the agent on the site's own page (bring a key or sign in there).
+  selfHostRide = boot.session.visitor?.kind === 'anonymous' ? null : selfHostRideEndpoint(boot.session)
+  selfHostChat = selfHostRide || boot.session.visitor ? null : await readSelfHostChat(boot.session)
   if (selfHostRide || selfHostChat) {
     document.body.dataset.selfHostChat = selfHostRide
       ? `ride:${selfHostRide.state || 'configured'}`

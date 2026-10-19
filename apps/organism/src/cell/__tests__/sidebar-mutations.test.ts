@@ -57,6 +57,21 @@ describe('sidebar mutation adapter', () => {
     ])
   })
 
+  it('lets gardend name a visitor\'s document, reading the id from its tools/call answer', async () => {
+    // The answer gardend gave a visitor's create_document (W6 browser proof, 2026-10-15), verbatim in shape.
+    const answer = {
+      content: [{ type: 'text', text: JSON.stringify({ documentId: 'doc-0c33', id: 'doc-0c33', title: 'Shape probe', parentId: 'moo' }) }],
+      structuredContent: { documentId: 'doc-0c33', id: 'doc-0c33', title: 'Shape probe', parentId: 'moo' },
+    }
+    const mcp = recordingMcp(answer)
+    const result = await createSidebarDocument(mcp, { graphId: 'g', title: 'Shape probe', parentId: 'moo', serverNamed: true })
+    expect(result).toEqual({ documentId: 'doc-0c33', existed: false })
+    expect(mcp.calls[0]?.args).not.toHaveProperty('documentId')
+    const textOnly = recordingMcp({ content: answer.content })
+    expect((await createSidebarDocument(textOnly, { graphId: 'g', title: 'x', serverNamed: true })).documentId).toBe('doc-0c33')
+    await expect(createSidebarDocument(recordingMcp({}), { graphId: 'g', title: 'x', serverNamed: true })).rejects.toThrow(/did not say/)
+  })
+
   it('creates folders with the documents section default', async () => {
     const mcp = recordingMcp()
     const result = await createSidebarFolder(
