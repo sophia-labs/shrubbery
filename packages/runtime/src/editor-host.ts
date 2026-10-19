@@ -1081,7 +1081,7 @@ export class ShEditorHost extends LitElement {
     .reader-text-bar-slot { display: contents; }
     /* The Contents panel of the Text view: under the bar, beside the page (the page makes room for it). */
     .reader-contents { position: absolute; left: 0; top: var(--rd-bar-h, 44px); bottom: 0; width: 248px; z-index: 3; }
-    .reader-contents ~ .editor-mount { margin-left: 248px; width: calc(100% - 248px); }
+    :host([data-reader-contents]) .editor-mount { margin-left: 248px; width: calc(100% - 248px); }
     .original-file-view {
       display: flex;
       width: 100%;
@@ -3259,6 +3259,8 @@ export class ShEditorHost extends LitElement {
   }
 
   override updated(changed: Map<string, unknown>): void {
+    // The page makes room for the Text view's Contents panel (see `.reader-contents`).
+    this.toggleAttribute('data-reader-contents', this._readerContentsOpen && this._readerTextBarShown())
     if (changed.has('binding')) this._subscribe()
     // Reconcile the live body AFTER render() has stamped/removed the mount target.
     this._reconcileEditor()
@@ -5622,8 +5624,7 @@ export class ShEditorHost extends LitElement {
         @mn-editor-replace-all=${this._replaceAllSearchResults}
         @mn-editor-shortcuts-open=${this._openShortcuts}
       ></mn-editor-toolbar>
-      <div class="reader-text-bar-slot">${textBar && original ? this._renderReaderTextBar(original) : nothing}</div>
-      ${textBar ? this._renderReaderContents() : nothing}
+      <div class="reader-text-bar-slot">${textBar && original ? this._renderReaderTextBar(original) : nothing}${textBar ? this._renderReaderContents() : nothing}</div>
       <div
         class="original-file-view"
         ?hidden=${!showOriginal}
