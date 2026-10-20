@@ -9,7 +9,7 @@
  * editor's host draws the bar by itself for a read-only document's text, and gives it a find box ({@link ReaderBarFind}).
  *
  * Events (bubble, composed):
- *   `rd-bar-sidebar` · `rd-bar-find` { open } · `rd-bar-menu` { id, modifiers }
+ *   `rd-bar-sidebar` · `rd-bar-find` { open } · `rd-bar-menu` { id, modifiers } · `rd-bar-context` { id } (the right-click menu, see `showContextMenu`)
  *   `mn-editor-original-view-toggle` (the other side of Original / Text; the shell remembers the choice)
  *   `mn-editor-search-input` { value } · `mn-editor-search-keydown` { keyboardEvent } · `mn-editor-search-prev|next|close`
  *     (the find box speaks the editor toolbar's events, so the editor host needs nothing new)
@@ -20,6 +20,7 @@ import type { MenuEntry, MenuSelectDetail } from '@shrubbery/nucleus'
 // The context menu alone: the components barrel would bring every component (an xterm terminal among them).
 import '@shrubbery/components/context-menu'
 import type { MnContextMenu } from '@shrubbery/components/context-menu'
+import './reader-contents.js'
 import { icon } from './reader-icons.js'
 import { READER_BAR_STYLES, READER_TOKENS } from './reader-styles.js'
 
@@ -59,7 +60,8 @@ export class MnReaderBar extends LitElement {
   /** The find box under the bar, when the view's find lives here (the text; the Reader draws its own). */
   @property({ attribute: false }) find: ReaderBarFind | null = null
 
-  @query('mn-context-menu') private menuElement?: MnContextMenu
+  @query('mn-context-menu.more') private menuElement?: MnContextMenu
+  @query('mn-context-menu.ctx') private contextElement?: MnContextMenu
 
   protected override updated(changed: PropertyValues): void {
     if (changed.has('find') && this.find?.open && !(changed.get('find') as ReaderBarFind | null | undefined)?.open) this.focusSearchInput()
@@ -85,6 +87,19 @@ export class MnReaderBar extends LitElement {
     if (!menu) return
     menu.items = this.menu
     menu.show({ x: rect.right, y: rect.bottom + 4 }, 'top-right')
+  }
+
+  /** The right-click menu of the text under the bar (the editor host owns the text; the bar owns the menu's look). */
+  showContextMenu(items: readonly MenuEntry[], point: { x: number; y: number }): void {
+    const menu = this.contextElement
+    if (!menu) return
+    menu.items = items
+    menu.show(point)
+  }
+
+  private onContextSelect(event: CustomEvent<MenuSelectDetail>): void {
+    event.stopPropagation()
+    this.say('rd-bar-context', { id: event.detail.id })
   }
 
   private onSelect(event: CustomEvent<MenuSelectDetail>): void {
@@ -129,7 +144,8 @@ export class MnReaderBar extends LitElement {
         <button type="button" class="btn" aria-label="Next match" ?disabled=${find.count === 0} @click=${() => this.say('mn-editor-search-next')}>${icon('down')}</button>
         <button type="button" class="btn" aria-label="Close find" @click=${() => this.say('mn-editor-search-close')}>${icon('x')}</button>
       </div>` : nothing}
-      <mn-context-menu @mn-select=${(e: CustomEvent<MenuSelectDetail>) => this.onSelect(e)}></mn-context-menu>`
+      <mn-context-menu class="more" @mn-select=${(e: CustomEvent<MenuSelectDetail>) => this.onSelect(e)}></mn-context-menu>
+      <mn-context-menu class="ctx" @mn-select=${(e: CustomEvent<MenuSelectDetail>) => this.onContextSelect(e)}></mn-context-menu>`
   }
 }
 

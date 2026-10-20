@@ -126,6 +126,28 @@ export const READER_BAR_STYLES: CSSResult = css`
   }
 `
 
+/** The contents panel: tabs over a scrolling list. The Reader's sidebar and the editor's Text view share it. */
+export const READER_SIDE_STYLES: CSSResult = css`
+  .side {
+    flex: 0 0 248px; display: flex; flex-direction: column; min-height: 0;
+    background: var(--rd-chrome); border-right: 1px solid var(--rd-rule);
+  }
+  .tabs { display: flex; gap: 2px; padding: var(--mn-space-2, 8px); border-bottom: 1px solid var(--rd-rule); }
+  .tabs button {
+    flex: 1; height: 26px; border: 0; border-radius: var(--mn-radius-sm, 4px); background: transparent; color: var(--rd-muted); cursor: pointer;
+  }
+  .tabs button[aria-selected='true'] { background: var(--rd-hover); color: var(--rd-ink); font-weight: var(--mn-font-weight-medium, 500); }
+  .side-scroll { flex: 1 1 auto; overflow: auto; padding: var(--mn-space-2, 8px) var(--mn-space-1-5, 6px) var(--mn-space-6, 24px); }
+  .toc ul { list-style: none; margin: 0; padding: 0; }
+  .toc ul ul { padding-left: 12px; }
+  .toc button {
+    display: block; width: 100%; text-align: left; border: 0; background: transparent; cursor: pointer;
+    padding: 5px 8px; border-radius: var(--mn-radius-sm, 4px); color: var(--rd-ink); line-height: 1.35;
+  }
+  .toc button:hover { background: var(--rd-hover); }
+  .toc button[aria-current='true'] { background: var(--rd-pressed); color: var(--rd-accent); }
+`
+
 export const READER_STYLES: CSSResult = css`
   :host {
     /* the tokens: READER_TOKENS */
@@ -152,24 +174,6 @@ export const READER_STYLES: CSSResult = css`
 
   /* --- body: sidebar | stage --------------------------------------------------------------------------------------- */
   .body { flex: 1 1 auto; display: flex; min-height: 0; position: relative; }
-  .side {
-    flex: 0 0 248px; display: flex; flex-direction: column; min-height: 0;
-    background: var(--rd-chrome); border-right: 1px solid var(--rd-rule);
-  }
-  .tabs { display: flex; gap: 2px; padding: var(--mn-space-2, 8px); border-bottom: 1px solid var(--rd-rule); }
-  .tabs button {
-    flex: 1; height: 26px; border: 0; border-radius: var(--mn-radius-sm, 4px); background: transparent; color: var(--rd-muted); cursor: pointer;
-  }
-  .tabs button[aria-selected='true'] { background: var(--rd-hover); color: var(--rd-ink); font-weight: var(--mn-font-weight-medium, 500); }
-  .side-scroll { flex: 1 1 auto; overflow: auto; padding: var(--mn-space-2, 8px) var(--mn-space-1-5, 6px) var(--mn-space-6, 24px); }
-  .toc ul { list-style: none; margin: 0; padding: 0; }
-  .toc ul ul { padding-left: 12px; }
-  .toc button {
-    display: block; width: 100%; text-align: left; border: 0; background: transparent; cursor: pointer;
-    padding: 5px 8px; border-radius: var(--mn-radius-sm, 4px); color: var(--rd-ink); line-height: 1.35;
-  }
-  .toc button:hover { background: var(--rd-hover); }
-  .toc button[aria-current='true'] { background: var(--rd-pressed); color: var(--rd-accent); }
   .thumbs { display: grid; gap: 14px; justify-items: center; padding: 6px 0; }
   .thumb { display: grid; gap: 4px; justify-items: center; border: 0; background: transparent; cursor: pointer; color: var(--rd-muted); font-size: var(--mn-text-xs, 12px); }
   .thumb canvas { width: 132px; background: #fff; box-shadow: var(--rd-page-shadow); border-radius: 1px; outline: 2px solid transparent; outline-offset: 3px; }
@@ -201,6 +205,7 @@ export const READER_STYLES: CSSResult = css`
 
   /* --- EPUB --------------------------------------------------------------------------------------------------------- */
   .book { position: absolute; inset: 0; overflow: auto; background: var(--rd-paper); outline: none; scroll-behavior: auto; overflow-anchor: none; }
+  .gap { pointer-events: none; }
   .chapter {
     max-width: var(--rd-measure);
     margin: 0 auto;
