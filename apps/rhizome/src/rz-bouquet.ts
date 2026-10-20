@@ -33,7 +33,7 @@
  * It owns NO data path — no fetch, no SPARQL. Registered as a side effect (the
  * upgrade seam) so the shell can swap it into the body region. When nothing is
  * loaded it shows an honest status (NO faked bloom). Danger/error uses the DANGER
- * ROLE TOKENS (not hardcoded hex) so it tracks the Emporium dark-purple theme.
+ * ROLE TOKENS (not hardcoded hex) so it tracks the Emporium (Sophia) theme.
  *
  * happy-dom gotcha (verified, see rz-observatory): each nested view is wrapped in
  * its OWN host `<div>` so the `${…}` is the sole child of an element, never a

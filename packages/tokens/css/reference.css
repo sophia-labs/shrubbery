@@ -5,8 +5,9 @@
  * Adapted (not copied) from garden/frontend/src/index.css §S2. We carry only the
  * ramps Shrubbery's chrome + skins actually need: fern (Garden identity),
  * cobalt (the sophia STRUCTURE source — kept for provenance/comparison),
- * parchment + ink (neutrals), carmine / moss / ochre (status), and the NEW
- * purple ramp (the Emporium accent recolor).
+ * the Sophia skin's own palette (sophia-blue, sophia-mist, sophia-night and
+ * its three status hues), parchment + ink (neutrals), carmine / moss / ochre
+ * (status), and purple (the launcher's default app tile).
  *
  * Naming law (greppable forever):
  *   Reference (Tier 0) tokens ALWAYS end in a numeric ramp step.
@@ -46,14 +47,9 @@
   --mn-ref-cobalt-900: #001b3a;
   --mn-ref-cobalt-950: #001128;
 
-  /* ── purple (Emporium accent recolor; Vera's pick) ───────────────────────
-     Dark-purple ramp. Emporium = sophia STRUCTURE, recolored: this ramp
-     replaces cobalt as the accent/identity hue ONLY. All sophia structural
-     tokens (Diatype, square, tight density, icon-only, stronger rules) are
-     UNCHANGED — see skin-emporium.css. The skin ACCENT is purple-400 #9472CE
-     (Vera's iter-4a pick over the iter-3 purple-500 #6D28D9); the deeper steps
-     stay as the strong / active shoulders. Exact hexes documented here so Vera
-     can tune them in one place. */
+  /* ── purple (the launcher's default app tile) ─────────────────────────────
+     No skin's accent: component.css paints --mn-app-tile-default with it, a
+     brand constant for an app without a colour of its own. */
   --mn-ref-purple-50:  #F5F3FB;
   --mn-ref-purple-100: #E9E3F6;
   --mn-ref-purple-200: #D2C4ED;
@@ -64,6 +60,97 @@
   --mn-ref-purple-700: #4C1D95;
   --mn-ref-purple-800: #3B1577;
   --mn-ref-purple-900: #2A0E57;
+
+  /* ── Sophia (the "Sophia" skin, [data-skin=emporium]) ─────────────────────
+     Every value below is built in OKLCH, so a step is a lightness on one hue
+     and two ramps at the same step sit at the same lightness. The palette's
+     logic (which step plays which role, the contrast targets) is written out
+     at the top of skin-emporium.css; this is only the raw material.
+
+     sophia-blue: the primary ramp. Step 800 IS Sophia Blue, #00356B
+     (print: PMS 289 C); step 950 is its deepest shade, #0C2340. The other
+     steps keep that hue (H 249-255) and step lightness evenly from 0.976 to
+     0.29. */
+  --mn-ref-sophia-blue-50:    #f2f8fe;   /* oklch(0.976 0.010 248) */
+  --mn-ref-sophia-blue-100:   #e4effc;   /* oklch(0.948 0.021 252) */
+  --mn-ref-sophia-blue-200:   #cbe0f8;   /* oklch(0.899 0.040 252) */
+  --mn-ref-sophia-blue-300:   #a6c8ef;   /* oklch(0.821 0.066 252) */
+  --mn-ref-sophia-blue-400:   #77a8e1;   /* oklch(0.719 0.099 253) */
+  --mn-ref-sophia-blue-500:   #4784ca;   /* oklch(0.605 0.125 253) */
+  --mn-ref-sophia-blue-600:   #2566ac;   /* oklch(0.506 0.129 253) */
+  --mn-ref-sophia-blue-700:   #0b4b8d;   /* oklch(0.415 0.125 254) */
+  --mn-ref-sophia-blue-800:   #00356b;   /* oklch(0.332 0.107 254) */
+  --mn-ref-sophia-blue-900:   #072b55;   /* oklch(0.291 0.086 255) */
+  --mn-ref-sophia-blue-950:   #0c2340;   /* oklch(0.255 0.062 256) */
+
+  /* sophia-mist: the light neutrals. Lightness steps at H 255 with a faint
+     cool cast (chroma 0.002-0.024): quiet surfaces, hairlines and ink that
+     agree with the blue without turning into grey-blue. */
+  --mn-ref-sophia-mist-0:     #ffffff;   /* oklch(1.000 0.000 0) */
+  --mn-ref-sophia-mist-25:    #fbfcfd;   /* oklch(0.991 0.002 248) */
+  --mn-ref-sophia-mist-50:    #f7f9fb;   /* oklch(0.981 0.003 248) */
+  --mn-ref-sophia-mist-100:   #f1f4f7;   /* oklch(0.966 0.005 248) */
+  --mn-ref-sophia-mist-150:   #eceff2;   /* oklch(0.951 0.005 248) */
+  --mn-ref-sophia-mist-200:   #e3e7ec;   /* oklch(0.926 0.008 254) */
+  --mn-ref-sophia-mist-300:   #d0d5dc;   /* oklch(0.871 0.011 257) */
+  --mn-ref-sophia-mist-400:   #abb2bb;   /* oklch(0.761 0.015 255) */
+  --mn-ref-sophia-mist-500:   #7f8791;   /* oklch(0.620 0.018 254) */
+  --mn-ref-sophia-mist-600:   #5a636e;   /* oklch(0.496 0.021 253) */
+  --mn-ref-sophia-mist-700:   #464f5b;   /* oklch(0.424 0.023 256) */
+  --mn-ref-sophia-mist-800:   #303944;   /* oklch(0.341 0.023 254) */
+  --mn-ref-sophia-mist-900:   #19212c;   /* oklch(0.245 0.024 256) */
+  --mn-ref-sophia-mist-950:   #0e151f;   /* oklch(0.194 0.023 257) */
+
+  /* sophia-night: the dark neutrals. The same cool cast, lifted a little
+     (chroma 0.013-0.025) so the dark surfaces read as night, not as black;
+     steps 800-950 are the light ink that sits on them. */
+  --mn-ref-sophia-night-0:    #10141a;   /* oklch(0.190 0.014 258) */
+  --mn-ref-sophia-night-50:   #13181e;   /* oklch(0.207 0.014 253) */
+  --mn-ref-sophia-night-100:  #161b23;   /* oklch(0.221 0.017 260) */
+  --mn-ref-sophia-night-150:  #191f26;   /* oklch(0.236 0.016 252) */
+  --mn-ref-sophia-night-200:  #1e232c;   /* oklch(0.255 0.019 262) */
+  --mn-ref-sophia-night-300:  #232a33;   /* oklch(0.282 0.019 255) */
+  --mn-ref-sophia-night-400:  #293039;   /* oklch(0.306 0.019 255) */
+  --mn-ref-sophia-night-500:  #313842;   /* oklch(0.338 0.020 257) */
+  --mn-ref-sophia-night-600:  #3c444f;   /* oklch(0.384 0.022 256) */
+  --mn-ref-sophia-night-700:  #545d6a;   /* oklch(0.475 0.024 258) */
+  --mn-ref-sophia-night-800:  #a5adb9;   /* oklch(0.745 0.019 258) */
+  --mn-ref-sophia-night-850:  #bec5cf;   /* oklch(0.821 0.016 257) */
+  --mn-ref-sophia-night-900:  #e6eaf0;   /* oklch(0.936 0.009 258) */
+  --mn-ref-sophia-night-950:  #f1f4f8;   /* oklch(0.966 0.006 255) */
+
+  /* sophia-red / sophia-amber / sophia-green: the status hues (danger,
+     warning, success). Same lightness grid as sophia-blue, so a status colour
+     never outweighs the blue beside it; info is sophia-blue itself. */
+  --mn-ref-sophia-red-50:     #fff3f1;   /* oklch(0.973 0.013 29) */
+  --mn-ref-sophia-red-100:    #ffe6e3;   /* oklch(0.944 0.028 26) */
+  --mn-ref-sophia-red-200:    #fecdc7;   /* oklch(0.889 0.056 26) */
+  --mn-ref-sophia-red-300:    #feaba1;   /* oklch(0.819 0.100 27) */
+  --mn-ref-sophia-red-400:    #f98478;   /* oklch(0.741 0.145 27) */
+  --mn-ref-sophia-red-500:    #d9544b;   /* oklch(0.620 0.169 27) */
+  --mn-ref-sophia-red-600:    #b6322d;   /* oklch(0.519 0.170 27) */
+  --mn-ref-sophia-red-700:    #9b1e1d;   /* oklch(0.450 0.161 27) */
+  --mn-ref-sophia-red-800:    #7e0e10;   /* oklch(0.381 0.145 27) */
+
+  --mn-ref-sophia-amber-50:   #fdf5e7;   /* oklch(0.973 0.020 82) */
+  --mn-ref-sophia-amber-100:  #fbebcf;   /* oklch(0.946 0.041 82) */
+  --mn-ref-sophia-amber-200:  #f5d6a7;   /* oklch(0.891 0.070 78) */
+  --mn-ref-sophia-amber-300:  #f2bd6e;   /* oklch(0.830 0.114 76) */
+  --mn-ref-sophia-amber-400:  #e5a243;   /* oklch(0.760 0.135 72) */
+  --mn-ref-sophia-amber-500:  #b97515;   /* oklch(0.621 0.130 68) */
+  --mn-ref-sophia-amber-600:  #925b07;   /* oklch(0.521 0.111 69) */
+  --mn-ref-sophia-amber-700:  #784904;   /* oklch(0.450 0.097 68) */
+  --mn-ref-sophia-amber-800:  #5e3903;   /* oklch(0.380 0.081 69) */
+
+  --mn-ref-sophia-green-50:   #edf9f2;   /* oklch(0.971 0.016 161) */
+  --mn-ref-sophia-green-100:  #dcf4e5;   /* oklch(0.945 0.032 158) */
+  --mn-ref-sophia-green-200:  #bae7cc;   /* oklch(0.889 0.060 159) */
+  --mn-ref-sophia-green-300:  #a1d1b4;   /* oklch(0.819 0.065 158) */
+  --mn-ref-sophia-green-400:  #79bc95;   /* oklch(0.739 0.089 158) */
+  --mn-ref-sophia-green-500:  #47996e;   /* oklch(0.620 0.104 158) */
+  --mn-ref-sophia-green-600:  #257b51;   /* oklch(0.521 0.105 158) */
+  --mn-ref-sophia-green-700:  #0e653f;   /* oklch(0.449 0.100 158) */
+  --mn-ref-sophia-green-800:  #045030;   /* oklch(0.381 0.087 158) */
 
   /* ── parchment (neutral — the page) ──────────────────────────────────── */
   --mn-ref-parchment-0:    #fbfaf6;

@@ -4,7 +4,7 @@
  * compose by the cascade, lowest → highest specificity / latest-wins:
  *
  *   fonts         repository-owned WOFF2 core families (offline deterministic)
- *   reference     Tier 0 — raw ramps (fern, cobalt, PURPLE, neutrals, status)
+ *   reference     Tier 0 — raw ramps (fern, cobalt, Sophia Blue + its neutrals, purple, neutrals, status)
  *   flow-tokens   Tier 0 — Mithras Flow's values (GENERATED from its styles.css)
  *   semantic      Tier 1 — role tokens, light-mode Garden defaults
  *   component     Tier 2 — chrome families (top-bar / bottom-bar)
@@ -16,7 +16,7 @@
  *   skin-garden   [data-skin=garden]     — the fern / Literata / rounded identity
  *   material-garden Garden-scoped liquid-glass material for the floating
  *                 control layer (menus, popovers, toasts) + solid fallbacks
- *   skin-emporium [data-skin=emporium]   — sophia STRUCTURE, accent recolored PURPLE
+ *   skin-emporium [data-skin=emporium]   — the "Sophia" skin: Sophia Blue #00356B, Public Sans chrome
  *                 + [data-design=emporium] alias
  *                 + [data-theme=dark][data-skin=emporium] dark override
  *   skin-98 [data-skin=98] — classic desktop/window-system identity

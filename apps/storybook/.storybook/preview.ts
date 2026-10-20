@@ -23,7 +23,7 @@ const preview: Preview = {
         icon: 'paintbrush',
         items: [
           { value: 'garden', title: 'Garden (fern)' },
-          { value: 'emporium', title: 'Emporium (purple)' },
+          { value: 'emporium', title: 'Sophia' },
           { value: '98', title: '98 (classic desktop)' },
           { value: 'glass', title: 'Glass (luminous desktop)' },
           { value: 'mithras', title: 'Mithras (Flow whiteboard)' },

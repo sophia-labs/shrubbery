@@ -1,234 +1,333 @@
-/* ═══ SKIN: emporium (NEW — sophia STRUCTURE, recolored DARK PURPLE) ══════════
- * Emporium IS the sophia design-language STRUCTURE, verbatim:
- *   - ABC Diatype sans for chrome + display (Literata stays for prose if used)
- *   - square / no-radius controls + minimal surface rounding
- *   - tight 24px density (rows + controls)
- *   - icon-only labels (--mn-label-display: none)
- *   - stronger rules (hairline → line → frame, one hue, Albers figure-ground)
- *   - no parchment grain (digital-clean), cool Swiss paper surfaces
+/* ═══ SKIN: Sophia ([data-skin=emporium]) ════════════════════════════════════
+ * The skin the picker calls "Sophia". Its primary colour is Sophia Blue,
+ * #00356B (print: PMS 289 C), and everything else is built to sit beside it.
+ * (The skin id stays `emporium`: it is what saved settings carry.)
  *
- * The ONLY thing swapped from sophia is the accent/identity COLOR ramp:
- *   cobalt (#1a5fa3 …) → purple (#9472CE …).
- * Every structural token below is sophia's, untouched; only the hue moves.
+ * THE PALETTE (raw steps in reference.css, all built in OKLCH):
+ *   sophia-blue   the primary ramp, 50 → 950 on one hue (H 249-255).
+ *                 800 = Sophia Blue #00356B; 950 = its deepest shade #0C2340.
+ *   sophia-mist   light neutrals, H 255 at chroma ≤ 0.024: a faint cool cast,
+ *                 never enough to turn grey-blue.
+ *   sophia-night  dark neutrals on the same hue, lifted to chroma ≤ 0.025 so
+ *                 dark reads as night, not black. 800-950 are its light inks.
+ *   sophia-red / -amber / -green   status hues on the same lightness grid,
+ *                 so none of them outweighs the blue; info IS the blue.
  *
- * ACCENT = purple-400 #9472CE (Vera's pick, iter-4a — softer than the iter-3
- * proposal of purple-500 #6D28D9; the deeper purples stay as the strong/active
- * shoulders). Vera tunes the hexes in reference.css --mn-ref-purple-*.
- *   light: accent       = purple-400 #9472CE
- *          accent-strong = purple-700 #4C1D95
- *          rule-strong   = purple-300 #B59FE0
- *   dark : accent lightened (purple-300 #B59FE0) for contrast on dark bg,
- *          mirroring garden's cobalt dark overrides.
+ * WHO PLAYS WHAT
+ *   light  accent (buttons, markers, the selected-row rule)   blue-800 Sophia Blue
+ *          hover / pressed                                    blue-700 / blue-950
+ *          accent text, top-bar names                         blue-800
+ *          links                                              blue-700 (blue-800 hover)
+ *          focus ring                                         blue-600, 2px + halo
+ *          washes (hover, selected, focus halo)               blue-600 channel at 7-18%
+ *          selected row / chip                                blue-100 / blue-50
+ *          ink: title / primary / secondary / quiet           blue-950 / mist-900 / -700 / -600
+ *          surfaces, darkest → lightest: canvas mist-100 · panel and bars
+ *          mist-50 · base and editor mist-25 · cards, menus, dialogs white
+ *          (separated by hairlines and navy-tinted shadows, not by tint)
+ *   dark   Sophia Blue is too dark to carry contrast on night surfaces, so
+ *          the accent becomes a lighter tint of the same hue: blue-300
+ *          (hover blue-200, pressed blue-400) with blue-950 ink on it. The
+ *          masthead keeps the brand as a blue-950 band.
+ *          ink: title / primary / secondary / quiet           night-950 / -900 / -850 / -800
+ *          surfaces climb with elevation: canvas night-0 · panel and floor
+ *          night-50 · base and chrome night-100 · editor night-150 · cards
+ *          night-200 · menus night-300 · dialogs night-400
  *
- * Applies via [data-skin=emporium] (the sux ConfigValue.appliesAttribute hook).
- * [data-design=emporium] is provided as an alias for the two-host cloud pattern
- * garden uses ([data-design=sophia]); both resolve identically.
+ * CONTRAST TARGETS (WCAG 2.2 AA; skin-sophia.test.ts measures every pair in
+ * both themes, so a change that breaks one fails the build):
+ *   - every text role ≥ 4.5:1 on every surface it can sit on, washes
+ *     composited (quiet ink is the floor: ≥ 4.8:1 light, ≥ 5.3:1 dark);
+ *   - ink on the accent, danger and warning fills ≥ 4.5:1;
+ *   - the accent, the focus ring and the selected-row rule ≥ 3:1 against
+ *     the surfaces they mark (non-text UI);
+ *   - hairlines stay deliberately below 3:1: they separate, they do not
+ *     carry meaning.
+ *
+ * STRUCTURE: Public Sans chrome and display with Literata kept for prose;
+ * crisp 4px controls and 8px surfaces; 28px rows; labels shown; no grain.
+ *
+ * [data-design=emporium] is an alias kept for the two-host cloud pattern;
+ * both selectors resolve identically.
  * ──────────────────────────────────────────────────────────────────────────── */
 
 :root {
-  /* Emporium bespoke tokens — the purple analog of garden's --sophia-* set.
-     Defined once; the [data-skin=emporium] block routes Tier-1 roles through
-     them so a dark override only retunes these four. */
-  --emporium-accent:        var(--mn-ref-purple-400);   /* #9472CE — Vera's pick (iter-4a) */
-  --emporium-accent-strong: var(--mn-ref-purple-700);
-  --emporium-accent-soft:   var(--mn-ref-purple-100);
-  --emporium-accent-line:   var(--mn-ref-purple-200);
-
-  /* Public Sans is bundled so Emporium is deterministic offline. ABC Diatype
-     remains in the provenance stack, but is never required for faithful layout. */
+  /* Public Sans is bundled so the skin is deterministic offline. ABC Diatype
+     stays in the stack for machines that have it. */
   --emporium-font-sans:    'Public Sans Variable', 'Public Sans', 'ABC Diatype', -apple-system, 'Helvetica Neue', sans-serif;
   --emporium-tracking-body: 0.005em;
-
-  /* Square shoulders, hairline rules. */
-  --emporium-radius:      4px;  /* minimal surface rounding (square controls below) */
 }
 
 /* The skin block + its alias. Listed together so they stay byte-identical. */
 [data-skin="emporium"],
 [data-design="emporium"] {
-  /* ── Typography — Diatype replaces Literata for chrome + display ─────────
-     prose is intentionally NOT overridden: Emporium keeps the chrome/prose
-     split, so any document body text stays Literata (serif) while UI chrome +
-     display headings use Diatype (sans). This hybrid is by design. */
-  --mn-font-chrome:  var(--emporium-font-sans);
-  --mn-font-display: var(--emporium-font-sans);
+  /* ── Type: sans chrome and display, serif prose ───────────────────────── */
+  --mn-font-chrome:    var(--emporium-font-sans);
+  --mn-font-display:   var(--emporium-font-sans);
+  --mn-tracking-label: 0.06em;
 
-  /* ── Accent system — purple via --emporium-* bespoke tokens ───────────── */
-  --mn-color-accent:             var(--emporium-accent);          /* purple-400 #9472CE */
-  --mn-color-accent-hover:       var(--emporium-accent-strong);   /* purple-700 #4C1D95 */
-  --mn-color-accent-active:      var(--mn-ref-purple-800);        /* purple-800 #3B1577 */
-  --mn-color-text-accent:        var(--emporium-accent);          /* purple-400 */
-  --mn-color-text-accent-strong: var(--emporium-accent-strong);   /* purple-700 — headings/badges (kept deep for legibility) */
-  --mn-color-border-accent:      var(--emporium-accent-line);     /* purple-200 */
-  /* rule-strong = purple-300 (the PROPOSAL); border-strong routes through it so
-     stronger-rule consumers resolve to purple-300 under Emporium. */
-  --mn-color-border-strong:      var(--mn-ref-purple-300);        /* purple-300 #B59FE0 */
-  --mn-color-border-focus:       var(--emporium-accent);
-  --mn-color-surface-accent:     var(--emporium-accent-soft);     /* purple-100 */
-  --mn-focus-ring-color:         var(--emporium-accent);
-  /* info collides with accent under a purple chrome → keep info = accent so
-     status-info badges don't read indigo (mirrors sophia's ⚑3 info=cobalt). */
-  --mn-color-info:               var(--emporium-accent);
+  /* ── Accent: Sophia Blue ──────────────────────────────────────────────── */
+  --mn-color-accent:             var(--mn-ref-sophia-blue-800);   /* #00356B */
+  --mn-color-accent-hover:       var(--mn-ref-sophia-blue-700);
+  --mn-color-accent-active:      var(--mn-ref-sophia-blue-950);
+  --mn-color-text-accent:        var(--mn-ref-sophia-blue-800);
+  --mn-color-text-accent-strong: var(--mn-ref-sophia-blue-950);
+  --mn-color-text-on-accent:     var(--mn-ref-sophia-mist-0);
+  --mn-color-text-link:          var(--mn-ref-sophia-blue-700);
+  --mn-color-text-link-hover:    var(--mn-ref-sophia-blue-800);
+  --mn-color-border-accent:      var(--mn-ref-sophia-blue-800);
+  --mn-color-border-focus:       var(--mn-ref-sophia-blue-600);
+  --mn-focus-ring-color:         var(--mn-ref-sophia-blue-600);
+  --mn-focus-ring: 0 0 0 2px var(--mn-focus-ring-color), 0 0 0 5px rgb(var(--mn-color-accent-ch) / 0.18);
+  /* The wash channel is blue-600 (#2566AC), not Sophia Blue itself: at 7-18%
+     over white the brand navy turns grey, blue-600 stays clearly blue. */
+  --mn-color-accent-ch: 37 102 172;
 
-  /* Channel triple: purple-400 #9472CE → 148 114 206 (drives interactive washes). */
-  --mn-color-accent-ch: 148 114 206;
-  /* The physical editor page stays cream in every theme, but its ink accents
-     should still unmistakably belong to the selected skin. */
-  --mn-editor-paper-accent:       var(--mn-ref-purple-700);
-  --mn-editor-paper-accent-hover: var(--mn-ref-purple-800);
-  --mn-editor-paper-accent-soft:  var(--mn-ref-purple-50);
-  --mn-editor-paper-accent-ch:    76 29 149;
-
-  /* ── Surfaces — cool Swiss paper (sophia structure; hue-neutralized to
-     purple washes for sunken/hover/active) ──────────────────────────────── */
-  --mn-color-surface-base:   #f7f6fb;   /* cool pale purple-tinged paper */
-  --mn-color-surface-raised: #ffffff;   /* white panels / overlays */
-  --mn-color-surface-canvas:   #f2f0f8;
-  --mn-color-surface-editor:   #fbfaff;
-  --mn-color-surface-panel:    #f4f1f8;
-  --mn-color-surface-chrome:   #f0ecf7;
-  --mn-color-surface-elevated: #ffffff;
-  --mn-color-surface-overlay:  #ffffff;
-  --mn-color-surface-subtle:   #f4f1f8;
-  --mn-color-surface-warm:     #f8f4ff;
-  --mn-color-surface-sunken: rgba(148, 114, 206, 0.05);
-  --mn-color-surface-hover:  rgba(148, 114, 206, 0.07);
-  --mn-color-surface-active: rgba(148, 114, 206, 0.12);
-  --mn-color-surface-accent-subtle: rgba(148, 114, 206, 0.08);
-  --mn-color-surface-accent-strong: var(--mn-ref-purple-100);
-  --mn-color-backdrop: rgba(22, 13, 36, 0.32);
+  /* ── Surfaces: quiet, faintly cool; hierarchy by hairline and shadow ──── */
+  --mn-color-surface-canvas:   var(--mn-ref-sophia-mist-100);
+  --mn-color-surface-panel:    var(--mn-ref-sophia-mist-50);
+  --mn-color-surface-chrome:   var(--mn-ref-sophia-mist-50);
+  --mn-color-surface-base:     var(--mn-ref-sophia-mist-25);
+  --mn-color-surface-editor:   var(--mn-ref-sophia-mist-25);
+  --mn-color-surface-subtle:   var(--mn-ref-sophia-mist-50);
+  --mn-color-surface-raised:   var(--mn-ref-sophia-mist-0);
+  --mn-color-surface-elevated: var(--mn-ref-sophia-mist-0);
+  --mn-color-surface-overlay:  var(--mn-ref-sophia-mist-0);
+  --mn-color-surface-sunken:   var(--mn-ref-sophia-mist-100);
+  --mn-color-surface-warm:     var(--mn-ref-sophia-amber-50);
+  --mn-color-surface-hover:    rgb(var(--mn-color-accent-ch) / 0.07);
+  --mn-color-surface-active:   rgb(var(--mn-color-accent-ch) / 0.12);
+  --mn-color-surface-accent:        var(--mn-ref-sophia-blue-50);
+  --mn-color-surface-accent-subtle: rgb(var(--mn-color-accent-ch) / 0.07);
+  --mn-color-surface-accent-strong: var(--mn-ref-sophia-blue-100);
+  --mn-color-backdrop: rgb(12 35 64 / 0.32);
   --mn-atmosphere:
-    radial-gradient(circle at 54% -18%, rgba(148, 114, 206, 0.10), transparent 40%),
-    linear-gradient(135deg, rgba(255, 255, 255, 0.52), transparent 38%);
+    radial-gradient(circle at 54% -18%, rgb(37 102 172 / 0.06), transparent 42%),
+    linear-gradient(135deg, rgb(255 255 255 / 0.5), transparent 38%);
 
-  /* ── Text — cool near-black Swiss ink (sophia contrast structure) ──────── */
-  --mn-color-text-primary:   #160d24;   /* cool near-black, purple-leaning */
-  --mn-color-text-secondary: #51465f;
-  --mn-color-text-tertiary:  #6f6480;
-  --mn-color-text-muted:     #9890a3;
-  --mn-color-text-inverse:   #f7f6fb;
-  --mn-color-text-title:     #160d24;
-  --mn-color-text-quiet:     #6f6480;
-  --mn-color-text-on-accent: #160d24;
+  /* ── Ink: cool near-black, titles in the deepest blue ─────────────────── */
+  --mn-color-text-title:     var(--mn-ref-sophia-blue-950);
+  --mn-color-text-primary:   var(--mn-ref-sophia-mist-900);
+  --mn-color-text-secondary: var(--mn-ref-sophia-mist-700);
+  --mn-color-text-tertiary:  var(--mn-ref-sophia-mist-600);
+  --mn-color-text-muted:     var(--mn-ref-sophia-mist-600);
+  --mn-color-text-quiet:     var(--mn-ref-sophia-mist-600);
+  --mn-color-text-inverse:   var(--mn-ref-sophia-mist-25);
+  --mn-color-text-danger:    var(--mn-ref-sophia-red-600);
+  --mn-color-text-warning:   var(--mn-ref-sophia-amber-600);
+  --mn-color-text-success:   var(--mn-ref-sophia-green-700);
 
-  /* ── Borders — cool hairlines ─────────────────────────────────────────── */
-  --mn-color-border-default: #e3def0;
-  --mn-color-border-subtle:  #efebf8;
-  --mn-color-rule:           rgba(76, 29, 149, 0.13);
-  --mn-color-rule-strong:    rgba(76, 29, 149, 0.22);
-
-  /* ── Top bar — purple masthead (sophia remapped its masthead too) ─────── */
-  --mn-top-bar-bg:         var(--mn-ref-purple-50);
-  --mn-top-bar-border:     var(--mn-ref-purple-200);
-  --mn-top-bar-text:       var(--mn-ref-purple-700);
-  --mn-top-bar-text-muted: var(--mn-ref-purple-500);
-
-  /* ── Bottom bar — cool floor ──────────────────────────────────────────── */
-  --mn-bottom-bar-bg:     #efebf8;
-  --mn-bottom-bar-border: var(--mn-ref-purple-200);
-
-  /* ── Geometry — square shoulders, minimal surface rounding (SOPHIA) ────── */
-  --mn-radius-control: var(--mn-radius-none);     /* 0 — square */
-  --mn-radius-surface: var(--mn-radius-default);  /* 4px */
-
-  /* ── Density — tight 24px (SOPHIA) ────────────────────────────────────── */
-  --mn-row-height:     24px;
-  --mn-control-height: 24px;
-
-  /* ── Presentation flags — icon-only labels, no grain, stronger rules ──── */
-  --mn-label-display:   none;
-  --mn-texture-display: none;
-  --mn-tracking-label:  0.08em;
-
-  /* Albers figure-ground from rule WEIGHT, one hue — purple-recolored sophia.
-     hair = intra-panel seams · line = panel/section/toolbar headers ·
+  /* ── Borders and rules: they separate, they do not shout ─────────────── */
+  --mn-color-border-subtle:  var(--mn-ref-sophia-mist-150);
+  --mn-color-border-default: var(--mn-ref-sophia-mist-200);
+  --mn-color-border-strong:  var(--mn-ref-sophia-mist-400);
+  --mn-color-rule:           rgb(25 33 44 / 0.09);
+  --mn-color-rule-strong:    rgb(25 33 44 / 0.16);
+  /* hair = seams inside a panel · line = panel and toolbar headers ·
      frame = region boundaries. */
-  --mn-rule-hair:  1px solid var(--mn-ref-purple-100);
-  --mn-rule-line:  1px solid var(--mn-ref-purple-200);
-  --mn-rule-frame: 1px solid var(--mn-ref-purple-300);
-  --mn-chrome-rule: var(--mn-rule-frame);  /* region boundary; stronger than Garden's parchment rule */
+  --mn-rule-hair:   1px solid var(--mn-ref-sophia-mist-150);
+  --mn-rule-line:   1px solid var(--mn-ref-sophia-mist-200);
+  --mn-rule-frame:  1px solid var(--mn-ref-sophia-mist-300);
+  --mn-chrome-rule: var(--mn-rule-frame);
 
-  --mn-shadow-xs: 0 1px 2px rgba(35, 22, 53, 0.055), 0 1px 4px rgba(76, 29, 149, 0.035);
-  --mn-shadow-sm: 0 2px 7px rgba(35, 22, 53, 0.08);
-  --mn-shadow-chrome: 0 1px 0 rgba(255, 255, 255, 0.72), 0 1px 5px rgba(76, 29, 149, 0.05);
-  --mn-shadow-card: var(--mn-shadow-xs);
+  /* ── Status: same lightness as the blue; text-strength in light ──────── */
+  --mn-color-success:         var(--mn-ref-sophia-green-600);
+  --mn-color-success-strong:  var(--mn-ref-sophia-green-700);
+  --mn-color-success-surface: var(--mn-ref-sophia-green-50);
+  --mn-color-success-border:  var(--mn-ref-sophia-green-200);
+  --mn-color-warning:         var(--mn-ref-sophia-amber-600);
+  --mn-color-warning-strong:  var(--mn-ref-sophia-amber-700);
+  --mn-color-warning-surface: var(--mn-ref-sophia-amber-50);
+  --mn-color-warning-border:  var(--mn-ref-sophia-amber-200);
+  --mn-color-action-warning:  var(--mn-ref-sophia-amber-700);
+  --mn-color-on-warning:      var(--mn-ref-sophia-mist-0);
+  --mn-color-danger:          var(--mn-ref-sophia-red-600);
+  --mn-color-danger-strong:   var(--mn-ref-sophia-red-700);
+  --mn-color-danger-surface:  var(--mn-ref-sophia-red-50);
+  --mn-color-danger-border:   var(--mn-ref-sophia-red-200);
+  --mn-color-action-danger:   var(--mn-ref-sophia-red-600);
+  --mn-color-on-danger:       var(--mn-ref-sophia-mist-0);
+  --mn-color-info:            var(--mn-ref-sophia-blue-600);
+  --mn-color-info-strong:     var(--mn-ref-sophia-blue-800);
+  --mn-color-info-surface:    var(--mn-ref-sophia-blue-50);
+  --mn-color-info-border:     var(--mn-ref-sophia-blue-200);
 
-  /* Inherited non-token host properties (sophia set these too). */
+  /* ── Bars: a white masthead with Sophia Blue names; a quiet floor ─────── */
+  --mn-top-bar-bg:            var(--mn-ref-sophia-mist-0);
+  --mn-top-bar-border:        var(--mn-ref-sophia-mist-200);
+  --mn-top-bar-text:          var(--mn-ref-sophia-blue-800);
+  --mn-top-bar-text-muted:    var(--mn-ref-sophia-mist-700);
+  --mn-bottom-bar-bg:         var(--mn-ref-sophia-mist-50);
+  --mn-bottom-bar-border:     var(--mn-ref-sophia-mist-200);
+  --mn-bottom-bar-text:       var(--mn-ref-sophia-mist-700);
+  --mn-bottom-bar-text-muted: var(--mn-ref-sophia-mist-600);
+
+  /* ── Floating material: solid, a hairline edge and a soft lift ────────── */
+  --mn-material-popover-tint:   var(--mn-color-surface-elevated);
+  --mn-material-popover-solid:  var(--mn-color-surface-elevated);
+  --mn-material-popover-bg:     var(--mn-color-surface-elevated);
+  --mn-material-popover-filter: none;
+  --mn-material-popover-edge:   var(--mn-ref-sophia-mist-300);
+  --mn-material-specular:       0 0 0 transparent;
+  --mn-material-lift:           var(--mn-shadow-lg);
+  --mn-material-popover-shadow: var(--mn-shadow-lg);
+
+  /* ── Geometry and density ─────────────────────────────────────────────── */
+  --mn-radius-control: var(--mn-radius-default);  /* 4px */
+  --mn-radius-surface: var(--mn-radius-lg);       /* 8px */
+  --mn-radius-popover: var(--mn-radius-lg);
+  --mn-row-height:     28px;
+  --mn-control-height: 28px;
+  --mn-label-display:   inline;
+  --mn-texture-display: none;
+
+  /* ── Depth: navy-tinted, short and soft ───────────────────────────────── */
+  --mn-shadow-xs:     0 1px 2px rgb(12 35 64 / 0.06);
+  --mn-shadow-sm:     0 1px 2px rgb(12 35 64 / 0.06), 0 2px 6px rgb(12 35 64 / 0.05);
+  --mn-shadow-md:     0 2px 4px rgb(12 35 64 / 0.05), 0 8px 20px rgb(12 35 64 / 0.08);
+  --mn-shadow-lg:     0 4px 10px rgb(12 35 64 / 0.06), 0 16px 40px rgb(12 35 64 / 0.12);
+  --mn-shadow-xl:     0 8px 18px rgb(12 35 64 / 0.08), 0 28px 64px rgb(12 35 64 / 0.16);
+  --mn-shadow-chrome: 0 1px 0 rgb(12 35 64 / 0.03);
+  --mn-shadow-card:   var(--mn-shadow-xs);
+
+  /* The physical editor page stays paper-white in every theme; its ink
+     accent is Sophia Blue. */
+  --mn-editor-paper-accent:       var(--mn-ref-sophia-blue-800);
+  --mn-editor-paper-accent-hover: var(--mn-ref-sophia-blue-950);
+  --mn-editor-paper-accent-soft:  var(--mn-ref-sophia-blue-50);
+  --mn-editor-paper-accent-ch:    0 53 107;
+
   font-family:    var(--emporium-font-sans);
   letter-spacing: var(--emporium-tracking-body);
 }
 
-/* ── Dark theme × Emporium skin (orthogonal compose) ─────────────────────────
-   Accent lightened to purple-300 for contrast on dark bg, mirroring garden's
-   cobalt dark overrides. Surfaces become cool dark Swiss (not warm ink). */
+/* ── Dark ────────────────────────────────────────────────────────────────────
+   Its own design, not an inversion. Every colour role the light block sets is
+   restated here (the light block outranks theme-dark.css, so anything left
+   out would leak the light value into dark). */
 [data-theme="dark"][data-skin="emporium"],
 [data-theme="dark"][data-design="emporium"] {
-  --emporium-accent:        #B59FE0;   /* purple-300 — lightened for dark contrast */
-  --emporium-accent-strong: #D2C4ED;   /* purple-200 */
-  --emporium-accent-soft:   rgba(181, 159, 224, 0.12);
-  --emporium-accent-line:   rgba(181, 159, 224, 0.22);
+  /* ── Accent: a lighter tint of the same hue ───────────────────────────── */
+  --mn-color-accent:             var(--mn-ref-sophia-blue-300);
+  --mn-color-accent-hover:       var(--mn-ref-sophia-blue-200);
+  --mn-color-accent-active:      var(--mn-ref-sophia-blue-400);
+  --mn-color-text-accent:        var(--mn-ref-sophia-blue-300);
+  --mn-color-text-accent-strong: var(--mn-ref-sophia-blue-200);
+  --mn-color-text-on-accent:     var(--mn-ref-sophia-blue-950);
+  --mn-color-text-link:          var(--mn-ref-sophia-blue-300);
+  --mn-color-text-link-hover:    var(--mn-ref-sophia-blue-200);
+  --mn-color-border-accent:      var(--mn-ref-sophia-blue-300);
+  --mn-color-border-focus:       var(--mn-ref-sophia-blue-300);
+  --mn-focus-ring-color:         var(--mn-ref-sophia-blue-300);
+  --mn-color-accent-ch: 119 168 225;   /* blue-400 #77A8E1 */
 
-  /* accent-active must stay readable on dark; purple-600 keeps white-on legible. */
-  --mn-color-accent-active: var(--mn-ref-purple-600);
-
-  /* surface-accent wash follows the (now-light) accent-ch in dark. */
-  --mn-color-accent-ch:      181 159 224;   /* purple-300 RGB */
-  --mn-color-surface-accent: rgb(var(--mn-color-accent-ch) / 0.12);
-
-  /* ── Surfaces — cool dark Swiss (not the warm Garden ink) ──────────────── */
-  --mn-color-surface-base:   #120d1c;   /* deep cool charcoal-purple */
-  --mn-color-surface-raised: #1b1428;   /* lifted cool panel */
-  --mn-color-surface-canvas:   #0e0a16;
-  --mn-color-surface-editor:   #171121;
-  --mn-color-surface-panel:    #100b19;
-  --mn-color-surface-chrome:   #1b1428;
-  --mn-color-surface-elevated: #231a32;
-  --mn-color-surface-overlay:  #291f38;
-  --mn-color-surface-subtle:   #171121;
-  --mn-color-surface-warm:     #21182f;
-  --mn-color-surface-sunken: rgba(0, 0, 0, 0.28);
-  --mn-color-surface-hover:  rgba(181, 159, 224, 0.06);
-  --mn-color-surface-active: rgba(181, 159, 224, 0.10);
-  --mn-color-surface-accent-subtle: rgba(181, 159, 224, 0.08);
-  --mn-color-surface-accent-strong: rgba(181, 159, 224, 0.20);
-  --mn-color-backdrop: rgba(4, 2, 8, 0.68);
+  /* ── Surfaces: night, climbing with elevation ─────────────────────────── */
+  --mn-color-surface-canvas:   var(--mn-ref-sophia-night-0);
+  --mn-color-surface-panel:    var(--mn-ref-sophia-night-50);
+  --mn-color-surface-chrome:   var(--mn-ref-sophia-night-100);
+  --mn-color-surface-base:     var(--mn-ref-sophia-night-100);
+  --mn-color-surface-editor:   var(--mn-ref-sophia-night-150);
+  --mn-color-surface-subtle:   var(--mn-ref-sophia-night-150);
+  --mn-color-surface-raised:   var(--mn-ref-sophia-night-200);
+  --mn-color-surface-elevated: var(--mn-ref-sophia-night-300);
+  --mn-color-surface-overlay:  var(--mn-ref-sophia-night-400);
+  --mn-color-surface-sunken:   var(--mn-ref-sophia-night-0);
+  --mn-color-surface-warm:     color-mix(in srgb, var(--mn-ref-sophia-amber-400) 6%, var(--mn-ref-sophia-night-150));
+  --mn-color-surface-hover:    rgb(var(--mn-color-accent-ch) / 0.08);
+  --mn-color-surface-active:   rgb(var(--mn-color-accent-ch) / 0.14);
+  --mn-color-surface-accent:   rgb(var(--mn-color-accent-ch) / 0.14);
+  --mn-color-surface-accent-subtle: rgb(var(--mn-color-accent-ch) / 0.08);
+  --mn-color-surface-accent-strong: rgb(var(--mn-color-accent-ch) / 0.22);
+  --mn-color-backdrop: rgb(2 6 12 / 0.66);
   --mn-atmosphere:
-    radial-gradient(circle at 54% -16%, rgba(181, 159, 224, 0.10), transparent 40%),
-    linear-gradient(135deg, rgba(255, 255, 255, 0.012), transparent 34%);
+    radial-gradient(circle at 54% -16%, rgb(119 168 225 / 0.07), transparent 40%),
+    linear-gradient(135deg, rgb(255 255 255 / 0.012), transparent 34%);
 
-  /* ── Text — cool light on cool dark ───────────────────────────────────── */
-  --mn-color-text-primary:   #ece8f4;
-  --mn-color-text-secondary: #b3a9c4;
-  --mn-color-text-tertiary:  #847a96;
-  --mn-color-text-muted:     #645a76;
-  --mn-color-text-inverse:   #160d24;
-  --mn-color-text-title:     #f5f1fb;
-  --mn-color-text-quiet:     #847a96;
+  /* ── Ink: soft white, never pure ──────────────────────────────────────── */
+  --mn-color-text-title:     var(--mn-ref-sophia-night-950);
+  --mn-color-text-primary:   var(--mn-ref-sophia-night-900);
+  --mn-color-text-secondary: var(--mn-ref-sophia-night-850);
+  --mn-color-text-tertiary:  var(--mn-ref-sophia-night-800);
+  --mn-color-text-muted:     var(--mn-ref-sophia-night-800);
+  --mn-color-text-quiet:     var(--mn-ref-sophia-night-800);
+  --mn-color-text-inverse:   var(--mn-ref-sophia-mist-900);
+  --mn-color-text-danger:    var(--mn-ref-sophia-red-300);
+  --mn-color-text-warning:   var(--mn-ref-sophia-amber-300);
+  --mn-color-text-success:   var(--mn-ref-sophia-green-300);
 
-  /* ── Borders — cool dark hairlines ────────────────────────────────────── */
-  --mn-color-border-default: #2e2640;
-  --mn-color-border-subtle:  #221b30;
-  --mn-color-rule:           rgba(181, 159, 224, 0.12);
-  --mn-color-rule-strong:    rgba(181, 159, 224, 0.22);
-
-  /* ── Top bar — deep purple masthead ───────────────────────────────────── */
-  --mn-top-bar-bg:         var(--mn-ref-purple-800);
-  --mn-top-bar-border:     var(--mn-ref-purple-700);
-  --mn-top-bar-text:       var(--mn-ref-purple-100);
-  --mn-top-bar-text-muted: var(--mn-ref-purple-300);
-
-  /* ── Bottom bar ───────────────────────────────────────────────────────── */
-  --mn-bottom-bar-bg:     #160f22;
-  --mn-bottom-bar-border: var(--mn-ref-purple-800);
-
-  /* Rule weights re-tuned for dark purple. */
-  --mn-rule-hair:  1px solid #2a2140;
-  --mn-rule-line:  1px solid var(--mn-ref-purple-800);
-  --mn-rule-frame: 1px solid var(--mn-ref-purple-700);
+  /* ── Borders and rules ────────────────────────────────────────────────── */
+  --mn-color-border-subtle:  var(--mn-ref-sophia-night-300);
+  --mn-color-border-default: var(--mn-ref-sophia-night-500);
+  --mn-color-border-strong:  var(--mn-ref-sophia-night-700);
+  --mn-color-rule:           rgb(190 197 207 / 0.10);
+  --mn-color-rule-strong:    rgb(190 197 207 / 0.18);
+  --mn-rule-hair:   1px solid var(--mn-ref-sophia-night-300);
+  --mn-rule-line:   1px solid var(--mn-ref-sophia-night-500);
+  --mn-rule-frame:  1px solid var(--mn-ref-sophia-night-600);
   --mn-chrome-rule: var(--mn-rule-frame);
 
-  --mn-shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.28), 0 1px 4px rgba(0, 0, 0, 0.20);
-  --mn-shadow-sm: 0 3px 10px rgba(0, 0, 0, 0.30);
-  --mn-shadow-chrome: 0 1px 0 rgba(255, 255, 255, 0.025), 0 2px 7px rgba(0, 0, 0, 0.24);
-  --mn-shadow-card: var(--mn-shadow-xs);
+  /* ── Status: the light steps of each hue; fills carry dark ink ────────── */
+  --mn-color-success:         var(--mn-ref-sophia-green-400);
+  --mn-color-success-strong:  var(--mn-ref-sophia-green-300);
+  --mn-color-success-surface: color-mix(in srgb, var(--mn-ref-sophia-green-400) 12%, transparent);
+  --mn-color-success-border:  color-mix(in srgb, var(--mn-ref-sophia-green-400) 32%, transparent);
+  --mn-color-warning:         var(--mn-ref-sophia-amber-400);
+  --mn-color-warning-strong:  var(--mn-ref-sophia-amber-300);
+  --mn-color-warning-surface: color-mix(in srgb, var(--mn-ref-sophia-amber-400) 12%, transparent);
+  --mn-color-warning-border:  color-mix(in srgb, var(--mn-ref-sophia-amber-400) 32%, transparent);
+  --mn-color-action-warning:  var(--mn-ref-sophia-amber-400);
+  --mn-color-on-warning:      var(--mn-ref-sophia-night-0);
+  --mn-color-danger:          var(--mn-ref-sophia-red-400);
+  --mn-color-danger-strong:   var(--mn-ref-sophia-red-300);
+  --mn-color-danger-surface:  color-mix(in srgb, var(--mn-ref-sophia-red-400) 12%, transparent);
+  --mn-color-danger-border:   color-mix(in srgb, var(--mn-ref-sophia-red-400) 32%, transparent);
+  --mn-color-action-danger:   var(--mn-ref-sophia-red-600);
+  --mn-color-on-danger:       var(--mn-ref-sophia-mist-0);
+  --mn-color-info:            var(--mn-ref-sophia-blue-300);
+  --mn-color-info-strong:     var(--mn-ref-sophia-blue-200);
+  --mn-color-info-surface:    color-mix(in srgb, var(--mn-ref-sophia-blue-400) 12%, transparent);
+  --mn-color-info-border:     color-mix(in srgb, var(--mn-ref-sophia-blue-400) 32%, transparent);
+
+  /* ── Bars: the masthead keeps the brand as a deep blue band ───────────── */
+  --mn-top-bar-bg:            var(--mn-ref-sophia-blue-950);
+  --mn-top-bar-border:        var(--mn-ref-sophia-blue-900);
+  --mn-top-bar-text:          var(--mn-ref-sophia-blue-100);
+  --mn-top-bar-text-muted:    var(--mn-ref-sophia-blue-300);
+  --mn-bottom-bar-bg:         var(--mn-ref-sophia-night-50);
+  --mn-bottom-bar-border:     var(--mn-ref-sophia-night-400);
+  --mn-bottom-bar-text:       var(--mn-ref-sophia-night-850);
+  --mn-bottom-bar-text-muted: var(--mn-ref-sophia-night-800);
+
+  /* ── Floating material ────────────────────────────────────────────────── */
+  --mn-material-popover-edge:   var(--mn-ref-sophia-night-600);
+
+  /* ── Depth: black shadows; elevation also climbs the night ramp ────────── */
+  --mn-shadow-xs:     0 1px 2px rgb(0 0 0 / 0.30);
+  --mn-shadow-sm:     0 1px 2px rgb(0 0 0 / 0.30), 0 3px 8px rgb(0 0 0 / 0.22);
+  --mn-shadow-md:     0 2px 6px rgb(0 0 0 / 0.30), 0 10px 24px rgb(0 0 0 / 0.30);
+  --mn-shadow-lg:     0 4px 12px rgb(0 0 0 / 0.32), 0 20px 48px rgb(0 0 0 / 0.40);
+  --mn-shadow-xl:     0 8px 20px rgb(0 0 0 / 0.36), 0 32px 72px rgb(0 0 0 / 0.50);
+  --mn-shadow-chrome: 0 1px 0 rgb(0 0 0 / 0.30);
+}
+
+/* Text selection wears the wash channel in both themes. */
+[data-skin="emporium"] ::selection,
+[data-design="emporium"] ::selection {
+  background: rgb(var(--mn-color-accent-ch) / 0.26);
+}
+
+/* More contrast: the quiet inks step up to secondary and the hairlines to the
+   strong border, in both themes. */
+@media (prefers-contrast: more) {
+  [data-skin="emporium"],
+  [data-design="emporium"],
+  [data-theme="dark"][data-skin="emporium"],
+  [data-theme="dark"][data-design="emporium"] {
+    --mn-color-text-tertiary:  var(--mn-color-text-secondary);
+    --mn-color-text-muted:     var(--mn-color-text-secondary);
+    --mn-color-text-quiet:     var(--mn-color-text-secondary);
+    --mn-color-border-subtle:  var(--mn-color-border-strong);
+    --mn-color-border-default: var(--mn-color-border-strong);
+    --mn-top-bar-text-muted:   var(--mn-top-bar-text);
+  }
 }

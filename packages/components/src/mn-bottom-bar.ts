@@ -38,10 +38,10 @@
  * SKIN-AWARE (iteration 3b): mirrors the ambient [data-skin] / [data-theme] onto
  * its own host (SkinAware mixin — pure DOM, no backend) so its shadow CSS lights
  * up `:host([data-skin=emporium])` and consumes the skin density / radius /
- * label-display role tokens. Under Emporium the floor is tighter (24px row
- * height), square-shouldered, icon-only (toggle CAPTIONS hidden via
- * --mn-label-display — the label text stays in the DOM for a11y, only its display
- * is toggled), with the stronger Emporium frame rules; Garden keeps its rounded,
+ * label-display role tokens. Under Emporium (the "Sophia" skin) the floor sits
+ * at the skin's row height with its own section rules; a skin that hides labels
+ * (--mn-label-display: none) hides the toggle CAPTIONS — the label text stays in
+ * the DOM for a11y, only its display is toggled. Garden keeps its rounded,
  * captioned fern floor. Accent / surface / font colors flow in via the inherited
  * --mn-* custom properties — no per-skin color code here.
  *
@@ -60,11 +60,11 @@
  * the hoisted element anymore; THIS shell is too.
  */
 
-import { LitElement, css, html, nothing, type PropertyValues } from 'lit'
+import { css, html, LitElement, nothing, type PropertyValues } from 'lit'
 import { customElement, property, state } from 'lit/decorators.js'
-import { SkinAware } from './skin-aware.js'
 import { BEVELLED } from './bevelled-skins.js'
 import { PopoverController } from './popover.js'
+import { SkinAware } from './skin-aware.js'
 import './mn-presence-inspector.js'
 import './mn-badge.js'
 
@@ -600,10 +600,11 @@ export class MnBottomBar extends SkinAware(LitElement) {
       line-height: 1;
     }
 
-    /* ── EMPORIUM skin (sophia structure) overrides ──────────────────────────
+    /* ── EMPORIUM skin (the "Sophia" skin) overrides ─────────────────────────
        Host carries data-skin=emporium (mirrored by SkinAware). Tightens the
-       floor to the row-height density, swaps the section dividers for the
-       stronger Emporium rule, and surfaces the icon glyph in icon-only mode. */
+       floor to the row-height density and swaps the section dividers for the
+       skin's rules. The Sophia skin shows its labels (--mn-label-display:
+       inline), so the toggles read like Garden's: caption only, no glyph. */
     :host([data-skin='emporium']) {
       min-height: var(--mn-row-height, 24px);
       border-top: var(--mn-chrome-rule, 2px solid var(--mn-color-border-strong, #e5e7eb));
@@ -613,9 +614,6 @@ export class MnBottomBar extends SkinAware(LitElement) {
     }
     :host([data-skin='emporium']) .right-section {
       border-left: var(--mn-rule-line, 1px solid var(--mn-color-border-default, #e5e7eb));
-    }
-    :host([data-skin='emporium']) .toggle-btn .toggle-icon {
-      display: inline;
     }
 
     :host(${BEVELLED}) {

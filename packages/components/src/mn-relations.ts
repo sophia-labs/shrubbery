@@ -12,8 +12,8 @@
  * list (provenance graphs, wires, capability links) without change.
  *
  * Pure presentation: a flex column of edge rows, each a [from socket] —pred→
- * [to socket]. The connector tints route to the skin ACCENT role token (purple
- * under Emporium, fern under Garden) for FREE; a `kind` discriminates predicate
+ * [to socket]. The connector tints route to the skin ACCENT role token (Sophia
+ * Blue under Emporium, fern under Garden) for FREE; a `kind` discriminates predicate
  * edges (solid) from wire edges (dashed) purely via a structural class. Optional
  * per-edge note. Emits `mn-relation-select` (detail = the edge) when a row is
  * activated, so a host can focus/scroll the linked node. No content is faked — an
