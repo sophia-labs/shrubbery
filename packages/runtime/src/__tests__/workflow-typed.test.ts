@@ -140,10 +140,10 @@ describe('a typed stack, full size', () => {
 })
 
 describe('a typed item, full size', () => {
-  it("is the object's pane, called by its title, with a door to the object page", async () => {
+  it("is the object's pane (which carries its title), named by its class and place, with a door to the object page", async () => {
     const { root, views, calls } = await mount('sh-workflow-focus', { key: 'stack:candidates', item: 1 })
-    expect(root.querySelector('.hero h1')!.textContent).toBe('Meier')
-    expect(root.querySelector('.hero .sub')!.textContent).toBe('Dream report 1, one of 2 dream reports')
+    expect(root.querySelector('.hero h1')!.textContent).toBe('Dream report 1')
+    expect(root.querySelector('.hero .sub')!.textContent).toBe('One of 2 dream reports')
     expect(views).toHaveLength(1)
     expect(views[0]!.getAttribute('slot')).toBe('pane')
     expect(views[0]!.model).toBe(typed)

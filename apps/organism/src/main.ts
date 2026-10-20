@@ -519,6 +519,7 @@ import {
   classPluralOf,
   humanizeKey,
   type ObjectModel,
+  runOfIri,
   typedObjectModel,
   typesOf,
   WF as OBJECT_WF,
@@ -2236,7 +2237,12 @@ async function pickTypedObject(graphId: string): Promise<{ iri: string; graphId:
     heading: 'Embed an object',
     placeholder: 'Find by class or title',
     emptyText: 'This graph holds no typed objects yet.',
-    items: hits.then((list) => list.map((hit) => ({ id: hit.iri, label: hit.title, tag: hit.classLabel }))),
+    // The same report can be testified twice (a candidate and its verified copy): the run and the item tell them apart.
+    items: hits.then((list) => list.map((hit) => {
+      const run = runOfIri(hit.iri)
+      const tail = hit.iri.slice(hit.iri.lastIndexOf('#') + 1)
+      return { id: hit.iri, label: hit.title, tag: hit.classLabel, sub: run ? `run ${run.id} · ${tail}` : tail }
+    })),
   })
   const hit = iri ? (await hits).find((h) => h.iri === iri) : undefined
   return hit ? { iri: hit.iri, graphId, slot: 'card', label: hit.title, classLabel: hit.classLabel } : null

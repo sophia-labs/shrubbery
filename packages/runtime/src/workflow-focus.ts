@@ -131,7 +131,7 @@ function stackColumns(stack: WorkflowStackView, items: readonly unknown[]): Tabl
 function cellText(model: ObjectModel | null, item: unknown, key: string, first: boolean): string {
   if (model) {
     const field = model.fields.find((f) => f.key === key)
-    if (field) return field.absent ? '—' : field.value
+    if (field) return field.absent ? '—' : copied(field.value)
   }
   return itemText(isRecord(item) ? item[key] : first ? item : undefined)
 }
@@ -639,8 +639,9 @@ export class ShWorkflowFocus extends LitElement {
     const checkedFrom = producer?.checks ? plan.stacks?.find((s) => s.id === producer.checks)?.items?.findIndex((x) => JSON.stringify(x) === same) : undefined
     const workers = plan.steps.filter((s) => s.over === stack.id || s.checks === stack.id)
     const goes = (plan.destinations ?? []).filter((d) => d.receives === stack.id)
-    const title = model ? model.title : `${stackName(stack)}, item ${n}`
-    const sub = model ? `${model.classLabel} ${n}, one of ${stackCountWords(stack, stack.items?.length ?? 0)}` : `One of ${plural(stack.items?.length ?? 0, 'item')}`
+    // A typed item's page is its pane, which carries its title: the hero names the item, so the title is not said twice.
+    const title = model ? `${model.classLabel} ${n}` : `${stackName(stack)}, item ${n}`
+    const sub = model ? `One of ${stackCountWords(stack, stack.items?.length ?? 0)}${model.stance === 'unfit' ? ', and it does not fit' : ''}` : `One of ${plural(stack.items?.length ?? 0, 'item')}`
     return html`<div class="part">${this.hero('stack', title, sub)}
       <div class="cols">
         <section><h2>${model ? `The ${model.classLabel.toLowerCase()}` : 'The item'}</h2>${renderItemCard(plan, model, item, n - 1, undefined, 40, 'pane')}

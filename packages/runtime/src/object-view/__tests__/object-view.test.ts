@@ -146,8 +146,11 @@ describe('<sh-object-view slot="pane">', () => {
     ])
   })
 
-  it('says honestly when nothing embeds it yet, and while it is looking', async () => {
-    const looking = await mountView(typed, 'pane')
+  it('says honestly when nothing embeds it yet and while it is looking, and nothing when its host does not say', async () => {
+    const silent = await mountView(typed, 'pane')
+    expect(silent.root.querySelector('section.used-in')).toBeNull()
+    silent.el.remove()
+    const looking = await mountView(typed, 'pane', { usedIn: null })
     expect(looking.root.querySelector('section.used-in p')!.textContent).toBe('Looking…')
     looking.el.remove()
     const none = await mountView(typed, 'pane', { usedIn: [] })

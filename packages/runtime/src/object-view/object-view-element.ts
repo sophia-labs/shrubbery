@@ -105,8 +105,8 @@ export class ShObjectView extends LitElement {
   declare stance: string
   declare graphId: string
   declare params: ObjectFaceParams | null
-  /** Pane: the documents that embed it; null while the host has not looked. */
-  declare usedIn: readonly ObjectUsage[] | null
+  /** Pane: the documents that embed it; null while the host looks; undefined when this host does not say (no section). */
+  declare usedIn: readonly ObjectUsage[] | null | undefined
   declare documentTitles: Readonly<Record<string, string>> | null
   /** The frame draws the testimony itself (the injerto keeps it outside its scroll). */
   declare noTestimony: boolean
@@ -119,7 +119,7 @@ export class ShObjectView extends LitElement {
     this.stance = ''
     this.graphId = ''
     this.params = null
-    this.usedIn = null
+    this.usedIn = undefined
     this.documentTitles = null
     this.noTestimony = false
     this.noActions = false
@@ -350,7 +350,7 @@ export class ShObjectView extends LitElement {
         ${!t.sitting && !t.by && !t.run && !t.at ? html`<p class="muted">No testimony recorded: who made it and when are not known.</p>` : nothing}
         <div class="row"><span class="what">IRI</span> <code>${model.iri}</code></div>
       </div></section>` : nothing}
-      <section class="used-in"><h2>Used in</h2>${this.renderUsedIn()}</section>
+      ${this.usedIn === undefined ? nothing : html`<section class="used-in"><h2>Used in</h2>${this.renderUsedIn()}</section>`}
       ${this.noActions ? nothing : html`<div class="actions"><button class="quiet" @click=${() => this.embed()}>Embed in a document…</button></div>`}
     </article>`
   }
@@ -358,7 +358,7 @@ export class ShObjectView extends LitElement {
   private renderUsedIn(): TemplateResult {
     const used = this.usedIn
     const graphId = this.graph()
-    if (used === null) return html`<p class="muted">Looking…</p>`
+    if (!used) return html`<p class="muted">Looking…</p>`
     if (used.length === 0) return html`<p class="muted">No document embeds it yet.</p>`
     return html`<ul class="used">${used.map((u) => html`<li><button class="link"
       @click=${() => this.emit({ kind: 'open-document', documentId: u.documentId, blockId: u.blockId ?? null, graphId })}>${u.title || u.documentId}</button></li>`)}</ul>`
