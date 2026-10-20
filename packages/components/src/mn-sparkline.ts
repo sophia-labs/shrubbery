@@ -9,8 +9,8 @@
  *     primary-600 (garden's accent ramp). Those are NOT skin role tokens — under
  *     Emporium they would NOT recolor. So the stroke is rebound to the SKIN role
  *     token --mn-color-accent (with a `tone` prop to pick success/warning/danger),
- *     so the sparkline recolors per skin for FREE (fern in Garden, purple in
- *     Emporium) with NO hardcoded color.
+ *     so the sparkline recolors per skin for FREE (fern in Garden, Sophia Blue
+ *     in Emporium) with NO hardcoded color.
  *   - Otherwise the pure math is kept verbatim: a polyline normalized into the
  *     [min,max] band with a dot on the last point; < 2 finite points renders
  *     nothing (no faked baseline). It carries no wf: vocabulary at all — it is a

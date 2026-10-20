@@ -99,7 +99,7 @@ The Storybook toolbar globals (`skin`: garden/emporium/98/glass/mithras/hotdog-s
 `@shrubbery/tokens`), which stamps `data-skin` / `data-theme` on the preview root
 via the exact `ConfigValue.appliesAttribute` rule the engine uses — and the whole
 catalog re-skins through the real token cascade. The industry-standard Storybook
-theme switcher _is_ our RDF dimension. Flip Skin to see Emporium's dark-purple
+theme switcher _is_ our RDF dimension. Flip Skin to see the Sophia skin's Sophia Blue
 chrome rendered for review.
 
 ## The seed: Storybook-as-Emporium-catalog

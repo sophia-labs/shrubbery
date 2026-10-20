@@ -52,8 +52,7 @@ export interface VegaCategoricalSlot {
  * reserved elsewhere in `packages/tokens` (provenance / danger / success /
  * warning / info), so reusing them here would let a series color impersonate
  * a status color — these five are new hues harmonized with the mn ramps'
- * OKLCH character, plus `purple` (Emporium accent) reused directly as
- * "violet".
+ * OKLCH character; `violet` is its own validated swatch, not any skin's accent.
  */
 export const CATEGORICAL_PALETTE: readonly VegaCategoricalSlot[] = [
   { name: 'azure', light: '#0388a5', dark: '#028fad' },

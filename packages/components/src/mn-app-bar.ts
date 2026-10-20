@@ -31,8 +31,8 @@
  * [data-theme] onto its host, so `:host([data-skin=emporium])` shadow rules light
  * up (square shoulders, tight density, uppercase tracked masthead) and the accent
  * / font / surface colors flow in through the inherited --mn-* role tokens. Under
- * Garden it is the comfortable rounded fern bar; under Emporium the tight purple
- * Swiss bar. NO per-skin color code lives here — only the structural skin bits a
+ * Garden it is the comfortable rounded fern bar; under Emporium (Sophia) the
+ * Sophia Blue Swiss bar. NO per-skin color code lives here — only the structural skin bits a
  * token alone cannot express.
  *
  * Dependencies: lit ONLY (+ the SkinAware mixin, which is DOM-only). NO stores,

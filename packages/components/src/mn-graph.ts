@@ -41,7 +41,7 @@
  *
  * SKIN-AWARE via the SkinAware mixin: square node boxes + uppercase labels under
  * Emporium, rounded under Garden. Colors flow through inherited --mn-* role tokens
- * (accent connectors + node frames recolor purple under Emporium, fern under
+ * (accent connectors + node frames recolor Sophia Blue under Emporium, fern under
  * Garden) — NO per-skin color code.
  *
  * Dependencies: lit ONLY. No stores, no wf-model, no backend (island-guarded).

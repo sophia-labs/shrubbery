@@ -218,8 +218,8 @@ try {
 
   await page.screenshot({ path: `${artifactDir}/shrubbery-art-paper-light.png`, fullPage: false })
 
-  // The page is orthogonal to skin: Emporium recolors the room and page
-  // affordances purple without allowing Garden's green canvas to leak through.
+  // The page is orthogonal to skin: Emporium (Sophia) recolors the room and page
+  // affordances Sophia Blue without allowing Garden's green canvas to leak through.
   // The skin control is a picker (a drop-down listing every skin): open it and choose from the list.
   const chooseSkin = async (id: string): Promise<void> => {
     await page.locator('mn-top-bar mn-skin-picker button.trigger').click()
@@ -234,7 +234,7 @@ try {
   await page.waitForFunction(() => {
     const heading = document.querySelector('sh-editor-host')?.shadowRoot
       ?.querySelector<HTMLElement>('.ProseMirror h1')
-    return heading && getComputedStyle(heading, '::before').backgroundColor === 'rgb(76, 29, 149)'
+    return heading && getComputedStyle(heading, '::before').backgroundColor === 'rgb(0, 53, 107)'
   })
   const emporium = await page.locator('sh-editor-host').evaluate((host) => {
     const mount = host.shadowRoot?.querySelector<HTMLElement>('.editor-mount')
@@ -247,11 +247,11 @@ try {
       markerBackground: getComputedStyle(heading, '::before').backgroundColor,
     }
   })
-  assert(emporium.mountBackground === 'rgb(242, 240, 248)', 'Emporium canvas leaked Garden material')
+  assert(emporium.mountBackground === 'rgb(241, 244, 247)', 'Emporium canvas leaked Garden material')
   assert(emporium.editorBackground === 'rgb(255, 253, 248)', 'Emporium recolored the physical page')
   assert(
-    emporium.markerBackground === 'rgb(76, 29, 149)',
-    `Emporium paper affordances did not turn purple: ${emporium.markerBackground}`,
+    emporium.markerBackground === 'rgb(0, 53, 107)',
+    `Emporium paper affordances did not turn Sophia Blue: ${emporium.markerBackground}`,
   )
   await page.screenshot({ path: `${artifactDir}/shrubbery-art-paper-emporium.png`, fullPage: false })
 

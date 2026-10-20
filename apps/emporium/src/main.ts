@@ -3,7 +3,7 @@
  *
  * A DEDICATED Vite product shell (the 4th shell after garden desktop / cloud-2
  * cell SPA / choreograph Studio) for the live vocab-pack catalogue. It DEFAULTS to
- * the EMPORIUM skin (purple-400 #9472CE, Diatype, square, tight) — this app IS the
+ * the EMPORIUM skin (the "Sophia" skin: Sophia Blue #00356B, Diatype-like sans) — this app IS the
  * Emporium identity.
  *
  * What it wires (all REAL, all from the workspace packages):

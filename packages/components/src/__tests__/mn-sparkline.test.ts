@@ -69,7 +69,7 @@ describe('mn-sparkline — token-driven stroke per tone (recolors per skin)', ()
     })
   }
 
-  it('default tone is the ACCENT role token (purple in Emporium, fern in Garden)', async () => {
+  it('default tone is the ACCENT role token (Sophia Blue in Emporium, fern in Garden)', async () => {
     const el = await mount('garden', { values: [1, 2, 3] })
     expect(el.shadowRoot!.querySelector('polyline')!.getAttribute('stroke')).toContain(
       'var(--mn-color-accent',

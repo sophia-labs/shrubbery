@@ -36,7 +36,7 @@
  *
  * Skin-aware for FREE: every primitive (mn-card / mn-chip / mn-badge) mirrors
  * the ambient [data-skin] and recolors via the inherited role tokens, so the
- * Emporium skin turns the whole catalogue purple with no per-skin code here.
+ * Emporium (Sophia) skin turns the whole catalogue Sophia Blue with no per-skin code here.
  */
 
 import { html, nothing, type TemplateResult } from 'lit'
