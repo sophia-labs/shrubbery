@@ -878,6 +878,16 @@ export class HojaEditor extends LitElement {
     else void this.updateComplete.then(() => this.editor?.view.dom.focus(options))
   }
 
+  /**
+   * Focus with the caret at the end of what the surface holds: where a person goes on writing after words offered to
+   * them (a passage quoted for a question ends with an empty line for it; "About the chapter …: " is continued in place).
+   */
+  focusEnd(): void {
+    if (this.disabled) return
+    if (this.editor) this.editor.commands.focus('end')
+    else void this.updateComplete.then(() => this.editor?.commands.focus('end'))
+  }
+
   /** Current editor JSON, returned as a fresh TipTap snapshot. */
   getJSON(): HojaJSONContent {
     return (this.editor?.getJSON() as HojaJSONContent | undefined) ?? this.valueDocument(this.value, this.referenceBindings)

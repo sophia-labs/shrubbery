@@ -712,9 +712,12 @@ export class ShChatHost extends LitElement {
     this._writeDraft(sessionId, existing ? `${existing}\n\n${detail.text}` : detail.text, null, 'edit')
     this._applyToPanel()
     detail.handled = true
-    void this.updateComplete.then(() => {
-      const composer = this._panel?.querySelector<HTMLElement>('hoja-editor[posture="composer"]')
-      composer?.focus()
+    void this.updateComplete.then(async () => {
+      const composer = this._panel?.querySelector<HTMLElement & { updateComplete?: Promise<unknown>; focusEnd?: () => void }>('hoja-editor[posture="composer"]')
+      await composer?.updateComplete
+      // The caret waits after the offered words, where the question goes.
+      if (composer?.focusEnd) composer.focusEnd()
+      else composer?.focus()
     })
   }
 
