@@ -149,6 +149,9 @@ import { LAYOUT_DASHBOARD_COMPONENT } from './layout/layout-dashboard-host.js'
 import { createQueryTextResolver, NamedQueryRegistry } from './layout/named-query-registry.js'
 import { contestedCardParams, objectLocator, type SourceObjectService } from './layout/source-object-service.js'
 import type { TypedObjectService } from './object-view/typed-object-service.js'
+import type { ObjectModel } from '@shrubbery/nucleus/object-faces'
+import type { ObjectUsage } from './object-view/object-view-element.js'
+import './object-view/object-view-element.js'
 import type {
   SurfaceActiveTabChange,
   SurfaceDividerPolicy,
@@ -314,6 +317,33 @@ export interface WorkflowStackView {
   /** After a run: the items it held, in order. */
   readonly items?: readonly unknown[] | null
   readonly problems?: readonly string[]
+  /**
+   * The class its items are (typed objects D8.1, from the producing step's `wf:itemClass`): its label and plural (the
+   * stack is called by the plural), and the columns of its table, the class's fields in order.
+   */
+  readonly itemClass?: WorkflowStackClassView | null
+  /** After a run, beside `items` (same order): each item as a typed object, or null where an item is plain JSON. */
+  readonly objects?: readonly (ObjectModel | null)[] | null
+}
+
+/** A stack's class, as its views name it. */
+export interface WorkflowStackClassView {
+  readonly iri: string
+  readonly label: string
+  readonly plural: string
+  readonly columns: readonly { readonly key: string; readonly label: string }[]
+}
+
+/**
+ * A sitting whose whole answer never fit its class (Choreograph's `<run#unfit-k> a wf:Unfit ; wf:step ; wf:sitting ;
+ * wf:violation`): it handed back nothing that fit, and says why.
+ */
+export interface WorkflowUnfitSittingView {
+  /** The step's id. */
+  readonly step: string
+  /** The sitting's label, as the run names its agent (`Experiment Clerk #3`). */
+  readonly sitting: string
+  readonly violations: readonly string[]
 }
 
 /** Where a workflow's results go (`wf:Destination`). One kind so far: comments in a document's margin. */
@@ -411,6 +441,30 @@ export interface WorkflowPlanOptions {
   readonly onRun?: () => void
   readonly onPublish?: (destination: string | null) => void
   readonly onOpenDocument?: (target: { readonly documentId: string; readonly blockId?: string | null }) => void
+  /** The graph the workflow lives in (its typed items' graph). */
+  readonly graphId?: string | null
+  /** After a run: the sittings that handed back nothing that fit their class. */
+  readonly unfitSittings?: readonly WorkflowUnfitSittingView[]
+  /** The being each step cast in the last run (`wf:castAgent`), by step id. */
+  readonly beings?: Readonly<Record<string, string>>
+  /** Open a typed item as an object, full size (the object page). */
+  readonly onOpenObject?: (target: { readonly iri: string; readonly graphId?: string | null }) => void
+  /** Embed a typed item in a document ("Embed in a document…"). */
+  readonly onEmbedObject?: (target: { readonly iri: string; readonly graphId?: string | null; readonly label: string; readonly classLabel: string }) => void
+}
+
+/** The object page (typed objects D8.2): one typed object, full size, in the main pane. */
+export interface ObjectPageOptions {
+  readonly graphId: string
+  readonly iri: string
+  readonly status: 'loading' | 'ready' | 'absent' | 'error'
+  readonly model?: ObjectModel | null
+  readonly error?: string | null
+  /** The documents whose blocks embed it (`mdoc:embeds`); null while the shell looks. */
+  readonly usedIn?: readonly ObjectUsage[] | null
+  readonly documentTitles?: Readonly<Record<string, string>>
+  /** Where the person came from, and the way back there (the breadcrumb's back door). */
+  readonly back?: { readonly label: string; readonly onBack: () => void } | null
 }
 
 export interface ZoteroSourceItem {
@@ -1533,6 +1587,12 @@ export interface RenderWorkspaceOptions {
    */
   readonly workflowPlan?: WorkflowPlanOptions | null
   /**
+   * Optional object page for the center surface (typed objects D8.2): ONE generic surface for any typed object,
+   * `{graphId, iri}` — a run item, a published object, a being — drawn as `<sh-object-view slot="pane">` with where it
+   * is used and the way back. The shell owns the read (the typed-object seam), the "Used in" query and every effect.
+   */
+  readonly objectPage?: ObjectPageOptions | null
+  /**
    * Optional controlled Zotero-source workbench for the center surface. The host
    * only reflects shell-owned Zotero item/annotation/wire state and forwards
    * intents; source materialization, daily-note promotion queues, API reads, and
@@ -2152,6 +2212,51 @@ function renderWorkflowInspector(plan: WorkflowPlanOptions): TemplateResult {
   return html`<sh-workflow-inspector .plan=${plan}></sh-workflow-inspector>`
 }
 
+const OBJECT_PAGE_STYLE = `
+.objp { display: flex; flex-direction: column; height: 100%; min-height: 0; box-sizing: border-box;
+  background: var(--mn-color-surface-canvas); color: var(--mn-color-text-primary); font: var(--mn-text-sm, 13px)/1.5 var(--mn-font-chrome); }
+.objp-bar { flex: none; display: flex; align-items: center; gap: 6px; min-width: 0; padding: 10px 16px;
+  border-bottom: 1px solid var(--mn-color-border-subtle); background: var(--mn-color-surface-raised); }
+.objp-bar .up { font: inherit; display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 999px; flex: none;
+  border: 1px solid var(--mn-color-border-default); background: transparent; color: inherit; cursor: pointer; }
+.objp-bar .up:hover { border-color: var(--mn-color-border-accent); }
+.objp-crumbs { display: flex; align-items: center; gap: 4px; min-width: 0; flex: 1; overflow: hidden; white-space: nowrap; }
+.objp-crumbs button { font: inherit; border: 0; background: none; padding: 2px 4px; border-radius: 4px; color: var(--mn-color-text-secondary); cursor: pointer; }
+.objp-crumbs button:hover { color: var(--mn-color-text-primary); background: var(--mn-color-surface-hover); }
+.objp-crumbs .sep { color: var(--mn-color-text-secondary); }
+.objp-crumbs .cls { font: 500 11.5px var(--mn-font-mono, ui-monospace, monospace); color: var(--mn-color-text-secondary); padding: 2px 4px; }
+.objp-crumbs .here { font-weight: 600; overflow: hidden; text-overflow: ellipsis; padding: 2px 4px; }
+.objp-scroll { flex: 1; min-height: 0; overflow: auto; padding: 24px 28px 96px; }
+.objp-page { max-width: 880px; margin: 0 auto; }
+.objp-state { padding: 18px; border: 1px dashed var(--mn-color-border-default); border-radius: 8px; color: var(--mn-color-text-secondary); }
+.objp-state code { font: 11.5px var(--mn-font-mono, ui-monospace, monospace); overflow-wrap: anywhere; }
+`
+
+/** The object page (typed objects D8.2): a breadcrumb with its way back, and the object's pane. */
+function renderObjectPage(page: ObjectPageOptions): TemplateResult {
+  const model = page.status === 'ready' ? page.model ?? null : null
+  const back = page.back ?? null
+  return html`<section class="objp" data-surface="object-page" aria-label=${model ? `${model.classLabel}: ${model.title}` : 'Object'}>
+    <style>${OBJECT_PAGE_STYLE}</style>
+    <div class="objp-bar" role="navigation" aria-label="Where this object is">
+      ${back ? html`<button class="up" title=${`Back to ${back.label}`} aria-label=${`Back to ${back.label}`} @click=${() => back.onBack()}>←</button>` : nothing}
+      <div class="objp-crumbs">
+        ${back ? html`<button @click=${() => back.onBack()}>${back.label}</button><span class="sep">/</span>` : nothing}
+        ${model ? html`<span class="cls">${model.classLabel}</span><span class="sep">/</span><span class="here">${model.title}</span>` : html`<span class="here">${page.iri}</span>`}
+      </div>
+    </div>
+    <div class="objp-scroll"><div class="objp-page">
+      ${model
+        ? html`<sh-object-view slot="pane" .model=${model} graph-id=${page.graphId} .usedIn=${page.usedIn ?? null} .documentTitles=${page.documentTitles ?? null}></sh-object-view>`
+        : page.status === 'absent'
+          ? html`<div class="objp-state" role="note"><p><strong>Not in this graph.</strong> Nothing in ${page.graphId} says anything about this object.</p><p><code>${page.iri}</code></p></div>`
+          : page.status === 'error'
+            ? html`<div class="objp-state" role="alert"><p><strong>Could not read it.</strong> ${page.error ?? ''}</p><p><code>${page.iri}</code></p></div>`
+            : html`<div class="objp-state">Reading the object…</div>`}
+    </div></div>
+  </section>`
+}
+
 function renderZoteroSource(source: ZoteroSourceOptions): TemplateResult {
   return html`<mn-zotero-source-workbench
     .artifactId=${source.artifactId}
@@ -2622,6 +2727,7 @@ function bodyFor(
   parkedWork: ParkedWorkOptions | null,
   files: WorkspaceFilesOptions | null = null,
   workflowPlan: WorkflowPlanOptions | null = null,
+  objectPage: ObjectPageOptions | null = null,
 ): unknown {
   const configuredSurface = configuredSurfaceOwnsRegion(config, regionId)
   // master §3 Slice 8, WS3 §5.2 — the legacy (non-Surface) render path's own
@@ -2634,6 +2740,9 @@ function bodyFor(
   // The Files route is an explicit navigation too: it precedes Home.
   if (!configuredSurface && role === 'center' && files) {
     return renderFilesPane(files)
+  }
+  if (!configuredSurface && role === 'center' && objectPage) {
+    return renderObjectPage(objectPage)
   }
   if (!configuredSurface && role === 'center' && workflowPlan) {
     return renderWorkflowPlan(workflowPlan)
@@ -3024,6 +3133,7 @@ function renderSpine(
   parkedWork: ParkedWorkOptions | null,
   files: WorkspaceFilesOptions | null = null,
   workflowPlan: WorkflowPlanOptions | null = null,
+  objectPage: ObjectPageOptions | null = null,
 ): TemplateResult | typeof nothing {
   // ── Plan-derived positions (same 20/75 for GARDEN_DEFAULT, divergent for variants) ──
   const outerSplit = plan.spine.kind === 'split' ? (plan.spine as SplitNode) : null
@@ -3087,6 +3197,7 @@ function renderSpine(
         parkedWork,
         files,
         workflowPlan,
+        objectPage,
       )
       const controls = renderPanelEdgeControls(head.role, panelLayout)
       const landmarkRole = landmarkRoleFor(head.role)
@@ -3135,6 +3246,7 @@ function renderSpine(
       parkedWork,
       files,
       workflowPlan,
+      objectPage,
     )
     const startControls = renderPanelEdgeControls(head.role, panelLayout)
     const landmarkRole = landmarkRoleFor(head.role)
@@ -3172,6 +3284,8 @@ const SURFACE_FACE = Object.freeze({
   home: 'garden.home',
   tagLens: 'garden.tag-lens',
   workflowPlan: 'garden.workflow-plan',
+  /** Typed objects D8.2: one generic object page, `{graphId, iri}`. */
+  objectPage: 'garden.object-page',
   zoteroSource: 'garden.zotero-source',
   artifact: 'garden.artifact',
   dailyHome: 'garden.daily-note-home',
@@ -3201,6 +3315,7 @@ type WorkspaceSurfaceFaceState =
   | { readonly kind: 'files'; readonly value: WorkspaceFilesOptions }
   | { readonly kind: 'tag-lens'; readonly value: TagLensOptions }
   | { readonly kind: 'workflow-plan'; readonly value: WorkflowPlanOptions }
+  | { readonly kind: 'object-page'; readonly value: ObjectPageOptions }
   | { readonly kind: 'zotero-source'; readonly value: ZoteroSourceOptions }
   | { readonly kind: 'artifact'; readonly value: ArtifactViewOptions }
   | { readonly kind: 'daily-home'; readonly value: NonNullable<RenderWorkspaceOptions['dailyNotes']> }
@@ -3667,6 +3782,9 @@ function renderWorkspaceSurfaceFace(target: HTMLElement, raw: unknown): unknown 
     case 'workflow-plan':
       decorateSurfaceTarget(target, { role: 'center', surfacePart: 'center-route' })
       return renderWorkflowPlan(state.value)
+    case 'object-page':
+      decorateSurfaceTarget(target, { role: 'center', surfacePart: 'center-route' })
+      return renderObjectPage(state.value)
     case 'zotero-source':
       decorateSurfaceTarget(target, { role: 'center', surfacePart: 'center-route' })
       return renderZoteroSource(state.value)
@@ -3861,6 +3979,10 @@ function ensureWorkspaceSurfaceDefined(): void {
     {
       faceId: SURFACE_FACE.workflowPlan, persistence: 'stamp', minWidth: 320, minHeight: 200,
       accepts: locator => acceptsSurfaceIri(locator, 'workflow:'),
+    },
+    {
+      faceId: SURFACE_FACE.objectPage, persistence: 'stamp', minWidth: 300, minHeight: 200,
+      accepts: locator => acceptsSurfaceIri(locator, 'object:'),
     },
     {
       faceId: SURFACE_FACE.zoteroSource, persistence: 'stamp', minWidth: 320, minHeight: 180,
@@ -4282,6 +4404,11 @@ function assembleWorkspaceSurface(
     if (opts.files) {
       return addLeaf('workspace-center-files', SURFACE_FACE.files, surfaceResource(`files:${opts.files.graphId}`), {
         kind: 'files', value: opts.files,
+      })
+    }
+    if (opts.objectPage) {
+      return addLeaf('workspace-center-object-page', SURFACE_FACE.objectPage, surfaceResource(`object:${opts.objectPage.graphId}:${opts.objectPage.iri}`), {
+        kind: 'object-page', value: opts.objectPage,
       })
     }
     if (opts.workflowPlan) {
@@ -4999,6 +5126,7 @@ export function renderWorkspaceTemplate(
     parkedWork = null,
     files = null,
     workflowPlan = null,
+    objectPage = null,
     graphPanel = null,
     outlinePanel = null,
     vtuberControls = null,
@@ -5093,6 +5221,7 @@ export function renderWorkspaceTemplate(
     parkedWork,
     files,
     workflowPlan,
+    objectPage,
   )
 
   // `.main` body: with NO rails it is the bare spine (GardenDefault path —
