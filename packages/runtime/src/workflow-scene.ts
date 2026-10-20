@@ -32,8 +32,8 @@ export type WorkflowNodeKind = 'source' | 'step' | 'check' | 'stack' | 'destinat
 
 const SIZE: Readonly<Record<WorkflowNodeKind, { readonly w: number; readonly h: number }>> = {
   source: { w: 184, h: 76 },
-  step: { w: 204, h: 84 },
-  check: { w: 204, h: 84 },
+  step: { w: 204, h: 96 },
+  check: { w: 204, h: 96 },
   stack: { w: 128, h: 64 },
   destination: { w: 184, h: 76 },
   refused: { w: 128, h: 44 },

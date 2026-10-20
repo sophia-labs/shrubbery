@@ -619,10 +619,26 @@ export function publishableFindings(values: readonly unknown[]): PublishableFind
     if (!isRecord(value)) continue
     const { documentId, quote, note, blockId } = value as Record<string, unknown>
     if (typeof documentId !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(documentId)) continue
-    if (typeof quote !== 'string' || !quote.trim() || typeof note !== 'string' || !note.trim()) continue
-    out.push({ documentId, quote: quote.trim(), note: note.trim(), ...(typeof blockId === 'string' && blockId ? { blockId } : {}) })
+    if (typeof quote !== 'string' || !quote.trim()) continue
+    const text = typeof note === 'string' && note.trim() ? note.trim() : composedNote(value)
+    if (!text) continue
+    out.push({ documentId, quote: quote.trim(), note: text, ...(typeof blockId === 'string' && blockId ? { blockId } : {}) })
   }
   return out
+}
+
+/**
+ * The note for a finding that has none (2026-10-19: Sophia's clerks answer `{who, whatDone, dream, quote}`): its other
+ * text fields in its own order, "<key as words>: <value>", joined with "; ", at most 600 characters. gardend's
+ * `workflow_plan_publish` writes exactly this, so the count here is the count there.
+ */
+export function composedNote(value: Record<string, unknown>): string {
+  const skip = new Set(['quote', 'documentId', 'blockId', 'note'])
+  const words = (key: string): string => key.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/[_-]+/g, ' ').toLowerCase().trim()
+  const parts = Object.entries(value)
+    .filter(([key, v]) => !skip.has(key) && typeof v === 'string' && v.trim())
+    .map(([key, v]) => `${words(key)}: ${(v as string).trim()}`)
+  return [...parts.join('; ')].slice(0, 600).join('')
 }
 
 /** A stable comment id per run and finding: publishing a run twice updates its comments, never doubles them. */

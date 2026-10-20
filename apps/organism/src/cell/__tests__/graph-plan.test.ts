@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { compileGraphPlan, findingCommentId, GraphPlanError, graphPlanDigest, publishableFindings, sketchGraphPlan, stepTallies, type Triple, triplesFromSparqlResult, WF } from '../graph-plan.js'
+import { compileGraphPlan, composedNote, findingCommentId, GraphPlanError, graphPlanDigest, publishableFindings, sketchGraphPlan, stepTallies, type Triple, triplesFromSparqlResult, WF } from '../graph-plan.js'
 import fixture from './fixtures/graph-plan-freud-ch1.sparql.json'
 import runEvents from './fixtures/graph-plan-run-events-freud-20261018.json'
 
@@ -61,6 +61,13 @@ describe('publishing a run\'s findings to a margin', () => {
       'not an object',
     ])
     expect(found).toEqual([{ documentId: meier.documentId, quote: meier.quote, note: meier.note, blockId: meier.blockId }])
+  })
+
+  it('writes a finding without a note as its other fields, as gardend publishes it', () => {
+    const entry = { who: 'Meier', whatDone: 'straw between toes', blank: '  ', dream: 'a stake', quote: meier.quote, documentId: meier.documentId, blockId: meier.blockId }
+    expect(composedNote(entry)).toBe('who: Meier; what done: straw between toes; dream: a stake')
+    expect(publishableFindings([entry])).toEqual([{ documentId: meier.documentId, quote: meier.quote, note: 'who: Meier; what done: straw between toes; dream: a stake', blockId: meier.blockId }])
+    expect(publishableFindings([{ quote: meier.quote, documentId: meier.documentId }])).toEqual([])
   })
 
   it('gives each finding a stable comment id, so publishing twice updates rather than doubles', () => {
