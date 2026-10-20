@@ -221,6 +221,7 @@ import {
   type SidebarSection,
   type TagLensBlock,
   type TagLensOpenBlockDetail,
+  type WorkflowFocus,
   type WorkflowPlanOptions,
   type ZoteroSourceAnnotation,
   type ZoteroSourceBaseDetail,
@@ -486,6 +487,7 @@ import {
 import { loadTagLensBlocks } from './cell/tag-lens.js'
 import {
   findingCommentId,
+  type GraphPlanAgentRun,
   type GraphPlanAuthoringEvent,
   type GraphPlanResults,
   type GraphPlanSketch,
@@ -1370,6 +1372,10 @@ type CurrentWorkflowPlan = {
   changedAt: Map<string, number>
   /** The canvas's selection (`step:clerk`, `stack:passages`, …), which the inspector explains; null for the whole. */
   selected: string | null
+  /** The part (and item) the pane shows full size instead of the canvas; null for the canvas. */
+  focus: WorkflowFocus | null
+  /** Every agent of the last run, from Choreograph's run events (the full view of a person lists theirs). */
+  agents: readonly GraphPlanAgentRun[]
   runId: string | null
   runStatus: string | null
   /** Why the last Run did not start (Choreograph's refusal), until the next one does. */
@@ -1463,6 +1469,8 @@ function openWorkflowPlan(graphId: string, definition: string, inputs: Record<st
     fingerprints: new Map(),
     changedAt: new Map(),
     selected: null,
+    focus: null,
+    agents: [],
     runId: null,
     runStatus: null,
     runRefusal: null,
@@ -1533,7 +1541,9 @@ async function pollWorkflowPlan(state: CurrentWorkflowPlan): Promise<void> {
         state.runId = last.runId
         state.runStatus = last.status
         try {
-          state.progress = (await readGraphPlanRun(workflowPlanService(), last.runId)).byLabel
+          const run = await readGraphPlanRun(workflowPlanService(), last.runId)
+          state.progress = run.byLabel
+          state.agents = run.agents
         } catch {
           /* the run's own graph still says what it found; only the step tallies are missing */
         }
@@ -1543,6 +1553,7 @@ async function pollWorkflowPlan(state: CurrentWorkflowPlan): Promise<void> {
     if (state.runId && state.runStatus === 'running') {
       const run = await readGraphPlanRun(workflowPlanService(), state.runId)
       state.progress = run.byLabel
+      state.agents = run.agents
       if (run.status !== 'running') {
         state.runStatus = run.status
         await loadWorkflowPlanResults(state)
@@ -1820,6 +1831,9 @@ function workflowPlanView(state: CurrentWorkflowPlan, now: number): WorkflowPlan
     documentTitles: workflowDocumentTitles(sources, destinations, results),
     selected: state.selected,
     onSelect: (key) => selectWorkflowNode(state, key),
+    focus: state.focus,
+    onFocus: (focus) => focusWorkflowNode(state, focus),
+    agents: state.agents,
     onRun: () => void runWorkflowPlan(state),
     onPublish: (destination) => void publishWorkflowFindings(state, destination),
     onOpenDocument: (target) => {
@@ -1864,7 +1878,22 @@ function workflowDocumentTitles(
 function selectWorkflowNode(state: CurrentWorkflowPlan, key: string | null): void {
   if (currentWorkflowPlan !== state) return
   state.selected = key
+  // Selecting another part from a full view opens that part's inspector; the full view stays where it is.
   showWorkflowInspector()
+  state.view = workflowPlanView(state, Date.now())
+  rerenderCurrentSource()
+}
+
+/**
+ * A part opened full size (or, with null, the canvas again). The main pane now says everything about that part, so the
+ * right sidebar steps back to the workflow as a whole, whose order of work opens the other parts; back on the canvas,
+ * the part stays selected.
+ */
+function focusWorkflowNode(state: CurrentWorkflowPlan, focus: WorkflowFocus | null): void {
+  if (currentWorkflowPlan !== state) return
+  const from = state.focus
+  state.focus = focus
+  state.selected = focus ? null : (from?.key ?? state.selected)
   state.view = workflowPlanView(state, Date.now())
   rerenderCurrentSource()
 }
@@ -1890,6 +1919,7 @@ async function runWorkflowPlan(state: CurrentWorkflowPlan): Promise<void> {
     state.runRefusal = null
     state.progress = new Map()
     state.results = null
+    state.agents = []
     state.findings = []
     state.publish = { status: 'ready', message: null }
     state.view = workflowPlanView(state, Date.now())

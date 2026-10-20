@@ -124,6 +124,7 @@ import type { SalienceBundle } from './editor-services/salience-bundle-service.j
 import type { WireBundle } from './editor-services/wire-bundle-service.js'
 import './workflow-scene.js'
 import './workflow-inspector.js'
+import './workflow-focus.js'
 import { renderFilesPane, type WorkspaceFilesOptions } from './files-pane.js'
 import { mountGraphHost } from './graph-host.js'
 import { isPersistentCenter, mountEditorHost, renderCenterSlotAnchor } from './mount.js'
@@ -338,6 +339,38 @@ export interface WorkflowAuthoringView {
 }
 
 /**
+ * One agent of the last run, as the full view of a person lists them (2026-10-20): the agent a step gave one item
+ * (`<step> #<n>`), or a once step's only agent. From Choreograph's run events.
+ */
+export interface WorkflowAgentRunView {
+  readonly label: string
+  /** The step's label. */
+  readonly step: string
+  /** The item it worked, 1-based; null for a once step. */
+  readonly n: number | null
+  readonly state: 'queued' | 'running' | 'done' | 'failed'
+  readonly attempts: number
+  readonly queuedAt: number | null
+  readonly startedAt: number | null
+  readonly endedAt: number | null
+  readonly model: string | null
+  readonly turns: number | null
+  readonly tokens: number | null
+  readonly tools: readonly { readonly gate: string; readonly args: unknown; readonly at: number | null }[]
+  readonly output: unknown
+  readonly error: string | null
+}
+
+/**
+ * What the main pane shows full size instead of the canvas: a node (`step:clerk`, `stack:passages`, `refused:censor`),
+ * and in it, optionally, one item (the agent a person gave item n, or a stack's item n; 1-based). Null: the canvas.
+ */
+export interface WorkflowFocus {
+  readonly key: string
+  readonly item?: number | null
+}
+
+/**
  * A workflow as the main pane draws it (a canvas: sources, people, stacks, checks, destinations) and as the right
  * sidebar's inspector explains whatever is selected. Node keys are `<kind>:<id>`: `source:book`, `step:clerk`,
  * `stack:passages`, `destination:margin`.
@@ -369,6 +402,11 @@ export interface WorkflowPlanOptions {
   /** The selected node's key, or null for the workflow as a whole. */
   readonly selected?: string | null
   readonly onSelect?: (key: string | null) => void
+  /** The node (and item) the pane shows full size; null or absent, the canvas. */
+  readonly focus?: WorkflowFocus | null
+  readonly onFocus?: (focus: WorkflowFocus | null) => void
+  /** The agents of the last run, in the order they were queued. */
+  readonly agents?: readonly WorkflowAgentRunView[] | null
   readonly onRun?: () => void
   readonly onPublish?: (destination: string | null) => void
   readonly onOpenDocument?: (target: { readonly documentId: string; readonly blockId?: string | null }) => void
@@ -2030,6 +2068,7 @@ function renderTagLens(tagLens: TagLensOptions): TemplateResult {
 const WORKFLOW_PLAN_STYLE = `
 .wfp { position: relative; height: 100%; min-height: 320px; overflow: hidden; background: var(--mn-color-surface-canvas); }
 .wfp sh-workflow-scene { position: absolute; inset: 0; }
+.wfp sh-workflow-focus { position: absolute; inset: 0; z-index: 2; }
 .wfp-pill {
   position: absolute; left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 3;
   display: inline-flex; align-items: center; gap: 10px; max-width: calc(100% - 32px); box-sizing: border-box;
@@ -2084,7 +2123,8 @@ function renderWorkflowPlan(plan: WorkflowPlanOptions): TemplateResult {
   const publish = plan.publish && plan.publish.count > 0 && plan.publish.status !== 'done' ? plan.publish : null
   return html`<section class="wfp" data-surface="workflow-plan" aria-label=${`Workflow: ${plan.title}`}>
     <style>${WORKFLOW_PLAN_STYLE}</style>
-    <sh-workflow-scene .plan=${plan}></sh-workflow-scene>
+    <sh-workflow-scene .plan=${plan} ?inert=${Boolean(plan.focus)} aria-hidden=${plan.focus ? 'true' : 'false'}></sh-workflow-scene>
+    ${plan.focus ? html`<sh-workflow-focus .plan=${plan}></sh-workflow-focus>` : nothing}
     <div class="wfp-pill" role="group" aria-label="Run">
       ${pill.running ? html`<span class="spin" aria-hidden="true"></span>` : nothing}
       <span class="words" role="status" aria-live="polite" data-tone=${pill.tone} title=${pill.words}

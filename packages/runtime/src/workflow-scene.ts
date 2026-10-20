@@ -10,7 +10,8 @@
  * - a **destination** (where results go: a margin) is a tile on the right.
  * Columns follow the flow (each node one column after what it takes in); there are no phase lanes. People light up
  * while they work. Clicking a node selects it (`sh-workflow-select`), and the right sidebar explains it; clicking the
- * canvas or Esc clears the selection.
+ * canvas or Esc clears the selection. Double-clicking a node, or Enter on the selected one, opens it full size
+ * (`onFocus`, `<sh-workflow-focus>`); a source or destination opens its document instead.
  *
  * It runs on the Files canvas's engine port (`@shrubbery/nucleus/files-canvas`) with Excalidraw's engine behind it,
  * headless: `route` and `reroute` while a node is dragged, `snap`, no React and no Excalidraw UI, everything styled by
@@ -309,18 +310,24 @@ function sourceWhere(source: WorkflowSourceView): string {
   return source.fromBlock || source.toBlock ? `${doc} · a section` : doc
 }
 
-// Small line glyphs (Lucide's shapes, drawn here so the scene needs no icon package).
+// Small line glyphs (Lucide's shapes, drawn here so the scene needs no icon package), each a whole <svg>.
 const GLYPH: Readonly<Record<'source' | 'step' | 'check' | 'stack' | 'destination' | 'refused', TemplateResult>> = {
-  source: svg`<path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/>`,
-  step: svg`<path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>`,
-  check: svg`<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/>`,
-  stack: svg`<path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/>`,
-  destination: svg`<path d="M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z"/>`,
-  refused: svg`<circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/>`,
+  source: html`<svg class="glyph" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/></svg>`,
+  step: html`<svg class="glyph" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`,
+  check: html`<svg class="glyph" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></svg>`,
+  stack: html`<svg class="glyph" viewBox="0 0 24 24" aria-hidden="true"><path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/></svg>`,
+  destination: html`<svg class="glyph" viewBox="0 0 24 24" aria-hidden="true"><path d="M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z"/></svg>`,
+  refused: html`<svg class="glyph" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/></svg>`,
 }
 
+/** A node kind's small line glyph, for the scene, the inspector and the full views. */
+export function workflowGlyph(kind: keyof typeof GLYPH): TemplateResult {
+  return glyph(kind)
+}
+
+// Each glyph is one whole template, with no binding inside its <svg> (a binding there is lost by some DOMs).
 function glyph(kind: keyof typeof GLYPH): TemplateResult {
-  return html`<svg class="glyph" viewBox="0 0 24 24" aria-hidden="true">${GLYPH[kind]}</svg>`
+  return GLYPH[kind]
 }
 
 interface Drag {
@@ -339,10 +346,13 @@ interface Pan {
   moved: boolean
 }
 
+const DOUBLE_CLICK_MS = 400
+
 export class ShWorkflowScene extends LitElement {
   static override properties = { plan: { attribute: false } }
   declare plan: WorkflowPlanOptions | null
 
+  private lastClick: { key: string; at: number } | null = null
   private engine: CanvasEngine = houseEngine
   private engineLoading = false
   private layoutKey = ''
@@ -549,6 +559,28 @@ export class ShWorkflowScene extends LitElement {
     this.plan?.onSelect?.(key)
   }
 
+  /**
+   * Open a node full size (a double-click, or Enter on the selected node): a person, a check, a stack or a check's
+   * refusals fills the pane; a source opens its document at its section; a destination, its document.
+   */
+  private open(key: string): void {
+    const plan = this.plan
+    if (!plan) return
+    const kind = key.slice(0, key.indexOf(':'))
+    const id = key.slice(key.indexOf(':') + 1)
+    if (kind === 'source') {
+      const source = plan.sources?.find((s) => s.id === id)
+      if (source?.documentId) plan.onOpenDocument?.({ documentId: source.documentId, blockId: source.fromBlock ?? null })
+      return
+    }
+    if (kind === 'destination') {
+      const destination = plan.destinations?.find((d) => d.id === id)
+      if (destination?.documentId) plan.onOpenDocument?.({ documentId: destination.documentId })
+      return
+    }
+    plan.onFocus?.({ key })
+  }
+
   override render() {
     const plan = this.plan
     if (!plan) return nothing
@@ -608,7 +640,12 @@ export class ShWorkflowScene extends LitElement {
       ?data-selected=${selected} ?data-dragging=${dragging} ?data-changed=${!!extra.changed} ?data-problem=${problems.length > 0}
       style=${style}
       @pointerdown=${(e: PointerEvent) => this.onNodeDown(e, card.key)}
-      @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this.select(card.key) } }}>
+      @keydown=${(e: KeyboardEvent) => {
+        if (e.key !== 'Enter' && e.key !== ' ') return
+        e.preventDefault()
+        if (e.key === 'Enter' && selected) this.open(card.key)
+        else this.select(card.key)
+      }}>
       ${body}
       ${problems.length > 0 ? html`<span class="flag" title=${problems.join('\n')}>${problems.length}</span>` : nothing}
     </div>`
@@ -765,7 +802,15 @@ export class ShWorkflowScene extends LitElement {
         writeLayout(this.layoutKey, this.layout)
       }
     } else if (!drag.moved) {
-      this.select(drag.key)
+      // A second click on the same node, soon after the first: open it.
+      const now = performance.now()
+      if (this.lastClick?.key === drag.key && now - this.lastClick.at < DOUBLE_CLICK_MS) {
+        this.lastClick = null
+        this.open(drag.key)
+      } else {
+        this.lastClick = { key: drag.key, at: now }
+        this.select(drag.key)
+      }
     }
     this.requestUpdate()
   }

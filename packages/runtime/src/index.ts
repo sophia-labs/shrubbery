@@ -120,6 +120,8 @@ export {
   type TagLensOptions,
   type WorkflowPlanOptions,
   type WorkflowPlanStepView,
+  type WorkflowFocus,
+  type WorkflowAgentRunView,
   type TagLensRefreshDetail,
   type TagLensStatus,
   type ZoteroSourceAnnotation,

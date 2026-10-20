@@ -525,6 +525,8 @@ export interface GraphPlanRunProgress {
   readonly status: string
   /** Per step label (without its ` #n` item suffix): finished and failed agent nodes. */
   readonly byLabel: ReadonlyMap<string, { readonly done: number; readonly failed: number; readonly started: number }>
+  /** Every agent of the run, in the order they were queued (the full view of a person lists theirs). */
+  readonly agents: readonly GraphPlanAgentRun[]
 }
 
 export async function readGraphPlanRun(service: GraphPlanService, runId: string): Promise<GraphPlanRunProgress> {
@@ -533,12 +535,99 @@ export async function readGraphPlanRun(service: GraphPlanService, runId: string)
   })
   if (!response.ok) throw new Error(`the run could not be read: HTTP ${response.status}`)
   const body = (await response.json()) as { header?: { status?: string }; events?: readonly RunEvent[] }
-  return { status: body.header?.status ?? 'unknown', byLabel: stepTallies(body.events ?? []) }
+  const events = body.events ?? []
+  return { status: body.header?.status ?? 'unknown', byLabel: stepTallies(events), agents: agentRuns(events) }
 }
 
 export interface RunEvent {
   readonly type?: string
   readonly label?: string | null
+  /** Milliseconds since the epoch. */
+  readonly ts?: number
+  readonly payload?: unknown
+}
+
+/**
+ * One agent of a run, as its events tell it (2026-10-20, the full view of a person): a step's agent for one item
+ * (`<step> #<n>`), or a once step's only agent (`<step>`). An agent asked once more (`… again`) is the same agent: its
+ * last word counts and its tool calls add up.
+ */
+export interface GraphPlanAgentRun {
+  readonly label: string
+  /** The step's label, as the plan names it. */
+  readonly step: string
+  /** The item it worked, 1-based; null for a once step. */
+  readonly n: number | null
+  readonly state: 'queued' | 'running' | 'done' | 'failed'
+  readonly attempts: number
+  readonly queuedAt: number | null
+  readonly startedAt: number | null
+  readonly endedAt: number | null
+  readonly model: string | null
+  readonly turns: number | null
+  readonly tokens: number | null
+  readonly tools: readonly { readonly gate: string; readonly args: unknown; readonly at: number | null }[]
+  /** What it handed back: its structured output, else its output text (JSON when it parses). */
+  readonly output: unknown
+  /** Why it failed, in the runtime's words. */
+  readonly error: string | null
+}
+
+export function agentRuns(events: readonly RunEvent[]): GraphPlanAgentRun[] {
+  type Mutable = { -readonly [K in keyof GraphPlanAgentRun]: GraphPlanAgentRun[K] } & { tools: GraphPlanAgentRun['tools'][number][] }
+  const agents = new Map<string, Mutable>()
+  for (const event of events) {
+    if (!event.label) continue
+    const label = event.label.replace(/ again$/, '')
+    const payload = isRecord(event.payload) ? event.payload : {}
+    const at = typeof event.ts === 'number' ? event.ts : null
+    let agent = agents.get(label)
+    if (!agent) {
+      const n = /#(\d+)$/.exec(label)
+      agent = {
+        label, step: label.replace(/ #\d+$/, ''), n: n ? Number(n[1]) : null, state: 'queued', attempts: 0,
+        queuedAt: null, startedAt: null, endedAt: null, model: null, turns: null, tokens: null, tools: [], output: null, error: null,
+      }
+      agents.set(label, agent)
+    }
+    switch (event.type) {
+      case 'node_queued':
+        agent.queuedAt ??= at
+        if (typeof payload.model === 'string') agent.model = payload.model
+        break
+      case 'node_started':
+        agent.attempts += 1
+        agent.startedAt ??= at
+        agent.state = 'running'
+        agent.endedAt = null
+        break
+      case 'tool_call':
+        if (typeof payload.gate === 'string') agent.tools.push({ gate: payload.gate, args: payload.args ?? null, at })
+        break
+      case 'node_done':
+      case 'error': {
+        const failed = event.type === 'error' || payload.status === 'error'
+        agent.state = failed ? 'failed' : 'done'
+        agent.endedAt = at
+        if (typeof payload.turns === 'number') agent.turns = (agent.turns ?? 0) + payload.turns
+        if (typeof payload.tokens === 'number') agent.tokens = (agent.tokens ?? 0) + payload.tokens
+        const text = typeof payload.output === 'string' ? payload.output : null
+        agent.error = failed ? (text ?? (typeof payload.message === 'string' ? payload.message : 'It failed.')) : null
+        if (!failed) agent.output = payload.structured_output ?? parsedOrText(text)
+        break
+      }
+    }
+  }
+  return [...agents.values()].filter((agent) => agent.queuedAt !== null || agent.startedAt !== null)
+}
+
+function parsedOrText(text: string | null): unknown {
+  if (text === null) return null
+  try {
+    return JSON.parse(text)
+  } catch {
+    return text
+  }
 }
 
 /**

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { compileGraphPlan, composedNote, findingCommentId, GraphPlanError, graphPlanDigest, publishableFindings, sketchGraphPlan, stepTallies, type Triple, triplesFromSparqlResult, WF } from '../graph-plan.js'
+import { agentRuns, compileGraphPlan, composedNote, findingCommentId, GraphPlanError, graphPlanDigest, publishableFindings, sketchGraphPlan, stepTallies, type Triple, triplesFromSparqlResult, WF } from '../graph-plan.js'
 import fixture from './fixtures/graph-plan-freud-ch1.sparql.json'
+import appRunEvents from './fixtures/graph-plan-run-events-20261020.json'
 import runEvents from './fixtures/graph-plan-run-events-freud-20261018.json'
 
 // The same live gardend answer Choreograph's own test reads (choreograph src/test/graph-plan.test.ts). Both must reach
@@ -134,5 +135,38 @@ describe('an unfinished plan, as the canvas draws it', () => {
     ])
     expect(sketch.steps[0]!.itemSchema?.required).toEqual(['who'])
     expect(sketch.destinations.map((d) => [d.id, d.kind, d.receives])).toEqual([['margin', 'margin', `${W}#verified`]])
+  })
+})
+
+// A real run in Sophia.app (2026-10-20): the cutter, two clerks, and two checks, one of which lost its model call and
+// passed when it was asked again.
+describe('each agent of a run, for the full view of a person', () => {
+  const agents = agentRuns(appRunEvents)
+  const byLabel = new Map(agents.map((agent) => [agent.label, agent]))
+
+  it('is one agent per item, and an agent asked again is the same agent', () => {
+    expect(agents.map((a) => a.label)).toEqual(['Passage cutter', 'Experiment clerk #2', 'Experiment clerk #3', 'Exact-quote checker #1', 'Exact-quote checker #5'])
+    expect(agents.map((a) => [a.step, a.n])).toEqual([
+      ['Passage cutter', null], ['Experiment clerk', 2], ['Experiment clerk', 3], ['Exact-quote checker', 1], ['Exact-quote checker', 5],
+    ])
+  })
+
+  it('says what each did: its model, its tools in order, its time, what it handed back', () => {
+    const cutter = byLabel.get('Passage cutter')!
+    expect(cutter.state).toBe('done')
+    expect(cutter.model).toBe('google/gemini-2.5-flash')
+    expect(cutter.tools.map((t) => t.gate)).toEqual(['read_blocks', 'read_blocks', 'submit'])
+    expect(cutter.endedAt! - cutter.startedAt!).toBeGreaterThan(0)
+    expect((cutter.output as { items: unknown[] }).items.length).toBeGreaterThan(20)
+    const clerk = byLabel.get('Experiment clerk #3')!
+    expect((clerk.output as { items: { quote: string }[] }).items[0]!.quote).toMatch(/blankets slips off at night/)
+  })
+
+  it('keeps the last word of an agent that failed and was asked again, and its first failure stays readable', () => {
+    const retried = byLabel.get('Exact-quote checker #5')!
+    expect(retried).toMatchObject({ state: 'done', attempts: 2, error: null, output: { ok: true } })
+    expect(retried.tools.map((t) => t.gate)).toEqual(['read_blocks', 'submit'])
+    const failed = agentRuns(appRunEvents.filter((e) => !String(e.label).endsWith('#5 again')))
+    expect(failed.find((a) => a.label === 'Exact-quote checker #5')).toMatchObject({ state: 'failed', attempts: 1, error: 'Connection error.' })
   })
 })

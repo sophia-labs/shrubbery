@@ -37,14 +37,50 @@ function when(at: string | null | undefined): string {
     : date.toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
 }
 
-function text(value: unknown): string {
+export function itemText(value: unknown): string {
   if (value === undefined || value === null) return ''
   return typeof value === 'string' ? copied(value) : JSON.stringify(value)
 }
+const text = itemText
 
 /** Text an agent copied JSON-escaped (`\\n` for a soft wrap), as a person reads it. */
-function copied(value: string): string {
+export function copied(value: string): string {
   return value.replace(/\\[nrt]/g, ' ').replace(/\s+/g, ' ').trim()
+}
+
+/** How an item card looks, wherever one is drawn (the inspector, the full views). */
+export const WORKFLOW_ITEM_STYLES = css`
+  .item { border: 1px solid var(--mn-color-border-subtle); border-radius: var(--mn-radius-control, 6px); padding: 8px 10px; margin: 8px 0; background: var(--mn-color-surface-raised); }
+  .item blockquote { margin: 0 0 6px; padding-left: 8px; border-left: 2px solid var(--mn-color-border-default); font-family: var(--mn-font-serif, Georgia, serif); font-size: 13.5px; }
+  .item .note { margin: 0 0 4px; }
+  .item dl { display: grid; grid-template-columns: max-content 1fr; gap: 1px 8px; margin: 0 0 4px; font-size: 12px; }
+  .item dt { color: var(--mn-color-text-secondary); }
+  .item dd { margin: 0; overflow-wrap: anywhere; }
+  .item .n { float: right; color: var(--mn-color-text-secondary); font-variant-numeric: tabular-nums; font-size: 11px; }
+  .item .quiet { font: inherit; border: 1px solid var(--mn-color-border-default); background: var(--mn-color-surface-raised); color: inherit; border-radius: var(--mn-radius-control, 6px); padding: 3px 10px; cursor: pointer; }
+  .item .quiet:hover { border-color: var(--mn-color-border-accent); }
+  .refusal { border-left: 2px solid var(--mn-color-danger-border); }
+`
+
+/**
+ * One item as a card: its quote, its note, its other fields (at most `fieldLimit`), why it was refused, and where to
+ * see it in its document.
+ */
+export function renderWorkflowItem(plan: WorkflowPlanOptions | null, item: unknown, index: number | null, why?: string, fieldLimit = 8): TemplateResult {
+  const n = index === null ? nothing : html`<span class="n">${index + 1}</span>`
+  if (!isRecord(item)) return html`<div class="item ${why ? 'refusal' : ''}">${n}${text(item)}${why ? html`<p class="sub">${why}</p>` : nothing}</div>`
+  const { quote, note, documentId, blockId, ...rest } = item
+  const fields = Object.entries(rest).filter(([, v]) => v !== null && v !== undefined && text(v).trim() !== '').slice(0, fieldLimit)
+  const doc = typeof documentId === 'string' && documentId ? documentId : null
+  const block = typeof blockId === 'string' && blockId ? blockId : null
+  const docTitle = doc ? (plan?.documentTitles?.[doc] ?? plan?.sources?.find((s) => s.documentId === doc)?.documentTitle ?? null) : null
+  return html`<div class="item ${why ? 'refusal' : ''}">${n}
+    ${typeof quote === 'string' && quote ? html`<blockquote>${copied(quote)}</blockquote>` : nothing}
+    ${typeof note === 'string' && note ? html`<p class="note">${copied(note)}</p>` : nothing}
+    ${fields.length ? html`<dl>${fields.map(([k, v]) => html`<dt>${k}</dt><dd>${text(v)}</dd>`)}</dl>` : nothing}
+    ${why ? html`<p class="sub"><strong>Refused:</strong> ${why}</p>` : nothing}
+    ${doc && plan?.onOpenDocument ? html`<button class="quiet" @click=${() => plan.onOpenDocument?.({ documentId: doc, blockId: block })}>Show in ${docTitle ?? 'the document'}</button>` : nothing}
+  </div>`
 }
 
 export class ShWorkflowInspector extends LitElement {
@@ -56,7 +92,7 @@ export class ShWorkflowInspector extends LitElement {
     this.plan = null
   }
 
-  static override styles = css`
+  static override styles = [WORKFLOW_ITEM_STYLES, css`
     :host {
       display: block;
       height: 100%;
@@ -106,14 +142,7 @@ export class ShWorkflowInspector extends LitElement {
     .quiet { font: inherit; border: 1px solid var(--mn-color-border-default); background: var(--mn-color-surface-raised); color: inherit; border-radius: var(--mn-radius-control, 6px); padding: 3px 10px; cursor: pointer; }
     .quiet:hover { border-color: var(--mn-color-border-accent); }
     .link { font: inherit; border: 0; background: none; padding: 0; color: var(--mn-color-text-accent, var(--mn-color-accent)); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
-    .item { border: 1px solid var(--mn-color-border-subtle); border-radius: var(--mn-radius-control, 6px); padding: 8px 10px; margin: 8px 0; background: var(--mn-color-surface-raised); }
-    .item blockquote { margin: 0 0 6px; padding-left: 8px; border-left: 2px solid var(--mn-color-border-default); font-family: var(--mn-font-serif, Georgia, serif); font-size: 13.5px; }
-    .item .note { margin: 0 0 4px; }
-    .item dl { display: grid; grid-template-columns: max-content 1fr; gap: 1px 8px; margin: 0 0 4px; font-size: 12px; }
-    .item dt { color: var(--mn-color-text-secondary); }
-    .item dd { margin: 0; overflow-wrap: anywhere; }
-    .item .n { float: right; color: var(--mn-color-text-secondary); font-variant-numeric: tabular-nums; font-size: 11px; }
-    .refusal { border-left: 2px solid var(--mn-color-danger-border); }
+    .link[data-here] { color: var(--mn-color-text-primary); font-weight: 600; text-decoration: none; }
     .event { margin: 6px 0; }
     .event .who { font-weight: 600; }
     .event .at { color: var(--mn-color-text-secondary); font-size: 11.5px; }
@@ -121,7 +150,9 @@ export class ShWorkflowInspector extends LitElement {
     .order li { margin: 3px 0; }
     code { font-family: var(--mn-font-mono, ui-monospace, monospace); font-size: 11.5px; overflow-wrap: anywhere; }
     .tally { font-variant-numeric: tabular-nums; }
-  `
+    .open { font: inherit; font-size: 11px; letter-spacing: 0; text-transform: none; border: 1px solid var(--mn-color-border-default); background: var(--mn-color-surface-raised); color: var(--mn-color-text-primary); border-radius: 999px; padding: 1px 9px; cursor: pointer; }
+    .open:hover { border-color: var(--mn-color-border-accent); }
+  `]
 
   private select(key: string | null): void {
     this.plan?.onSelect?.(key)
@@ -151,8 +182,11 @@ export class ShWorkflowInspector extends LitElement {
     return this.renderOverview(plan)
   }
 
-  private eyebrow(what: string): TemplateResult {
-    return html`<div class="eyebrow"><span>${what}</span><button class="back" @click=${() => this.select(null)}>The whole workflow</button></div>`
+  private eyebrow(what: string, open?: string): TemplateResult {
+    const plan = this.plan
+    return html`<div class="eyebrow"><span>${what}
+      ${open && plan?.onFocus ? html`<button class="open" title="Open it full size (or double-click it on the canvas)" @click=${() => plan.onFocus?.({ key: open })}>Open</button>` : nothing}</span>
+      <button class="back" @click=${() => this.select(null)}>The whole workflow</button></div>`
   }
 
   private chip(key: string, label: string, kind: string): TemplateResult {
@@ -201,6 +235,8 @@ export class ShWorkflowInspector extends LitElement {
     for (const stack of plan.stacks ?? []) for (const p of stack.problems ?? []) named.push({ key: nodeKey.stack(stack.id), label: humanName(stack.id), problem: p })
     for (const d of plan.destinations ?? []) for (const p of d.problems ?? []) named.push({ key: nodeKey.destination(d.id), label: d.label, problem: p })
     const phases = plan.phases ?? []
+    // While a part fills the main pane, the order of work opens the other parts full size too.
+    const open = (key: string): void => (plan.focus && plan.onFocus ? plan.onFocus({ key }) : this.select(key))
     return html`
       <div class="eyebrow"><span>Workflow</span></div>
       <h1>${plan.title}</h1>
@@ -216,7 +252,7 @@ export class ShWorkflowInspector extends LitElement {
       </section>` : nothing}
       ${phases.length > 0 ? html`<section><h2>The order of work</h2><ol class="order">
         ${phases.map((phase) => html`<li><span class="sub">${phase.title}:</span> ${plan.steps.filter((s) => s.phase?.order === phase.order)
-          .map((s, i) => html`${i ? ', ' : ''}<button class="link" @click=${() => this.select(nodeKey.step(s.id))}>${s.label}</button>`)}</li>`)}
+          .map((s, i) => html`${i ? ', ' : ''}<button class="link" ?data-here=${plan.focus?.key === nodeKey.step(s.id)} @click=${() => open(nodeKey.step(s.id))}>${s.label}</button>`)}</li>`)}
       </ol><p class="sub">Each step starts when the one before it has finished; steps in the same stage work at the same time.</p></section>` : nothing}
       ${plan.authoring && plan.authoring.length > 0 ? html`<section><h2>Changes</h2>${plan.authoring.slice(0, 6).map((e) => this.renderEvent(e))}</section>` : nothing}
       ${plan.digest ? html`<section><h2>About</h2>
@@ -241,7 +277,7 @@ export class ShWorkflowInspector extends LitElement {
     const made = step.produces ? plan.stacks?.find((s) => s.id === step.produces) : undefined
     const refused = (plan.refused ?? []).filter((r) => r.step === step.id)
     return html`
-      ${this.eyebrow(step.checks ? 'Check' : 'Person')}
+      ${this.eyebrow(step.checks ? 'Check' : 'Person', nodeKey.step(step.id))}
       <h1>${step.label}</h1>
       <div class="sub">${step.job} · ${stepModeWords(step)}</div>
       ${this.problemList(step.problems ?? [])}
@@ -265,7 +301,7 @@ export class ShWorkflowInspector extends LitElement {
     const goes = (plan.destinations ?? []).filter((d) => d.receives === stack.id)
     const items = stack.items ?? null
     return html`
-      ${this.eyebrow('Stack')}
+      ${this.eyebrow('Stack', nodeKey.stack(stack.id))}
       <h1>${humanName(stack.id)}</h1>
       <div class="sub">${items ? `${items.length} item${items.length === 1 ? '' : 's'} after the last run` : 'Filled when the workflow runs'}</div>
       ${this.problemList(stack.problems ?? [])}
@@ -281,22 +317,8 @@ export class ShWorkflowInspector extends LitElement {
       </section>` : nothing}`
   }
 
-  /** One item as a card: its quote, its note, its other fields, and where to see it in its document. */
   private renderItem(item: unknown, index: number, why?: string): TemplateResult {
-    const plan = this.plan
-    if (!isRecord(item)) return html`<div class="item ${why ? 'refusal' : ''}"><span class="n">${index + 1}</span>${text(item)}${why ? html`<p class="sub">${why}</p>` : nothing}</div>`
-    const { quote, note, documentId, blockId, ...rest } = item
-    const fields = Object.entries(rest).filter(([, v]) => v !== null && v !== undefined && text(v).trim() !== '').slice(0, 8)
-    const doc = typeof documentId === 'string' && documentId ? documentId : null
-    const block = typeof blockId === 'string' && blockId ? blockId : null
-    const docTitle = doc ? (plan?.documentTitles?.[doc] ?? plan?.sources?.find((s) => s.documentId === doc)?.documentTitle ?? null) : null
-    return html`<div class="item ${why ? 'refusal' : ''}"><span class="n">${index + 1}</span>
-      ${typeof quote === 'string' && quote ? html`<blockquote>${copied(quote)}</blockquote>` : nothing}
-      ${typeof note === 'string' && note ? html`<p class="note">${copied(note)}</p>` : nothing}
-      ${fields.length ? html`<dl>${fields.map(([k, v]) => html`<dt>${k}</dt><dd>${text(v)}</dd>`)}</dl>` : nothing}
-      ${why ? html`<p class="sub"><strong>Refused:</strong> ${why}</p>` : nothing}
-      ${doc && plan?.onOpenDocument ? html`<button class="quiet" @click=${() => plan.onOpenDocument?.({ documentId: doc, blockId: block })}>Show in ${docTitle ?? 'the document'}</button>` : nothing}
-    </div>`
+    return renderWorkflowItem(this.plan, item, index, why)
   }
 
   private renderSource(plan: WorkflowPlanOptions, source: WorkflowSourceView): TemplateResult {
