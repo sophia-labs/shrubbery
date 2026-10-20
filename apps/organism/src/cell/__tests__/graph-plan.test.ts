@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { compileGraphPlan, findingCommentId, graphPlanDigest, publishableFindings, stepTallies, triplesFromSparqlResult } from '../graph-plan.js'
+import { compileGraphPlan, findingCommentId, GraphPlanError, graphPlanDigest, publishableFindings, sketchGraphPlan, stepTallies, type Triple, triplesFromSparqlResult, WF } from '../graph-plan.js'
 import fixture from './fixtures/graph-plan-freud-ch1.sparql.json'
 import runEvents from './fixtures/graph-plan-run-events-freud-20261018.json'
 
@@ -13,6 +13,30 @@ describe('graph plan in the browser', () => {
     const plan = compileGraphPlan(triplesFromSparqlResult(FIXTURE))
     expect(plan.phases.map((p) => p.title)).toEqual(['Day residue', 'Dream-work', 'The Censor'])
     expect(await graphPlanDigest(plan)).toBe(PINNED)
+  })
+
+  it('reaches Choreograph\'s digest for a plan that names its source and its destination (2026-10-19)', async () => {
+    const W = 'urn:sophia:wf:freud-ch1'
+    const RDF_TYPE = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type'
+    const iri = (value: string) => ({ kind: 'iri' as const, value })
+    const text = (value: string) => ({ kind: 'literal' as const, value })
+    const extra: Triple[] = [
+      { s: `${W}#book`, p: RDF_TYPE, o: iri(`${WF}Source`) },
+      { s: `${W}#book`, p: `${WF}label`, o: text('The Interpretation of Dreams, I.C') },
+      { s: `${W}#book`, p: `${WF}documentId`, o: text('freud-dreams-1') },
+      { s: `${W}#book`, p: `${WF}fromBlock`, o: text('block-be1fe535') },
+      { s: `${W}#book`, p: `${WF}toBlock`, o: text('block-0c1d2e3f') },
+      { s: `${W}#reader`, p: `${WF}reads`, o: iri(`${W}#book`) },
+      { s: `${W}#margin`, p: RDF_TYPE, o: iri(`${WF}Destination`) },
+      { s: `${W}#margin`, p: `${WF}label`, o: text("The book's margin") },
+      { s: `${W}#margin`, p: `${WF}kind`, o: text('margin') },
+      { s: `${W}#margin`, p: `${WF}receives`, o: iri(`${W}#verified`) },
+      { s: `${W}#margin`, p: `${WF}documentId`, o: text('freud-dreams-1') },
+    ]
+    const plan = compileGraphPlan([...triplesFromSparqlResult(FIXTURE), ...extra])
+    expect(plan.sources?.map((s) => s.id)).toEqual(['book'])
+    expect(plan.destinations?.map((d) => [d.id, d.receives])).toEqual([['margin', `${W}#verified`]])
+    expect(await graphPlanDigest(plan)).toBe('sha256:e0f63e28e36771e32eb181a178e8b8b96021dd20b84cbce7c5440c38df83546a')
   })
 })
 
@@ -65,5 +89,43 @@ describe('how a run stands, step by step', () => {
       { type: 'node_started', label: 'Experiment Clerk #5 again' },
     ]
     expect(stepTallies(retried).get('Experiment Clerk')).toEqual({ started: 26, done: 24, failed: 1 })
+  })
+})
+
+describe('an unfinished plan, as the canvas draws it', () => {
+  it('keeps every part the graph names, though the compiler refuses the plan', () => {
+    const W = 'urn:sophia:wf:doc-sleepers'
+    const RDF_TYPE = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type'
+    const iri = (value: string) => ({ kind: 'iri' as const, value })
+    const text = (value: string) => ({ kind: 'literal' as const, value })
+    // Sophia mid-composition: a source, a Clerk who reads passages no one cuts yet, and a margin for what is verified.
+    const triples: Triple[] = [
+      { s: W, p: RDF_TYPE, o: iri(`${WF}Workflow`) },
+      { s: W, p: `${WF}name`, o: text('doc-sleepers') },
+      { s: W, p: 'http://purl.org/dc/terms/title', o: text('Sleepers, catalogued') },
+      { s: `${W}#book`, p: RDF_TYPE, o: iri(`${WF}Source`) },
+      { s: `${W}#book`, p: `${WF}label`, o: text('Chapter I, section C') },
+      { s: `${W}#book`, p: `${WF}documentId`, o: text('doc-freud') },
+      { s: `${W}#clerk`, p: RDF_TYPE, o: iri(`${WF}AgentNode`) },
+      { s: `${W}#clerk`, p: `${WF}label`, o: text('Experiment Clerk') },
+      { s: `${W}#clerk`, p: `${WF}mode`, o: text('perItem') },
+      { s: `${W}#clerk`, p: `${WF}over`, o: iri(`${W}#passages`) },
+      { s: `${W}#clerk`, p: `${WF}reads`, o: iri(`${W}#book`) },
+      { s: `${W}#clerk`, p: `${WF}produces`, o: iri(`${W}#verified`) },
+      { s: `${W}#clerk`, p: `${WF}itemSchema`, o: text('{"type":"object","required":["who"],"properties":{"quote":{"type":"string"},"who":{"type":"string"}}}') },
+      { s: `${W}#margin`, p: RDF_TYPE, o: iri(`${WF}Destination`) },
+      { s: `${W}#margin`, p: `${WF}label`, o: text("The book's margin") },
+      { s: `${W}#margin`, p: `${WF}kind`, o: text('margin') },
+      { s: `${W}#margin`, p: `${WF}receives`, o: iri(`${W}#verified`) },
+    ]
+    expect(() => compileGraphPlan(triples)).toThrow(GraphPlanError)
+    const sketch = sketchGraphPlan(triples)
+    expect(sketch.title).toBe('Sleepers, catalogued')
+    expect(sketch.sources.map((s) => [s.id, s.documentId])).toEqual([['book', 'doc-freud']])
+    expect(sketch.steps.map((s) => [s.id, s.mode, s.over, s.reads, s.produces])).toEqual([
+      ['clerk', 'perItem', `${W}#passages`, [`${W}#book`], `${W}#verified`],
+    ])
+    expect(sketch.steps[0]!.itemSchema?.required).toEqual(['who'])
+    expect(sketch.destinations.map((d) => [d.id, d.kind, d.receives])).toEqual([['margin', 'margin', `${W}#verified`]])
   })
 })

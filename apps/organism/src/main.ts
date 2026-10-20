@@ -486,10 +486,14 @@ import {
 import { loadTagLensBlocks } from './cell/tag-lens.js'
 import {
   findingCommentId,
+  type GraphPlanAuthoringEvent,
+  type GraphPlanResults,
+  type GraphPlanSketch,
   type GraphPlanV1,
   latestGraphPlanRun,
-  loadGraphPlan,
+  loadGraphPlanAuthoring,
   loadGraphPlanResults,
+  loadGraphPlanSketch,
   localId as graphPlanLocalId,
   type PublishableFinding,
   publishableFindings,
@@ -1344,10 +1348,11 @@ type CurrentTagLens = {
 let currentTagLens: CurrentTagLens | null = null
 let latestTagLensRequest = 0
 
-// ── The workflow plan route (graph-plan-v1, Vera 2026-10-18) ─────────────────────────────────────────────────────
-// A workflow whose definition is a named RDF graph, shown in the main pane and redrawn as an agent edits the graph
-// (?wf=<definition graph IRI>, optional ?wfinput=<JSON run input>). "Approve and run" starts Choreograph's built-in
-// graph-plan-v1 with the digest of exactly the plan on screen; the pane follows the run and reads back what it found.
+// ── The workflow (graph-plan-v1, Vera 2026-10-18; the canvas, 2026-10-19) ─────────────────────────────────────────
+// A workflow whose definition is a named RDF graph, drawn as the whole main pane and redrawn as an agent edits the graph;
+// the right sidebar's inspector explains whatever the canvas has selected. The Run pill starts Choreograph's built-in
+// graph-plan-v1 with the digest of exactly the plan on screen; the pane follows the run and reads back what each stack
+// held. (?wf=<definition graph IRI>, optional ?wfinput=<JSON run input>, still opens a bare definition graph.)
 type CurrentWorkflowPlan = {
   readonly definition: string
   /** The workflow document (kind `workflow`) whose draft this is; null for a bare definition IRI. */
@@ -1355,15 +1360,30 @@ type CurrentWorkflowPlan = {
   readonly graphId: string
   readonly inputs: Record<string, unknown>
   view: WorkflowPlanOptions
+  /** What runs (when the draft compiles) and what is drawn (always). */
   plan: GraphPlanV1 | null
+  sketch: GraphPlanSketch | null
+  problems: readonly string[]
   digest: string | null
+  /** Per node key, what it said at the last read: a change rings the node for a few seconds. */
   fingerprints: Map<string, string>
   changedAt: Map<string, number>
+  /** The canvas's selection (`step:clerk`, `stack:passages`, …), which the inspector explains; null for the whole. */
+  selected: string | null
   runId: string | null
   runStatus: string | null
-  /** The run's findings a person may publish as comments, and how the last publish went. */
+  /** Why the last Run did not start (Choreograph's refusal), until the next one does. */
+  runRefusal: string | null
+  /** What the last run testified: each collection's items and each check's refusals. */
+  results: GraphPlanResults | null
+  /** The run's findings a person may publish, the destination they go to, and how the last publish went. */
   findings: readonly PublishableFinding[]
+  findingsDestination: string | null
   publish: { status: 'ready' | 'publishing' | 'done' | 'error'; message: string | null }
+  /** The newest changes and publications, from the workflow's authoring graph. */
+  authoring: readonly GraphPlanAuthoringEvent[]
+  authoringFor: string
+  authoringAt: number
   /** The pane looked for this workflow's last run (once per opening), so a reload keeps it in view. */
   lastRunLooked: boolean
   progress: ReadonlyMap<string, { readonly started: number; readonly done: number; readonly failed: number }>
@@ -1373,11 +1393,26 @@ type CurrentWorkflowPlan = {
 let currentWorkflowPlan: CurrentWorkflowPlan | null = null
 const WORKFLOW_PLAN_POLL_MS = 1500
 const WORKFLOW_PLAN_CHANGED_MS = 6000
+const WORKFLOW_AUTHORING_POLL_MS = 10_000
 const WORKFLOW_CHOREOGRAPH_MOUNT = '/services/choreograph'
+/** The right pane before a workflow's canvas asked for the inspector, given back when the workflow closes. */
+let workflowRestorePanel: RightPanelMode | null = null
 
 function closeWorkflowPlan(): void {
   if (currentWorkflowPlan?.timer) clearInterval(currentWorkflowPlan.timer)
   currentWorkflowPlan = null
+  if (workflowRestorePanel !== null) {
+    const back = workflowRestorePanel
+    workflowRestorePanel = null
+    if (currentRightPanel === 'inspector') transitionRightPanel(back)
+  }
+}
+
+/** The workflow's details live in the right sidebar's inspector: show it, keeping the pane it replaces for later. */
+function showWorkflowInspector(): void {
+  if (currentRightPanel === 'inspector') return
+  if (workflowRestorePanel === null) workflowRestorePanel = currentRightPanel
+  transitionRightPanel('inspector')
 }
 
 function workflowPlanFromUrl(): { definition: string; inputs: Record<string, unknown> } | null {
@@ -1420,21 +1455,33 @@ function openWorkflowPlan(graphId: string, definition: string, inputs: Record<st
     documentId,
     graphId,
     inputs,
-    view: { title: definition, definition, status: 'loading', phases: [] },
+    view: { title: definition, definition, status: 'loading', steps: [] },
     plan: null,
+    sketch: null,
+    problems: [],
     digest: null,
     fingerprints: new Map(),
     changedAt: new Map(),
+    selected: null,
     runId: null,
     runStatus: null,
+    runRefusal: null,
+    results: null,
     findings: [],
+    findingsDestination: null,
     publish: { status: 'ready', message: null },
+    authoring: [],
+    authoringFor: '',
+    authoringAt: 0,
     lastRunLooked: false,
     progress: new Map(),
     timer: null,
     inFlight: false,
   }
   const state = currentWorkflowPlan
+  state.view = workflowPlanView(state, Date.now())
+  // The workflow's details are the right sidebar's: open it on them, unless the person is talking to Sophia there.
+  if (currentRightPanel !== 'chat') showWorkflowInspector()
   state.timer = setInterval(() => void pollWorkflowPlan(state), WORKFLOW_PLAN_POLL_MS)
   void pollWorkflowPlan(state)
 }
@@ -1456,24 +1503,32 @@ async function pollWorkflowPlan(state: CurrentWorkflowPlan): Promise<void> {
   try {
     const reader = workflowPlanReader()
     if (!reader) return
-    const loaded = await loadGraphPlan(reader, state.graphId, state.definition)
+    const loaded = await loadGraphPlanSketch(reader, state.graphId, state.definition)
     const now = Date.now()
-    if (loaded.plan) {
-      const seen = new Map<string, string>()
-      for (const phase of loaded.plan.phases) {
-        for (const step of phase.steps) {
-          const fingerprint = JSON.stringify([phase.title, step.label, step.job, step.mode, step.over, step.consumes, step.checks, step.produces, step.instructions, step.itemSchema])
-          seen.set(step.id, fingerprint)
-          if (state.fingerprints.size > 0 && state.fingerprints.get(step.id) !== fingerprint) state.changedAt.set(step.id, now)
-        }
-      }
-      state.fingerprints = seen
+    const seen = workflowFingerprints(loaded.sketch)
+    if (state.fingerprints.size > 0) {
+      for (const [key, fingerprint] of seen) if (state.fingerprints.get(key) !== fingerprint) state.changedAt.set(key, now)
     }
+    state.fingerprints = seen
     state.plan = loaded.plan
+    state.sketch = loaded.sketch
+    state.problems = loaded.problems
     state.digest = loaded.digest
-    if (!state.runId && !state.lastRunLooked && loaded.plan) {
+    const workflow = loaded.plan?.workflow ?? loaded.sketch.workflow
+    // The authoring trail: when the definition changed, and now and then for a publication.
+    const authoringKey = `${loaded.tripleCount}|${loaded.digest ?? loaded.problems.join('|')}`
+    if (state.documentId && (authoringKey !== state.authoringFor || now - state.authoringAt > WORKFLOW_AUTHORING_POLL_MS)) {
+      state.authoringFor = authoringKey
+      state.authoringAt = now
+      try {
+        state.authoring = await loadGraphPlanAuthoring(reader, state.graphId, `urn:sophia:wf:${state.documentId}:authoring`)
+      } catch (error) {
+        console.warn('[wf-plan] authoring trail unread', error)
+      }
+    }
+    if (!state.runId && !state.lastRunLooked && workflow) {
       state.lastRunLooked = true
-      const last = await latestGraphPlanRun(reader, state.graphId, loaded.plan.workflow)
+      const last = await latestGraphPlanRun(reader, state.graphId, workflow)
       if (last) {
         state.runId = last.runId
         state.runStatus = last.status
@@ -1493,7 +1548,8 @@ async function pollWorkflowPlan(state: CurrentWorkflowPlan): Promise<void> {
         await loadWorkflowPlanResults(state)
       }
     }
-    state.view = workflowPlanView(state, loaded.problems, now)
+    if (state.results) workflowFindings(state)
+    state.view = workflowPlanView(state, now)
   } catch (error) {
     console.error('[wf-plan] poll failed', error)
     state.view = { ...state.view, status: 'error', error: error instanceof Error ? error.message : String(error) }
@@ -1503,29 +1559,40 @@ async function pollWorkflowPlan(state: CurrentWorkflowPlan): Promise<void> {
   if (currentWorkflowPlan === state) rerenderCurrentSource()
 }
 
+/** What each node said at this read, by node key: a change between reads is an agent at work, and rings the node. */
+function workflowFingerprints(sketch: GraphPlanSketch): Map<string, string> {
+  const seen = new Map<string, string>()
+  for (const s of sketch.steps) {
+    seen.set(`step:${s.id}`, JSON.stringify([s.label, s.job, s.mode, s.phase, s.over, s.consumes, s.checks, s.produces, s.reads, s.instructions, s.itemSchema]))
+  }
+  for (const s of sketch.sources) seen.set(`source:${s.id}`, JSON.stringify([s.label, s.documentId, s.fromBlock, s.toBlock]))
+  for (const d of sketch.destinations) seen.set(`destination:${d.id}`, JSON.stringify([d.label, d.kind, d.receives, d.documentId]))
+  return seen
+}
+
 async function loadWorkflowPlanResults(state: CurrentWorkflowPlan): Promise<void> {
-  if (!store || !state.plan || !state.runId) return
-  const runGraph = `${state.plan.workflow}:run:${state.runId.replace(/[^A-Za-z0-9_-]/g, '_')}`
+  const workflow = state.plan?.workflow ?? state.sketch?.workflow
+  if (!store || !workflow || !state.runId) return
   const reader = workflowPlanReader()
   if (!reader) return
-  const results = await loadGraphPlanResults(reader, state.graphId, runGraph)
-  const last = state.plan.phases.at(-1)?.steps.find((step) => step.produces)?.produces
-  const shown = results.items.filter((item) => item.collection === last).map((item) => item.value)
-  state.findings = publishableFindings(shown)
-  const columns = [...new Set(shown.flatMap((value) => (value && typeof value === 'object' ? Object.keys(value) : ['value'])))].slice(0, 7)
-  const cell = (value: unknown): string => (value === undefined || value === null ? '' : typeof value === 'string' ? value : JSON.stringify(value))
-  state.view = {
-    ...state.view,
-    results: {
-      columns,
-      rows: shown.map((value) => columns.map((column) => cell(value && typeof value === 'object' ? (value as Record<string, unknown>)[column] : value))),
-      refused: results.refused.map((r) => ({
-        what: cell(r.item && typeof r.item === 'object' ? ((r.item as Record<string, unknown>).quote ?? r.item) : r.item),
-        why: cell(r.verdict && typeof r.verdict === 'object' ? ((r.verdict as Record<string, unknown>).reason ?? r.verdict) : r.verdict),
-      })),
-      publish: { count: state.findings.length, ...state.publish },
-    },
-  }
+  state.results = await loadGraphPlanResults(reader, state.graphId, `${workflow}:run:${state.runId.replace(/[^A-Za-z0-9_-]/g, '_')}`)
+  workflowFindings(state)
+}
+
+/**
+ * What a person may publish from the last run: the items its margin destination receives (filling in the destination's
+ * document for an item that names none), or, for a plan that names no destination, the items of its last collection.
+ */
+function workflowFindings(state: CurrentWorkflowPlan): void {
+  if (!state.results) return
+  const margin = (state.sketch?.destinations ?? []).find((d) => d.kind === 'margin' && d.receives)
+  const collection = margin?.receives ?? state.plan?.phases.at(-1)?.steps.find((step) => step.produces)?.produces
+  const values = state.results.items.filter((item) => item.collection === collection).map((item) => item.value)
+  const filled = margin?.documentId
+    ? values.map((value) => (value && typeof value === 'object' && !(value as Record<string, unknown>).documentId ? { ...value, documentId: margin.documentId } : value))
+    : values
+  state.findings = publishableFindings(filled)
+  state.findingsDestination = margin?.id ?? null
 }
 
 /** An MCP tool result's payload: `structuredContent`, else the JSON of its first text content, else the value itself. */
@@ -1551,14 +1618,14 @@ function toolResultRecord(result: unknown): Record<string, unknown> {
  * Publish: each finding becomes a comment on the document it names, anchored to its exact quote, written as the person
  * who pressed the button. A stable id per run and finding makes it safe to press twice.
  */
-async function publishWorkflowFindings(state: CurrentWorkflowPlan): Promise<void> {
+async function publishWorkflowFindings(state: CurrentWorkflowPlan, destination: string | null = state.findingsDestination): Promise<void> {
   const caller = store?.contract.rawMcp
   if (!caller || !state.runId || state.findings.length === 0 || state.publish.status === 'publishing') return
   const runId = state.runId
   const author = state.plan?.title ?? 'Workflow'
   const setPublish = (publish: CurrentWorkflowPlan['publish']): void => {
     state.publish = publish
-    if (state.view.results) state.view = { ...state.view, results: { ...state.view.results, publish: { count: state.findings.length, ...publish } } }
+    state.view = workflowPlanView(state, Date.now())
     if (currentWorkflowPlan === state) rerenderCurrentSource()
   }
   setPublish({ status: 'publishing', message: null })
@@ -1568,9 +1635,12 @@ async function publishWorkflowFindings(state: CurrentWorkflowPlan): Promise<void
     // A workflow document publishes through gardend in one go: all of a document's comments in one transaction, and
     // a wf:Publication in the workflow's authoring graph.
     try {
-      const result = toolResultRecord(await caller.callTool('workflow_plan_publish', { graphId: state.graphId, documentId: state.documentId, runId }))
+      const result = toolResultRecord(await caller.callTool('workflow_plan_publish', {
+        graphId: state.graphId, documentId: state.documentId, runId, ...(destination ? { destination } : {}),
+      }))
       const placedCount = typeof result.placed === 'number' ? result.placed : 0
       const notFound = Array.isArray(result.notFound) ? result.notFound : []
+      state.authoringAt = 0
       setPublish({
         status: notFound.length ? 'error' : 'done',
         message: `Published ${placedCount} of ${state.findings.length} to the margin of ${where}.${notFound.length ? ` ${notFound.length} quote${notFound.length === 1 ? '' : 's'} not found in the text.` : ''}`,
@@ -1625,44 +1695,185 @@ function runLine(state: CurrentWorkflowPlan): { id: string; status: string; mess
   }
 }
 
-function workflowPlanView(state: CurrentWorkflowPlan, problems: readonly string[], now: number): WorkflowPlanOptions {
-  const plan = state.plan
-  // An empty or unfinished plan has no title of its own yet: the workflow document's name stands in for it.
+/** Who changed a workflow, as the sidebar names them: Sophia when a service acted for the person. */
+function workflowActorName(event: GraphPlanAuthoringEvent): string {
+  if (event.via) return 'Sophia'
+  if (!event.actor || event.actor === 'owner' || event.actor === 'user:default') return 'You'
+  if (event.actor.startsWith('token:')) return 'An agent'
+  if (event.actor.startsWith('service:')) return 'Sophia'
+  return event.actor
+}
+
+/** The fields of one item, from a JSON Schema: required ones first. */
+function schemaFields(schema: Record<string, unknown> | null | undefined): string[] {
+  if (!schema) return []
+  const properties = schema.properties && typeof schema.properties === 'object' ? Object.keys(schema.properties) : []
+  const required = Array.isArray(schema.required) ? schema.required.filter((field): field is string => typeof field === 'string') : []
+  return [...new Set([...required, ...properties])]
+}
+
+function workflowPlanView(state: CurrentWorkflowPlan, now: number): WorkflowPlanOptions {
+  const sketch = state.sketch
+  const local = graphPlanLocalId
+  const results = state.results
+  const itemsOf = (collection: string): unknown[] | null => (results ? results.items.filter((item) => item.collection === collection).map((item) => item.value) : null)
+  const changed = (key: string): boolean => now - (state.changedAt.get(key) ?? 0) < WORKFLOW_PLAN_CHANGED_MS
+  // Each problem sits on the part it names first (the compiler begins with the part's own name), the rest on the whole.
+  const unclaimed = [...state.problems]
+  const claim = (id: string): string[] => {
+    const mine = unclaimed.filter((problem) => problem.startsWith(`${id} `) || problem.startsWith(`${id}'s `))
+    for (const problem of mine) unclaimed.splice(unclaimed.indexOf(problem), 1)
+    return mine
+  }
   const documentTitle = state.documentId ? (sidebarNodeById(state.documentId)?.label ?? null) : null
+  const titleOf = (documentId: string | null): string | null => (documentId ? (sidebarNodeById(documentId)?.label ?? null) : null)
+  const phases = (sketch?.phases ?? []).map((phase, index) => ({ iri: phase.iri, title: phase.title, order: index + 1 }))
+  const steps = (sketch?.steps ?? []).map((step) => {
+    const phase = phases.find((p) => p.iri === step.phase)
+    const refused = step.checks && results ? results.refused.filter((r) => r.step === step.iri).length : 0
+    return {
+      id: step.id,
+      label: step.label,
+      job: step.job,
+      mode: step.mode,
+      over: step.over ? local(step.over) : null,
+      consumes: step.consumes.map(local),
+      checks: step.checks ? local(step.checks) : null,
+      produces: step.produces ? local(step.produces) : null,
+      reads: step.reads.map(local),
+      instructions: step.instructions,
+      phase: phase ? { title: phase.title, order: phase.order } : null,
+      changed: changed(`step:${step.id}`),
+      progress: state.progress.get(step.label) ?? null,
+      verdicts: step.checks && results ? { passed: step.produces ? (itemsOf(step.produces)?.length ?? 0) : 0, refused } : null,
+      problems: claim(step.id),
+    }
+  })
+  const sources = (sketch?.sources ?? []).map((source) => ({
+    id: source.id,
+    label: source.label,
+    documentId: source.documentId,
+    documentTitle: titleOf(source.documentId),
+    fromBlock: source.fromBlock,
+    toBlock: source.toBlock,
+    changed: changed(`source:${source.id}`),
+    problems: claim(source.id),
+  }))
+  const destinations = (sketch?.destinations ?? []).map((destination) => ({
+    id: destination.id,
+    label: destination.label,
+    kind: destination.kind,
+    receives: destination.receives ? local(destination.receives) : null,
+    documentId: destination.documentId,
+    documentTitle: titleOf(destination.documentId),
+    changed: changed(`destination:${destination.id}`),
+    problems: claim(destination.id),
+  }))
+  // Every collection the plan names is a stack: what makes it, the shape of one of its items, and what it held.
+  const collections = new Set<string>()
+  for (const step of sketch?.steps ?? []) for (const c of [step.over, ...step.consumes, step.checks, step.produces]) if (c) collections.add(c)
+  for (const destination of sketch?.destinations ?? []) if (destination.receives) collections.add(destination.receives)
+  const stacks = [...collections].sort().map((collection) => {
+    const producer = sketch?.steps.find((step) => step.produces === collection) ?? null
+    // A check passes on the items it checked: they keep the shape their maker gave them.
+    const maker = producer?.checks ? sketch?.steps.find((step) => step.produces === producer.checks) ?? producer : producer
+    return {
+      id: local(collection),
+      producer: producer ? producer.id : null,
+      fields: schemaFields(maker?.itemSchema),
+      items: itemsOf(collection),
+      problems: claim(local(collection)),
+    }
+  })
+  const reason = (verdict: unknown): string => {
+    if (verdict && typeof verdict === 'object') {
+      const v = verdict as Record<string, unknown>
+      return [typeof v.reason === 'string' ? v.reason : '', typeof v.nearest === 'string' && v.nearest ? `Nearest: ${v.nearest}` : ''].filter(Boolean).join(' ') || 'No reason given.'
+    }
+    return verdict === null || verdict === undefined ? 'It gave no answer.' : String(verdict)
+  }
   return {
-    title: plan?.title ?? documentTitle ?? state.definition,
+    title: sketch?.title ?? documentTitle ?? state.definition,
     definition: state.definition,
-    status: plan ? 'ready' : 'invalid',
-    problems,
+    status: state.plan ? 'ready' : sketch ? 'invalid' : 'loading',
+    steps,
+    sources,
+    stacks,
+    destinations,
+    phases: phases.map(({ title, order }) => ({ title, order })),
+    problems: unclaimed,
+    problemCount: state.problems.length,
     digest: state.digest,
     updatedAt: new Date(now).toLocaleTimeString(),
-    phases: (plan?.phases ?? []).map((phase) => ({
-      title: phase.title,
-      steps: phase.steps.map((step) => ({
-        id: step.id,
-        label: step.label,
-        job: step.job,
-        mode: step.mode,
-        over: step.over ? graphPlanLocalId(step.over) : null,
-        consumes: step.consumes.map(graphPlanLocalId),
-        checks: step.checks ? graphPlanLocalId(step.checks) : null,
-        produces: step.produces ? graphPlanLocalId(step.produces) : null,
-        instructions: step.instructions,
-        changed: now - (state.changedAt.get(step.id) ?? 0) < WORKFLOW_PLAN_CHANGED_MS,
-        progress: state.progress.get(step.label) ?? null,
-      })),
+    run: state.runRefusal ? { id: '-', status: 'refused', message: state.runRefusal } : state.runId ? runLine(state) : null,
+    refused: (results?.refused ?? []).map((r) => ({ step: local(r.step), item: r.item, why: reason(r.verdict) })),
+    publish: results ? { count: state.findings.length, destination: state.findingsDestination, ...workflowPublishState(state) } : null,
+    authoring: state.authoring.map((event) => ({
+      kind: event.kind,
+      at: event.at,
+      actor: workflowActorName(event),
+      rationale: event.rationale,
+      placed: event.placed,
+      notFound: event.notFound,
+      runId: event.runId,
     })),
-    run: state.runId ? runLine(state) : null,
-    ...(state.view.results ? { results: state.view.results } : {}),
+    documentTitles: workflowDocumentTitles(sources, destinations, results),
+    selected: state.selected,
+    onSelect: (key) => selectWorkflowNode(state, key),
     onRun: () => void runWorkflowPlan(state),
-    onPublish: () => void publishWorkflowFindings(state),
+    onPublish: (destination) => void publishWorkflowFindings(state, destination),
+    onOpenDocument: (target) => {
+      void openDocumentFromShell({ graphId: state.graphId, documentId: target.documentId, ...(target.blockId ? { blockId: target.blockId } : {}) })
+    },
   }
+}
+
+/** How publishing stands: as this page last did it, else as the authoring trail remembers this run being published. */
+function workflowPublishState(state: CurrentWorkflowPlan): CurrentWorkflowPlan['publish'] {
+  if (state.publish.status !== 'ready' || !state.runId) return state.publish
+  const published = state.authoring.find((event) => event.kind === 'publish' && event.runId === state.runId)
+  if (!published) return state.publish
+  const at = published.at ? new Date(published.at) : null
+  return {
+    status: 'done',
+    message: `Published ${published.placed ?? 0} to the margin${at && !Number.isNaN(at.getTime()) ? ` on ${at.toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}` : ''}${published.notFound ? `; ${published.notFound} quote${published.notFound === 1 ? '' : 's'} not found in the text` : ''}.`,
+  }
+}
+
+/** The titles of the documents a workflow names (its sources, its destinations, the items its run found), by id. */
+function workflowDocumentTitles(
+  sources: readonly { readonly documentId: string | null }[],
+  destinations: readonly { readonly documentId: string | null }[],
+  results: GraphPlanResults | null,
+): Record<string, string> {
+  const ids = new Set<string>()
+  for (const part of [...sources, ...destinations]) if (part.documentId) ids.add(part.documentId)
+  for (const item of results?.items ?? []) {
+    const documentId = item.value && typeof item.value === 'object' ? (item.value as Record<string, unknown>).documentId : null
+    if (typeof documentId === 'string') ids.add(documentId)
+  }
+  const titles: Record<string, string> = {}
+  for (const id of ids) {
+    const label = sidebarNodeById(id)?.label
+    if (label) titles[id] = label
+  }
+  return titles
+}
+
+/** The canvas selected a node (or the whole): the inspector in the right sidebar explains it. */
+function selectWorkflowNode(state: CurrentWorkflowPlan, key: string | null): void {
+  if (currentWorkflowPlan !== state) return
+  state.selected = key
+  showWorkflowInspector()
+  state.view = workflowPlanView(state, Date.now())
+  rerenderCurrentSource()
 }
 
 async function runWorkflowPlan(state: CurrentWorkflowPlan): Promise<void> {
   const session = activeSelfHostSession()
   if (!state.plan || !state.digest || !session) {
-    state.view = { ...state.view, run: { id: '-', status: 'not started', message: session ? 'the plan is not runnable' : 'runs need a self-hosted Sophia' } }
+    state.runRefusal = session ? 'the plan is not runnable' : 'runs need a self-hosted Sophia'
+    state.view = workflowPlanView(state, Date.now())
     rerenderCurrentSource()
     return
   }
@@ -1676,10 +1887,15 @@ async function runWorkflowPlan(state: CurrentWorkflowPlan): Promise<void> {
     })
     state.runId = runId
     state.runStatus = 'running'
+    state.runRefusal = null
     state.progress = new Map()
-    state.view = { ...state.view, results: null, run: { id: runId, status: 'running' } }
+    state.results = null
+    state.findings = []
+    state.publish = { status: 'ready', message: null }
+    state.view = workflowPlanView(state, Date.now())
   } catch (error) {
-    state.view = { ...state.view, run: { id: '-', status: 'refused', message: error instanceof Error ? error.message : String(error) } }
+    state.runRefusal = error instanceof Error ? error.message : String(error)
+    state.view = workflowPlanView(state, Date.now())
   }
   rerenderCurrentSource()
 }
@@ -8535,6 +8751,12 @@ function renderConfig(config: WorkspaceConfig, app: string | undefined): string 
   const chat = ensureChatClaim()
   const tagLens = currentTagLens
   const workflowPlan = !openDocId && !tagLens ? currentWorkflowPlan?.view ?? null : null
+  // Leaving a workflow for anything else gives the right sidebar back what it showed before the workflow took it.
+  if (!workflowPlan && workflowRestorePanel !== null) {
+    const back = workflowRestorePanel
+    workflowRestorePanel = null
+    if (currentRightPanel === 'inspector') transitionRightPanel(back)
+  }
   const zoteroSource = currentZoteroSourceSurface
   const artifactSurface = currentArtifactSurface
   const docHistorySurface = currentDocHistorySurface
@@ -8729,6 +8951,7 @@ function renderConfig(config: WorkspaceConfig, app: string | undefined): string 
       onClose: () => setRightPanel('none', 'inspector close'),
       onAction: handleInspectorAction,
       onRelationOpen: handleInspectorRelationOpen,
+      workflow: workflowPlan,
     },
     graphPanel: currentGraphPanelOptions(),
     outlinePanel: currentOutlinePanelOptions(),

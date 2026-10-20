@@ -123,6 +123,7 @@ import type { EditorHostBinding } from './editor-host-binding.js'
 import type { SalienceBundle } from './editor-services/salience-bundle-service.js'
 import type { WireBundle } from './editor-services/wire-bundle-service.js'
 import './workflow-scene.js'
+import './workflow-inspector.js'
 import { renderFilesPane, type WorkspaceFilesOptions } from './files-pane.js'
 import { mountGraphHost } from './graph-host.js'
 import { isPersistentCenter, mountEditorHost, renderCenterSlotAnchor } from './mount.js'
@@ -275,31 +276,102 @@ export interface WorkflowPlanStepView {
   readonly consumes?: readonly string[]
   readonly checks?: string | null
   readonly produces?: string | null
+  /** Local names of the sources it reads. */
+  readonly reads?: readonly string[]
   readonly instructions: string
+  /** The phase it runs in: its title and its place in the order (1-based). */
+  readonly phase?: { readonly title: string; readonly order: number } | null
   /** Changed since the pane last read the definition (an agent is working on it). */
   readonly changed?: boolean
   readonly progress?: { readonly started: number; readonly done: number; readonly failed: number } | null
+  /** After a run, for a check: how many items it passed and how many it refused. */
+  readonly verdicts?: { readonly passed: number; readonly refused: number } | null
+  /** What keeps this step from running, in the compiler's words. */
+  readonly problems?: readonly string[]
 }
 
+/** What a workflow reads (`wf:Source`): a document, or a run of its blocks. */
+export interface WorkflowSourceView {
+  readonly id: string
+  readonly label: string
+  readonly documentId: string | null
+  readonly documentTitle?: string | null
+  readonly fromBlock?: string | null
+  readonly toBlock?: string | null
+  readonly changed?: boolean
+  readonly problems?: readonly string[]
+}
+
+/** A collection handed from one step to the next: a stack of items. */
+export interface WorkflowStackView {
+  readonly id: string
+  /** The step that makes it, when one does. */
+  readonly producer: string | null
+  /** The fields of one item, from its producer's item schema, required ones first. */
+  readonly fields: readonly string[]
+  /** After a run: the items it held, in order. */
+  readonly items?: readonly unknown[] | null
+  readonly problems?: readonly string[]
+}
+
+/** Where a workflow's results go (`wf:Destination`). One kind so far: comments in a document's margin. */
+export interface WorkflowDestinationView {
+  readonly id: string
+  readonly label: string
+  readonly kind: string | null
+  readonly receives: string | null
+  readonly documentId?: string | null
+  readonly documentTitle?: string | null
+  readonly changed?: boolean
+  readonly problems?: readonly string[]
+}
+
+/** One change to a workflow from its authoring trail: a composition (who, why) or a publication. */
+export interface WorkflowAuthoringView {
+  readonly kind: 'compose' | 'publish'
+  readonly at: string
+  readonly actor?: string | null
+  readonly rationale?: string | null
+  readonly placed?: number | null
+  readonly notFound?: number | null
+  readonly runId?: string | null
+}
+
+/**
+ * A workflow as the main pane draws it (a canvas: sources, people, stacks, checks, destinations) and as the right
+ * sidebar's inspector explains whatever is selected. Node keys are `<kind>:<id>`: `source:book`, `step:clerk`,
+ * `stack:passages`, `destination:margin`.
+ */
 export interface WorkflowPlanOptions {
   readonly title: string
   readonly definition: string
   readonly status: 'loading' | 'ready' | 'invalid' | 'error'
-  readonly phases: readonly { readonly title: string; readonly steps: readonly WorkflowPlanStepView[] }[]
+  readonly steps: readonly WorkflowPlanStepView[]
+  readonly sources?: readonly WorkflowSourceView[]
+  readonly stacks?: readonly WorkflowStackView[]
+  readonly destinations?: readonly WorkflowDestinationView[]
+  /** The order the steps run in: phases by order, each with its title. */
+  readonly phases?: readonly { readonly title: string; readonly order: number }[]
+  /** Problems that name no one part, and (in `problemCount`) how many there are in all. */
   readonly problems?: readonly string[]
+  readonly problemCount?: number
   readonly digest?: string | null
   readonly error?: string | null
   readonly updatedAt?: string | null
   readonly run?: { readonly id: string; readonly status: string; readonly message?: string | null } | null
-  readonly results?: {
-    readonly columns: readonly string[]
-    readonly rows: readonly (readonly string[])[]
-    readonly refused: readonly { readonly what: string; readonly why: string }[]
-    /** Findings that name a document, a quote and a note may go in that document's margin, when the person says so. */
-    readonly publish?: { readonly count: number; readonly status: 'ready' | 'publishing' | 'done' | 'error'; readonly message?: string | null } | null
-  } | null
+  /** After a run: what each check refused, and why. */
+  readonly refused?: readonly { readonly step: string; readonly item: unknown; readonly why: string }[]
+  /** Findings a person may publish to a destination, and how the last publish went. */
+  readonly publish?: { readonly count: number; readonly destination: string | null; readonly status: 'ready' | 'publishing' | 'done' | 'error'; readonly message?: string | null } | null
+  readonly authoring?: readonly WorkflowAuthoringView[]
+  /** Titles of the documents its sources, destinations and items name, by document id. */
+  readonly documentTitles?: Readonly<Record<string, string>>
+  /** The selected node's key, or null for the workflow as a whole. */
+  readonly selected?: string | null
+  readonly onSelect?: (key: string | null) => void
   readonly onRun?: () => void
-  readonly onPublish?: () => void
+  readonly onPublish?: (destination: string | null) => void
+  readonly onOpenDocument?: (target: { readonly documentId: string; readonly blockId?: string | null }) => void
 }
 
 export interface ZoteroSourceItem {
@@ -843,6 +915,8 @@ export interface WorkspaceInspectorOptions {
     readonly onRename?: (detail: WorkspaceFileInfoRenameDetail) => void
     readonly onAction?: (detail: WorkspaceFileInfoActionDetail) => void
   } | null
+  /** A workflow is open: the inspector explains whatever its canvas has selected (or the workflow as a whole). */
+  readonly workflow?: WorkflowPlanOptions | null
 }
 
 export interface WorkspaceChromeBreadcrumb {
@@ -1954,97 +2028,77 @@ function renderTagLens(tagLens: TagLensOptions): TemplateResult {
 }
 
 const WORKFLOW_PLAN_STYLE = `
-.wfp { padding: 28px 32px 48px; max-width: 1180px; margin: 0 auto; color: var(--mn-text, inherit); font: 14px/1.5 var(--mn-font-sans, system-ui, sans-serif); }
-.wfp-eyebrow { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; opacity: .6; }
-.wfp-head { display: flex; gap: 16px; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; }
-.wfp-head h1 { font: 500 26px/1.2 var(--mn-font-serif, Georgia, serif); margin: 4px 0; }
-.wfp-meta { font-size: 12.5px; opacity: .7; font-variant-numeric: tabular-nums; }
-.wfp-meta code { font: 11.5px var(--mn-font-mono, ui-monospace, monospace); }
-.wfp-run { font: 600 13px inherit; padding: 7px 14px; border-radius: 4px; border: 1px solid currentColor; background: transparent; color: inherit; cursor: pointer; }
-.wfp-run[disabled] { opacity: .4; cursor: default; }
-.wfp-problems { margin: 14px 0 0; padding: 10px 14px 10px 30px; border-left: 2px solid #b4483c; font-size: 13px; }
-.wfp-scene { margin-top: 18px; border: 1px solid var(--mn-color-border-subtle); border-radius: var(--mn-radius-control, 6px); overflow: hidden; }
-.wfp-steps-title { font: 500 17px/1.3 var(--mn-font-serif, Georgia, serif); margin: 22px 0 0; }
-.wfp-results-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-.wfp-lanes { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(220px, 1fr); gap: 14px; margin-top: 20px; overflow-x: auto; padding-bottom: 6px; }
-.wfp-lane-title { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; opacity: .65; margin-bottom: 8px; border-bottom: 1px solid color-mix(in srgb, currentColor 18%, transparent); padding-bottom: 6px; }
-.wfp-card { border: 1px solid color-mix(in srgb, currentColor 18%, transparent); border-radius: 6px; padding: 10px 12px; margin-bottom: 10px; transition: box-shadow .4s, border-color .4s; }
-.wfp-card.changed { border-color: #3557a3; box-shadow: 0 0 0 2px color-mix(in srgb, #3557a3 25%, transparent); }
-.wfp-card h3 { margin: 0; font: 500 15px/1.3 var(--mn-font-serif, Georgia, serif); }
-.wfp-job { font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; opacity: .6; }
-.wfp-io { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0; }
-.wfp-chip { font-size: 11px; border: 1px solid color-mix(in srgb, currentColor 22%, transparent); border-radius: 3px; padding: 0 5px; }
-.wfp-instr { font: 12.5px/1.45 var(--mn-font-serif, Georgia, serif); opacity: .85; display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden; }
-.wfp-progress { margin-top: 6px; font-size: 12px; font-variant-numeric: tabular-nums; }
-.wfp-progress.live { color: #3557a3; }
-.wfp-section { margin-top: 26px; }
-.wfp-section h2 { font: 500 17px/1.3 var(--mn-font-serif, Georgia, serif); margin: 0 0 8px; }
-.wfp-table { overflow-x: auto; }
-.wfp-table table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
-.wfp-table th { text-align: left; font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; opacity: .65; border-bottom: 1px solid currentColor; padding: 5px 6px; }
-.wfp-table td { border-bottom: 1px solid color-mix(in srgb, currentColor 14%, transparent); padding: 6px; vertical-align: top; }
-.wfp-refused { border-left: 2px solid #b4483c; padding-left: 10px; margin: 6px 0; font-size: 12.5px; }
+.wfp { position: relative; height: 100%; min-height: 320px; overflow: hidden; background: var(--mn-color-surface-canvas); }
+.wfp sh-workflow-scene { position: absolute; inset: 0; }
+.wfp-pill {
+  position: absolute; left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 3;
+  display: inline-flex; align-items: center; gap: 10px; max-width: calc(100% - 32px); box-sizing: border-box;
+  padding: 6px 6px 6px 14px; border-radius: 999px; white-space: nowrap;
+  background: var(--mn-color-surface-raised); border: 1px solid var(--mn-color-border-default);
+  box-shadow: var(--mn-shadow-raised, 0 4px 18px rgb(0 0 0 / .12));
+  font: 13px/1.2 var(--mn-font-chrome); color: var(--mn-color-text-primary);
+}
+.wfp-pill .words { overflow: hidden; text-overflow: ellipsis; color: var(--mn-color-text-secondary); font-variant-numeric: tabular-nums; }
+.wfp-pill .words[data-tone='invalid'] { color: var(--mn-color-text-danger); }
+.wfp-pill button {
+  font: 600 13px var(--mn-font-chrome); padding: 7px 16px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--mn-color-accent); background: var(--mn-color-accent); color: var(--mn-color-text-on-accent, #fff);
+}
+.wfp-pill button:hover:not([disabled]) { background: var(--mn-color-accent-hover, var(--mn-color-accent)); }
+.wfp-pill button[data-quiet], .wfp-pill button[data-quiet]:hover:not([disabled]) { background: transparent; color: inherit; border-color: var(--mn-color-border-default); }
+.wfp-pill button[disabled] { opacity: .45; cursor: default; }
+.wfp-pill .spin { width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--mn-color-warning-border); border-right-color: transparent; animation: wfp-spin 1s linear infinite; }
+@keyframes wfp-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .wfp-pill .spin { animation: none; } }
 `
 
+/** What the Run pill says: the one action the canvas keeps, and how the workflow stands. */
+function workflowPillWords(plan: WorkflowPlanOptions): { words: string; tone: string; running: boolean } {
+  const running = plan.run?.status === 'running'
+  if (running) {
+    const working = plan.steps.filter((step) => step.progress && step.progress.started > step.progress.done + step.progress.failed)
+    const at = working.map((step) => {
+      const p = step.progress!
+      return step.mode === 'perItem' ? `${step.label} ${p.done + p.failed}/${p.started}` : step.label
+    })
+    return { words: at.length ? `Running · ${at.join(', ')}` : 'Running…', tone: 'running', running }
+  }
+  if (plan.status === 'loading') return { words: 'Reading…', tone: 'loading', running }
+  if (plan.status === 'error') return { words: 'Could not read the workflow', tone: 'invalid', running }
+  if (plan.status === 'invalid') {
+    if (plan.steps.length === 0) return { words: 'Empty', tone: 'idle', running }
+    const n = plan.problemCount ?? plan.problems?.length ?? 0
+    return { words: n ? `Not runnable · ${n} problem${n === 1 ? '' : 's'}` : 'Not runnable', tone: 'invalid', running }
+  }
+  if (plan.run) {
+    const status = plan.run.status === 'completed' ? 'Finished' : plan.run.status.charAt(0).toUpperCase() + plan.run.status.slice(1)
+    return { words: plan.run.message ? `${status} · ${plan.run.message}` : status, tone: 'done', running }
+  }
+  return { words: 'Ready', tone: 'ready', running }
+}
+
+/** The workflow pane: the canvas, and the Run pill floating over it. Everything else is in the right sidebar. */
 function renderWorkflowPlan(plan: WorkflowPlanOptions): TemplateResult {
-  const statusText =
-    plan.status === 'loading' ? 'Reading the definition…'
-      : plan.status === 'invalid' ? 'Not runnable yet'
-        : plan.status === 'error' ? `Could not read the definition: ${plan.error ?? ''}`
-          : 'Ready to run'
-  const running = plan.run && plan.run.status === 'running'
-  const canRun = plan.status === 'ready' && Boolean(plan.digest) && !running
-  return html`<section class="wfp" data-surface="workflow-plan">
+  const pill = workflowPillWords(plan)
+  const canRun = plan.status === 'ready' && Boolean(plan.digest) && !pill.running
+  const publish = plan.publish && plan.publish.count > 0 && plan.publish.status !== 'done' ? plan.publish : null
+  return html`<section class="wfp" data-surface="workflow-plan" aria-label=${`Workflow: ${plan.title}`}>
     <style>${WORKFLOW_PLAN_STYLE}</style>
-    <header class="wfp-head">
-      <div>
-        <div class="wfp-eyebrow">Workflow · <code>${plan.definition}</code></div>
-        <h1>${plan.title}</h1>
-        <div class="wfp-meta">${statusText}${plan.digest ? html` · digest <code>${plan.digest.slice(0, 19)}…</code>` : nothing}${plan.updatedAt ? html` · read ${plan.updatedAt}` : nothing}</div>
-      </div>
-      <button class="wfp-run" ?disabled=${!canRun} @click=${() => plan.onRun?.()}>${running ? 'Running…' : 'Approve and run this version'}</button>
-    </header>
-    ${plan.problems && plan.problems.length > 0 ? html`<ul class="wfp-problems">${plan.problems.map((p) => html`<li>${p}</li>`)}</ul>` : nothing}
-    ${plan.phases.length > 0
-      ? html`<div class="wfp-scene"><sh-workflow-scene .plan=${plan}></sh-workflow-scene></div>
-        <h2 class="wfp-steps-title">What each step is told</h2>`
-      : nothing}
-    <div class="wfp-lanes">
-      ${plan.phases.map((phase, i) => html`<div class="wfp-lane">
-        <div class="wfp-lane-title">${i + 1} · ${phase.title}</div>
-        ${phase.steps.map((step) => html`<article class="wfp-card ${step.changed ? 'changed' : ''}" data-step=${step.id}>
-          <h3>${step.label}</h3>
-          <div class="wfp-job">${step.job}</div>
-          <div class="wfp-io">
-            ${step.checks ? html`<span class="wfp-chip">checks each ${step.checks}</span>`
-              : step.mode === 'perItem' ? html`<span class="wfp-chip">for each ${step.over ?? ''}</span>`
-                : html`<span class="wfp-chip">once</span>`}
-            ${(step.consumes ?? []).map((c) => html`<span class="wfp-chip">reads ${c}</span>`)}
-            ${step.produces ? html`<span class="wfp-chip">→ ${step.produces}</span>` : nothing}
-          </div>
-          <div class="wfp-instr" title=${step.instructions}>${step.instructions}</div>
-          ${step.progress ? html`<div class="wfp-progress ${running ? 'live' : ''}">${step.progress.done} done${step.progress.started > step.progress.done + step.progress.failed ? html` · ${step.progress.started - step.progress.done - step.progress.failed} running` : nothing}${step.progress.failed ? html` · ${step.progress.failed} failed` : nothing}</div>` : nothing}
-        </article>`)}
-      </div>`)}
+    <sh-workflow-scene .plan=${plan}></sh-workflow-scene>
+    <div class="wfp-pill" role="group" aria-label="Run">
+      ${pill.running ? html`<span class="spin" aria-hidden="true"></span>` : nothing}
+      <span class="words" role="status" aria-live="polite" data-tone=${pill.tone} title=${pill.words}
+        @click=${() => { if (pill.tone === 'invalid') plan.onSelect?.(null) }}>${pill.words}</span>
+      ${publish ? html`<button data-quiet ?disabled=${publish.status === 'publishing'} @click=${() => plan.onPublish?.(publish.destination)}>${publish.status === 'publishing' ? 'Publishing…' : `Publish ${publish.count}`}</button>` : nothing}
+      <button ?disabled=${!canRun} title=${plan.digest ? `Approve and run this version (${plan.digest.slice(0, 19)}…)` : 'Approve and run this version'}
+        @click=${() => plan.onRun?.()}>${pill.running ? 'Running' : plan.run ? 'Run again' : 'Run'}</button>
     </div>
-    ${plan.run ? html`<div class="wfp-section"><div class="wfp-meta">Run <code>${plan.run.id}</code> · ${plan.run.status}${plan.run.message ? html` · ${plan.run.message}` : nothing}</div></div>` : nothing}
-    ${plan.results ? html`<div class="wfp-section">
-      <div class="wfp-results-head">
-        <h2>What the run found (${plan.results.rows.length})</h2>
-        ${plan.results.publish && plan.results.publish.count > 0
-          ? html`<button class="wfp-run" ?disabled=${plan.results.publish.status === 'publishing'} @click=${() => plan.onPublish?.()}>${plan.results.publish.status === 'publishing'
-            ? 'Publishing…'
-            : `Publish ${plan.results.publish.count} to the margin`}</button>`
-          : nothing}
-      </div>
-      ${plan.results.publish?.message ? html`<div class="wfp-meta">${plan.results.publish.message}</div>` : nothing}
-      <div class="wfp-table"><table>
-        <thead><tr>${plan.results.columns.map((c) => html`<th>${c}</th>`)}</tr></thead>
-        <tbody>${plan.results.rows.map((row) => html`<tr>${row.map((cell) => html`<td>${cell}</td>`)}</tr>`)}</tbody>
-      </table></div>
-      ${plan.results.refused.length > 0 ? html`<h2 style="margin-top:18px">Refused (${plan.results.refused.length})</h2>${plan.results.refused.map((r) => html`<div class="wfp-refused"><div>${r.what}</div><div style="opacity:.75">${r.why}</div></div>`)}` : nothing}
-    </div>` : nothing}
   </section>`
+}
+
+/** The workflow's right sidebar: whatever the canvas has selected, or the workflow as a whole. */
+function renderWorkflowInspector(plan: WorkflowPlanOptions): TemplateResult {
+  return html`<sh-workflow-inspector .plan=${plan}></sh-workflow-inspector>`
 }
 
 function renderZoteroSource(source: ZoteroSourceOptions): TemplateResult {
@@ -2623,7 +2677,7 @@ function renderPanelBody(
     return renderCommentsPanel(comments)
   }
   if (tag === 'mn-inspector') {
-    return renderInspectorPanel(inspector)
+    return inspector?.workflow ? renderWorkflowInspector(inspector.workflow) : renderInspectorPanel(inspector)
   }
   if (tag === 'mn-vtuber') {
     return renderVtuber(selectVtuberControlChannel(vtuberControls, { panelId: panel }))
@@ -3278,7 +3332,7 @@ function renderSurfaceComponent(
   } else if (state.tag === 'mn-comments-panel') {
     body = renderCommentsPanel(opts.comments)
   } else if (state.tag === 'mn-inspector') {
-    body = renderInspectorPanel(opts.inspector)
+    body = opts.inspector?.workflow ? renderWorkflowInspector(opts.inspector.workflow) : renderInspectorPanel(opts.inspector)
   } else if (state.tag === 'mn-vtuber') {
     body = renderVtuber(selectVtuberControlChannel(opts.vtuberControls, { regionId: state.regionId }))
   } else {
