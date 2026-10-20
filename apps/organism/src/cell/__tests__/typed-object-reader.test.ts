@@ -134,6 +134,20 @@ describe('where an object is used', () => {
     expect(await reader.usedIn('freud-dreams', TYPED)).toEqual([{ documentId: 'doc-notes', blockId: 'block-1a2b3c4d' }])
     expect(await reader.usedIn('freud-dreams', UNFIT)).toEqual([])
   })
+
+  it('also finds a block projected with its attrs as literals only, as gardend 0.1.4 projects a browser-written embed', async () => {
+    // Exactly what gardend 0.1.4 wrote for an objectEmbed the editor inserted (seen live on 2026-10-20).
+    const literalsOnly = `
+      @prefix mdoc: <http://mnemosyne.dev/doc#> .
+      @prefix mnemo: <https://mnemosyne.local/ns#> .
+      <urn:mnemosyne:local:graph:freud-dreams:projection:workspace> {
+        <urn:mnemosyne:local:document:doc-70e8#block-block-e53442b1> a mdoc:ObjectEmbed ;
+          mnemo:documentId "doc-70e8" ; mdoc:nodeId "block-e53442b1" ; mdoc:iri "${TYPED}" ;
+          mdoc:graphId "freud-dreams" ; mdoc:label "Meier" ; mdoc:classLabel "Dream report" ; mdoc:slot "card" .
+      }`
+    const reader = makeTypedObjectReader(port(fixtureStore(literalsOnly), true))
+    expect(await reader.usedIn('freud-dreams', TYPED)).toEqual([{ documentId: 'doc-70e8', blockId: 'block-e53442b1' }])
+  })
 })
 
 describe("the run's typing", () => {

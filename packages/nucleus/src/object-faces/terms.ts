@@ -159,8 +159,9 @@ export function typesOf(iri: string, triples: readonly ObjectTriple[]): string[]
 }
 
 /**
- * The documents whose blocks embed `iri` (the `objectEmbed` block projects `<block> mdoc:embeds <iri>`, §4 "Embed
- * block"): rows `?documentId ?block ?title`.
+ * The documents whose blocks embed `iri`: rows `?documentId ?block ?nodeId`. An `objectEmbed` block projects a real
+ * edge `<block> mdoc:embeds <iri>` (§4 "Embed block"), beside its attrs as literals (`a mdoc:ObjectEmbed ; mdoc:iri
+ * "<iri>"`); either form finds it, so a gardend that projects only the literals (before the edge) is read too.
  */
 export function objectUsageQuery(iri: string): string {
   if (!isAbsoluteIri(iri)) throw new Error(`not an absolute IRI: ${JSON.stringify(iri)}`)
@@ -168,7 +169,9 @@ export function objectUsageQuery(iri: string): string {
     `PREFIX mdoc: <${MDOC}>`,
     `PREFIX mnemo: <${MNEMO}>`,
     'SELECT DISTINCT ?documentId ?block ?nodeId WHERE {',
-    `  GRAPH ?g { ?block mdoc:embeds <${iri}> . OPTIONAL { ?block mnemo:documentId ?documentId } OPTIONAL { ?block mdoc:nodeId ?nodeId } }`,
+    `  { GRAPH ?g { ?block mdoc:embeds <${iri}> } } UNION { GRAPH ?g { ?block a mdoc:ObjectEmbed ; mdoc:iri ${JSON.stringify(iri)} } }`,
+    '  OPTIONAL { GRAPH ?g { ?block mnemo:documentId ?documentId } }',
+    '  OPTIONAL { GRAPH ?g { ?block mdoc:nodeId ?nodeId } }',
     '} LIMIT 200',
   ].join('\n')
 }
