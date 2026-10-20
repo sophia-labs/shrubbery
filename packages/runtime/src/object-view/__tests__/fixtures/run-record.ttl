@@ -1,0 +1,14 @@
+# graph: urn:sophia:wf:doc-sleepers:run:mh3x9a1
+@prefix wf: <http://mnemosyne.dev/workflow#> .
+@prefix run: <urn:sophia:wf:doc-sleepers:run:mh3x9a1#> .
+
+run:run a wf:GraphPlanRun ;
+    wf:runId "mh3x9a1" ;
+    wf:status "completed" ;
+    wf:definition <urn:sophia:wf:doc-sleepers:draft> ;
+    wf:workflow <urn:sophia:wf:doc-sleepers> .
+
+run:step-2 a wf:StepRun ;
+    wf:partOfRun run:run ;
+    wf:step <urn:sophia:wf:doc-sleepers#clerk> ;
+    wf:castAgent <urn:sophia:agent:agent-62517a586738e5e9> .

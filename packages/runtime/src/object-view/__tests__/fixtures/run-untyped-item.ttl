@@ -1,0 +1,9 @@
+# graph: urn:sophia:wf:doc-sleepers:run:mh3x9a1
+@prefix wf: <http://mnemosyne.dev/workflow#> .
+@prefix run: <urn:sophia:wf:doc-sleepers:run:mh3x9a1#> .
+
+run:item-2 a wf:Item ;
+    wf:partOfRun run:run ;
+    wf:inCollection <urn:sophia:wf:doc-sleepers#passages> ;
+    wf:position 1 ;
+    wf:json '''{"text":"I. The External Sensory Stimuli.","blockId":"block-0a11"}''' .

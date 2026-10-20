@@ -148,6 +148,7 @@ import { fragmentNodeId, spliceFragmentDocument } from './layout/fragment-splice
 import { LAYOUT_DASHBOARD_COMPONENT } from './layout/layout-dashboard-host.js'
 import { createQueryTextResolver, NamedQueryRegistry } from './layout/named-query-registry.js'
 import { contestedCardParams, objectLocator, type SourceObjectService } from './layout/source-object-service.js'
+import type { TypedObjectService } from './object-view/typed-object-service.js'
 import type {
   SurfaceActiveTabChange,
   SurfaceDividerPolicy,
@@ -1763,6 +1764,11 @@ export interface WorkspaceFragmentsOptions {
    * session has no live cell, exactly like `queryService`.
    */
   readonly objectService?: SourceObjectService | null
+  /**
+   * The session's typed-object reader (typed objects D6) — the seam `object.card` leaves resolve through. Null when
+   * the session has no live cell.
+   */
+  readonly typedObjectService?: TypedObjectService | null
   /** Private fat-evidence resolver used by `obs.filmstrip`. */
   readonly evidenceService?: FilmstripEvidenceService | null
   /**
@@ -1794,6 +1800,8 @@ export interface SurfaceEngineServices {
   readonly verbs: CuentaVerbPort | null
   /** The viewer's identity — the witness of a word. */
   readonly witness: string | null
+  /** `object.card`'s typed-object reader (typed objects D6); null = this session cannot read typed objects. */
+  readonly typedObjects: TypedObjectService | null
 }
 
 let engineServicesMemo: {
@@ -1802,6 +1810,7 @@ let engineServicesMemo: {
   readonly e: unknown
   readonly v: unknown
   readonly w: unknown
+  readonly t: unknown
   readonly value: SurfaceEngineServices
 } | null = null
 
@@ -1811,6 +1820,7 @@ function engineServicesFor(
   evidence: FilmstripEvidenceService | null,
   verbs: CuentaVerbPort | null = null,
   witness: string | null = null,
+  typedObjects: TypedObjectService | null = null,
 ): SurfaceEngineServices {
   if (
     engineServicesMemo
@@ -1819,11 +1829,12 @@ function engineServicesFor(
     && engineServicesMemo.e === evidence
     && engineServicesMemo.v === verbs
     && engineServicesMemo.w === witness
+    && engineServicesMemo.t === typedObjects
   ) {
     return engineServicesMemo.value
   }
-  const value: SurfaceEngineServices = Object.freeze({ query, objects, evidence, verbs, witness })
-  engineServicesMemo = { q: query, o: objects, e: evidence, v: verbs, w: witness, value }
+  const value: SurfaceEngineServices = Object.freeze({ query, objects, evidence, verbs, witness, typedObjects })
+  engineServicesMemo = { q: query, o: objects, e: evidence, v: verbs, w: witness, t: typedObjects, value }
   return value
 }
 
@@ -3955,12 +3966,25 @@ function ensureWorkspaceSurfaceDefined(): void {
         port: () => (resolveService() as SurfaceEngineServices | null)?.verbs ?? null,
         witness: () => (resolveService() as SurfaceEngineServices | null)?.witness ?? null,
       }
+      // Typed objects D6: `object.card` reads late, per call, like the seams above.
+      const delegatingTypedObjects: TypedObjectService = {
+        read(graphId, iri) {
+          const typed = (resolveService() as SurfaceEngineServices | null)?.typedObjects ?? null
+          if (!typed) {
+            return Promise.reject(new Error(
+              'workspace surface: object.card needs a typed-object reader, but the shell supplied no fragments.typedObjectService for this session',
+            ))
+          }
+          return typed.read(graphId, iri)
+        },
+      }
       return createFragmentResourceAdapters(
         delegating,
         fragmentQueryResolver,
         delegatingObjects,
         delegatingEvidence,
         delegatingVerbs,
+        delegatingTypedObjects,
       )
     },
     gridCollectionResourceAdapterId: FRAGMENT_GRID_COLLECTION_ADAPTER_ID,
@@ -4672,6 +4696,7 @@ function workspaceSurfaceModel(
         currentOptions.fragments?.evidenceService ?? null,
         currentOptions.fragments?.verbPort ?? null,
         currentOptions.fragments?.witness ?? null,
+        currentOptions.fragments?.typedObjectService ?? null,
       )
       const built = { ...raw, engineService }
       if (bindingOptions === currentOptions && stableBindings) {
