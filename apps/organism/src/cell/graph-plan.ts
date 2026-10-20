@@ -5,6 +5,10 @@
  * so the main pane can draw exactly what will run and show the digest a person approves. If the two ever drift, the
  * digests differ and Choreograph refuses the run: the failure is loud, never a silent mismatch. Extract one shared
  * package when a third consumer appears.
+ *
+ * Typed items (2026-10-20, plans/2026-10-20-typed-objects D4): a step may name the Emporium class its items are
+ * (`wf:itemClass`) and the vocabulary version composing pinned (`wf:itemVocab`); the compiled step carries both,
+ * omitted when absent, so the digest pins the version and every older digest holds.
  */
 import { sha256Digest } from '@shrubbery/nucleus/web-crypto'
 
@@ -49,6 +53,10 @@ export interface GraphPlanStepV1 {
   readonly itemSchema?: Record<string, unknown>;
   /** The sources (`wf:Source` IRIs) the step reads, sorted; absent when it reads none. */
   readonly reads?: readonly string[];
+  /** The class each item it hands back is (`wf:itemClass`, an IRI); absent when the step names none. */
+  readonly itemClass?: string;
+  /** The class's vocabulary at the version composing pinned, `<vocab>@<version>` (`wf:itemVocab`). */
+  readonly itemVocab?: string;
 }
 
 /** What a workflow reads: a document of this workspace, or a run of its blocks. */
@@ -94,6 +102,7 @@ export interface GraphPlanV1 {
 
 const DOCUMENT_ID = /^[A-Za-z0-9_-]{1,128}$/;
 const BLOCK_ID = /^[A-Za-z0-9_.:-]{1,128}$/;
+const ITEM_VOCAB = /^[^\s@]{1,128}@[^\s@]{1,64}$/;
 
 export class GraphPlanError extends Error {
   constructor(readonly problems: readonly string[]) {
@@ -304,6 +313,12 @@ export function compileGraphPlan(triples: readonly Triple[]): GraphPlanV1 {
         problems.push(`${short(s)}'s wf:itemSchema is not a JSON Schema object`);
       }
     }
+    const itemClass = iriOf(s, `${WF}itemClass`, "wf:itemClass", false);
+    const itemVocab = literal(s, `${WF}itemVocab`, "wf:itemVocab", false);
+    if (itemVocab !== undefined && !ITEM_VOCAB.test(itemVocab)) problems.push(`${short(s)}'s wf:itemVocab is "${itemVocab}"; write it as <vocab>@<version>`);
+    const has = (p: string) => (bySubject.get(s) ?? []).some((t) => t.p === p);
+    if (has(`${WF}itemClass`) && !has(`${WF}itemVocab`)) problems.push(`${short(s)} names a class (wf:itemClass) but not the vocabulary version that pins it (wf:itemVocab)`);
+    if (has(`${WF}itemVocab`) && !has(`${WF}itemClass`)) problems.push(`${short(s)} names a vocabulary version (wf:itemVocab) but no class (wf:itemClass)`);
     if (produces) {
       const prior = producedBy.get(produces);
       if (prior) problems.push(`${short(produces)} is produced by both ${short(prior.step)} and ${short(s)}`);
@@ -322,6 +337,8 @@ export function compileGraphPlan(triples: readonly Triple[]): GraphPlanV1 {
       ...(checks ? { checks } : {}),
       ...(itemSchema ? { itemSchema } : {}),
       ...(reads.length > 0 ? { reads } : {}),
+      ...(itemClass ? { itemClass } : {}),
+      ...(itemVocab ? { itemVocab } : {}),
       phase: phase ?? "",
     };
   });
@@ -778,6 +795,9 @@ export interface GraphPlanSketch {
     readonly produces: string | null
     readonly reads: readonly string[]
     readonly itemSchema: Record<string, unknown> | null
+    /** The class its items are (`wf:itemClass`) and the vocabulary version that pins it (`wf:itemVocab`). */
+    readonly itemClass: string | null
+    readonly itemVocab: string | null
   }[]
   readonly sources: readonly {
     readonly iri: string
@@ -849,6 +869,8 @@ export function sketchGraphPlan(triples: readonly Triple[]): GraphPlanSketch {
       produces: iri(s, `${WF}produces`),
       reads: iris(s, `${WF}reads`),
       itemSchema,
+      itemClass: iri(s, `${WF}itemClass`),
+      itemVocab: text(s, `${WF}itemVocab`),
     }
   })
   const sources = typed('Source').map((s) => ({

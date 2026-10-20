@@ -1574,7 +1574,7 @@ async function pollWorkflowPlan(state: CurrentWorkflowPlan): Promise<void> {
 function workflowFingerprints(sketch: GraphPlanSketch): Map<string, string> {
   const seen = new Map<string, string>()
   for (const s of sketch.steps) {
-    seen.set(`step:${s.id}`, JSON.stringify([s.label, s.job, s.mode, s.phase, s.over, s.consumes, s.checks, s.produces, s.reads, s.instructions, s.itemSchema]))
+    seen.set(`step:${s.id}`, JSON.stringify([s.label, s.job, s.mode, s.phase, s.over, s.consumes, s.checks, s.produces, s.reads, s.instructions, s.itemSchema, s.itemClass, s.itemVocab]))
   }
   for (const s of sketch.sources) seen.set(`source:${s.id}`, JSON.stringify([s.label, s.documentId, s.fromBlock, s.toBlock]))
   for (const d of sketch.destinations) seen.set(`destination:${d.id}`, JSON.stringify([d.label, d.kind, d.receives, d.documentId]))
