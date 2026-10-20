@@ -45,7 +45,7 @@ import {
   type FilmstripEvidenceService,
   type SourceObjectService,
 } from '@shrubbery/runtime/layout'
-import type { CuentaVerbPort } from '@shrubbery/runtime'
+import type { CuentaVerbPort, TypedObjectService } from '@shrubbery/runtime'
 import {
   OBSERVATORY_UX_SURFACE_IRI,
   ObservatoryLayoutSourceError,
@@ -96,6 +96,8 @@ export interface WorkspaceFragmentSession {
   readonly queryService?: QueryBlockService
   /** MO object-face integration spec (master §2.5/§2.8): the seam card.object resolves through. */
   readonly objectService?: SourceObjectService
+  /** Typed objects D6: the reader `object.card` leaves resolve through (any typed object, by IRI). */
+  readonly typedObjectService?: TypedObjectService | null
   /** Hosted, authenticated resolver for private Observatory evidence. */
   readonly evidenceService?: FilmstripEvidenceService
   /**
@@ -133,6 +135,7 @@ export class WorkspaceFragmentsController {
   #session: WorkspaceFragmentSession | null = null
   #queryService: QueryBlockService | null = null
   #objectService: SourceObjectService | null = null
+  #typedObjectService: TypedObjectService | null = null
   #evidenceService: FilmstripEvidenceService | null = null
   #verbPort: CuentaVerbPort | null = null
   #witness: string | null = null
@@ -179,6 +182,7 @@ export class WorkspaceFragmentsController {
       if (session.queryService) this.#queryService = session.queryService
       else if (previousExplicitQueryService) this.#queryService = makeQueryBlockService(session.rest)
       this.#objectService = session.objectService ?? null
+      this.#typedObjectService = session.typedObjectService ?? null
       this.#evidenceService = session.evidenceService ?? null
       this.#verbPort = session.verbPort ?? null
       this.#witness = session.witness ?? null
@@ -200,6 +204,7 @@ export class WorkspaceFragmentsController {
     return {
       queryService: this.#queryService,
       objectService: this.#objectService,
+      typedObjectService: this.#typedObjectService,
       evidenceService: this.#evidenceService,
       verbPort: this.#verbPort,
       witness: this.#witness,
@@ -225,6 +230,7 @@ export class WorkspaceFragmentsController {
       ? session.queryService ?? makeQueryBlockService(session.rest)
       : null
     this.#objectService = session?.objectService ?? null
+    this.#typedObjectService = session?.typedObjectService ?? null
     this.#evidenceService = session?.evidenceService ?? null
     this.#verbPort = session?.verbPort ?? null
     this.#witness = session?.witness ?? null

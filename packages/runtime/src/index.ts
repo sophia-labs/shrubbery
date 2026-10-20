@@ -190,6 +190,7 @@ export {
   type ObjectViewSlot,
 } from './object-view/object-view-element.js'
 export { ShInjerto, type InjertoStatus } from './object-view/injerto-element.js'
+export { chooseFrom, filterChoices, ShChoiceDialog, type ChoiceItem } from './object-view/choice-dialog-element.js'
 export { objectModelOfRead, type TypedObjectRead, type TypedObjectService } from './object-view/typed-object-service.js'
 export { makeObjectEmbedRenderer, type TypedObjectServiceSource } from './editor-services/object-embed-renderer.js'
 export { OBJECT_CARD_FACE_ID, type ObjectCardParams } from './layout/faces/object-card-face.js'

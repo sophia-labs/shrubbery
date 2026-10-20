@@ -7,7 +7,8 @@ Typed-object fixtures (2026-10-20), in exactly the shape of the typed objects ar
   run-unfit-item.ttl     an item that did not fit: a wf:Item and a wf:Unfit, no class, its wf:violation messages,
                          and its wf:json kept.
   run-untyped-item.ttl   today's untyped item: a wf:Item with wf:json only.
-  run-record.ttl         the run node (wf:GraphPlanRun) the items are part of.
+  run-record.ttl         the run node (wf:GraphPlanRun) the items are part of, a step run with the being it cast
+                         (wf:castAgent), and Choreograph's unfit sitting (a wf:Unfit with wf:step, no collection).
   beings.ttl             the being that made the typed item, with its label (another graph).
   freud-dreams-workspace.vocab.json
                          what emporium_vocab answers for the graph's domain vocabulary once it serves classCatalog

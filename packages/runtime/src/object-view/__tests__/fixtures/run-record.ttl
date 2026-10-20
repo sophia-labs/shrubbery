@@ -12,3 +12,10 @@ run:step-2 a wf:StepRun ;
     wf:partOfRun run:run ;
     wf:step <urn:sophia:wf:doc-sleepers#clerk> ;
     wf:castAgent <urn:sophia:agent:agent-62517a586738e5e9> .
+
+# Choreograph's own unfit record: a sitting whose whole answer never fit its class (no collection, no item).
+run:unfit-1 a wf:Unfit ;
+    wf:partOfRun run:run ;
+    wf:step <urn:sophia:wf:doc-sleepers#clerk> ;
+    wf:sitting "Experiment clerk #4" ;
+    wf:violation "the answer was not a list of dream reports" .

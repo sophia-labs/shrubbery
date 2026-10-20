@@ -440,7 +440,16 @@ function extraFields(iri: string, own: readonly ObjectTriple[], ctx: Context, de
     const key = localName(predicate)
     const children = list.filter((t) => t.o.type === 'uri' && t.o.value.startsWith(`${iri}/`) && ctx.bySubject.has(t.o.value))
     if (children.length === list.length && depth < OBJECT_NESTING_DEPTH) {
-      const objects = orderChildren(children.map((t) => t.o.value)).map((child) => modelFor({ iri: child, triples: ctx.triples, catalog: ctx.catalog }, ctx, depth + 1))
+      // Each child keeps the order its part of the parent's JSON gives its keys (`<parent>/<key>` or `/<key>/<i>`).
+      const part = json?.[key]
+      const childJson = (child: string): unknown => {
+        const index = /\/(\d+)$/.exec(child)
+        return Array.isArray(part) ? (index ? part[Number(index[1])] : undefined) : part
+      }
+      const objects = orderChildren(children.map((t) => t.o.value)).map((child) => {
+        const sub = childJson(child)
+        return modelFor({ iri: child, triples: ctx.triples, catalog: ctx.catalog, ...(isRecord(sub) ? { json: sub } : {}) }, ctx, depth + 1)
+      })
       return { key, iri: predicate, label: humanizeKey(key), fullLabel: predicate, value: objects.map((o) => o.title).join(', '), kind: 'identity', objects }
     }
     const values = orderValues(list.map((t) => formatLexical(t.o.value, undefined, t.o.datatype)), json?.[key])
