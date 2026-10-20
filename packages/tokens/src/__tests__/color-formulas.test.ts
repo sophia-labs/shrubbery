@@ -21,7 +21,7 @@
  * would reject.)
  */
 import { describe, expect, it } from 'vitest'
-import { SKIN_THEME_MATRIX, effectiveTokens, layerDeclarations, paintedColour, resolveToken } from './token-cascade.js'
+import { effectiveTokens, layerDeclarations, paintedColour, resolveToken, SKIN_THEME_MATRIX } from './token-cascade.js'
 import { componentSources, legacyChannelCalls } from './token-reference-scan.js'
 
 const declarations = layerDeclarations()
@@ -148,7 +148,8 @@ const INTENDED_ALPHA: ReadonlyArray<readonly [file: string, selector: string, na
   ['skin-greenhouse.css', `${DARK}[data-skin="greenhouse"]`, '--mn-color-surface-active', 0.14],
   ['skin-greenhouse.css', `${DARK}[data-skin="greenhouse"]`, '--mn-color-surface-accent-subtle', 0.09],
   ['skin-greenhouse.css', `${DARK}[data-skin="greenhouse"]`, '--mn-color-surface-accent-strong', 0.2],
-  ['skin-emporium.css', `${DARK}[data-skin="emporium"], ${DARK}[data-design="emporium"]`, '--mn-color-surface-accent', 0.12],
+  // The Sophia skin's redesign (2026-10-20) set its dark selected wash at 14% of the blue-400 channel.
+  ['skin-emporium.css', `${DARK}[data-skin="emporium"], ${DARK}[data-design="emporium"]`, '--mn-color-surface-accent', 0.14],
 ]
 
 /**

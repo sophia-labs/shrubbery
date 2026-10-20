@@ -5,9 +5,8 @@
  *   1. the {skin, theme, stance, editor material} → root-attribute map (the sux ConfigValue.appliesAttribute
  *      pattern, made executable), and a tiny applier that stamps those attributes
  *      on a root element (documentElement by default);
- *   2. the documented Emporium purple ramp (exact hexes) + the named accent
- *      values, so Storybook + tests assert against constants rather than
- *      re-typing hexes.
+ *   2. each skin's documented ramps and accent values (exact hexes), so
+ *      Storybook + tests assert against constants rather than re-typing hexes.
  *
  * The CSS lives in ../css/tokens.css (the import the organism + Storybook pull).
  * This TS map is the SOLE programmatic applier — it does not read or write any
@@ -427,14 +426,34 @@ export function applyEditorMaterial(
   return material
 }
 
-// ── Documented Emporium purple ramp (exact hexes — Vera tunes these here) ─────
+// ── Sophia Blue and the Sophia skin's primary ramp ───────────────────────────
+
+/** Sophia Blue, the primary colour of the Sophia skin (print: PMS 289 C). */
+export const SOPHIA_BLUE = '#00356B'
 
 /**
- * The Emporium dark-purple reference ramp. These are the exact hexes in
- * css/reference.css (--mn-ref-purple-*). Exported so Storybook swatches + the
- * token tests reference the constants instead of re-typing values. The skin
- * ACCENT is purple-400 (#9472CE) — Vera's iter-4a pick; change a hex here AND in
- * reference.css together (the test asserts they agree).
+ * The Sophia skin's primary ramp, exactly as css/reference.css carries it
+ * (--mn-ref-sophia-blue-*). Built in OKLCH on one hue; step 800 is Sophia Blue
+ * and step 950 its deepest shade. Change a hex here AND in reference.css
+ * together (the token test asserts they agree).
+ */
+export const SOPHIA_BLUE_RAMP = {
+  50: '#f2f8fe',
+  100: '#e4effc',
+  200: '#cbe0f8',
+  300: '#a6c8ef',
+  400: '#77a8e1',
+  500: '#4784ca',
+  600: '#2566ac',
+  700: '#0b4b8d',
+  800: SOPHIA_BLUE,
+  900: '#072b55',
+  950: '#0C2340',
+} as const
+
+/**
+ * The purple ramp (css/reference.css --mn-ref-purple-*). No skin's accent any
+ * more: it paints the launcher's default app tile (component.css).
  */
 export const PURPLE_RAMP = {
   50: '#F5F3FB',
@@ -449,21 +468,26 @@ export const PURPLE_RAMP = {
   900: '#2A0E57',
 } as const
 
-/** The named Emporium accent roles (light), for swatches + assertions. */
+/**
+ * The Sophia skin's ([data-skin=emporium]) accent roles, for swatches and
+ * assertions. skin-emporium.css carries the whole palette's logic.
+ */
 export const EMPORIUM_ACCENT = {
-  /** accent (primary) = purple-400 #9472CE (Vera's iter-4a pick) */
-  accent: PURPLE_RAMP[400],
-  /** accent-strong = purple-700 (kept deep for legibility on headings/badges) */
-  accentStrong: PURPLE_RAMP[700],
-  /** rule-strong = purple-300 */
-  ruleStrong: PURPLE_RAMP[300],
-  /** dark accent (lightened for contrast) = purple-300 */
-  accentDark: PURPLE_RAMP[300],
-  /** purple-400 #9472CE RGB channel triple (drives interactive washes) */
-  accentChannel: '148 114 206',
+  /** accent (primary) = Sophia Blue, blue-800 */
+  accent: SOPHIA_BLUE_RAMP[800],
+  /** accent-strong (headings, the pressed fill) = blue-950 */
+  accentStrong: SOPHIA_BLUE_RAMP[950],
+  /** border-strong = mist-400, a hairline that stays below 3:1 on purpose */
+  ruleStrong: '#abb2bb',
+  /** dark accent: a lighter tint of the same hue, blue-300 */
+  accentDark: SOPHIA_BLUE_RAMP[300],
+  /** the wash channel, blue-600 #2566AC (Sophia Blue itself greys out at 7-18%) */
+  accentChannel: '37 102 172',
+  /** the dark wash channel, blue-400 #77A8E1 */
+  accentChannelDark: '119 168 225',
 } as const
 
-/** The deterministic Diatype-like sans family Emporium sets for chrome + display. */
+/** The deterministic Diatype-like sans family the Sophia skin sets for chrome + display. */
 export const EMPORIUM_FONT_SANS =
   "'Public Sans Variable', 'Public Sans', 'ABC Diatype', -apple-system, 'Helvetica Neue', sans-serif"
 

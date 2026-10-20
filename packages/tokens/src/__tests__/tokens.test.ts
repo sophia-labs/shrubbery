@@ -5,9 +5,10 @@
  * property declarations per selector block, resolve var() chains through the
  * reference ramp, and assert the skin/theme blocks define the expected token
  * VALUES. This is a real parse of the shipped CSS — there is no hand-written
- * mock token bag anywhere. The Emporium accent MUST resolve to purple-400
- * (#9472CE, Vera's iter-4a pick), the chrome font to Diatype, and BOTH must
- * differ from Garden.
+ * mock token bag anywhere. The Sophia skin's ([data-skin=emporium]) accent
+ * MUST resolve to Sophia Blue (#00356B), the chrome font to the Diatype-like
+ * sans, and BOTH must differ from Garden. (skin-sophia.test.ts holds the
+ * whole Sophia palette: contrast, dark completeness, no purple.)
  *
  * (The in-browser getComputedStyle confirmation runs later in iteration 3c via
  * Playwright against the real Storybook; happy-dom does not resolve the CSS
@@ -15,48 +16,51 @@
  * truth — the CSS text itself — which is the strongest assertion we can make
  * without a real engine.)
  */
-import { describe, it, expect } from 'vitest'
+
 import { readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { describe, expect, it } from 'vitest'
 import {
-  PURPLE_RAMP,
+  type AttrTarget,
+  applyEditorMaterial,
+  applyKind,
+  applySkin,
+  applySkinTheme,
+  applyStance,
+  applyTheme,
+  CONTESTED_STANCE,
+  type DisplayKindRegister,
+  EDITOR_MATERIAL_APPLICATIONS,
   EMPORIUM_ACCENT,
   EMPORIUM_FONT_SANS,
-  RESEARCH_ACCENT,
-  RESEARCH_FONT_SERIF,
-  GREENHOUSE_ACCENT,
-  GREENHOUSE_STANCE,
-  GREENHOUSE_FONT_SANS,
-  CONTESTED_STANCE,
-  ROOM_POSTURE_STANCES,
   GARDEN_ACCENT,
   GARDEN_FONT_CHROME,
-  OBSERVATORY_ACCENT,
-  OBSERVATORY_CHART_CATEGORICAL,
-  OBSERVATORY_CHART_SEQUENTIAL_AZURE,
-  OBSERVATORY_CHART_DIVERGING,
-  OBSERVATORY_CHART_STATUS,
-  NINETY_EIGHT_FONT_SANS,
-  NINETY_EIGHT_PALETTE,
   GLASS_FONT_SANS,
   GLASS_PALETTE,
-  VISUAL_IDENTITY_SKINS,
-  SKIN_APPLICATIONS,
-  THEME_APPLICATIONS,
-  EDITOR_MATERIAL_APPLICATIONS,
-  STANCE_APPLICATIONS,
+  GREENHOUSE_ACCENT,
+  GREENHOUSE_FONT_SANS,
+  GREENHOUSE_STANCE,
   KIND_APPLICATIONS,
-  applyKind,
-  applySkinTheme,
-  applySkin,
-  applyTheme,
-  applyEditorMaterial,
-  applyStance,
+  NINETY_EIGHT_FONT_SANS,
+  NINETY_EIGHT_PALETTE,
   nextVisualIdentitySkin,
+  OBSERVATORY_ACCENT,
+  OBSERVATORY_CHART_CATEGORICAL,
+  OBSERVATORY_CHART_DIVERGING,
+  OBSERVATORY_CHART_SEQUENTIAL_AZURE,
+  OBSERVATORY_CHART_STATUS,
+  PURPLE_RAMP,
+  RESEARCH_ACCENT,
+  RESEARCH_FONT_SERIF,
+  ROOM_POSTURE_STANCES,
+  SKIN_APPLICATIONS,
+  SOPHIA_BLUE,
+  SOPHIA_BLUE_RAMP,
+  STANCE_APPLICATIONS,
+  THEME_APPLICATIONS,
+  VISUAL_IDENTITY_SKINS,
   Z_LAYERS,
-  type AttrTarget,
-  type DisplayKindRegister,
 } from '../index.js'
 
 const CSS_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '../../css')
@@ -143,12 +147,22 @@ function resolveIn(block: Block, raw: string, depth = 0): string {
 }
 
 describe('@shrubbery/tokens — reference ramp (Tier 0)', () => {
-  it('emits the purple ramp with the exact documented hexes', () => {
+  it('emits the purple ramp (the default app tile) with the exact documented hexes', () => {
     for (const [step, hex] of Object.entries(PURPLE_RAMP)) {
       const tok = `--mn-ref-purple-${step}`
       expect(refRoot[tok], `${tok} present`).toBeDefined()
       expect(refRoot[tok].toLowerCase(), `${tok} value`).toBe(hex.toLowerCase())
     }
+  })
+
+  it('emits the Sophia Blue ramp with the exact documented hexes; step 800 is Sophia Blue', () => {
+    for (const [step, hex] of Object.entries(SOPHIA_BLUE_RAMP)) {
+      const tok = `--mn-ref-sophia-blue-${step}`
+      expect(refRoot[tok], `${tok} present`).toBeDefined()
+      expect(refRoot[tok].toLowerCase(), `${tok} value`).toBe(hex.toLowerCase())
+    }
+    expect(refRoot['--mn-ref-sophia-blue-800']).toBe(SOPHIA_BLUE.toLowerCase())
+    expect(refRoot['--mn-ref-sophia-blue-950']).toBe('#0c2340')
   })
 
   it('keeps the fern + cobalt ramps for Garden identity + sophia provenance', () => {
@@ -179,7 +193,7 @@ describe('@shrubbery/tokens — repository-owned typography', () => {
   })
 })
 
-describe('@shrubbery/tokens — Emporium skin (sophia structure, purple accent)', () => {
+describe('@shrubbery/tokens — Sophia skin ([data-skin=emporium], Sophia Blue)', () => {
   const empBlocks = parseBlocks(read('skin-emporium.css'))
   const emp = empBlocks.get('[data-skin="emporium"]') ?? {}
   const empAlias = empBlocks.get('[data-design="emporium"]') ?? {}
@@ -190,7 +204,7 @@ describe('@shrubbery/tokens — Emporium skin (sophia structure, purple accent)'
   // Merge bespoke + skin block so var(--emporium-*) resolves.
   const empResolveBlock: Block = { ...empRoot, ...emp }
 
-  it('lights up via [data-skin=emporium] (the sux appliesAttribute hook)', () => {
+  it('lights up via [data-skin=emporium] (the sux appliesAttribute hook) and is labelled Sophia', () => {
     expect(Object.keys(emp).length).toBeGreaterThan(0)
     expect(SKIN_APPLICATIONS.emporium.appliesAttribute).toBe('[data-skin=emporium]')
   })
@@ -199,68 +213,62 @@ describe('@shrubbery/tokens — Emporium skin (sophia structure, purple accent)'
     expect(empAlias).toEqual(emp)
   })
 
-  it('accent (primary) resolves to PURPLE-400 #9472CE (Vera iter-4a pick, recolored from cobalt)', () => {
+  it('accent (primary) resolves to Sophia Blue #00356B', () => {
     const accent = resolveIn(empResolveBlock, emp['--mn-color-accent'])
+    expect(accent).toBe(SOPHIA_BLUE.toLowerCase())
     expect(accent).toBe(EMPORIUM_ACCENT.accent.toLowerCase())
-    expect(accent).toBe(PURPLE_RAMP[400].toLowerCase())
-    // and explicitly NOT the iter-3 purple-500 proposal anymore.
-    expect(accent).not.toBe(PURPLE_RAMP[500].toLowerCase())
+    expect(resolveIn(empResolveBlock, emp['--mn-color-text-accent'])).toBe(SOPHIA_BLUE.toLowerCase())
+    expect(resolveIn(empResolveBlock, emp['--mn-color-border-accent'])).toBe(SOPHIA_BLUE.toLowerCase())
   })
 
-  it('accent-strong resolves to PURPLE-700 #4C1D95', () => {
+  it('accent-strong resolves to the deepest step, #0C2340', () => {
     const strong = resolveIn(empResolveBlock, emp['--mn-color-text-accent-strong'])
     expect(strong).toBe(EMPORIUM_ACCENT.accentStrong.toLowerCase())
   })
 
-  it('rule-strong (border-strong) resolves to PURPLE-300 #B59FE0', () => {
+  it('border-strong is the mist-400 hairline', () => {
     const ruleStrong = resolveIn(empResolveBlock, emp['--mn-color-border-strong'])
     expect(ruleStrong).toBe(EMPORIUM_ACCENT.ruleStrong.toLowerCase())
   })
 
-  it('accent channel triple is purple-400 (148 114 206) — drives washes', () => {
+  it('the wash channel is blue-600 (37 102 172) in light and blue-400 in dark', () => {
     expect(emp['--mn-color-accent-ch']).toBe(EMPORIUM_ACCENT.accentChannel)
-    expect(emp['--mn-color-accent-ch']).toBe('148 114 206')
+    expect(emp['--mn-color-accent-ch']).toBe('37 102 172')
+    expect(empDark['--mn-color-accent-ch']).toBe(EMPORIUM_ACCENT.accentChannelDark)
   })
 
-  it('chrome + display font is Diatype (sophia typography, verbatim)', () => {
+  it('chrome + display font is the Diatype-like sans; prose stays serif', () => {
     const chrome = resolveIn(empResolveBlock, emp['--mn-font-chrome'])
     const display = resolveIn(empResolveBlock, emp['--mn-font-display'])
     expect(chrome).toBe(EMPORIUM_FONT_SANS)
     expect(display).toBe(EMPORIUM_FONT_SANS)
+    expect(emp['--mn-font-prose']).toBeUndefined()
   })
 
-  it('keeps the SOPHIA STRUCTURE unchanged: square radius, tight density, icon-only', () => {
-    // square / no-radius control (sophia)
-    const radiusControl = resolveIn(empResolveBlock, emp['--mn-radius-control'])
-    expect(radiusControl === '0' || radiusControl === '0px').toBe(true)
-    // tight 24px density (sophia)
-    expect(emp['--mn-row-height']).toBe('24px')
-    expect(emp['--mn-control-height']).toBe('24px')
-    // icon-only labels (sophia)
-    expect(emp['--mn-label-display']).toBe('none')
-    // no parchment grain (sophia digital-clean)
+  it('crisp geometry, comfortable density, labels shown, no grain', () => {
+    expect(resolveIn(empResolveBlock, emp['--mn-radius-control'])).toBe('4px')
+    expect(resolveIn(empResolveBlock, emp['--mn-radius-surface'])).toBe('8px')
+    expect(emp['--mn-row-height']).toBe('28px')
+    expect(emp['--mn-control-height']).toBe('28px')
+    expect(emp['--mn-label-display']).toBe('inline')
     expect(emp['--mn-texture-display']).toBe('none')
-    // stronger rules: chrome-rule = the frame rule (purple-300)
-    const chromeRule = resolveIn(empResolveBlock, emp['--mn-chrome-rule'])
-    expect(chromeRule).toContain(PURPLE_RAMP[300].toLowerCase())
+    // region boundaries are the mist-300 frame rule, quieter than border-strong
+    expect(resolveIn(empResolveBlock, emp['--mn-chrome-rule'])).toBe('1px solid #d0d5dc')
   })
 
-  it('top bar is a purple masthead (sophia remapped its masthead)', () => {
-    expect(resolveIn(empResolveBlock, emp['--mn-top-bar-bg'])).toBe(
-      PURPLE_RAMP[50].toLowerCase(),
-    )
-    expect(resolveIn(empResolveBlock, emp['--mn-top-bar-text'])).toBe(
-      PURPLE_RAMP[700].toLowerCase(),
-    )
-  })
-
-  it('dark Emporium lightens the accent to purple-300 (contrast on dark bg)', () => {
-    // dark block retunes --emporium-accent; resolve through the dark bespoke set.
+  it('the light masthead is white with Sophia Blue names; the dark one is a #0C2340 band', () => {
+    expect(resolveIn(empResolveBlock, emp['--mn-top-bar-bg'])).toBe('#ffffff')
+    expect(resolveIn(empResolveBlock, emp['--mn-top-bar-text'])).toBe(SOPHIA_BLUE.toLowerCase())
     const darkBlock: Block = { ...empRoot, ...emp, ...empDark }
-    const darkAccent = resolveIn(darkBlock, darkBlock['--emporium-accent'])
+    expect(resolveIn(darkBlock, empDark['--mn-top-bar-bg'])).toBe(SOPHIA_BLUE_RAMP[950].toLowerCase())
+  })
+
+  it('dark lightens the accent to a tint of the same hue, blue-300', () => {
+    const darkBlock: Block = { ...empRoot, ...emp, ...empDark }
+    const darkAccent = resolveIn(darkBlock, empDark['--mn-color-accent'])
     expect(darkAccent).toBe(EMPORIUM_ACCENT.accentDark.toLowerCase())
-    // and the dark surface base is the cool dark Swiss (not warm Garden ink #171514)
-    expect(empDark['--mn-color-surface-base']).not.toBe('#171514')
+    // and the dark surface base is the cool night, not warm Garden ink #171514
+    expect(resolveIn(darkBlock, empDark['--mn-color-surface-base'])).toBe('#161b23')
   })
 })
 
@@ -800,7 +808,7 @@ describe('@shrubbery/tokens — editor material axis', () => {
   })
 
   it.each([
-    ['emporium', 'skin-emporium.css', '[data-skin="emporium"]', '[data-theme="dark"][data-skin="emporium"]', '#4c1d95'],
+    ['emporium', 'skin-emporium.css', '[data-skin="emporium"]', '[data-theme="dark"][data-skin="emporium"]', '#00356b'],
     ['98', 'skin-98.css', '[data-skin="98"]', '[data-theme="dark"][data-skin="98"]', '#000080'],
     ['glass', 'skin-glass.css', '[data-skin="glass"]', '[data-theme="dark"][data-skin="glass"]', '#168cb8'],
     ['mithras', 'skin-mithras.css', '[data-skin="mithras"]', '[data-theme="dark"][data-skin="mithras"]', '#111'],
@@ -1023,7 +1031,7 @@ describe('@shrubbery/tokens — DisplayKind register axis', () => {
   })
 })
 
-describe('@shrubbery/tokens — Emporium DIFFERS from Garden (the whole point)', () => {
+describe('@shrubbery/tokens — the Sophia skin DIFFERS from Garden (the whole point)', () => {
   const gBlocks = parseBlocks(read('skin-garden.css'))
   const g = gBlocks.get('[data-skin="garden"]') ?? {}
   const empBlocks = parseBlocks(read('skin-emporium.css'))
@@ -1031,11 +1039,11 @@ describe('@shrubbery/tokens — Emporium DIFFERS from Garden (the whole point)',
   const empRoot = empBlocks.get(':root') ?? {}
   const empResolveBlock: Block = { ...empRoot, ...emp }
 
-  it('accent purple ≠ accent fern', () => {
+  it('accent Sophia Blue ≠ accent fern', () => {
     const gardenAccent = resolveRef(g['--mn-color-accent'])
     const empAccent = resolveIn(empResolveBlock, emp['--mn-color-accent'])
     expect(empAccent).not.toBe(gardenAccent)
-    expect(empAccent).toBe(PURPLE_RAMP[400].toLowerCase())
+    expect(empAccent).toBe(SOPHIA_BLUE.toLowerCase())
     expect(gardenAccent).toBe(GARDEN_ACCENT.accent.toLowerCase())
   })
 
@@ -1045,7 +1053,7 @@ describe('@shrubbery/tokens — Emporium DIFFERS from Garden (the whole point)',
     )
   })
 
-  it('accent channel purple ≠ accent channel fern', () => {
+  it('accent channel blue ≠ accent channel fern', () => {
     expect(emp['--mn-color-accent-ch']).not.toBe(g['--mn-color-accent-ch'])
     expect(emp['--mn-color-accent-ch']).toBe(EMPORIUM_ACCENT.accentChannel)
     expect(g['--mn-color-accent-ch']).toBe(GARDEN_ACCENT.accentChannel)
