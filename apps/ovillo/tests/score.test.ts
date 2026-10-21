@@ -50,7 +50,7 @@ describe.skipIf(!WASM || !existsSync(WASM))('the real engine on the excerpts', (
       expect(worlds.map((w) => w.instrument).sort()).toEqual(['gg', 'jj'])
       const trace = parseEnergyTrace(take.energy)
       expect(trace.bodies.map((b) => b.id)).toEqual(['strings', 'box', 'room'])
-      expect(trace.worlds.sort()).toEqual(['gg', 'jj'])
+      expect([...trace.worlds].sort()).toEqual(['gg', 'jj'])
       expect(take.frames / take.sampleRate).toBeLessThan(12)
     } finally {
       engine.dispose()
