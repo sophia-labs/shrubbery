@@ -17,7 +17,9 @@
     "./layout/hosts/guest-app": "./src/layout/hosts/guest-app.ts",
     "./layout/hosts/define-react-face": "./src/layout/hosts/define-react-face.ts",
     "./layout/hosts/sh-guest-island": "./src/layout/hosts/sh-guest-island.ts",
-    "./layout/hosts/scope-css": "./src/layout/hosts/scope-css.ts"
+    "./layout/hosts/scope-css": "./src/layout/hosts/scope-css.ts",
+    "./mus": "./src/mus/index.ts",
+    "./wasm": "./src/wasm/loader.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",
@@ -39,6 +41,7 @@
     "@excalidraw/excalidraw": "0.18.0-4ce38fb",
     "@shrubbery/chat-kernel": "workspace:*",
     "@shrubbery/editor-kernel": "workspace:*",
+    "@shrubbery/hoja": "workspace:*",
     "@shrubbery/nucleus": "workspace:*",
     "@shrubbery/source": "workspace:*",
     "@tiptap/core": "^3.0.0",

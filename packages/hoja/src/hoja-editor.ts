@@ -1,7 +1,9 @@
 import {
   createKernelEditor,
   getOutlinerBlocks,
+  type CodeHighlighter,
   type Editor,
+  type Extensions,
   type OpenWikiLinkPickerDetail,
 } from '@shrubbery/editor-kernel'
 import {
@@ -79,6 +81,14 @@ export class HojaEditor extends LitElement {
   @property({ type: String }) label = 'Message'
   @property({ type: Boolean, reflect: true }) disabled = false
   @property({ type: Boolean, reflect: true, attribute: 'readonly' }) readOnly = false
+
+  /**
+   * Syntax colour for code blocks while editing (e.g. Hoja's MUS mode, `@shrubbery/hoja/mus`). Host-supplied: Hoja
+   * carries no grammar of its own. Read when the editor mounts (change `valueKey` to remount).
+   */
+  @property({ attribute: false }) highlight: CodeHighlighter | null = null
+  /** Host extensions on the editing roster (decorations such as `FenceDiagnostics`). Read when the editor mounts. */
+  @property({ attribute: false }) extensions: Extensions = []
 
   /** Controlled callbacks. They report intent; Hoja never sends or persists. */
   @property({ attribute: false }) onChange?: HojaChangeHandler
@@ -1010,6 +1020,8 @@ export class HojaEditor extends LitElement {
       onWikiLinkClick: attrs => {
         if (attrs.targetDocId) this.onWikiLinkOpen?.(attrs.targetDocId, attrs.targetGraphId ?? null)
       },
+      codeHighlight: this.highlight,
+      extraExtensions: this.extensions,
     })
     this.mountedValueKey = this.valueKey
     this.editor.on('update', this.handleEditorUpdate)

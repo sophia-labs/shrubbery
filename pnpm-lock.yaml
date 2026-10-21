@@ -1027,9 +1027,15 @@ importers:
       '@shrubbery/editor-kernel':
         specifier: workspace:*
         version: link:../editor-kernel
+      highlight.js:
+        specifier: 11.11.2
+        version: 11.11.2
       lit:
         specifier: ^3.0.0
         version: 3.3.3
+      lowlight:
+        specifier: 3.3.0
+        version: 3.3.0
     devDependencies:
       '@types/node':
         specifier: ^22.7.4
@@ -1157,6 +1163,9 @@ importers:
       '@shrubbery/editor-kernel':
         specifier: workspace:*
         version: link:../editor-kernel
+      '@shrubbery/hoja':
+        specifier: workspace:*
+        version: link:../hoja
       '@shrubbery/nucleus':
         specifier: workspace:*
         version: link:../nucleus

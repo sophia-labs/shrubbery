@@ -17,6 +17,8 @@ const config: StorybookConfig = {
     options: {},
   },
   core: { disableTelemetry: true },
+  // Hoja's MUS mode stories load Ovillo's mus-wasm (a build artifact of that repository) from /mus/.
+  staticDirs: process.env.MUS_WASM_DIR ? [{ from: process.env.MUS_WASM_DIR, to: '/mus' }] : [],
 }
 
 export default config
