@@ -173,7 +173,7 @@ export function triplesFromSparqlResult(result: unknown): Triple[] {
   return triples;
 }
 
-function findRows(value: unknown): unknown[] | undefined {
+export function findRows(value: unknown): unknown[] | undefined {
   if (Array.isArray(value)) return value;
   if (!isRecord(value)) return undefined;
   if (Array.isArray(value.rows)) return value.rows;
@@ -588,6 +588,16 @@ export interface GraphPlanAgentRun {
   readonly output: unknown
   /** Why it failed, in the runtime's words. */
   readonly error: string | null
+  /**
+   * Who sat (world-UX slice A, 2026-10-21): the being this post cast (`agent-<16 hex>`, the same for every sitting of
+   * the post), its kind, its Geist pin, this sitting's session and its node key, as `node_queued` names them; null
+   * where the run recorded none. Sittings are keyed by `agentId` and `nodeKey`, never by label.
+   */
+  readonly agentId: string | null
+  readonly agentType: string | null
+  readonly geistObjectRef: Readonly<Record<string, unknown>> | null
+  readonly sessionId: string | null
+  readonly nodeKey: string | null
 }
 
 export function agentRuns(events: readonly RunEvent[]): GraphPlanAgentRun[] {
@@ -604,6 +614,7 @@ export function agentRuns(events: readonly RunEvent[]): GraphPlanAgentRun[] {
       agent = {
         label, step: label.replace(/ #\d+$/, ''), n: n ? Number(n[1]) : null, state: 'queued', attempts: 0,
         queuedAt: null, startedAt: null, endedAt: null, model: null, turns: null, tokens: null, tools: [], output: null, error: null,
+        agentId: null, agentType: null, geistObjectRef: null, sessionId: null, nodeKey: null,
       }
       agents.set(label, agent)
     }
@@ -611,6 +622,12 @@ export function agentRuns(events: readonly RunEvent[]): GraphPlanAgentRun[] {
       case 'node_queued':
         agent.queuedAt ??= at
         if (typeof payload.model === 'string') agent.model = payload.model
+        // Who sits: the first word counts (a sitting asked again keeps its first session and node key).
+        if (typeof payload.agentId === 'string') agent.agentId ??= payload.agentId
+        if (typeof payload.agentType === 'string') agent.agentType ??= payload.agentType
+        if (isRecord(payload.geistObjectRef)) agent.geistObjectRef ??= payload.geistObjectRef
+        if (typeof payload.sessionId === 'string') agent.sessionId ??= payload.sessionId
+        if (typeof payload.nodeKey === 'string') agent.nodeKey ??= payload.nodeKey
         break
       case 'node_started':
         agent.attempts += 1
