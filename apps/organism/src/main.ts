@@ -221,6 +221,7 @@ import {
   type SidebarSection,
   type TagLensBlock,
   type TagLensOpenBlockDetail,
+  type WorkflowFocus,
   type WorkflowPlanOptions,
   type ZoteroSourceAnnotation,
   type ZoteroSourceBaseDetail,
@@ -282,6 +283,15 @@ import {
   type ObjectCardIntent,
   type ObjectIntentDetail,
   makeRideChatService,
+  chooseFrom,
+  type ChoiceItem,
+  makeObjectEmbedRenderer,
+  OBJECT_VIEW_INTENT_EVENT,
+  type ObjectViewIntent,
+  type ObjectPageOptions,
+  type ObjectUsage,
+  objectModelOfRead,
+  type WorkflowStackClassView,
 } from '@shrubbery/runtime'
 import { EDITOR_SHORTCUTS } from '@shrubbery/nucleus'
 import {
@@ -486,6 +496,7 @@ import {
 import { loadTagLensBlocks } from './cell/tag-lens.js'
 import {
   findingCommentId,
+  type GraphPlanAgentRun,
   type GraphPlanAuthoringEvent,
   type GraphPlanResults,
   type GraphPlanSketch,
@@ -493,6 +504,8 @@ import {
   latestGraphPlanRun,
   loadGraphPlanAuthoring,
   loadGraphPlanResults,
+  loadGraphPlanRunTyping,
+  type GraphPlanRunTyping,
   loadGraphPlanSketch,
   localId as graphPlanLocalId,
   type PublishableFinding,
@@ -500,6 +513,17 @@ import {
   readGraphPlanRun,
   startGraphPlanRun,
 } from './cell/graph-plan.js'
+import { makeTypedObjectReader, type ClassLookup, type TypedObjectReader } from './cell/typed-object-reader.js'
+import {
+  classLabelOf,
+  classPluralOf,
+  humanizeKey,
+  type ObjectModel,
+  runOfIri,
+  typedObjectModel,
+  typesOf,
+  WF as OBJECT_WF,
+} from '@shrubbery/nucleus/object-faces'
 import {
   ensureDailyNote,
   loadDailyNotes,
@@ -1370,12 +1394,20 @@ type CurrentWorkflowPlan = {
   changedAt: Map<string, number>
   /** The canvas's selection (`step:clerk`, `stack:passages`, …), which the inspector explains; null for the whole. */
   selected: string | null
+  /** The part (and item) the pane shows full size instead of the canvas; null for the canvas. */
+  focus: WorkflowFocus | null
+  /** Every agent of the last run, from Choreograph's run events (the full view of a person lists theirs). */
+  agents: readonly GraphPlanAgentRun[]
   runId: string | null
   runStatus: string | null
   /** Why the last Run did not start (Choreograph's refusal), until the next one does. */
   runRefusal: string | null
   /** What the last run testified: each collection's items and each check's refusals. */
   results: GraphPlanResults | null
+  /** What the last run testified about its items' types (typed objects D5): typed triples, unfit sittings, beings. */
+  typing: GraphPlanRunTyping | null
+  /** The classes its steps and items name, as the catalogue serves them (typed objects D8.1), by class IRI. */
+  classes: Map<string, ClassLookup>
   /** The run's findings a person may publish, the destination they go to, and how the last publish went. */
   findings: readonly PublishableFinding[]
   findingsDestination: string | null
@@ -1445,6 +1477,7 @@ function openWorkflowDocument(documentId: string, inputs: Record<string, unknown
 
 function openWorkflowPlan(graphId: string, definition: string, inputs: Record<string, unknown>, documentId: string | null = null): void {
   closeWorkflowPlan()
+  leaveObjectPage()
   clearTagLensState()
   clearZoteroSourceState()
   clearArtifactSurfaceState()
@@ -1463,10 +1496,14 @@ function openWorkflowPlan(graphId: string, definition: string, inputs: Record<st
     fingerprints: new Map(),
     changedAt: new Map(),
     selected: null,
+    focus: null,
+    agents: [],
     runId: null,
     runStatus: null,
     runRefusal: null,
     results: null,
+    typing: null,
+    classes: new Map(),
     findings: [],
     findingsDestination: null,
     publish: { status: 'ready', message: null },
@@ -1533,7 +1570,9 @@ async function pollWorkflowPlan(state: CurrentWorkflowPlan): Promise<void> {
         state.runId = last.runId
         state.runStatus = last.status
         try {
-          state.progress = (await readGraphPlanRun(workflowPlanService(), last.runId)).byLabel
+          const run = await readGraphPlanRun(workflowPlanService(), last.runId)
+          state.progress = run.byLabel
+          state.agents = run.agents
         } catch {
           /* the run's own graph still says what it found; only the step tallies are missing */
         }
@@ -1543,6 +1582,7 @@ async function pollWorkflowPlan(state: CurrentWorkflowPlan): Promise<void> {
     if (state.runId && state.runStatus === 'running') {
       const run = await readGraphPlanRun(workflowPlanService(), state.runId)
       state.progress = run.byLabel
+      state.agents = run.agents
       if (run.status !== 'running') {
         state.runStatus = run.status
         await loadWorkflowPlanResults(state)
@@ -1563,7 +1603,7 @@ async function pollWorkflowPlan(state: CurrentWorkflowPlan): Promise<void> {
 function workflowFingerprints(sketch: GraphPlanSketch): Map<string, string> {
   const seen = new Map<string, string>()
   for (const s of sketch.steps) {
-    seen.set(`step:${s.id}`, JSON.stringify([s.label, s.job, s.mode, s.phase, s.over, s.consumes, s.checks, s.produces, s.reads, s.instructions, s.itemSchema]))
+    seen.set(`step:${s.id}`, JSON.stringify([s.label, s.job, s.mode, s.phase, s.over, s.consumes, s.checks, s.produces, s.reads, s.instructions, s.itemSchema, s.itemClass, s.itemVocab]))
   }
   for (const s of sketch.sources) seen.set(`source:${s.id}`, JSON.stringify([s.label, s.documentId, s.fromBlock, s.toBlock]))
   for (const d of sketch.destinations) seen.set(`destination:${d.id}`, JSON.stringify([d.label, d.kind, d.receives, d.documentId]))
@@ -1575,8 +1615,86 @@ async function loadWorkflowPlanResults(state: CurrentWorkflowPlan): Promise<void
   if (!store || !workflow || !state.runId) return
   const reader = workflowPlanReader()
   if (!reader) return
-  state.results = await loadGraphPlanResults(reader, state.graphId, `${workflow}:run:${state.runId.replace(/[^A-Za-z0-9_-]/g, '_')}`)
+  const runGraph = `${workflow}:run:${state.runId.replace(/[^A-Za-z0-9_-]/g, '_')}`
+  state.results = await loadGraphPlanResults(reader, state.graphId, runGraph)
+  try {
+    state.typing = await loadGraphPlanRunTyping(reader, state.graphId, runGraph)
+  } catch (error) {
+    console.warn('[wf-plan] the run\'s typing is unread; its items show as JSON', error)
+    state.typing = null
+  }
   workflowFindings(state)
+  requestWorkflowClasses(state)
+}
+
+const WF_ITEM_TYPE = `${OBJECT_WF}Item`
+const WF_UNFIT_TYPE = `${OBJECT_WF}Unfit`
+const workflowClassesPending = new WeakMap<CurrentWorkflowPlan, Set<string>>()
+
+/** The classes a workflow's steps and items name: read each once from the catalogue, then redraw. */
+function requestWorkflowClasses(state: CurrentWorkflowPlan): void {
+  const reader = typedObjectReader()
+  if (!reader) return
+  const wanted = new Set<string>()
+  for (const step of state.sketch?.steps ?? []) if (step.itemClass) wanted.add(step.itemClass)
+  for (const t of state.typing?.triples ?? []) {
+    if (t.p === 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type' && t.o.type === 'uri' && !t.o.value.startsWith(OBJECT_WF)) wanted.add(t.o.value)
+  }
+  const pending = workflowClassesPending.get(state) ?? new Set<string>()
+  workflowClassesPending.set(state, pending)
+  for (const classIri of wanted) {
+    if (state.classes.has(classIri) || pending.has(classIri)) continue
+    pending.add(classIri)
+    void reader.classEntry(state.graphId, classIri).then(
+      (lookup) => {
+        pending.delete(classIri)
+        state.classes.set(classIri, lookup)
+        if (currentWorkflowPlan !== state) return
+        state.view = workflowPlanView(state, Date.now())
+        rerenderCurrentSource()
+      },
+      () => {
+        pending.delete(classIri)
+        state.classes.set(classIri, { entry: null, catalog: [] })
+      },
+    )
+  }
+}
+
+/**
+ * A stack's typing (typed objects D8.1): each item as the typed object the run testified it is (its own class, or
+ * unfit), and the stack's class (the producing step's `wf:itemClass`, else its items' class) with its columns.
+ * Untyped items stay null, and keep their JSON card.
+ */
+function workflowStackTyping(
+  state: CurrentWorkflowPlan,
+  stepClass: string | null,
+  entries: readonly { readonly value: unknown; readonly iri?: string }[] | null,
+  schemaKeys: readonly string[],
+): { itemClass?: WorkflowStackClassView; objects?: (ObjectModel | null)[] } {
+  const typing = state.typing
+  const objects = entries && typing
+    ? entries.map((entry): ObjectModel | null => {
+        if (!entry.iri) return null
+        const types = typesOf(entry.iri, typing.triples)
+        const own = types.find((t) => t !== WF_ITEM_TYPE && t !== WF_UNFIT_TYPE)
+        if (!own && !types.includes(WF_UNFIT_TYPE)) return null
+        const lookup = state.classes.get(own ?? stepClass ?? '')
+        return typedObjectModel({ iri: entry.iri, types, triples: typing.triples, contract: lookup?.entry ?? null, catalog: lookup?.catalog ?? [], json: entry.value })
+      })
+    : null
+  const typedObjects = objects?.some(Boolean) ? { objects } : {}
+  const classIri = stepClass ?? objects?.find((o) => o && !o.classIri.startsWith(OBJECT_WF))?.classIri ?? null
+  if (!classIri) return typedObjects
+  const entry = state.classes.get(classIri)?.entry ?? null
+  const sample = objects?.find((o): o is ObjectModel => Boolean(o) && o!.classIri === classIri)
+  // The class's own order (presentation, then contract) is what a model of it lists; with no catalogue yet, the
+  // first typed item's fields, else the step's schema keys.
+  const columns = entry
+    ? typedObjectModel({ iri: classIri, triples: [], contract: entry }).fields.map((f) => ({ key: f.key, label: f.label }))
+    : sample ? sample.fields.map((f) => ({ key: f.key, label: f.label }))
+      : schemaKeys.map((key) => ({ key, label: humanizeKey(key) }))
+  return { itemClass: { iri: classIri, label: classLabelOf(classIri, entry), plural: classPluralOf(classIri, entry), columns }, ...typedObjects }
 }
 
 /**
@@ -1777,14 +1895,19 @@ function workflowPlanView(state: CurrentWorkflowPlan, now: number): WorkflowPlan
     const producer = sketch?.steps.find((step) => step.produces === collection) ?? null
     // A check passes on the items it checked: they keep the shape their maker gave them.
     const maker = producer?.checks ? sketch?.steps.find((step) => step.produces === producer.checks) ?? producer : producer
+    const entries = results ? results.items.filter((item) => item.collection === collection) : null
     return {
       id: local(collection),
       producer: producer ? producer.id : null,
       fields: schemaFields(maker?.itemSchema),
-      items: itemsOf(collection),
+      items: entries ? entries.map((item) => item.value) : null,
       problems: claim(local(collection)),
+      ...workflowStackTyping(state, maker?.itemClass ?? null, entries, schemaFields(maker?.itemSchema)),
     }
   })
+  const stepIdOf = (stepIri: string): string => sketch?.steps.find((step) => step.iri === stepIri)?.id ?? local(stepIri)
+  const beings: Record<string, string> = {}
+  for (const [stepIri, agentIri] of state.typing?.castAgents ?? []) beings[stepIdOf(stepIri)] = agentIri
   const reason = (verdict: unknown): string => {
     if (verdict && typeof verdict === 'object') {
       const v = verdict as Record<string, unknown>
@@ -1820,11 +1943,19 @@ function workflowPlanView(state: CurrentWorkflowPlan, now: number): WorkflowPlan
     documentTitles: workflowDocumentTitles(sources, destinations, results),
     selected: state.selected,
     onSelect: (key) => selectWorkflowNode(state, key),
+    focus: state.focus,
+    onFocus: (focus) => focusWorkflowNode(state, focus),
+    agents: state.agents,
     onRun: () => void runWorkflowPlan(state),
     onPublish: (destination) => void publishWorkflowFindings(state, destination),
     onOpenDocument: (target) => {
       void openDocumentFromShell({ graphId: state.graphId, documentId: target.documentId, ...(target.blockId ? { blockId: target.blockId } : {}) })
     },
+    graphId: state.graphId,
+    unfitSittings: (state.typing?.unfitSittings ?? []).map((u) => ({ step: stepIdOf(u.step), sitting: u.sitting, violations: u.violations })),
+    beings,
+    onOpenObject: (target) => openObjectPage(target.graphId ?? state.graphId, target.iri, workflowBack(state)),
+    onEmbedObject: (target) => void embedObjectInDocument({ ...target, graphId: target.graphId ?? state.graphId }),
   }
 }
 
@@ -1864,7 +1995,22 @@ function workflowDocumentTitles(
 function selectWorkflowNode(state: CurrentWorkflowPlan, key: string | null): void {
   if (currentWorkflowPlan !== state) return
   state.selected = key
+  // Selecting another part from a full view opens that part's inspector; the full view stays where it is.
   showWorkflowInspector()
+  state.view = workflowPlanView(state, Date.now())
+  rerenderCurrentSource()
+}
+
+/**
+ * A part opened full size (or, with null, the canvas again). The main pane now says everything about that part, so the
+ * right sidebar steps back to the workflow as a whole, whose order of work opens the other parts; back on the canvas,
+ * the part stays selected.
+ */
+function focusWorkflowNode(state: CurrentWorkflowPlan, focus: WorkflowFocus | null): void {
+  if (currentWorkflowPlan !== state) return
+  const from = state.focus
+  state.focus = focus
+  state.selected = focus ? null : (from?.key ?? state.selected)
   state.view = workflowPlanView(state, Date.now())
   rerenderCurrentSource()
 }
@@ -1890,6 +2036,8 @@ async function runWorkflowPlan(state: CurrentWorkflowPlan): Promise<void> {
     state.runRefusal = null
     state.progress = new Map()
     state.results = null
+    state.typing = null
+    state.agents = []
     state.findings = []
     state.publish = { status: 'ready', message: null }
     state.view = workflowPlanView(state, Date.now())
@@ -1899,6 +2047,224 @@ async function runWorkflowPlan(state: CurrentWorkflowPlan): Promise<void> {
   }
   rerenderCurrentSource()
 }
+
+// ── Typed objects (2026-10-20, plans/2026-10-20-typed-objects D6-D8) ───────────────────────────────────────────────
+// One reader for every host (the object page, the injerto in a document, the workflow, object.card leaves): the cell's
+// sparql_query and emporium_vocab, cached per graph. One page for any typed object (?object=<iri>), with a way back.
+// Every gesture on an object's face is one `sh-object-view-intent`, handled here.
+
+let typedObjectReaderFor: { readonly caller: unknown; readonly reader: TypedObjectReader } | null = null
+
+function typedObjectReader(): TypedObjectReader | null {
+  const caller = store?.contract.rawMcp
+  if (!caller) return null
+  if (typedObjectReaderFor?.caller !== caller) {
+    typedObjectReaderFor = { caller, reader: makeTypedObjectReader({ callTool: (name, args) => caller.callTool(name, args) }) }
+  }
+  return typedObjectReaderFor.reader
+}
+
+type CurrentObjectPage = {
+  readonly graphId: string
+  readonly iri: string
+  status: 'loading' | 'ready' | 'absent' | 'error'
+  model: ObjectModel | null
+  usedIn: readonly ObjectUsage[] | null
+  error: string | null
+  readonly back: { readonly label: string; readonly onBack: () => void } | null
+}
+let currentObjectPage: CurrentObjectPage | null = null
+
+function objectPageFromUrl(): string | null {
+  try {
+    return new URL(window.location.href).searchParams.get('object')?.trim() || null
+  } catch {
+    return null
+  }
+}
+
+function writeObjectPageToUrl(iri: string | null): void {
+  try {
+    const url = new URL(window.location.href)
+    if (iri) url.searchParams.set('object', iri)
+    else url.searchParams.delete('object')
+    window.history.replaceState(window.history.state, '', url)
+  } catch {
+    // URL reflection is best-effort; the shell state remains authoritative.
+  }
+}
+
+/** The way back to a workflow from one of its items, opened as an object. */
+function workflowBack(state: CurrentWorkflowPlan): { label: string; onBack: () => void } {
+  return { label: state.view.title, onBack: () => closeObjectPage() }
+}
+
+/** Where the person is now, as the way back from an object opened from here. */
+function currentPlaceBack(): { label: string; onBack: () => void } | null {
+  if (currentObjectPage) {
+    const from = currentObjectPage
+    return { label: from.model?.title ?? 'the object', onBack: () => openObjectPage(from.graphId, from.iri, from.back) }
+  }
+  if (openDocId) {
+    const documentId = openDocId
+    const graphId = currentGraphId
+    return { label: sidebarNodeById(documentId)?.label ?? 'the document', onBack: () => void openDocumentFromShell({ graphId, documentId }) }
+  }
+  if (currentWorkflowPlan) return workflowBack(currentWorkflowPlan)
+  return null
+}
+
+/** Open one typed object full size in the main pane. */
+function openObjectPage(graphId: string, iri: string, back: CurrentObjectPage['back']): void {
+  if (openDocId) closeOpenDocumentSurface(openDocId)
+  clearTagLensState()
+  clearZoteroSourceState()
+  clearArtifactSurfaceState()
+  const page: CurrentObjectPage = { graphId, iri, status: 'loading', model: null, usedIn: null, error: null, back }
+  currentObjectPage = page
+  writeObjectPageToUrl(iri)
+  rerenderCurrentSource()
+  void loadObjectPage(page)
+}
+
+/** Leave the object page without going anywhere in particular (another route takes the center). */
+function leaveObjectPage(): void {
+  if (!currentObjectPage) return
+  currentObjectPage = null
+  writeObjectPageToUrl(null)
+}
+
+function closeObjectPage(): void {
+  leaveObjectPage()
+  rerenderCurrentSource()
+}
+
+async function loadObjectPage(page: CurrentObjectPage): Promise<void> {
+  const reader = typedObjectReader()
+  if (!reader) {
+    page.status = 'error'
+    page.error = 'objects are read from a live cell, and this session has none'
+    if (currentObjectPage === page) rerenderCurrentSource()
+    return
+  }
+  try {
+    const read = await reader.read(page.graphId, page.iri)
+    page.model = read ? objectModelOfRead(read) : null
+    page.status = read ? 'ready' : 'absent'
+  } catch (error) {
+    page.status = 'error'
+    page.error = error instanceof Error ? error.message : String(error)
+  }
+  if (currentObjectPage !== page) return
+  rerenderCurrentSource()
+  if (page.status !== 'ready') return
+  try {
+    page.usedIn = (await reader.usedIn(page.graphId, page.iri)).map((usage) => ({ ...usage, title: sidebarNodeById(usage.documentId)?.label ?? null }))
+  } catch (error) {
+    console.warn('[object] where it is used is unread', error)
+    page.usedIn = []
+  }
+  if (currentObjectPage === page) rerenderCurrentSource()
+}
+
+function objectPageView(page: CurrentObjectPage): ObjectPageOptions {
+  const titles: Record<string, string> = {}
+  for (const documentId of [page.model?.roles.document?.documentId, ...(page.usedIn ?? []).map((u) => u.documentId)]) {
+    const label = documentId ? sidebarNodeById(documentId)?.label : null
+    if (documentId && label) titles[documentId] = label
+  }
+  return {
+    graphId: page.graphId,
+    iri: page.iri,
+    status: page.status,
+    model: page.model,
+    error: page.error,
+    usedIn: page.usedIn,
+    documentTitles: titles,
+    back: page.back,
+  }
+}
+
+/** The documents of this workspace, with the folders they sit in, to choose one to embed an object in. */
+function documentChoices(): ChoiceItem[] {
+  const out: ChoiceItem[] = []
+  const walk = (nodes: readonly SidebarNode[], path: readonly string[]): void => {
+    for (const node of nodes) {
+      if (node.kind === 'document') out.push({ id: node.id, label: node.label, ...(path.length ? { sub: path.join(' / ') } : {}) })
+      if (node.children?.length) walk(node.children, node.kind === 'folder' ? [...path, node.label] : path)
+    }
+  }
+  for (const section of currentSidebarSections) walk(section.nodes ?? [], [])
+  return out
+}
+
+/** "Embed in a document…": choose a document, and append an objectEmbed block holding a reference to the object. */
+async function embedObjectInDocument(target: { readonly iri: string; readonly graphId?: string | null; readonly label: string; readonly classLabel: string }): Promise<void> {
+  const caller = store?.contract.rawMcp
+  if (!caller) {
+    err('embedding needs a live cell')
+    return
+  }
+  const graphId = target.graphId ?? currentGraphId
+  const documentId = await chooseFrom(document, {
+    heading: `Embed “${target.label}” in a document`,
+    placeholder: 'Find a document',
+    emptyText: 'This workspace has no documents yet.',
+    items: documentChoices(),
+  })
+  if (!documentId) return
+  const title = sidebarNodeById(documentId)?.label ?? documentId
+  try {
+    await caller.callTool('insert_blocks', {
+      graphId,
+      documentId,
+      tiptapJson: { type: 'doc', content: [{ type: 'objectEmbed', attrs: { iri: target.iri, graphId, slot: 'card', label: target.label, classLabel: target.classLabel } }] },
+    })
+    typedObjectReader()?.forget(graphId)
+    ok(`embedded ${target.classLabel.toLowerCase()} "${target.label}" in ${title}`)
+    if (currentObjectPage?.iri === target.iri) void loadObjectPage(currentObjectPage)
+  } catch (error) {
+    err(`could not embed it in ${title}: ${error instanceof Error ? error.message : String(error)}`)
+  }
+}
+
+/** `/object`: choose one of this graph's typed objects, by class or title, to embed where the command was typed. */
+async function pickTypedObject(graphId: string): Promise<{ iri: string; graphId: string; slot: 'card'; label: string; classLabel: string } | null> {
+  const reader = typedObjectReader()
+  if (!reader) return null
+  const hits = reader.search(graphId)
+  const iri = await chooseFrom(document, {
+    heading: 'Embed an object',
+    placeholder: 'Find by class or title',
+    emptyText: 'This graph holds no typed objects yet.',
+    // The same report can be testified twice (a candidate and its verified copy): the run and the item tell them apart.
+    items: hits.then((list) => list.map((hit) => {
+      const run = runOfIri(hit.iri)
+      const tail = hit.iri.slice(hit.iri.lastIndexOf('#') + 1)
+      return { id: hit.iri, label: hit.title, tag: hit.classLabel, sub: run ? `run ${run.id} · ${tail}` : tail }
+    })),
+  })
+  const hit = iri ? (await hits).find((h) => h.iri === iri) : undefined
+  return hit ? { iri: hit.iri, graphId, slot: 'card', label: hit.title, classLabel: hit.classLabel } : null
+}
+
+/** Every gesture on a typed object's face that no nearer host took: open it, open its document, embed it. */
+function onObjectViewIntent(event: Event): void {
+  const intent = (event as CustomEvent<{ intent?: ObjectViewIntent }>).detail?.intent
+  if (!intent) return
+  if (intent.kind === 'open-object') {
+    openObjectPage(intent.graphId ?? currentGraphId, intent.iri, currentPlaceBack())
+  } else if (intent.kind === 'open-document') {
+    leaveObjectPage()
+    void openDocumentFromShell({ graphId: intent.graphId ?? currentGraphId, documentId: intent.documentId, ...(intent.blockId ? { blockId: intent.blockId } : {}) })
+  } else if (intent.kind === 'embed') {
+    void embedObjectInDocument(intent)
+  } else if (intent.kind === 'open-run') {
+    // The run an item came from is its workflow's: back to it when it is open beneath.
+    if (currentWorkflowPlan) closeObjectPage()
+  }
+}
+document.addEventListener(OBJECT_VIEW_INTENT_EVENT, onObjectViewIntent)
 
 type CurrentZoteroSourceSurface = {
   readonly graphId: string
@@ -6853,6 +7219,9 @@ function buildPaneEditorClaim(
   let pickerOverlayOpen = false
   const kernelOptions: EditorKernelOptions = {
     ...buildKernelOptions(services, claimScope()),
+    // Typed objects D8.3: an objectEmbed block draws its object live, in an injerto; /object chooses one to embed.
+    renderObjectEmbed: makeObjectEmbedRenderer(() => typedObjectReader()),
+    pickObjectEmbed: () => pickTypedObject(claimGraphId),
     isOverlayOpen: () => pickerOverlayOpen,
     onTagClick: ({ name }) => handleTagIntent(name, 'editor tag chip'),
   }
@@ -8340,6 +8709,7 @@ function currentFragmentOptions(config: WorkspaceConfig): WorkspaceFragmentsOpti
           ? instrumentQueryService(roomService, 'room')
           : instrumentQueryService(activeStore.contract.sourceMirror.surfaceQueryService(currentGraphId), 'remote'),
         objectService: currentObjectService(activeStore.contract),
+        typedObjectService: typedObjectReader(),
         ...(hostedEvidenceService ? { evidenceService: hostedEvidenceService } : {}),
         // el Despacho W1 (plans/2026-09-15-despacho-design.md §7): the bead
         // under the cursor (`?focus=<iri>`), the tool port a word travels
@@ -8728,6 +9098,7 @@ function openFilesRoute(target: { readonly folderId?: string | null; readonly ar
   const shell = bindFilesShell()
   if (!shell?.visible()) return false
   if (openDocId) closeOpenDocumentSurface(openDocId)
+  leaveObjectPage()
   clearTagLensState()
   clearZoteroSourceState()
   clearArtifactSurfaceState()
@@ -8751,6 +9122,8 @@ function renderConfig(config: WorkspaceConfig, app: string | undefined): string 
   const chat = ensureChatClaim()
   const tagLens = currentTagLens
   const workflowPlan = !openDocId && !tagLens ? currentWorkflowPlan?.view ?? null : null
+  // Typed objects D8.2: an object opened full size takes the center, over a workflow it came from (which waits beneath).
+  const objectPage = !openDocId && !tagLens && currentObjectPage ? objectPageView(currentObjectPage) : null
   // Leaving a workflow for anything else gives the right sidebar back what it showed before the workflow took it.
   if (!workflowPlan && workflowRestorePanel !== null) {
     const back = workflowRestorePanel
@@ -8768,7 +9141,7 @@ function renderConfig(config: WorkspaceConfig, app: string | undefined): string 
   const parkedWork = currentParkedWorkOptions()
   // The Files route yields to every other explicit center route, and stays closed once another took over.
   const filesShellNow = bindFilesShell()
-  const filesBlocked = Boolean(openDocId || centerPanesVisible || tagLens || workflowPlan || zoteroSource
+  const filesBlocked = Boolean(openDocId || centerPanesVisible || tagLens || workflowPlan || objectPage || zoteroSource
     || artifactSurface || docHistorySurface || contested || parkedWork)
   if (filesBlocked) filesShellNow?.leave()
   const files = !filesBlocked && (app === undefined || app === 'garden') ? filesShellNow?.options() ?? null : null
@@ -8780,7 +9153,7 @@ function renderConfig(config: WorkspaceConfig, app: string | undefined): string 
   // Preserve the saved notebook fragment on arrival; an explicit shell route
   // uses the ordinary editor center for this view, without writing UX state.
   config = withNotebookWorkspaceShell(config, {
-    preferHostRoute: Boolean(openDocId || centerPanesVisible || tagLens || workflowPlan || zoteroSource
+    preferHostRoute: Boolean(openDocId || centerPanesVisible || tagLens || workflowPlan || objectPage || zoteroSource
       || artifactSurface || docHistorySurface || contested || parkedWork || files),
   })
   // Grapevine (Sophia Chat) needs the hosted gateway: it does not join a self-host's picker.
@@ -8951,7 +9324,7 @@ function renderConfig(config: WorkspaceConfig, app: string | undefined): string 
       onClose: () => setRightPanel('none', 'inspector close'),
       onAction: handleInspectorAction,
       onRelationOpen: handleInspectorRelationOpen,
-      workflow: workflowPlan,
+      workflow: objectPage ? null : workflowPlan,
     },
     graphPanel: currentGraphPanelOptions(),
     outlinePanel: currentOutlinePanelOptions(),
@@ -9005,6 +9378,7 @@ function renderConfig(config: WorkspaceConfig, app: string | undefined): string 
         }
       : {}),
     ...(workflowPlan ? { workflowPlan } : {}),
+    ...(objectPage ? { objectPage } : {}),
     ...(zoteroSource
       ? {
           zoteroSource: {
@@ -10275,6 +10649,8 @@ function startCellMode(): void {
       const isIri = /^[a-z][a-z0-9+.-]*:/i.test(fromUrl.definition)
       openWorkflowPlan(graphId, isIri ? fromUrl.definition : workflowDraftGraph(fromUrl.definition), fromUrl.inputs, isIri ? null : fromUrl.definition)
     }
+    const objectIri = objectPageFromUrl()
+    if (objectIri) openObjectPage(graphId, objectIri, currentWorkflowPlan ? workflowBack(currentWorkflowPlan) : null)
   }
   customCssController = new CustomCssController(nextStore.contract, graphId, roomPoolFor(nextStore.contract.crdt))
   // The tree follows writes made outside this page (Sophia's chat, the conversation mirror, another tab or
@@ -10449,6 +10825,8 @@ async function openCellDocument(
     err('open a CELL_LIVE source first (no cell store).')
     return
   }
+  // A document takes the center: an object page open over it gives way (its back door is the document's own).
+  leaveObjectPage()
   const override = (targetDocId ?? cellDocId.value).trim()
   let docId = override
   if (!docId) {

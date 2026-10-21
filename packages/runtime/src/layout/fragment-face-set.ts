@@ -94,6 +94,9 @@ import { createCardInboxFace, createCardInboxResourceAdapter } from './faces/car
 import { createCardMyWorkFace, createCardMyWorkResourceAdapter } from './faces/card-my-work-face.js'
 // el Despacho W11: the roster pokédex — a seat as a catalogue entry.
 import { createCardAgentFace, createCardAgentResourceAdapter } from './faces/card-agent-face.js'
+// Typed objects (2026-10-20, D7 "Layout leaves"): one typed object, any absolute IRI, drawn by <sh-object-view>.
+import { createObjectCardFace, createObjectCardResourceAdapter } from './faces/object-card-face.js'
+import type { TypedObjectService } from '../object-view/typed-object-service.js'
 
 /**
  * The adapter id the Surface interpreter resolves a grid's COLLECTION children
@@ -137,6 +140,8 @@ export function createFragmentFaceRegistrations(): readonly FaceRegistration[] {
     createCardInboxFace(),
     createCardMyWorkFace(),
     createCardAgentFace(),
+    // Typed objects D7: a graph-authored layout may place any typed object (a run item, a published object).
+    createObjectCardFace(),
   ]
 }
 
@@ -160,6 +165,8 @@ export function createFragmentResourceAdapters(
   evidence: FilmstripEvidenceService,
   /** The THIRD service seam: `card.cuenta`'s verb port + witness (el Despacho W1). Absent = the chapter reads, the act cannot be carried. */
   verbs: CuentaVerbSeam = NO_CUENTA_VERB_SEAM,
+  /** The FOURTH seam: `object.card`'s typed-object reads (typed objects D6). Absent = the leaf says it cannot read. */
+  typedObjects: TypedObjectService = NO_TYPED_OBJECT_SERVICE,
 ): readonly ResourceAdapter[] {
   return [
     createCardCuentaResourceAdapter(service, verbs),
@@ -180,7 +187,13 @@ export function createFragmentResourceAdapters(
     createFilmstripResourceAdapter(service, resolver, evidence),
     createComputeCellResourceAdapter(service),
     createAgentSessionFamilyResourceAdapter(service),
+    createObjectCardResourceAdapter(typedObjects),
   ]
+}
+
+/** A session with no typed-object reader: `object.card` leaves say so, honestly. */
+export const NO_TYPED_OBJECT_SERVICE: TypedObjectService = {
+  read: () => Promise.reject(new Error('object.card: this session has no typed-object reader')),
 }
 
 /**

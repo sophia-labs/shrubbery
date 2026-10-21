@@ -261,7 +261,7 @@ export const AppBar: StoryObj<AppBarArgs> = {
 /**
  * AppBarSkinContrast — the SAME mn-app-bar under BOTH skins, side by side, each in
  * its own [data-skin] host. Garden (fern / serif display / rounded / comfortable)
- * vs Emporium (purple / Diatype / square / tight) — the product bar re-skins live
+ * vs Emporium (Sophia Blue / Diatype-like sans / crisp / compact) — the product bar re-skins live
  * via the token cascade. The crumb trail + search render identically in structure
  * but visibly different in identity.
  */
@@ -286,7 +286,7 @@ export const AppBarSkinContrast: Story = {
         <section data-skin="emporium" style="background:var(--mn-color-surface-base);">
           <mn-app-bar
             .brand=${'Emporium'}
-            .badge=${'purple'}
+            .badge=${'Sophia'}
             .glyph=${'⬡'}
             .searchPlaceholder=${'Search vocabularies…'}
             .crumbs=${crumbs}
@@ -327,8 +327,8 @@ export const TopAndBottom: Story = {
  * SkinContrast — the SAME chrome under BOTH skins, side by side, each wrapped in
  * its OWN [data-skin] host. The components are skin-aware (iteration 3b): each
  * mirrors the ambient skin onto itself and re-skins via the token cascade, so
- * Garden (fern / Literata / rounded / captioned / 28px) and Emporium (purple /
- * Diatype / square / icon-only / tight 24px) render visibly different here. This
+ * Garden (fern / Literata / rounded / captioned / 28px) and Emporium (Sophia Blue /
+ * Public Sans / crisp 4px / captioned / 28px) render visibly different here. This
  * is the explicit contrast target the 3c Playwright pass screenshots + computes
  * against. The wrapping [data-theme] is left to the toolbar Theme global, so each
  * pane composes skin × theme orthogonally.
@@ -354,7 +354,7 @@ export const SkinContrast: Story = {
         data-skin="emporium"
         style="display:flex;flex-direction:column;background:var(--mn-color-surface-base);"
       >
-        <mn-top-bar .brand=${'Emporium'} .badge=${'purple'}></mn-top-bar>
+        <mn-top-bar .brand=${'Emporium'} .badge=${'Sophia'}></mn-top-bar>
         <div
           style="flex:1;display:flex;align-items:center;justify-content:center;
                  color:var(--mn-color-text-secondary);font-family:var(--mn-font-chrome);

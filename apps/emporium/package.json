@@ -1,7 +1,7 @@
 {
   "name": "@shrubbery/emporium",
   "version": "0.0.0",
-  "description": "The EMPORIUM app — a DEDICATED Vite product shell (the 4th shell after garden desktop / cloud-2 cell SPA / choreograph Studio) for the live vocab-pack catalogue. Defaults to the Emporium skin (purple, Diatype, square, tight). Reuses the shrubbery library + the shell-side live /emporium read (@shrubbery/source's './emporium' subpath — U10 migration). NO backend in the library, NO mocks — reads a REAL gardend cell over the /cell proxy.",
+  "description": "The EMPORIUM app — a DEDICATED Vite product shell (the 4th shell after garden desktop / cloud-2 cell SPA / choreograph Studio) for the live vocab-pack catalogue. Defaults to the Emporium skin (labelled Sophia: Sophia Blue, Public Sans). Reuses the shrubbery library + the shell-side live /emporium read (@shrubbery/source's './emporium' subpath — U10 migration). NO backend in the library, NO mocks — reads a REAL gardend cell over the /cell proxy.",
   "type": "module",
   "license": "LicenseRef-PolyForm-Noncommercial-1.0.0",
   "private": true,

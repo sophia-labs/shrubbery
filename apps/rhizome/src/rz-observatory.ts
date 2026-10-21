@@ -30,7 +30,7 @@
  *       empty zone; whitespace + value-contrast over boxes/rules.
  *
  * Danger/error uses the DANGER ROLE TOKENS (NOT hardcoded hex) so it tracks the
- * Emporium dark-purple skin. All glyphs are lucide icon() (never emoji); all colour
+ * Emporium (Sophia) skin. All glyphs are lucide icon() (never emoji); all colour
  * / space / radius / type via --mn-* tokens.
  *
  * It is registered as a side effect (the upgrade seam) — importing this module
@@ -668,7 +668,7 @@ export class RzObservatory extends LitElement {
     }
 
     /* ── Status (loading / error) — error via DANGER ROLE TOKENS (skin-aware), NOT
-       hardcoded hex, so it tracks the Emporium dark-purple theme. ─────────────── */
+       hardcoded hex, so it tracks the Emporium (Sophia) theme. ─────────────── */
     .status {
       padding: 10px 12px;
       border-radius: var(--mn-radius-surface, 6px);

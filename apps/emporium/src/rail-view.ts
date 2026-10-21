@@ -14,7 +14,7 @@
  *
  * Skin-aware for FREE: every primitive mirrors the ambient [data-skin] and
  * recolors via the inherited role tokens, so the Emporium skin paints the rail
- * purple/tight with no per-skin code here.
+ * Sophia Blue with no per-skin code here.
  *
  * Renders REAL rows only — an empty catalogue shows an honest empty rail (never a
  * faked pack).

@@ -1,16 +1,17 @@
 /**
  * Tokens — the design-token system rendered for review.
  *
- * The Palette story renders the PROPOSED Emporium dark-purple ramp + the live
- * accent/identity roles, reading them from the real tokens via getComputedStyle
- * AND from the exported constants — so Vera can review the purple RENDERED and
- * tune the hexes. Flip the Skin/Theme toolbar globals to see Garden, Emporium,
- * Research, and Greenhouse, light vs dark. NO mock token bag — every swatch resolves a live
+ * The Palette story renders the Sophia Blue ramp (the Sophia skin's primary) +
+ * the live accent/identity roles, reading them from the real tokens via
+ * getComputedStyle AND from the exported constants — so Vera can review the
+ * palette RENDERED and tune the hexes. Flip the Skin/Theme toolbar globals to see
+ * Garden, Sophia, Research, and Greenhouse, light vs dark. NO mock token bag — every swatch resolves a live
  * --mn-* var.
  */
-import { html } from 'lit'
+
+import { EMPORIUM_ACCENT, GREENHOUSE_ACCENT, RESEARCH_ACCENT, SOPHIA_BLUE_RAMP } from '@shrubbery/tokens'
 import type { Meta, StoryObj } from '@storybook/web-components'
-import { PURPLE_RAMP, EMPORIUM_ACCENT, RESEARCH_ACCENT, GREENHOUSE_ACCENT } from '@shrubbery/tokens'
+import { html } from 'lit'
 
 const meta: Meta = {
   title: 'Tokens/Palette',
@@ -34,11 +35,11 @@ function swatch(label: string, cssVar: string, sub?: string) {
 }
 
 /** A fixed-hex swatch (the documented ramp value, independent of the skin). */
-function rampSwatch(step: string | number, hex: string) {
+function rampSwatch(ramp: string, step: string | number, hex: string) {
   return html`
     <div style="display:flex;flex-direction:column;gap:4px;min-width:96px;">
       <div style="height:48px;border:1px solid rgba(0,0,0,0.1);border-radius:4px;background:${hex};"></div>
-      <div style="font-size:11px;font-weight:600;">purple-${step}</div>
+      <div style="font-size:11px;font-weight:600;">${ramp}-${step}</div>
       <div style="font-size:11px;color:var(--mn-color-text-tertiary);font-family:var(--mn-font-mono);">${hex}</div>
     </div>
   `
@@ -49,7 +50,7 @@ export const SemanticRoles: Story = {
     <div style="font-family:var(--mn-font-chrome);">
       <h2 style="margin:0 0 4px;">Semantic accent / identity roles (live under the active skin)</h2>
       <p style="margin:0 0 16px;color:var(--mn-color-text-secondary);font-size:13px;">
-        Flip the <b>Skin</b> toolbar control: Garden = fern, Emporium = dark purple,
+        Flip the <b>Skin</b> toolbar control: Garden = fern, Sophia = Sophia Blue ${EMPORIUM_ACCENT.accent},
         Research = SRS blue ${RESEARCH_ACCENT.accent}, Greenhouse = sans Garden green
         ${GREENHOUSE_ACCENT.accent}. Flip <b>Theme</b> for light/dark.
         These read the live <code>--mn-*</code> vars.
@@ -69,20 +70,21 @@ export const SemanticRoles: Story = {
   `,
 }
 
-export const EmporiumPurpleRamp: Story = {
+export const SophiaBlueRamp: Story = {
   render: () => html`
     <div style="font-family:var(--mn-font-chrome);">
-      <h2 style="margin:0 0 4px;">Emporium dark-purple ramp</h2>
+      <h2 style="margin:0 0 4px;">Sophia Blue ramp</h2>
       <p style="margin:0 0 16px;color:var(--mn-color-text-secondary);font-size:13px;">
         Tune the hexes in
-        <code>packages/tokens/css/reference.css</code> (<code>--mn-ref-purple-*</code>).
-        light accent = purple-400 ${EMPORIUM_ACCENT.accent} (Vera's pick) ·
-        accent-strong = purple-700 ${EMPORIUM_ACCENT.accentStrong} ·
-        rule-strong = purple-300 ${EMPORIUM_ACCENT.ruleStrong} ·
-        dark accent = purple-300 ${EMPORIUM_ACCENT.accentDark}.
+        <code>packages/tokens/css/reference.css</code> (<code>--mn-ref-sophia-blue-*</code>);
+        skin-emporium.css says which step plays which role.
+        light accent = blue-800 ${EMPORIUM_ACCENT.accent} (Sophia Blue) ·
+        accent-strong = blue-950 ${EMPORIUM_ACCENT.accentStrong} ·
+        border-strong = mist-400 ${EMPORIUM_ACCENT.ruleStrong} ·
+        dark accent = blue-300 ${EMPORIUM_ACCENT.accentDark}.
       </p>
       <div style="display:flex;flex-wrap:wrap;gap:12px;">
-        ${Object.entries(PURPLE_RAMP).map(([step, hex]) => rampSwatch(step, hex))}
+        ${Object.entries(SOPHIA_BLUE_RAMP).map(([step, hex]) => rampSwatch('sophia-blue', step, hex))}
       </div>
     </div>
   `,

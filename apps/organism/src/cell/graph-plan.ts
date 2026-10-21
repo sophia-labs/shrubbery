@@ -5,6 +5,10 @@
  * so the main pane can draw exactly what will run and show the digest a person approves. If the two ever drift, the
  * digests differ and Choreograph refuses the run: the failure is loud, never a silent mismatch. Extract one shared
  * package when a third consumer appears.
+ *
+ * Typed items (2026-10-20, plans/2026-10-20-typed-objects D4): a step may name the Emporium class its items are
+ * (`wf:itemClass`) and the vocabulary version composing pinned (`wf:itemVocab`); the compiled step carries both,
+ * omitted when absent, so the digest pins the version and every older digest holds.
  */
 import { sha256Digest } from '@shrubbery/nucleus/web-crypto'
 
@@ -49,6 +53,10 @@ export interface GraphPlanStepV1 {
   readonly itemSchema?: Record<string, unknown>;
   /** The sources (`wf:Source` IRIs) the step reads, sorted; absent when it reads none. */
   readonly reads?: readonly string[];
+  /** The class each item it hands back is (`wf:itemClass`, an IRI); absent when the step names none. */
+  readonly itemClass?: string;
+  /** The class's vocabulary at the version composing pinned, `<vocab>@<version>` (`wf:itemVocab`). */
+  readonly itemVocab?: string;
 }
 
 /** What a workflow reads: a document of this workspace, or a run of its blocks. */
@@ -94,6 +102,7 @@ export interface GraphPlanV1 {
 
 const DOCUMENT_ID = /^[A-Za-z0-9_-]{1,128}$/;
 const BLOCK_ID = /^[A-Za-z0-9_.:-]{1,128}$/;
+const ITEM_VOCAB = /^[^\s@]{1,128}@[^\s@]{1,64}$/;
 
 export class GraphPlanError extends Error {
   constructor(readonly problems: readonly string[]) {
@@ -304,6 +313,12 @@ export function compileGraphPlan(triples: readonly Triple[]): GraphPlanV1 {
         problems.push(`${short(s)}'s wf:itemSchema is not a JSON Schema object`);
       }
     }
+    const itemClass = iriOf(s, `${WF}itemClass`, "wf:itemClass", false);
+    const itemVocab = literal(s, `${WF}itemVocab`, "wf:itemVocab", false);
+    if (itemVocab !== undefined && !ITEM_VOCAB.test(itemVocab)) problems.push(`${short(s)}'s wf:itemVocab is "${itemVocab}"; write it as <vocab>@<version>`);
+    const has = (p: string) => (bySubject.get(s) ?? []).some((t) => t.p === p);
+    if (has(`${WF}itemClass`) && !has(`${WF}itemVocab`)) problems.push(`${short(s)} names a class (wf:itemClass) but not the vocabulary version that pins it (wf:itemVocab)`);
+    if (has(`${WF}itemVocab`) && !has(`${WF}itemClass`)) problems.push(`${short(s)} names a vocabulary version (wf:itemVocab) but no class (wf:itemClass)`);
     if (produces) {
       const prior = producedBy.get(produces);
       if (prior) problems.push(`${short(produces)} is produced by both ${short(prior.step)} and ${short(s)}`);
@@ -322,6 +337,8 @@ export function compileGraphPlan(triples: readonly Triple[]): GraphPlanV1 {
       ...(checks ? { checks } : {}),
       ...(itemSchema ? { itemSchema } : {}),
       ...(reads.length > 0 ? { reads } : {}),
+      ...(itemClass ? { itemClass } : {}),
+      ...(itemVocab ? { itemVocab } : {}),
       phase: phase ?? "",
     };
   });
@@ -525,6 +542,8 @@ export interface GraphPlanRunProgress {
   readonly status: string
   /** Per step label (without its ` #n` item suffix): finished and failed agent nodes. */
   readonly byLabel: ReadonlyMap<string, { readonly done: number; readonly failed: number; readonly started: number }>
+  /** Every agent of the run, in the order they were queued (the full view of a person lists theirs). */
+  readonly agents: readonly GraphPlanAgentRun[]
 }
 
 export async function readGraphPlanRun(service: GraphPlanService, runId: string): Promise<GraphPlanRunProgress> {
@@ -533,12 +552,99 @@ export async function readGraphPlanRun(service: GraphPlanService, runId: string)
   })
   if (!response.ok) throw new Error(`the run could not be read: HTTP ${response.status}`)
   const body = (await response.json()) as { header?: { status?: string }; events?: readonly RunEvent[] }
-  return { status: body.header?.status ?? 'unknown', byLabel: stepTallies(body.events ?? []) }
+  const events = body.events ?? []
+  return { status: body.header?.status ?? 'unknown', byLabel: stepTallies(events), agents: agentRuns(events) }
 }
 
 export interface RunEvent {
   readonly type?: string
   readonly label?: string | null
+  /** Milliseconds since the epoch. */
+  readonly ts?: number
+  readonly payload?: unknown
+}
+
+/**
+ * One agent of a run, as its events tell it (2026-10-20, the full view of a person): a step's agent for one item
+ * (`<step> #<n>`), or a once step's only agent (`<step>`). An agent asked once more (`… again`) is the same agent: its
+ * last word counts and its tool calls add up.
+ */
+export interface GraphPlanAgentRun {
+  readonly label: string
+  /** The step's label, as the plan names it. */
+  readonly step: string
+  /** The item it worked, 1-based; null for a once step. */
+  readonly n: number | null
+  readonly state: 'queued' | 'running' | 'done' | 'failed'
+  readonly attempts: number
+  readonly queuedAt: number | null
+  readonly startedAt: number | null
+  readonly endedAt: number | null
+  readonly model: string | null
+  readonly turns: number | null
+  readonly tokens: number | null
+  readonly tools: readonly { readonly gate: string; readonly args: unknown; readonly at: number | null }[]
+  /** What it handed back: its structured output, else its output text (JSON when it parses). */
+  readonly output: unknown
+  /** Why it failed, in the runtime's words. */
+  readonly error: string | null
+}
+
+export function agentRuns(events: readonly RunEvent[]): GraphPlanAgentRun[] {
+  type Mutable = { -readonly [K in keyof GraphPlanAgentRun]: GraphPlanAgentRun[K] } & { tools: GraphPlanAgentRun['tools'][number][] }
+  const agents = new Map<string, Mutable>()
+  for (const event of events) {
+    if (!event.label) continue
+    const label = event.label.replace(/ again$/, '')
+    const payload = isRecord(event.payload) ? event.payload : {}
+    const at = typeof event.ts === 'number' ? event.ts : null
+    let agent = agents.get(label)
+    if (!agent) {
+      const n = /#(\d+)$/.exec(label)
+      agent = {
+        label, step: label.replace(/ #\d+$/, ''), n: n ? Number(n[1]) : null, state: 'queued', attempts: 0,
+        queuedAt: null, startedAt: null, endedAt: null, model: null, turns: null, tokens: null, tools: [], output: null, error: null,
+      }
+      agents.set(label, agent)
+    }
+    switch (event.type) {
+      case 'node_queued':
+        agent.queuedAt ??= at
+        if (typeof payload.model === 'string') agent.model = payload.model
+        break
+      case 'node_started':
+        agent.attempts += 1
+        agent.startedAt ??= at
+        agent.state = 'running'
+        agent.endedAt = null
+        break
+      case 'tool_call':
+        if (typeof payload.gate === 'string') agent.tools.push({ gate: payload.gate, args: payload.args ?? null, at })
+        break
+      case 'node_done':
+      case 'error': {
+        const failed = event.type === 'error' || payload.status === 'error'
+        agent.state = failed ? 'failed' : 'done'
+        agent.endedAt = at
+        if (typeof payload.turns === 'number') agent.turns = (agent.turns ?? 0) + payload.turns
+        if (typeof payload.tokens === 'number') agent.tokens = (agent.tokens ?? 0) + payload.tokens
+        const text = typeof payload.output === 'string' ? payload.output : null
+        agent.error = failed ? (text ?? (typeof payload.message === 'string' ? payload.message : 'It failed.')) : null
+        if (!failed) agent.output = payload.structured_output ?? parsedOrText(text)
+        break
+      }
+    }
+  }
+  return [...agents.values()].filter((agent) => agent.queuedAt !== null || agent.startedAt !== null)
+}
+
+function parsedOrText(text: string | null): unknown {
+  if (text === null) return null
+  try {
+    return JSON.parse(text)
+  } catch {
+    return text
+  }
 }
 
 /**
@@ -566,16 +672,17 @@ export function stepTallies(events: readonly RunEvent[]): Map<string, { done: nu
 }
 
 export interface GraphPlanResults {
-  readonly items: readonly { readonly collection: string; readonly value: unknown }[]
+  /** Each item with its node's IRI (`<run>#item-n`), so a typed item can be read as the object it is. */
+  readonly items: readonly { readonly collection: string; readonly value: unknown; readonly iri?: string }[]
   readonly refused: readonly { readonly step: string; readonly item: unknown; readonly verdict: unknown }[]
 }
 
 /** What a finished run testified, read back from its own named graph. */
 export async function loadGraphPlanResults(rest: GraphPlanReader, graphId: string, runGraph: string): Promise<GraphPlanResults> {
   assertIri(runGraph, 'run graph')
-  const query = `PREFIX wf: <${WF}> SELECT ?kind ?collection ?json ?verdict ?step ?position WHERE { GRAPH <${runGraph}> { ?x a ?kind . OPTIONAL { ?x wf:inCollection ?collection } OPTIONAL { ?x wf:json ?json } OPTIONAL { ?x wf:verdict ?verdict } OPTIONAL { ?x wf:checkedBy ?step } OPTIONAL { ?x wf:position ?position } } }`
+  const query = `PREFIX wf: <${WF}> SELECT ?x ?kind ?collection ?json ?verdict ?step ?position WHERE { GRAPH <${runGraph}> { ?x a ?kind . OPTIONAL { ?x wf:inCollection ?collection } OPTIONAL { ?x wf:json ?json } OPTIONAL { ?x wf:verdict ?verdict } OPTIONAL { ?x wf:checkedBy ?step } OPTIONAL { ?x wf:position ?position } } }`
   const rows = findRows(await rest.query(graphId, query)) ?? []
-  const items: { collection: string; value: unknown; position: number }[] = []
+  const items: { collection: string; value: unknown; position: number; iri?: string }[] = []
   const refused: { step: string; item: unknown; verdict: unknown }[] = []
   const text = (raw: unknown): string | undefined => (typeof raw === 'string' ? parseTerm(raw).value : undefined)
   const json = (raw: unknown): unknown => {
@@ -591,13 +698,66 @@ export async function loadGraphPlanResults(rest: GraphPlanReader, graphId: strin
     if (!isRecord(row)) continue
     const kind = text(row.kind)
     if (kind === `${WF}Item`) {
-      items.push({ collection: text(row.collection) ?? '', value: json(row.json), position: Number(text(row.position) ?? 0) })
+      const iri = text(row.x)
+      items.push({ collection: text(row.collection) ?? '', value: json(row.json), position: Number(text(row.position) ?? 0), ...(iri ? { iri } : {}) })
     } else if (kind === `${WF}Refusal`) {
       refused.push({ step: text(row.step) ?? '', item: json(row.json), verdict: json(row.verdict) })
     }
   }
   items.sort((a, b) => a.collection.localeCompare(b.collection) || a.position - b.position)
-  return { items, refused }
+  return { items: items.map(({ position: _position, ...item }) => item), refused }
+}
+
+/**
+ * What a run testified about its items' TYPES (typed objects D5, 2026-10-20): every triple of the run graph but the
+ * JSON (typed items with their field triples and nested children, unfit records, the step runs), and the labels of
+ * the beings the run names. Read beside `loadGraphPlanResults`; a run from before typing simply has no typed triples.
+ */
+export interface GraphPlanRunTyping {
+  readonly triples: readonly { readonly s: string; readonly p: string; readonly o: { readonly type: 'uri' | 'bnode' | 'literal'; readonly value: string; readonly datatype?: string; readonly language?: string } }[]
+  /** Sittings whose whole answer never fit (Choreograph's `a wf:Unfit ; wf:step ; wf:sitting ; wf:violation`). */
+  readonly unfitSittings: readonly { readonly step: string; readonly sitting: string; readonly violations: readonly string[] }[]
+  /** The being each step cast (`<run#step-n> wf:step <step> ; wf:castAgent <agent>`), by step IRI. */
+  readonly castAgents: ReadonlyMap<string, string>
+}
+
+export async function loadGraphPlanRunTyping(rest: GraphPlanReader, graphId: string, runGraph: string): Promise<GraphPlanRunTyping> {
+  assertIri(runGraph, 'run graph')
+  const all = `PREFIX wf: <${WF}> SELECT ?s ?p ?o WHERE { GRAPH <${runGraph}> { ?s ?p ?o FILTER(?p != wf:json && ?p != wf:verdict) } }`
+  const labels = `PREFIX wf: <${WF}> SELECT DISTINCT ?s ?p ?o WHERE { GRAPH <${runGraph}> { ?x ?link ?s FILTER(?link IN (wf:producedBy, wf:castAgent)) } GRAPH ?g { ?s ?p ?o FILTER(?p = <http://www.w3.org/2000/01/rdf-schema#label>) } }`
+  const triples: GraphPlanRunTyping['triples'][number][] = []
+  for (const query of [all, labels]) {
+    for (const row of findRows(await rest.query(graphId, query)) ?? []) {
+      if (!isRecord(row) || typeof row.s !== 'string' || typeof row.p !== 'string' || typeof row.o !== 'string') continue
+      const s = parseTerm(row.s)
+      const p = parseTerm(row.p)
+      const o = parseTerm(row.o)
+      if (s.kind === 'literal' || p.kind !== 'iri') continue
+      triples.push({
+        s: s.kind === 'blank' ? `_:${s.value}` : s.value,
+        p: p.value,
+        o: o.kind === 'iri' ? { type: 'uri', value: o.value }
+          : o.kind === 'blank' ? { type: 'bnode', value: o.value }
+            : { type: 'literal', value: o.value, ...(o.datatype ? { datatype: o.datatype } : {}), ...(o.lang ? { language: o.lang } : {}) },
+      })
+    }
+  }
+  const bySubject = new Map<string, typeof triples>()
+  for (const t of triples) bySubject.set(t.s, [...(bySubject.get(t.s) ?? []), t])
+  const one = (list: typeof triples, p: string): string | undefined => list.find((t) => t.p === p)?.o.value
+  const unfitSittings: { step: string; sitting: string; violations: string[] }[] = []
+  const castAgents = new Map<string, string>()
+  for (const [, list] of bySubject) {
+    const types = list.filter((t) => t.p === RDF_TYPE).map((t) => t.o.value)
+    const step = one(list, `${WF}step`)
+    if (types.includes(`${WF}Unfit`) && step && !list.some((t) => t.p === `${WF}inCollection`)) {
+      unfitSittings.push({ step, sitting: one(list, `${WF}sitting`) ?? '', violations: list.filter((t) => t.p === `${WF}violation`).map((t) => t.o.value).sort() })
+    }
+    const cast = one(list, `${WF}castAgent`)
+    if (step && cast) castAgents.set(step, cast)
+  }
+  unfitSittings.sort((a, b) => a.step.localeCompare(b.step) || a.sitting.localeCompare(b.sitting))
+  return { triples, unfitSittings, castAgents }
 }
 
 /**
@@ -689,6 +849,9 @@ export interface GraphPlanSketch {
     readonly produces: string | null
     readonly reads: readonly string[]
     readonly itemSchema: Record<string, unknown> | null
+    /** The class its items are (`wf:itemClass`) and the vocabulary version that pins it (`wf:itemVocab`). */
+    readonly itemClass: string | null
+    readonly itemVocab: string | null
   }[]
   readonly sources: readonly {
     readonly iri: string
@@ -760,6 +923,8 @@ export function sketchGraphPlan(triples: readonly Triple[]): GraphPlanSketch {
       produces: iri(s, `${WF}produces`),
       reads: iris(s, `${WF}reads`),
       itemSchema,
+      itemClass: iri(s, `${WF}itemClass`),
+      itemVocab: text(s, `${WF}itemVocab`),
     }
   })
   const sources = typed('Source').map((s) => ({

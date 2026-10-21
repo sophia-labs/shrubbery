@@ -41,7 +41,7 @@
  * It owns NO data path — no fetch, no FS. Registered as a side effect (the upgrade
  * seam) so the shell can swap it into the body region. When nothing is loaded yet
  * it shows an honest status (NO faked trace). Danger/error uses the DANGER ROLE
- * TOKENS (NOT hardcoded hex) so it tracks the Emporium dark-purple skin; all glyphs
+ * TOKENS (NOT hardcoded hex) so it tracks the Emporium (Sophia) skin; all glyphs
  * are lucide icon() (never emoji); all colour / space / radius / type via --mn-*.
  *
  * happy-dom gotcha (verified, see rz-observatory): each nested view is wrapped in
@@ -596,7 +596,7 @@ export class RzWalk extends LitElement {
     }
 
     /* ── Status (loading / error) — error via DANGER ROLE TOKENS (skin-aware), NOT
-       hardcoded hex, so it tracks the Emporium dark-purple theme. ─────────────── */
+       hardcoded hex, so it tracks the Emporium (Sophia) theme. ─────────────── */
     .status {
       padding: 10px 12px;
       border-radius: var(--mn-radius-surface, 6px);

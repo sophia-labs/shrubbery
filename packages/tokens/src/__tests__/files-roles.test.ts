@@ -11,12 +11,13 @@
  * ink); its two-line override, if Vera wants desktop icons there too, lives on
  * that skin's own branch.
  */
-import { describe, expect, it } from 'vitest'
+
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { describe, expect, it } from 'vitest'
 import {
-  ALL_SKIN_THEMES, SKIN_THEME_MATRIX, compositeOver, contrast, effectiveTokens, layerDeclarations, paintedColour,
-  resolveToken, type RootAttributes, type Rgba,
+  ALL_SKIN_THEMES, compositeOver, contrast, effectiveTokens, layerDeclarations, paintedColour,type Rgba,type RootAttributes, 
+  resolveToken, SKIN_THEME_MATRIX, 
 } from './token-cascade.js'
 import { REPO_ROOT, stripComments } from './token-reference-scan.js'
 
@@ -214,11 +215,12 @@ describe('the glyph is legible: its outline reaches 3:1 on every surface, in eve
     expect(failures).toEqual([])
   })
 
-  it('is measured by a meter that would have caught the old role: border-strong failed in seven combinations', () => {
+  it('is measured by a meter that would have caught the old role: border-strong failed in seven combinations (eight since the Sophia skin\'s quiet dark hairline)', () => {
     const failing = ALL_SKIN_THEMES.filter(root => {
       const g = glyphGrounds(root), stroke = g.colour('--mn-color-border-strong')
       return [g.card, g.panel, g.base, g.paper].some(ground => ratio(stroke, ground) < WCAG_NON_TEXT)
     }).map(root => `${root.skin}/${root.theme}`)
-    expect(failing.sort()).toEqual(['garden/light', 'garden/dark', 'emporium/light', 'research/light', 'research/dark', 'greenhouse/light', 'observatory/light'].sort())
+    // emporium/dark joined on 2026-10-20: the Sophia skin keeps border-strong a hairline below 3:1 in both themes.
+    expect(failing.sort()).toEqual(['garden/light', 'garden/dark', 'emporium/light', 'emporium/dark', 'research/light', 'research/dark', 'greenhouse/light', 'observatory/light'].sort())
   })
 })

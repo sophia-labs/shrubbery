@@ -11,7 +11,7 @@ import { createFragmentFaceRegistry, fragmentFaceIds } from '../fragment-face-se
 import { listSealedOpenFaceParamsUsages } from '../types.js'
 
 describe('fragmentFaceIds — the closed fragment face catalogue', () => {
-  it('contains exactly the seventeen expected ids, including card.cuenta, card.seat, card.letter, card.focus, card.inbox, card.my-work and card.agent', () => {
+  it('contains exactly the eighteen expected ids, including card.cuenta, card.seat, card.letter, card.focus, card.inbox, card.my-work, card.agent and object.card', () => {
     expect(new Set(fragmentFaceIds())).toEqual(
       new Set([
         'stat.scalar',
@@ -35,9 +35,11 @@ describe('fragmentFaceIds — the closed fragment face catalogue', () => {
         'card.my-work',
         // el Despacho W11: the roster pokédex — a seat as a catalogue entry.
         'card.agent',
+        // Typed objects (2026-10-20, D7): any typed object, by its IRI.
+        'object.card',
       ]),
     )
-    expect(fragmentFaceIds()).toHaveLength(17)
+    expect(fragmentFaceIds()).toHaveLength(18)
   })
 })
 

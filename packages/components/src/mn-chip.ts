@@ -15,7 +15,7 @@
  *   - REPLACED the variant-specific color rules with ONE orthogonal `tone` prop
  *     (neutral | accent | success | warning | danger | muted). Tone routes to the
  *     skin's role tokens — so a chip recolors per skin for FREE (fern in Garden,
- *     purple in Emporium) with NO hardcoded color anywhere. The wf-chip's
+ *     Sophia Blue in Emporium) with NO hardcoded color anywhere. The wf-chip's
  *     hardcoded "terracotta reserved for failure" is now `tone="danger"` →
  *     `--mn-color-danger-500`.
  *   - KEPT the pure presentation shape: a rounded pill, optional leading glyph,
@@ -116,7 +116,7 @@ export class MnChip extends SkinAware(LitElement) {
 
     /* ── EMPORIUM skin: square shoulders (sophia structure) ─────────────────
        The host mirrors the ambient skin (SkinAware); under Emporium a chip is
-       square like every other control. The color is already purple via the
+       square like every other control. The color is already Sophia Blue via the
        inherited role tokens — only the SHAPE needs a structural rule. */
     :host([data-skin='emporium']) .chip {
       border-radius: var(--mn-radius-surface, 4px);

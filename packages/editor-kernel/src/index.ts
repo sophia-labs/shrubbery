@@ -27,6 +27,7 @@ import { Footnote } from './extensions/footnote'
 import { ImageBlock } from './extensions/image-block'
 import { CalendarEvent } from './extensions/calendar-event'
 import { QueryBlock, type QueryBlockRenderer } from './extensions/query-block'
+import { ObjectEmbed, type ObjectEmbedPicker, type ObjectEmbedRenderer } from './extensions/object-embed'
 import { BlockMath, InlineMath, type MathRenderer } from './extensions/math'
 import { MarginGloss, type MarginGlossOpenTarget } from './extensions/margin-gloss'
 import { WikiLink, wikilinkStyles, type WikiLinkAttrs } from './extensions/wikilink'
@@ -96,6 +97,10 @@ export interface KernelOptions {
   renderMath?: MathRenderer
   /** Optional host renderer/executor for the pure QueryBlock document node. */
   renderQueryBlock?: QueryBlockRenderer
+  /** Optional host face for the pure ObjectEmbed node (the injerto around one typed object). Defaults to its snapshot. */
+  renderObjectEmbed?: ObjectEmbedRenderer
+  /** Optional host chooser for the `/object` slash command: resolves to the object to embed, or null. */
+  pickObjectEmbed?: ObjectEmbedPicker
   /** Host-owned Mermaid renderer/cache/theme lifecycle for code blocks. */
   mermaid?: MermaidRenderHost
   /** Optional clipboard seam. Defaults to navigator.clipboard.writeText. */
@@ -216,6 +221,12 @@ function kernelRoster(opts: KernelOptions): Extensions {
       renderQueryBlock: opts.renderQueryBlock,
       getGraphId: opts.getGraphId,
     }),
+    // One typed object embedded by reference (typed objects D8.3): the injerto in prose.
+    ObjectEmbed.configure({
+      renderObjectEmbed: opts.renderObjectEmbed,
+      getGraphId: opts.getGraphId,
+      pickObjectEmbed: opts.pickObjectEmbed,
+    }),
     InlineMath.configure({
       renderMath: opts.renderMath,
     }),
@@ -243,7 +254,8 @@ function kernelRoster(opts: KernelOptions): Extensions {
     BlockTags,
     BlockId.configure({
       // opaqueBlock: gardend's block contract carries data-block-id on it.
-      enabledNodeTypes: ['queryBlock', 'opaqueBlock', ...(opts.enabledNodeTypes ?? [])],
+      // objectEmbed: the block contract carries data-block-id on it too (§4 "Embed block").
+      enabledNodeTypes: ['queryBlock', 'opaqueBlock', 'objectEmbed', ...(opts.enabledNodeTypes ?? [])],
     }),
     WireShortcuts,
     // Keeps stored content the schema cannot render (nested lists written by
@@ -292,6 +304,7 @@ export * from './extensions/citation'
 export * from './editor-styles'
 export * from './extensions/math'
 export * from './extensions/query-block'
+export * from './extensions/object-embed'
 export * from './extensions/copyable-code-block'
 export * from './extensions/wikilink-autocomplete'
 export * from './extensions/slash-command'

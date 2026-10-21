@@ -5,7 +5,7 @@
  * The incident. `mn-files-view` styled its focus ring, its selected border and
  * its folder glyph with `var(--mn-color-accent-primary, #49785a)`. No token file
  * defines `--mn-color-accent-primary`, so the literal fallback won in all ten
- * skin/theme combinations: a green rounded ring on navy 98, on purple Emporium
+ * skin/theme combinations: a green rounded ring on navy 98, on the then-purple Emporium
  * and on monochrome Mithras. `semantic.css` had already closed one "undefined
  * name debt" (lines 82–98) and it regressed. A fallback does not make a name
  * defined; it only hides that it is not. This test fails on that class.

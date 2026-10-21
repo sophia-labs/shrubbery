@@ -1,0 +1,18 @@
+# graph: urn:sophia:wf:doc-sleepers:run:mh3x9a1
+@prefix wf: <http://mnemosyne.dev/workflow#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix run: <urn:sophia:wf:doc-sleepers:run:mh3x9a1#> .
+
+run:item-9 a wf:Item, wf:Unfit ;
+    wf:partOfRun run:run ;
+    wf:inCollection <urn:sophia:wf:doc-sleepers#candidates> ;
+    wf:position 8 ;
+    wf:json '''{"procedure":"the rolling of thunder","dream":"He was in the thick of battle.","quote":"the rolling of thunder takes us into the thick of battle","documentId":"doc-freud","page":"thirty-three"}''' ;
+    wf:violation "who: a value is required and none was given" ;
+    wf:violation "page: \"thirty-three\" is not an integer" ;
+    wf:producedBy <urn:sophia:agent:agent-62517a586738e5e9> ;
+    wf:itemClass <urn:sophia:type:freud-dreams:workspace#DreamReport> ;
+    wf:itemVocab "workspace@1" ;
+    wf:sitting "Experiment clerk #5" ;
+    prov:generatedAtTime "2026-10-20T19:58:41Z"^^xsd:dateTime .

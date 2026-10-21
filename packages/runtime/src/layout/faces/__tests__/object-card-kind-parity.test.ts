@@ -69,3 +69,16 @@ describe('card.object kind.css parity — no drift between the global sheet and 
     expect(COMPONENT_CSS).toMatch(/\.mn-kind\s*\{[^}]*color:\s*var\(--mn-kind-text\)/)
   })
 })
+
+// Typed objects (2026-10-20): `<sh-object-view>` draws the same kinds through the same shared OBJECT_KIND_STYLES, so it
+// is held to the same sheet.
+describe('sh-object-view kind.css parity — the typed-object face shares the duplication, without drift', async () => {
+  const { ShObjectView } = await import('../../../object-view/object-view-element.js')
+  const VIEW_CSS = (ShObjectView.styles as { cssText: string }).cssText
+  it.each(KINDS_THIS_CARD_USES)('every --mn-kind-* declaration kind.css sets for [data-kind="%s"] is reproduced identically', (kind) => {
+    for (const [property, value] of kindDeclarations(KIND_CSS, kind)) {
+      const escaped = property.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      expect(VIEW_CSS, `${property}: ${value} (kind="${kind}")`).toMatch(new RegExp(`${escaped}\\s*:\\s*${value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*;`))
+    }
+  })
+})

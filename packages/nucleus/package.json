@@ -10,6 +10,7 @@
     "./contract": "./src/contract.ts",
     "./kinds": "./src/kinds/index.ts",
     "./value-faces": "./src/value-faces/index.ts",
+    "./object-faces": "./src/object-faces/index.ts",
     "./workspace": "./src/workspace/index.ts",
     "./files-canvas": "./src/workspace/files-canvas/index.ts",
     "./layout": "./src/layout/index.ts",
