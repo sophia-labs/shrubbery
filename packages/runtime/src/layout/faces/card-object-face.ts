@@ -12,6 +12,7 @@
 import type { ResourceLocator, ViewDescriptor } from '@shrubbery/nucleus/layout'
 import type { DisplayKind } from '@shrubbery/nucleus'
 import type { StoreState } from '@shrubbery/nucleus'
+import { inferFieldKind } from '@shrubbery/nucleus/object-faces'
 import {
   isCardObjectLocator,
   cardObjectResourceKey,
@@ -99,9 +100,9 @@ export function createCardObjectResourceAdapter(objects: SourceObjectService): D
 
 // ── field selection + kind inference (§6.9) ─────────────────────────────────
 
-/** The ONLY schemes `inferFieldKind` ever classifies as `reference`. Closed. */
-export const SAFE_REFERENCE_SCHEMES = ['http', 'https', 'mailto', 'urn'] as const
-const SAFE_REFERENCE_SCHEME = /^(http|https|mailto|urn):/i
+// The closed inference rule set and the field model live in `@shrubbery/nucleus/object-faces` (2026-10-20), shared
+// with the typed-object face; re-exported here so this face's callers keep their imports.
+export { inferFieldKind, SAFE_REFERENCE_SCHEMES } from '@shrubbery/nucleus/object-faces'
 
 // ── per-class presentation growth path (WS1 §6.9 "The growth path, ships empty") ──
 
@@ -124,24 +125,6 @@ export interface ObjectClassPresentation {
 
 /** v1 ships EMPTY. Adding an entry is a code change with its own test. */
 export const OBJECT_CLASS_PRESENTATIONS: ReadonlyMap<string, ObjectClassPresentation> = new Map()
-
-function isSafeReferenceValue(value: string): boolean {
-  return SAFE_REFERENCE_SCHEME.test(value) && value.includes(':')
-}
-
-/** Pure. The CLOSED inference rule set — code, never data (§6.9). */
-export function inferFieldKind(value: unknown): DisplayKind {
-  if (value === null || value === undefined) return 'state'
-  if (typeof value === 'number' && Number.isFinite(value)) return 'metric'
-  if (typeof value === 'boolean') return 'state'
-  if (typeof value === 'string') {
-    if (isSafeReferenceValue(value)) return 'reference'
-    if (value.includes('\n') || value.length > 120) return 'prose'
-    return 'state'
-  }
-  // array / object
-  return 'prose'
-}
 
 function formatFieldValue(value: unknown, kind: DisplayKind): string {
   if (value === null || value === undefined) return ''

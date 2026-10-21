@@ -802,6 +802,7 @@ interface RawLiveEditor {
     deleteTable(): boolean
     setHorizontalRule(): boolean
     insertQueryBlock(): boolean
+    insertObjectEmbed(attrs: { readonly iri: string; readonly graphId?: string | null; readonly slot?: 'inline' | 'card' | 'pane'; readonly label?: string; readonly classLabel?: string }): boolean
     insertBlockMath(src: string): boolean
     insertImage(attrs: EditorImageInsert): boolean
     insertFootnote(attrs: { content: string }): boolean
@@ -4242,6 +4243,7 @@ export class ShEditorHost extends LitElement {
     else if (commandId === 'horizontalRule') applied = editor.commands.setHorizontalRule()
     else if (commandId === 'image') applied = await this._insertImageFromToolbar()
     else if (commandId === 'queryBlock') applied = editor.commands.insertQueryBlock()
+    else if (commandId === 'object') applied = await this._insertObjectFromPicker()
     else if (commandId === 'math') applied = editor.commands.insertBlockMath('')
 
     if (applied) {
@@ -5334,6 +5336,20 @@ export class ShEditorHost extends LitElement {
       confirmText: 'Insert',
     })) ?? ''
     return { src, alt }
+  }
+
+  /**
+   * `/object` (typed objects D8.3): the shell's chooser (the kernel option `pickObjectEmbed`) names a typed object of
+   * this graph, and an `objectEmbed` block holding a reference to it goes where the command was typed.
+   */
+  private async _insertObjectFromPicker(): Promise<boolean> {
+    const editor = this._editor
+    const pick = this.kernelOptions?.pickObjectEmbed
+    if (!editor || !pick) return false
+    const chosen = await pick()
+    if (!chosen?.iri || this._editor !== editor) return false
+    editor.commands.focus()
+    return editor.commands.insertObjectEmbed({ ...chosen, iri: chosen.iri })
   }
 
   private async _insertImageFromToolbar(): Promise<boolean> {

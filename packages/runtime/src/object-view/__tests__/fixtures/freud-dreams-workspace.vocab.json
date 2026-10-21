@@ -1,0 +1,46 @@
+{
+  "name": "workspace",
+  "version": "1",
+  "namespace": "urn:sophia:type:freud-dreams:workspace#",
+  "sha": "fixture-not-a-real-digest",
+  "title": "Freud dreams: the workspace's own types",
+  "classCatalog": [
+    {
+      "iri": "urn:sophia:type:freud-dreams:workspace#DreamReport",
+      "name": "DreamReport",
+      "label": "Dream report",
+      "plural": "Dream reports",
+      "description": "A sleep experiment as Freud reports it: who made it, how, what was dreamt, and the passage.",
+      "fields": [
+        { "key": "who", "iri": "urn:sophia:type:freud-dreams:workspace#who", "label": "Who", "description": "The sleeper or the experimenter.", "datatype": "string", "required": true, "multi": false },
+        { "key": "procedure", "iri": "urn:sophia:type:freud-dreams:workspace#procedure", "label": "Procedure", "datatype": "string", "required": true, "multi": false },
+        { "key": "dream", "iri": "urn:sophia:type:freud-dreams:workspace#dream", "label": "Dream", "datatype": "string", "required": true, "multi": false },
+        { "key": "quote", "iri": "urn:sophia:type:freud-dreams:workspace#quote", "label": "Quote", "datatype": "string", "required": true, "multi": false },
+        { "key": "documentId", "iri": "urn:sophia:type:freud-dreams:workspace#documentId", "label": "Document", "datatype": "string", "required": true, "multi": false },
+        { "key": "blockId", "iri": "urn:sophia:type:freud-dreams:workspace#blockId", "label": "Block", "datatype": "string", "required": false, "multi": false },
+        { "key": "page", "iri": "urn:sophia:type:freud-dreams:workspace#page", "label": "Page", "datatype": "integer", "required": false, "multi": false },
+        { "key": "stimulus", "iri": "urn:sophia:type:freud-dreams:workspace#stimulus", "label": "Stimulus", "datatype": "object", "required": false, "multi": false, "class": "urn:sophia:type:freud-dreams:workspace#Stimulus" },
+        { "key": "witnesses", "iri": "urn:sophia:type:freud-dreams:workspace#witnesses", "label": "Witnesses", "datatype": "object", "required": false, "multi": true, "class": "urn:sophia:type:freud-dreams:workspace#Stimulus" }
+      ],
+      "presentation": {
+        "title": "who",
+        "subtitle": "procedure",
+        "fieldOrder": ["who", "procedure", "dream", "stimulus", "quote"],
+        "units": { "page": "p." },
+        "roles": { "quote": "quote", "document": "documentId", "block": "blockId" }
+      },
+      "jsonSchema": { "type": "object", "additionalProperties": false, "required": ["who", "procedure", "dream", "quote", "documentId"] }
+    },
+    {
+      "iri": "urn:sophia:type:freud-dreams:workspace#Stimulus",
+      "name": "Stimulus",
+      "label": "Stimulus",
+      "plural": "Stimuli",
+      "fields": [
+        { "key": "sense", "iri": "urn:sophia:type:freud-dreams:workspace#sense", "label": "Sense", "datatype": "string", "required": true, "multi": false },
+        { "key": "what", "iri": "urn:sophia:type:freud-dreams:workspace#what", "label": "What", "datatype": "string", "required": true, "multi": false }
+      ],
+      "presentation": { "title": "what" }
+    }
+  ]
+}

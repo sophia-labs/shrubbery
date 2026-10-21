@@ -16,28 +16,69 @@ describe('graph plan in the browser', () => {
     expect(await graphPlanDigest(plan)).toBe(PINNED)
   })
 
+  const W = 'urn:sophia:wf:freud-ch1'
+  const RDF_TYPE = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type'
+  const iri = (value: string) => ({ kind: 'iri' as const, value })
+  const text = (value: string) => ({ kind: 'literal' as const, value })
+  const extra: Triple[] = [
+    { s: `${W}#book`, p: RDF_TYPE, o: iri(`${WF}Source`) },
+    { s: `${W}#book`, p: `${WF}label`, o: text('The Interpretation of Dreams, I.C') },
+    { s: `${W}#book`, p: `${WF}documentId`, o: text('freud-dreams-1') },
+    { s: `${W}#book`, p: `${WF}fromBlock`, o: text('block-be1fe535') },
+    { s: `${W}#book`, p: `${WF}toBlock`, o: text('block-0c1d2e3f') },
+    { s: `${W}#reader`, p: `${WF}reads`, o: iri(`${W}#book`) },
+    { s: `${W}#margin`, p: RDF_TYPE, o: iri(`${WF}Destination`) },
+    { s: `${W}#margin`, p: `${WF}label`, o: text("The book's margin") },
+    { s: `${W}#margin`, p: `${WF}kind`, o: text('margin') },
+    { s: `${W}#margin`, p: `${WF}receives`, o: iri(`${W}#verified`) },
+    { s: `${W}#margin`, p: `${WF}documentId`, o: text('freud-dreams-1') },
+  ]
+
   it('reaches Choreograph\'s digest for a plan that names its source and its destination (2026-10-19)', async () => {
-    const W = 'urn:sophia:wf:freud-ch1'
-    const RDF_TYPE = 'http://www.w3.org/1999/02/22-rdf-syntax-ns#type'
-    const iri = (value: string) => ({ kind: 'iri' as const, value })
-    const text = (value: string) => ({ kind: 'literal' as const, value })
-    const extra: Triple[] = [
-      { s: `${W}#book`, p: RDF_TYPE, o: iri(`${WF}Source`) },
-      { s: `${W}#book`, p: `${WF}label`, o: text('The Interpretation of Dreams, I.C') },
-      { s: `${W}#book`, p: `${WF}documentId`, o: text('freud-dreams-1') },
-      { s: `${W}#book`, p: `${WF}fromBlock`, o: text('block-be1fe535') },
-      { s: `${W}#book`, p: `${WF}toBlock`, o: text('block-0c1d2e3f') },
-      { s: `${W}#reader`, p: `${WF}reads`, o: iri(`${W}#book`) },
-      { s: `${W}#margin`, p: RDF_TYPE, o: iri(`${WF}Destination`) },
-      { s: `${W}#margin`, p: `${WF}label`, o: text("The book's margin") },
-      { s: `${W}#margin`, p: `${WF}kind`, o: text('margin') },
-      { s: `${W}#margin`, p: `${WF}receives`, o: iri(`${W}#verified`) },
-      { s: `${W}#margin`, p: `${WF}documentId`, o: text('freud-dreams-1') },
-    ]
     const plan = compileGraphPlan([...triplesFromSparqlResult(FIXTURE), ...extra])
     expect(plan.sources?.map((s) => s.id)).toEqual(['book'])
     expect(plan.destinations?.map((d) => [d.id, d.receives])).toEqual([['margin', `${W}#verified`]])
     expect(await graphPlanDigest(plan)).toBe('sha256:e0f63e28e36771e32eb181a178e8b8b96021dd20b84cbce7c5440c38df83546a')
+  })
+
+  // Typed items (2026-10-20, plans/2026-10-20-typed-objects §4): the same plan with its clerk bound to a class, as
+  // workflow_plan_compose writes it. Choreograph's own test pins this digest too (choreograph src/test/graph-plan.test.ts).
+  const DREAM_REPORT = 'urn:sophia:type:freud-dreams:workspace#DreamReport'
+  const classBound: Triple[] = [
+    { s: `${W}#clerk`, p: `${WF}itemClass`, o: iri(DREAM_REPORT) },
+    { s: `${W}#clerk`, p: `${WF}itemVocab`, o: text('workspace@1') },
+  ]
+
+  it('reaches Choreograph\'s digest for a plan with a class-bound step, and carries the class only where it is named', async () => {
+    const plan = compileGraphPlan([...triplesFromSparqlResult(FIXTURE), ...extra, ...classBound])
+    const steps = plan.phases.flatMap((p) => p.steps)
+    expect(steps.map((s) => [s.id, s.itemClass, s.itemVocab])).toEqual([
+      ['reader', undefined, undefined],
+      ['clerk', DREAM_REPORT, 'workspace@1'],
+      ['censor', undefined, undefined],
+    ])
+    expect(steps.filter((s) => 'itemClass' in s || 'itemVocab' in s).map((s) => s.id)).toEqual(['clerk'])
+    expect(await graphPlanDigest(plan)).toBe('sha256:0f3d4c27f1df880a97607426131228ca4c3335869a4ba8bc0a6f2d9bc89a69eb')
+  })
+
+  it('refuses a half-named class in the words Choreograph uses', () => {
+    let problems: readonly string[] = []
+    try {
+      compileGraphPlan([
+        ...triplesFromSparqlResult(FIXTURE),
+        { s: `${W}#clerk`, p: `${WF}itemClass`, o: text('DreamReport') },
+        { s: `${W}#clerk`, p: `${WF}itemVocab`, o: text('workspace') },
+        { s: `${W}#reader`, p: `${WF}itemClass`, o: iri(DREAM_REPORT) },
+      ])
+    } catch (error) {
+      if (!(error instanceof GraphPlanError)) throw error
+      problems = error.problems
+    }
+    expect(problems).toEqual(expect.arrayContaining([
+      'clerk\'s wf:itemClass must be an IRI, not "DreamReport"',
+      'clerk\'s wf:itemVocab is "workspace"; write it as <vocab>@<version>',
+      'reader names a class (wf:itemClass) but not the vocabulary version that pins it (wf:itemVocab)',
+    ]))
   })
 })
 
@@ -121,6 +162,8 @@ describe('an unfinished plan, as the canvas draws it', () => {
       { s: `${W}#clerk`, p: `${WF}reads`, o: iri(`${W}#book`) },
       { s: `${W}#clerk`, p: `${WF}produces`, o: iri(`${W}#verified`) },
       { s: `${W}#clerk`, p: `${WF}itemSchema`, o: text('{"type":"object","required":["who"],"properties":{"quote":{"type":"string"},"who":{"type":"string"}}}') },
+      { s: `${W}#clerk`, p: `${WF}itemClass`, o: iri('urn:sophia:type:doc-sleepers:workspace#DreamReport') },
+      { s: `${W}#clerk`, p: `${WF}itemVocab`, o: text('workspace@2') },
       { s: `${W}#margin`, p: RDF_TYPE, o: iri(`${WF}Destination`) },
       { s: `${W}#margin`, p: `${WF}label`, o: text("The book's margin") },
       { s: `${W}#margin`, p: `${WF}kind`, o: text('margin') },
@@ -134,6 +177,9 @@ describe('an unfinished plan, as the canvas draws it', () => {
       ['clerk', 'perItem', `${W}#passages`, [`${W}#book`], `${W}#verified`],
     ])
     expect(sketch.steps[0]!.itemSchema?.required).toEqual(['who'])
+    expect([sketch.steps[0]!.itemClass, sketch.steps[0]!.itemVocab]).toEqual(['urn:sophia:type:doc-sleepers:workspace#DreamReport', 'workspace@2'])
+    const untyped = sketchGraphPlan(triples.filter((t) => t.p !== `${WF}itemClass` && t.p !== `${WF}itemVocab`))
+    expect([untyped.steps[0]!.itemClass, untyped.steps[0]!.itemVocab]).toEqual([null, null])
     expect(sketch.destinations.map((d) => [d.id, d.kind, d.receives])).toEqual([['margin', 'margin', `${W}#verified`]])
   })
 })

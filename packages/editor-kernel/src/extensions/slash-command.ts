@@ -27,6 +27,7 @@ export type SlashCommandId =
   | 'table'
   | 'image'
   | 'queryBlock'
+  | 'object'
   | 'math'
   | 'horizontalRule'
 
@@ -115,6 +116,12 @@ export const SLASH_COMMANDS: readonly SlashCommandItem[] = [
     label: 'Query Block',
     description: 'SPARQL query block',
     keywords: 'sparql query database search rdf graph',
+  },
+  {
+    id: 'object',
+    label: 'Object',
+    description: 'Embed a typed object (a dream report, a finding)',
+    keywords: 'object embed injerto typed card class item finding transclude',
   },
   {
     id: 'math',

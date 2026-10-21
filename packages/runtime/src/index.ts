@@ -161,6 +161,9 @@ export {
   type WorkspaceContestedOptions,
   type WorkspaceContestedSelection,
   type ParkedWorkOptions,
+  type ObjectPageOptions,
+  type WorkflowStackClassView,
+  type WorkflowUnfitSittingView,
   type ParkedWorkModel,
   type ParkedWorkDocumentRow,
   type ParkedWorkOperationRow,
@@ -175,6 +178,22 @@ export {
   type ObjectIntentProposal,
   type ObjectIntentDetail,
 } from './layout/faces/object-card-view-element.js'
+// Typed objects (2026-10-20, plans/2026-10-20-typed-objects D6-D8): the one view, the injerto, the read seam, the
+// embed face for the kernel's objectEmbed node, and the object.card layout face.
+export {
+  OBJECT_VIEW_INTENT_EVENT,
+  ShObjectView,
+  testimonyLine,
+  whenWords,
+  type ObjectUsage,
+  type ObjectViewIntent,
+  type ObjectViewSlot,
+} from './object-view/object-view-element.js'
+export { ShInjerto, type InjertoStatus } from './object-view/injerto-element.js'
+export { chooseFrom, filterChoices, ShChoiceDialog, type ChoiceItem } from './object-view/choice-dialog-element.js'
+export { objectModelOfRead, type TypedObjectRead, type TypedObjectService } from './object-view/typed-object-service.js'
+export { makeObjectEmbedRenderer, type TypedObjectServiceSource } from './editor-services/object-embed-renderer.js'
+export { OBJECT_CARD_FACE_ID, type ObjectCardParams } from './layout/faces/object-card-face.js'
 
 export {
   NULL_EDITOR_HOST_STATE,

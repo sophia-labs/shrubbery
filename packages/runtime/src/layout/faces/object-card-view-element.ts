@@ -39,6 +39,8 @@
 import { LitElement, css, html, nothing, type PropertyValues, type TemplateResult } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 import type { DisplayKind } from '@shrubbery/nucleus'
+import type { ObjectCardField } from '@shrubbery/nucleus/object-faces'
+import { kindValue, OBJECT_KIND_STYLES } from '../../object-view/kind-value.js'
 import type { SourceObjectProvenance, SourceObjectUnavailable } from '../source-object-service.js'
 
 /**
@@ -104,25 +106,11 @@ export interface ObjectIntentDetail {
 
 export type ObjectCardViewStatus = 'loading' | 'ready' | 'error' | 'empty'
 
-/** One already-resolved, already-formatted record field (WS1 §6.4). */
-export interface ObjectCardField {
-  /** short display label (§6.9) */
-  readonly label: string
-  /** the untruncated key / predicate IRI (title=) */
-  readonly fullLabel: string
-  /** already-formatted display text */
-  readonly value: string
-  /** the seven shipped kinds only */
-  readonly kind: DisplayKind
-  /** metric only */
-  readonly unit?: string
-  /** reference only */
-  readonly href?: string
-  /** JSON null / no value — renders an em dash */
-  readonly absent?: boolean
-  /** object/array rendered as compact JSON prose */
-  readonly nested?: boolean
-}
+/**
+ * One already-resolved, already-formatted record field (WS1 §6.4). Since 2026-10-20 it lives in
+ * `@shrubbery/nucleus/object-faces`, the one field model this card and the typed-object face share.
+ */
+export type { ObjectCardField } from '@shrubbery/nucleus/object-faces'
 
 /**
  * One proposal in a contested object's fold (WS1 §6.4; master §2.11's
@@ -161,6 +149,7 @@ function shortHash(value: string): string {
 @customElement('sh-object-card-view')
 export class ShObjectCardView extends LitElement {
   static styles = css`
+    ${OBJECT_KIND_STYLES}
     :host {
       display: flex;
       width: 100%;
@@ -260,56 +249,7 @@ export class ShObjectCardView extends LitElement {
       color: var(--mn-color-danger-strong);
     }
 
-    /* ── kind.css duplication (this file's header) — token-driven, same vars ── */
-    .mn-kind {
-      color: var(--mn-kind-text);
-    }
-    .mn-kind[data-kind='identity'] {
-      --mn-kind-register-current: identity;
-      font-weight: 650;
-    }
-    .mn-kind[data-kind='state'] {
-      --mn-kind-register-current: state;
-      color: var(--mn-kind-muted);
-    }
-    .mn-kind[data-kind='metric'] {
-      --mn-kind-register-current: metric;
-    }
-    .mn-kind[data-kind='metric'] .mn-kind-value {
-      font-variant-numeric: tabular-nums;
-      font-weight: 650;
-    }
-    .mn-kind[data-kind='metric'] .mn-kind-unit {
-      color: var(--mn-kind-metric-unit);
-      margin-inline-start: 0.25rem;
-    }
-    .mn-kind[data-kind='prose'] {
-      --mn-kind-register-current: prose;
-      line-height: 1.55;
-    }
-    .mn-kind[data-kind='reference'] {
-      --mn-kind-register-current: reference;
-    }
-    .mn-kind[data-kind='reference'] .mn-kind-link {
-      color: var(--mn-kind-reference-text);
-      text-decoration-color: color-mix(in srgb, var(--mn-kind-reference-text) 45%, transparent);
-      text-underline-offset: 0.14em;
-    }
-    .mn-kind[data-kind='testimony'] .mn-kind-attribution {
-      color: var(--mn-kind-testimony-text);
-      margin-inline-start: 0.4rem;
-    }
-    .mn-kind[data-kind='testimony'] {
-      --mn-kind-register-current: testimony;
-    }
-    .mn-kind[data-kind='testimony'] .mn-kind-attribution::before {
-      content: '— ';
-    }
-    .mn-kind[data-kind='affordance'] {
-      --mn-kind-register-current: affordance;
-      color: var(--mn-kind-accent);
-      font-weight: 600;
-    }
+    /* ── kind.css duplication (this file's header): the shared OBJECT_KIND_STYLES, interpolated above ── */
 
     /* ── contested posture (Slice 5) ── */
     .provisional {
@@ -449,20 +389,7 @@ export class ShObjectCardView extends LitElement {
     kind: DisplayKind,
     opts: { readonly unit?: string; readonly href?: string; readonly title?: string } = {},
   ): TemplateResult {
-    if (kind === 'reference' && opts.href) {
-      return html`<span class="mn-kind" data-kind="reference" title=${opts.title ?? nothing}
-        ><a class="mn-kind-link" href=${opts.href}>${text}</a></span
-      >`
-    }
-    if (kind === 'metric') {
-      return html`<span class="mn-kind" data-kind="metric" title=${opts.title ?? nothing}
-        ><span class="mn-kind-value">${text}</span
-        >${opts.unit ? html`<span class="mn-kind-unit">${opts.unit}</span>` : nothing}</span
-      >`
-    }
-    return html`<span class="mn-kind" data-kind=${kind} title=${opts.title ?? nothing}
-      ><span class="mn-kind-value">${text}</span></span
-    >`
+    return kindValue(text, kind, opts)
   }
 
   private _testimonyValue(text: string, unattributedNote: string): TemplateResult {

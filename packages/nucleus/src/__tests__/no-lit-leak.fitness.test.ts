@@ -49,6 +49,14 @@ const PURE_PIPELINE_FILES = [
   '../layout/validate.ts',
   '../layout/solver.ts',
   '../layout/operations.ts',
+  // Typed object faces (2026-10-20): the field model, the read, the catalogue, the model and the resolver. Pure data in,
+  // pure data out; `<sh-object-view>` (runtime) is the web target that draws them.
+  '../object-faces/index.ts',
+  '../object-faces/field-model.ts',
+  '../object-faces/terms.ts',
+  '../object-faces/catalog.ts',
+  '../object-faces/model.ts',
+  '../object-faces/resolver.ts',
 ] as const
 
 // Forbidden module specifiers. A specifier is rejected if it EQUALS one of these

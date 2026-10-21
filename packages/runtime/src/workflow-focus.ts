@@ -12,9 +12,14 @@
  * (`onFocus`, `onSelect`, `onOpenDocument`); the agents come from Choreograph's run (`plan.agents`).
  */
 
+import type { ObjectModel } from '@shrubbery/nucleus/object-faces'
 import { css, html, LitElement, nothing, type TemplateResult } from 'lit'
+import { OBJECT_VIEW_INTENT_EVENT } from './object-view/object-view-element.js'
 import type { WorkflowAgentRunView, WorkflowFocus, WorkflowPlanOptions, WorkflowPlanStepView, WorkflowStackView } from './render-workspace.js'
-import { copied, itemText, renderWorkflowItem, WORKFLOW_ITEM_STYLES } from './workflow-inspector.js'
+import {
+  copied, itemText, objectForItem, renderItemCard, routeObjectIntent, stackCountWords, stackFieldWords, stackName,
+  stackObject, unfitCount, WORKFLOW_ITEM_STYLES,
+} from './workflow-inspector.js'
 import { humanName, nodeKey, stepModeWords, workflowGlyph } from './workflow-scene.js'
 
 const ROWS_SHOWN = 400
@@ -52,17 +57,25 @@ export function verdictOf(output: unknown): { passed: boolean; why: string } | n
   return { passed: output.ok, why }
 }
 
-/** What an agent handed on, in a few words. */
-function handedWords(agent: WorkflowAgentRunView, step: WorkflowPlanStepView): string {
+/** What an agent handed on, in a few words: in its stack's class when it has one ("3 dream reports, 1 unfit"). */
+function handedWords(agent: WorkflowAgentRunView, step: WorkflowPlanStepView, made?: WorkflowStackView, unfit?: readonly string[]): string {
   if (agent.state === 'failed') return agent.error ? `Failed: ${agent.error}` : 'Failed'
   if (agent.state === 'running') return 'Working…'
   if (agent.state === 'queued') return 'Waiting'
+  if (unfit) return `Nothing that fit${unfit.length ? `: ${unfit.join('; ')}` : ''}`
   if (step.checks) {
     const verdict = verdictOf(agent.output)
     if (verdict) return verdict.passed ? 'Passed' : `Refused${verdict.why ? `: ${verdict.why}` : ''}`
   }
   const items = handedItems(agent.output)
-  if (items) return items.length === 0 ? 'Nothing' : plural(items.length, humanName(step.produces ?? 'item').replace(/s$/, ''), humanName(step.produces ?? 'items'))
+  if (items) {
+    if (items.length === 0) return 'Nothing'
+    if (made?.itemClass) {
+      const bad = items.filter((item) => objectForItem(made, item)?.stance === 'unfit').length
+      return `${stackCountWords(made, items.length)}${bad ? `, ${bad} unfit` : ''}`
+    }
+    return plural(items.length, humanName(step.produces ?? 'item').replace(/s$/, ''), humanName(step.produces ?? 'items'))
+  }
   return agent.output === null || agent.output === undefined ? '' : itemText(agent.output).slice(0, 120)
 }
 
@@ -92,13 +105,35 @@ function toolLine(args: unknown, titles: Readonly<Record<string, string>>): stri
   return rest.join(', ').slice(0, 120)
 }
 
-/** The columns of a stack's table: its item fields (the plan's, else what its items carry), its quote first. */
-function stackColumns(stack: WorkflowStackView, items: readonly unknown[]): string[] {
+interface TableColumn {
+  readonly key: string
+  readonly label: string
+}
+
+/**
+ * The columns of a stack's table. A typed stack: its class's fields, labelled, in the class's order (the document and
+ * block plumbing aside). Otherwise its item fields (the plan's, else what its items carry), its quote first.
+ */
+function stackColumns(stack: WorkflowStackView, items: readonly unknown[]): TableColumn[] {
+  if (stack.itemClass) {
+    const sample = (stack.objects ?? []).find((o): o is ObjectModel => Boolean(o))
+    const hidden = new Set([sample?.roleKeys.document ?? 'documentId', sample?.roleKeys.block ?? 'blockId'])
+    return stack.itemClass.columns.filter((c) => !hidden.has(c.key)).slice(0, 7)
+  }
   const seen = new Set<string>(stack.fields)
   for (const item of items.slice(0, 50)) if (isRecord(item)) for (const key of Object.keys(item)) seen.add(key)
   const hidden = new Set(['documentId', 'blockId'])
   const columns = [...seen].filter((c) => !hidden.has(c))
-  return [...columns.filter((c) => c === 'quote'), ...columns.filter((c) => c !== 'quote')].slice(0, 7)
+  return [...columns.filter((c) => c === 'quote'), ...columns.filter((c) => c !== 'quote')].slice(0, 7).map((key) => ({ key, label: humanName(key) }))
+}
+
+/** A cell: a typed item's field (a nested value as its title, an absent one as a dash), else the JSON's value. */
+function cellText(model: ObjectModel | null, item: unknown, key: string, first: boolean): string {
+  if (model) {
+    const field = model.fields.find((f) => f.key === key)
+    if (field) return field.absent ? '—' : copied(field.value)
+  }
+  return itemText(isRecord(item) ? item[key] : first ? item : undefined)
 }
 
 function matches(item: unknown, filter: string): boolean {
@@ -118,6 +153,7 @@ export class ShWorkflowFocus extends LitElement {
     this.filter = ''
     this.tabIndex = -1
     this.addEventListener('keydown', this.onKeyDown)
+    this.addEventListener(OBJECT_VIEW_INTENT_EVENT, (event) => routeObjectIntent(this.plan, event))
   }
 
   static override styles = [WORKFLOW_ITEM_STYLES, css`
@@ -219,6 +255,10 @@ export class ShWorkflowFocus extends LitElement {
     .lineage .row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; }
     .lineage .row .sub { min-width: 88px; }
     .link { font: inherit; border: 0; background: none; padding: 0; color: var(--mn-color-text-accent, var(--mn-color-accent)); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+    tbody tr[data-stance='unfit'] td.n:first-child { box-shadow: inset 3px 0 0 var(--mn-color-danger-border); }
+    .unfit-tag { display: inline-block; margin-left: 4px; font-size: 10px; letter-spacing: .06em; text-transform: uppercase; color: var(--mn-color-text-danger); }
+    .unfit-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+    .unfit-list li { padding: 6px 10px; border-left: 3px solid var(--mn-color-danger-border); background: var(--mn-color-surface-raised); border-radius: 0 6px 6px 0; }
     @media (prefers-reduced-motion: no-preference) { .page { animation: rise .14s ease-out; } @keyframes rise { from { opacity: 0; transform: translateY(4px); } } }
   `]
 
@@ -281,6 +321,7 @@ export class ShWorkflowFocus extends LitElement {
     const part = this.partOf(key)
     if (part.kind === 'refused') return `Refused by ${part.step?.label ?? part.id}`
     if (part.step) return part.step.label
+    if (part.stack) return stackName(part.stack)
     return humanName(part.id)
   }
 
@@ -304,8 +345,19 @@ export class ShWorkflowFocus extends LitElement {
       @click=${() => this.go({ key: nodeKey.step(stepId) })}>${step?.label ?? stepId}</button>`
   }
 
-  private stackChip(id: string, words = humanName(id)): TemplateResult {
+  private stackChip(id: string, words = this.stackWords(id)): TemplateResult {
     return html`<button class="chip" data-kind="stack" title=${words} @click=${() => this.go({ key: nodeKey.stack(id) })}>${words}</button>`
+  }
+
+  /** A stack by its name: its class's plural when it has one. */
+  private stackWords(id: string): string {
+    const stack = this.plan?.stacks?.find((s) => s.id === id)
+    return stack ? stackName(stack) : humanName(id)
+  }
+
+  /** The violations of a sitting that handed back nothing that fit, or undefined. */
+  private unfitOf(step: WorkflowPlanStepView, agent: WorkflowAgentRunView): readonly string[] | undefined {
+    return (this.plan?.unfitSittings ?? []).find((u) => u.step === step.id && u.sitting === agent.label)?.violations
   }
 
   // ── render ───────────────────────────────────────────────────────────────────────────────────────────────────
@@ -357,7 +409,7 @@ export class ShWorkflowFocus extends LitElement {
     return html`<div class="wiring">
       ${sources.map((s) => html`<button class="chip" data-kind="source" title=${s.label}
         @click=${() => { if (s.documentId) plan.onOpenDocument?.({ documentId: s.documentId, blockId: 'fromBlock' in s ? (s.fromBlock ?? null) : null }) }}>${s.label}</button>`)}
-      ${takes.map((c) => this.stackChip(c, step.mode === 'perItem' && (c === step.over || c === step.checks) ? `each of ${humanName(c)}` : humanName(c)))}
+      ${takes.map((c) => this.stackChip(c, step.mode === 'perItem' && (c === step.over || c === step.checks) ? `each of ${this.stackWords(c)}` : this.stackWords(c)))}
       ${sources.length + takes.length === 0 ? html`<span class="sub">The run input</span>` : nothing}
       ${step.produces ? html`<span class="arrow">→</span>${this.stackChip(step.produces)}` : nothing}
       ${step.checks && plan.refused?.some((r) => r.step === step.id) ? html`<button class="chip" data-kind="check"
@@ -376,11 +428,25 @@ export class ShWorkflowFocus extends LitElement {
       <div class="cols">
         <div>
           <section><h2>${step.checks ? 'What it checks' : 'What they are told'}</h2><p class="instructions">${step.instructions || '(no instructions yet)'}</p></section>
-          ${!step.checks && made?.fields.length ? html`<section><h2>Each item they hand on has</h2><ul class="fields">${made.fields.map((f) => html`<li>${f}</li>`)}</ul></section>` : nothing}
+          ${!step.checks && made && stackFieldWords(made).length ? html`<section><h2>${made.itemClass ? `Each ${made.itemClass.label.toLowerCase()} they hand on has` : 'Each item they hand on has'}</h2><ul class="fields">${stackFieldWords(made).map((f) => html`<li>${f}</li>`)}</ul></section>` : nothing}
           ${(step.problems ?? []).length ? html`<section><h2>What keeps them from running</h2>${step.problems!.map((p) => html`<p>${p}</p>`)}</section>` : nothing}
+          ${this.renderUnfitSittings(step)}
         </div>
         <div>${this.renderWork(step, agents)}</div>
       </div></div>`
+  }
+
+  /** The sittings of this person that handed back nothing that fit their class, and why. */
+  private renderUnfitSittings(step: WorkflowPlanStepView): TemplateResult | typeof nothing {
+    const unfit = (this.plan?.unfitSittings ?? []).filter((u) => u.step === step.id)
+    if (unfit.length === 0) return nothing
+    const open = (sitting: string): void => {
+      const agent = this.agentsOf(step).find((a) => a.label === sitting)
+      if (agent) this.go({ key: nodeKey.step(step.id), item: agent.n ?? 1 })
+    }
+    return html`<section><h2>Handed back nothing that fit</h2><ul class="unfit-list">
+      ${unfit.map((u) => html`<li><button class="link" @click=${() => open(u.sitting)}>${u.sitting}</button> handed back nothing that fit: ${u.violations.join('; ') || 'no reason given'}</li>`)}
+    </ul></section>`
   }
 
   private renderWork(step: WorkflowPlanStepView, agents: readonly WorkflowAgentRunView[]): TemplateResult {
@@ -402,6 +468,8 @@ export class ShWorkflowFocus extends LitElement {
     const passed = verdicts.filter((v) => v?.passed).length
     const refused = verdicts.filter((v) => v && !v.passed).length
     const inputs = this.inputsOf(step)
+    const made = step.produces ? this.plan?.stacks?.find((s) => s.id === step.produces) : undefined
+    const being = this.plan?.beings?.[step.id]
     return html`<section><h2>Their work in the last run</h2>
       <div class="stats">
         <span><b>${agents.length}</b> agents</span>
@@ -411,19 +479,21 @@ export class ShWorkflowFocus extends LitElement {
         ${Number.isFinite(start) && end > start ? html`<span>${spanWords(end - start)}</span>` : nothing}
         ${tokens ? html`<span>${tokens.toLocaleString()} tokens</span>` : nothing}
         ${models.length ? html`<span class="sub">${models.join(', ')}</span>` : nothing}
+        ${being ? html`<span class="sub" title=${being}>cast as ${being.slice(being.lastIndexOf(':') + 1)}</span>` : nothing}
       </div>
       <table>
         <thead><tr><th></th><th>#</th><th>Given</th><th>${step.checks ? 'Verdict' : 'Handed on'}</th><th>Time</th><th>Tokens</th></tr></thead>
         <tbody>${agents.slice(0, ROWS_SHOWN).map((agent) => {
           const verdict = step.checks ? verdictOf(agent.output) : null
-          const state = agent.state === 'done' && verdict && !verdict.passed ? 'refused' : agent.state
+          const unfit = this.unfitOf(step, agent)
+          const state = agent.state === 'done' && ((verdict && !verdict.passed) || unfit) ? 'refused' : agent.state
           const given = agent.n !== null ? inputs?.[agent.n - 1] : undefined
           const open = (): void => this.go({ key: nodeKey.step(step.id), item: agent.n ?? 1 })
           return html`<tr tabindex="0" @click=${open} @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter') open() }}>
             <td class="n"><span class="dot" data-state=${state} title=${state}></span></td>
             <td class="n">${agent.attempts > 1 ? html`${agent.n ?? ''} <span title="Asked again">↻</span>` : String(agent.n ?? '')}</td>
             <td><div class="clamp">${given === undefined ? '' : itemLine(given)}</div></td>
-            <td class=${state === 'failed' || state === 'refused' ? 'why' : ''}><div class="clamp">${handedWords(agent, step)}</div></td>
+            <td class=${state === 'failed' || state === 'refused' ? 'why' : ''}><div class="clamp">${handedWords(agent, step, made, unfit)}</div></td>
             <td class="num">${spanWords(agent.startedAt !== null && agent.endedAt !== null ? agent.endedAt - agent.startedAt : null)}</td>
             <td class="num">${agent.tokens ? agent.tokens.toLocaleString() : ''}</td>
           </tr>`
@@ -435,9 +505,12 @@ export class ShWorkflowFocus extends LitElement {
 
   /** The items a person's agents were given, in order: the stack they run over or check. */
   private inputsOf(step: WorkflowPlanStepView): readonly unknown[] | null {
+    return this.inputStack(step)?.items ?? null
+  }
+
+  private inputStack(step: WorkflowPlanStepView): WorkflowStackView | undefined {
     const over = step.checks ?? step.over
-    if (!over) return null
-    return this.plan?.stacks?.find((s) => s.id === over)?.items ?? null
+    return over ? this.plan?.stacks?.find((s) => s.id === over) : undefined
   }
 
   // One agent: what it was given, what it did, what it handed on.
@@ -460,10 +533,12 @@ export class ShWorkflowFocus extends LitElement {
     const verdict = step.checks ? verdictOf(agent.output) : null
     const handed = handedItems(agent.output)
     const overStack = step.checks ?? step.over
+    const made = step.produces ? plan.stacks?.find((s) => s.id === step.produces) : undefined
+    const unfit = this.unfitOf(step, agent)
     return html`<div class="cols three">
       <section><h2>Given</h2>
         ${given !== undefined
-          ? html`<div class="part">${renderWorkflowItem(plan, given, n !== null ? n - 1 : null, undefined, 20)}
+          ? html`<div class="part">${renderItemCard(plan, n !== null ? stackObject(this.inputStack(step), n - 1) : null, given, n !== null ? n - 1 : null, undefined, 20)}
             ${overStack ? html`<p class="sub">Item ${n} of ${this.stackChip(overStack)}</p>` : nothing}</div>`
           : sources.length ? html`${sources.map((s) => html`<p>${s!.documentTitle ? `${s!.label} · ${s!.documentTitle}` : s!.label}</p>`)}`
             : html`<p class="sub">The run input.</p>`}
@@ -483,12 +558,14 @@ export class ShWorkflowFocus extends LitElement {
       <section><h2>${step.checks ? 'Verdict' : 'Handed on'}</h2>
         ${agent.state === 'failed' ? html`<div class="failure"><p><strong>It failed.</strong> ${agent.error ?? ''}</p>
             <p class="sub">${agent.attempts > 1 ? 'It was asked again and failed again.' : 'Nothing it found was kept.'}</p></div>`
+          : unfit ? html`<div class="failure"><p><strong>It handed back nothing that fit${made?.itemClass ? ` a ${made.itemClass.label.toLowerCase()}` : ''}:</strong> ${unfit.join('; ') || 'no reason given'}</p>
+            <p class="sub">What it answered was kept as testimony, not as an item.</p></div>`
           : verdict ? html`<div class="verdict" data-passed=${String(verdict.passed)}><p class="what">${verdict.passed ? 'Passed' : 'Refused'}</p>
               ${verdict.why ? html`<p>${verdict.why}</p>` : nothing}
               ${step.produces && verdict.passed ? html`<p class="sub" style="margin-top:6px">It went on to ${this.stackChip(step.produces)}</p>` : nothing}
               ${!verdict.passed ? html`<p class="sub" style="margin-top:6px">It waits with the other ${this.refusedChip(step)}</p>` : nothing}</div>`
             : handed ? (handed.length === 0 ? html`<p class="empty">Nothing: this item held none.</p>`
-              : html`<div class="part">${handed.slice(0, 50).map((item, i) => renderWorkflowItem(plan, item, i, undefined, 12))}
+              : html`<div class="part">${handed.slice(0, 50).map((item, i) => renderItemCard(plan, objectForItem(made, item), item, i, undefined, 12))}
                 ${step.produces ? html`<p class="sub">Into ${this.stackChip(step.produces)}</p>` : nothing}</div>`)
               : agent.output !== null && agent.output !== undefined ? html`<div class="item">${itemText(agent.output)}</div>`
                 : html`<p class="empty">${agent.state === 'done' ? 'Nothing.' : 'Not yet.'}</p>`}
@@ -507,15 +584,24 @@ export class ShWorkflowFocus extends LitElement {
     const readers = plan.steps.filter((s) => s.over === stack.id || s.checks === stack.id || (s.consumes ?? []).includes(stack.id))
     const goes = (plan.destinations ?? []).filter((d) => d.receives === stack.id)
     const destinations = goes.map((d) => html`<button class="chip" data-kind="destination" @click=${() => plan.onSelect?.(nodeKey.destination(d.id))}>${d.label}</button>`)
-    const sub = html`<span class="part"><span>${stack.items ? plural(items.length, 'item') : 'Filled when the workflow runs'}</span>
+    const unfit = unfitCount(stack)
+    const sub = html`<span class="part"><span>${stack.items ? `${stackCountWords(stack, items.length)}${unfit ? `, ${unfit} unfit` : ''}` : 'Filled when the workflow runs'}</span>
       ${stack.producer ? html`<span class="part"><span>· made by</span> ${this.stepChip(stack.producer)}</span>` : nothing}
       ${readers.length + goes.length ? html`<span class="part"><span>· goes to</span> ${[...readers.map((s) => this.stepChip(s.id)), ...destinations]}</span>` : nothing}</span>`
-    return html`<div class="part">${this.hero('stack', humanName(stack.id), sub)}
-      ${items.length === 0 ? html`<p class="empty">${[stack.items ? 'The last run left it empty.' : 'Nothing here until the workflow runs.', stack.fields.length ? `Each item will have ${stack.fields.join(', ')}.` : ''].filter(Boolean).join(' ')}</p>`
-        : this.renderTable(items, stackColumns(stack, items), (i) => this.go({ key: nodeKey.stack(stack.id), item: i + 1 }))}</div>`
+    const fields = stackFieldWords(stack)
+    const why = stack.objects?.some((o) => o?.stance === 'unfit') ? stack.objects.map((o) => (o?.stance === 'unfit' ? (o.violations ?? []).join('; ') || 'It does not fit.' : '')) : undefined
+    return html`<div class="part">${this.hero('stack', stackName(stack), sub)}
+      ${items.length === 0 ? html`<p class="empty">${[stack.items ? 'The last run left it empty.' : 'Nothing here until the workflow runs.', fields.length ? `Each ${stack.itemClass ? stack.itemClass.label.toLowerCase() : 'item'} will have ${fields.join(', ')}.` : ''].filter(Boolean).join(' ')}</p>`
+        : this.renderTable(items, stackColumns(stack, items), (i) => this.go({ key: nodeKey.stack(stack.id), item: i + 1 }), why, stack.objects ?? undefined)}</div>`
   }
 
-  private renderTable(items: readonly unknown[], columns: readonly string[], open: (index: number) => void, why?: readonly string[]): TemplateResult {
+  private renderTable(
+    items: readonly unknown[],
+    columns: readonly TableColumn[],
+    open: (index: number) => void,
+    why?: readonly string[],
+    objects?: readonly (ObjectModel | null)[],
+  ): TemplateResult {
     const rows = items.map((item, index) => ({ item, index })).filter(({ item, index }) => matches(item, this.filter) || (why?.[index] ?? '').toLowerCase().includes(this.filter.toLowerCase()))
     return html`<div class="part"><div class="filter">
         <input type="search" placeholder=${`Filter ${plural(items.length, 'item')}`} .value=${this.filter} aria-label="Filter the items"
@@ -523,15 +609,15 @@ export class ShWorkflowFocus extends LitElement {
         ${this.filter ? html`<span class="sub">${plural(rows.length, 'match', 'matches')}</span>` : nothing}
       </div>
       <table>
-        <thead><tr><th>#</th>${[...columns.map((c) => html`<th>${humanName(c)}</th>`), ...(why ? [html`<th>Why</th>`] : [])]}</tr></thead>
-        <tbody>${rows.slice(0, ROWS_SHOWN).map(({ item, index }) => html`<tr tabindex="0" @click=${() => open(index)} @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter') open(index) }}>
-          <td class="n">${index + 1}</td>
-          ${columns.map((c) => {
-            const value = isRecord(item) ? item[c] : c === columns[0] ? item : undefined
-            return html`<td class=${c === 'quote' ? 'quote' : ''}><div class="clamp">${itemText(value)}</div></td>`
-          })}
+        <thead><tr><th>#</th>${[...columns.map((c) => html`<th title=${c.key}>${c.label}</th>`), ...(why ? [html`<th>Why</th>`] : [])]}</tr></thead>
+        <tbody>${rows.slice(0, ROWS_SHOWN).map(({ item, index }) => {
+          const model = objects?.[index] ?? null
+          return html`<tr tabindex="0" data-stance=${model?.stance ?? 'read'} @click=${() => open(index)} @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter') open(index) }}>
+          <td class="n">${index + 1}${model?.stance === 'unfit' ? html`<span class="unfit-tag">unfit</span>` : nothing}</td>
+          ${columns.map((c, at) => html`<td class=${c.key === (model?.roleKeys.quote ?? 'quote') ? 'quote' : ''}><div class="clamp">${cellText(model, item, c.key, at === 0)}</div></td>`)}
           ${why ? html`<td class="why"><div class="clamp">${why[index] ?? ''}</div></td>` : nothing}
-        </tr>`)}</tbody>
+        </tr>`
+        })}</tbody>
       </table>
       ${rows.length > ROWS_SHOWN ? html`<p class="sub">And ${rows.length - ROWS_SHOWN} more; filter to find them.</p>` : nothing}</div>`
   }
@@ -540,19 +626,26 @@ export class ShWorkflowFocus extends LitElement {
   private renderStackItem(stack: WorkflowStackView, n: number): TemplateResult {
     const plan = this.plan!
     const item = stack.items?.[n - 1]
-    if (item === undefined) return html`${this.hero('stack', `${humanName(stack.id)}, item ${n}`, 'Not in the last run.')}`
+    if (item === undefined) return html`${this.hero('stack', `${stackName(stack)}, item ${n}`, 'Not in the last run.')}`
+    const model = stackObject(stack, n - 1)
     const producer = stack.producer ? plan.steps.find((s) => s.id === stack.producer) : undefined
     const same = JSON.stringify(item)
-    // The agent that handed it back: a check passes on the item it checked; any other maker handed it in its output.
-    const maker = producer
+    // The agent that handed it back: a typed item names its sitting (wf:sitting); otherwise, a check passes on the item
+    // it checked, and any other maker handed it in its output.
+    const bySitting = producer && model?.testimony.sitting ? this.agentsOf(producer).find((a) => a.label === model.testimony.sitting) : undefined
+    const maker = bySitting ?? (producer
       ? this.agentsOf(producer).find((a) => producer.checks ? false : (handedItems(a.output) ?? []).some((x) => JSON.stringify(x) === same))
-      : undefined
+      : undefined)
     const checkedFrom = producer?.checks ? plan.stacks?.find((s) => s.id === producer.checks)?.items?.findIndex((x) => JSON.stringify(x) === same) : undefined
     const workers = plan.steps.filter((s) => s.over === stack.id || s.checks === stack.id)
     const goes = (plan.destinations ?? []).filter((d) => d.receives === stack.id)
-    return html`<div class="part">${this.hero('stack', `${humanName(stack.id)}, item ${n}`, `One of ${plural(stack.items?.length ?? 0, 'item')}`)}
+    // A typed item's page is its pane, which carries its title: the hero names the item, so the title is not said twice.
+    const title = model ? `${model.classLabel} ${n}` : `${stackName(stack)}, item ${n}`
+    const sub = model ? `One of ${stackCountWords(stack, stack.items?.length ?? 0)}${model.stance === 'unfit' ? ', and it does not fit' : ''}` : `One of ${plural(stack.items?.length ?? 0, 'item')}`
+    return html`<div class="part">${this.hero('stack', title, sub)}
       <div class="cols">
-        <section><h2>The item</h2>${renderWorkflowItem(plan, item, n - 1, undefined, 40)}</section>
+        <section><h2>${model ? `The ${model.classLabel.toLowerCase()}` : 'The item'}</h2>${renderItemCard(plan, model, item, n - 1, undefined, 40, 'pane')}
+          ${model && plan.onOpenObject ? html`<p style="margin-top:10px"><button class="link" @click=${() => plan.onOpenObject?.({ iri: model.iri, graphId: plan.graphId ?? null })}>Open as an object</button></p>` : nothing}</section>
         <section><h2>Its path</h2><div class="lineage">
           ${producer ? html`<div class="row"><span class="sub">Made by</span>
             ${maker ? html`<button class="link" @click=${() => this.go({ key: nodeKey.step(producer.id), item: maker.n ?? 1 })}>${maker.label}</button>`
@@ -573,17 +666,21 @@ export class ShWorkflowFocus extends LitElement {
   private renderRefusals(step: WorkflowPlanStepView): TemplateResult {
     const refused = (this.plan?.refused ?? []).filter((r) => r.step === step.id)
     const columns = [...new Set(refused.flatMap((r) => (isRecord(r.item) ? Object.keys(r.item) : [])))].filter((c) => c !== 'documentId' && c !== 'blockId')
-    const ordered = [...columns.filter((c) => c === 'quote'), ...columns.filter((c) => c !== 'quote')].slice(0, 5)
-    return html`<div class="part">${this.hero('refused', `Refused by ${step.label}`, html`<span class="part">${plural(refused.length, 'item')} it would not pass on · ${this.stepChip(step.id)}</span>`)}
+    const ordered = [...columns.filter((c) => c === 'quote'), ...columns.filter((c) => c !== 'quote')].slice(0, 5).map((key) => ({ key, label: humanName(key) }))
+    // What a check refused is an item of the stack it checks: a typed stack's refusals keep their class's columns.
+    const checked = this.inputStack(step)
+    const objects = checked?.itemClass ? refused.map((r) => objectForItem(checked, r.item)) : undefined
+    const cols = checked?.itemClass ? stackColumns(checked, refused.map((r) => r.item)).slice(0, 5) : ordered
+    return html`<div class="part">${this.hero('refused', `Refused by ${step.label}`, html`<span class="part">${checked?.itemClass ? stackCountWords(checked, refused.length) : plural(refused.length, 'item')} it would not pass on · ${this.stepChip(step.id)}</span>`)}
       ${refused.length === 0 ? html`<p class="empty">It refused nothing in the last run.</p>`
-        : this.renderTable(refused.map((r) => r.item), ordered, (i) => this.go({ key: nodeKey.refused(step.id), item: i + 1 }), refused.map((r) => r.why))}</div>`
+        : this.renderTable(refused.map((r) => r.item), cols, (i) => this.go({ key: nodeKey.refused(step.id), item: i + 1 }), refused.map((r) => r.why), objects)}</div>`
   }
 
   private renderRefusal(step: WorkflowPlanStepView, n: number): TemplateResult {
     const refusal = (this.plan?.refused ?? []).filter((r) => r.step === step.id)[n - 1]
     if (!refusal) return html`${this.hero('refused', `Refusal ${n}`, 'Not in the last run.')}`
     return html`<div class="part">${this.hero('refused', `Refused by ${step.label}`, `Refusal ${n}`)}
-      <div class="cols"><section><h2>The item</h2>${renderWorkflowItem(this.plan, refusal.item, n - 1, refusal.why, 40)}</section>
+      <div class="cols"><section><h2>The item</h2>${renderItemCard(this.plan, objectForItem(this.inputStack(step), refusal.item), refusal.item, n - 1, refusal.why, 40)}</section>
         <section><h2>Why</h2><div class="verdict" data-passed="false"><p>${refusal.why}</p></div></section></div></div>`
   }
 }

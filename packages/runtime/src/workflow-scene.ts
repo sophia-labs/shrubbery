@@ -299,10 +299,15 @@ function tallyWords(step: WorkflowPlanStepView): string {
 
 /** A stack's count, in words: what it held after the run, or how its maker is getting on during it. */
 function stackWords(stack: WorkflowStackView, maker: WorkflowPlanStepView | undefined): { count: string; note: string } {
-  if (stack.items) return { count: String(stack.items.length), note: stack.items.length === 1 ? 'item' : 'items' }
+  if (stack.items) {
+    const unfit = (stack.objects ?? []).filter((o) => o?.stance === 'unfit').length
+    const note = stack.itemClass ? (stack.items.length === 1 ? stack.itemClass.label : stack.itemClass.plural).toLowerCase() : stack.items.length === 1 ? 'item' : 'items'
+    return { count: String(stack.items.length), note: unfit ? `${note} · ${unfit} unfit` : note }
+  }
   const p = maker?.progress
   if (p && p.started > p.done + p.failed) return { count: '…', note: 'filling' }
-  return { count: '', note: stack.fields.length ? stack.fields.slice(0, 3).join(' · ') : '' }
+  const fields = stack.itemClass ? stack.itemClass.columns.map((c) => c.label) : stack.fields
+  return { count: '', note: fields.length ? fields.slice(0, 3).join(' · ') : '' }
 }
 
 function sourceWhere(source: WorkflowSourceView): string {
@@ -668,8 +673,10 @@ export class ShWorkflowScene extends LitElement {
       const stack = node.stack
       const maker = plan.steps.find((s) => s.id === stack.producer)
       const words = stackWords(stack, maker)
-      return common(`Stack: ${humanName(stack.id)}${words.count ? `, ${words.count} ${words.note}` : ''}`, html`
-        <div class="label" title=${humanName(stack.id)}>${humanName(stack.id)}</div>
+      // A typed stack is called by its class (typed objects D8.1): "Dream reports".
+      const name = stack.itemClass?.plural ?? humanName(stack.id)
+      return common(`Stack: ${name}${words.count ? `, ${words.count} ${words.note}` : ''}`, html`
+        <div class="label" title=${stack.itemClass ? `${name} (${humanName(stack.id)})` : name}>${name}</div>
         <div class="count">${words.count}</div>
         ${words.note ? html`<div class="sub" title=${words.note}>${words.note}</div>` : nothing}`)
     }

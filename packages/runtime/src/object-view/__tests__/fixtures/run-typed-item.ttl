@@ -1,0 +1,36 @@
+# graph: urn:sophia:wf:doc-sleepers:run:mh3x9a1
+@prefix wf: <http://mnemosyne.dev/workflow#> .
+@prefix prov: <http://www.w3.org/ns/prov#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix t: <urn:sophia:type:freud-dreams:workspace#> .
+@prefix run: <urn:sophia:wf:doc-sleepers:run:mh3x9a1#> .
+
+run:item-7 a wf:Item, t:DreamReport ;
+    wf:partOfRun run:run ;
+    wf:inCollection <urn:sophia:wf:doc-sleepers#verified> ;
+    wf:position 6 ;
+    wf:json '''{"who":"Meier","procedure":"seized by some persons, laid on his back, a stake driven between his big and second toes","dream":"He was being tortured, staked to the ground.","quote":"he awoke and felt a straw sticking between his toes","documentId":"doc-freud","blockId":"block-c01fe85b","page":33,"stimulus":{"sense":"touch","what":"a straw between the toes"},"witnesses":[{"sense":"report","what":"Meier's own account (1758)"},{"sense":"citation","what":"cited by Freud from Strümpell"}]}''' ;
+    t:who "Meier" ;
+    t:procedure "seized by some persons, laid on his back, a stake driven between his big and second toes" ;
+    t:dream "He was being tortured, staked to the ground." ;
+    t:quote "he awoke and felt a straw sticking between his toes" ;
+    t:documentId "doc-freud" ;
+    t:blockId "block-c01fe85b" ;
+    t:page 33 ;
+    t:stimulus <urn:sophia:wf:doc-sleepers:run:mh3x9a1#item-7/stimulus> ;
+    t:witnesses <urn:sophia:wf:doc-sleepers:run:mh3x9a1#item-7/witnesses/0>, <urn:sophia:wf:doc-sleepers:run:mh3x9a1#item-7/witnesses/1> ;
+    wf:producedBy <urn:sophia:agent:agent-62517a586738e5e9> ;
+    wf:sitting "Experiment clerk #3" ;
+    prov:generatedAtTime "2026-10-20T19:58:03Z"^^xsd:dateTime .
+
+<urn:sophia:wf:doc-sleepers:run:mh3x9a1#item-7/stimulus> a t:Stimulus ;
+    t:sense "touch" ;
+    t:what "a straw between the toes" .
+
+<urn:sophia:wf:doc-sleepers:run:mh3x9a1#item-7/witnesses/0> a t:Stimulus ;
+    t:sense "report" ;
+    t:what "Meier's own account (1758)" .
+
+<urn:sophia:wf:doc-sleepers:run:mh3x9a1#item-7/witnesses/1> a t:Stimulus ;
+    t:sense "citation" ;
+    t:what "cited by Freud from Strümpell" .
