@@ -18,6 +18,7 @@ import type { ObjectModel } from '@shrubbery/nucleus/object-faces'
 import { css, html, LitElement, nothing, type TemplateResult } from 'lit'
 import { OBJECT_VIEW_INTENT_EVENT, type ObjectViewIntent } from './object-view/object-view-element.js'
 import './object-view/object-view-element.js'
+import './being/being-face-element.js'
 import type {
   WorkflowAuthoringView, WorkflowDestinationView, WorkflowPlanOptions, WorkflowPlanStepView, WorkflowSourceView, WorkflowStackView,
 } from './render-workspace.js'
@@ -231,6 +232,10 @@ export class ShWorkflowInspector extends LitElement {
     .event .at { color: var(--mn-color-text-secondary); font-size: 11.5px; }
     .order { margin: 0; padding-left: 20px; }
     .order li { margin: 3px 0; }
+    .cast { list-style: none; margin: 0 0 6px; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+    .cast-row { font: inherit; width: 100%; display: block; text-align: left; padding: 5px 6px; border: 1px solid transparent; border-radius: 6px; background: none; color: inherit; cursor: pointer; }
+    .cast-row:hover:not([disabled]) { background: var(--mn-color-surface-hover); border-color: var(--mn-color-border-default); }
+    .cast-row[disabled] { cursor: default; }
     code { font-family: var(--mn-font-mono, ui-monospace, monospace); font-size: 11.5px; overflow-wrap: anywhere; }
     .tally { font-variant-numeric: tabular-nums; }
     .open { font: inherit; font-size: 11px; letter-spacing: 0; text-transform: none; border: 1px solid var(--mn-color-border-default); background: var(--mn-color-surface-raised); color: var(--mn-color-text-primary); border-radius: 999px; padding: 1px 9px; cursor: pointer; }
@@ -337,6 +342,10 @@ export class ShWorkflowInspector extends LitElement {
         ${phases.map((phase) => html`<li><span class="sub">${phase.title}:</span> ${plan.steps.filter((s) => s.phase?.order === phase.order)
           .map((s, i) => html`${i ? ', ' : ''}<button class="link" ?data-here=${plan.focus?.key === nodeKey.step(s.id)} @click=${() => open(nodeKey.step(s.id))}>${s.label}</button>`)}</li>`)}
       </ol><p class="sub">Each step starts when the one before it has finished; steps in the same stage work at the same time.</p></section>` : nothing}
+      ${(plan.cast?.length ?? 0) > 0 ? html`<section><h2>Cast</h2><ul class="cast">
+        ${plan.cast!.map((face) => html`<li><button class="cast-row" title=${`Open ${face.name}`} @click=${() => (face.stepId ? open(nodeKey.step(face.stepId)) : undefined)}
+          ?disabled=${!face.stepId}><sh-being-face .face=${face} variant="line"></sh-being-face></button></li>`)}
+      </ul><p class="sub">Each is one being, sitting once for every item its post is given.</p></section>` : nothing}
       ${plan.authoring && plan.authoring.length > 0 ? html`<section><h2>Changes</h2>${plan.authoring.slice(0, 6).map((e) => this.renderEvent(e))}</section>` : nothing}
       ${plan.digest ? html`<section><h2>About</h2>
         <p class="sub">A run approves exactly this version: its digest is <code>${plan.digest}</code>, and any change to the plan makes a new one.</p>
@@ -363,6 +372,7 @@ export class ShWorkflowInspector extends LitElement {
       ${this.eyebrow(step.checks ? 'Check' : 'Person', nodeKey.step(step.id))}
       <h1>${step.label}</h1>
       <div class="sub">${step.job} · ${stepModeWords(step)}</div>
+      ${plan.cast?.find((f) => f.stepId === step.id) ? html`<section><sh-being-face .face=${plan.cast!.find((f) => f.stepId === step.id)}></sh-being-face></section>` : nothing}
       ${this.problemList(step.problems ?? [])}
       ${p ? html`<section><h2>This run</h2><p class="tally">${step.mode === 'perItem'
         ? `${p.started} item${p.started === 1 ? '' : 's'}: ${p.done} done${p.failed ? `, ${p.failed} failed` : ''}${p.started > p.done + p.failed ? `, ${p.started - p.done - p.failed} in hand` : ''}.`

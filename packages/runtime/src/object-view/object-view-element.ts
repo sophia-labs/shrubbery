@@ -30,6 +30,9 @@ import {
 } from '@shrubbery/nucleus/object-faces'
 import type { FaceSlot } from '@shrubbery/nucleus/value-faces'
 import { css, html, LitElement, nothing, type TemplateResult } from 'lit'
+import { agentIdOfIri } from '@shrubbery/nucleus/object-faces'
+import '../being/being-face-element.js'
+import { beingDirectory } from '../being/being-directory.js'
 import { kindValue, OBJECT_KIND_STYLES } from './kind-value.js'
 
 export const OBJECT_VIEW_INTENT_EVENT = 'sh-object-view-intent'
@@ -38,6 +41,8 @@ export type ObjectViewIntent =
   | { readonly kind: 'open-object'; readonly iri: string; readonly graphId: string | null }
   | { readonly kind: 'open-document'; readonly documentId: string; readonly blockId: string | null; readonly graphId: string | null }
   | { readonly kind: 'embed'; readonly iri: string; readonly graphId: string | null; readonly label: string; readonly classLabel: string }
+  /** The being who made it (D9): its post, in its workflow. */
+  | { readonly kind: 'open-being'; readonly iri: string; readonly graphId: string | null }
   | { readonly kind: 'open-run'; readonly runIri: string; readonly runId: string; readonly graphId: string | null }
 
 /** One document a typed object is embedded in (the object page's "Used in"). */
@@ -62,8 +67,15 @@ export function whenWords(at: string | undefined, now = new Date()): string {
 /** The testimony in one line: the sitting (or the being), the run, the moment. */
 export function testimonyLine(model: ObjectModel): string {
   const t = model.testimony
-  const who = t.sitting ?? t.by?.label ?? (t.by ? shortAgent(t.by.agentIri) : '')
+  const who = t.sitting ?? beingName(model) ?? ''
   return [who ? `by ${who}` : '', t.run ? `run ${t.run.id}` : '', whenWords(t.at)].filter(Boolean).join(' · ')
+}
+
+/** The being's name: the post that cast it when the shell knows (`beingDirectory`), else its label, else its short id. */
+function beingName(model: ObjectModel): string | undefined {
+  const by = model.testimony.by
+  if (!by) return undefined
+  return beingDirectory.get(by.agentIri)?.name ?? by.label ?? shortAgent(by.agentIri)
 }
 
 function shortAgent(iri: string): string {
@@ -186,6 +198,7 @@ export class ShObjectView extends LitElement {
     .sub .sub-class { font: 500 10.5px/1.3 var(--mn-font-mono, ui-monospace, monospace); color: var(--mn-color-text-secondary); }
     .sub .sub-title { font-weight: 600; }
     .testimony { display: flex; flex-wrap: wrap; gap: 2px 10px; font-size: 11.5px; color: var(--mn-color-text-secondary); }
+    .testimony[data-being] { gap: 0; align-items: center; }
     .card .testimony { padding-top: 6px; border-top: 1px solid var(--mn-color-border-subtle); }
     .actions { display: flex; flex-wrap: wrap; gap: 6px; }
     button.quiet {
@@ -193,6 +206,8 @@ export class ShObjectView extends LitElement {
       color: inherit; border-radius: var(--mn-radius-control, 6px); padding: 2px 10px; cursor: pointer;
     }
     button.quiet:hover { border-color: var(--mn-color-border-accent); }
+    button.link.being { display: inline-flex; align-items: center; gap: 6px; text-decoration: none; }
+    button.link.being:hover { text-decoration: underline; text-underline-offset: 2px; }
     button.link {
       font: inherit; border: 0; background: none; padding: 0; cursor: pointer; text-align: left;
       color: var(--mn-color-text-accent, var(--mn-color-accent)); text-decoration: underline; text-underline-offset: 2px;
@@ -235,6 +250,31 @@ export class ShObjectView extends LitElement {
 
   private graph(): string | null {
     return this.graphId || null
+  }
+
+  private unsubscribeBeings: (() => void) | null = null
+
+  override connectedCallback(): void {
+    super.connectedCallback()
+    // The shell learns a being's name after it reads the run: draw it again then.
+    this.unsubscribeBeings = beingDirectory.subscribe(() => this.requestUpdate())
+  }
+
+  override disconnectedCallback(): void {
+    this.unsubscribeBeings?.()
+    this.unsubscribeBeings = null
+    super.disconnectedCallback()
+  }
+
+  private openBeing(iri: string): void {
+    this.emit({ kind: 'open-being', iri, graphId: this.graph() })
+  }
+
+  /** The being who made it, as someone: its mark and name, a door to its page in its workflow; the IRI stays the tooltip. */
+  private beingLink(model: ObjectModel, words: string): TemplateResult | typeof nothing {
+    const by = model.testimony.by
+    if (!by) return nothing
+    return html`<button class="link being" title=${by.agentIri} @click=${() => this.openBeing(by.agentIri)}><sh-being-mark agent-id=${agentIdOfIri(by.agentIri)} name=${beingName(model) ?? ''} .size=${16}></sh-being-mark>${words}</button>`
   }
 
   private openObject(): void {
@@ -298,7 +338,14 @@ export class ShObjectView extends LitElement {
 
   private testimony(model: ObjectModel): TemplateResult | typeof nothing {
     const line = testimonyLine(model)
-    return line ? html`<div class="testimony" title=${model.testimony.by?.agentIri ?? ''}>${line}</div>` : nothing
+    if (!line) return nothing
+    // With a being behind it, the first words ("by the Clerk") are the door to its page.
+    const t = model.testimony
+    if (t.by) {
+      const rest = [t.run ? `run ${t.run.id}` : '', whenWords(t.at)].filter(Boolean)
+      return html`<div class="testimony" data-being title=${t.by.agentIri}>${this.beingLink(model, `by ${t.sitting ?? beingName(model)}`)}${rest.length ? html`<span>${` · ${rest.join(' · ')}`}</span>` : nothing}</div>`
+    }
+    return html`<div class="testimony">${line}</div>`
   }
 
   private renderCard(model: ObjectModel, stance: ObjectStance, params: ObjectFaceParams): TemplateResult {
@@ -344,7 +391,7 @@ export class ShObjectView extends LitElement {
       <section><h2>Fields</h2>${fields.length ? this.fieldList(fields, true) : html`<p class="muted">It has no other fields.</p>`}</section>
       ${params.testimony !== false && !this.noTestimony ? html`<section><h2>Testimony</h2><div class="lines">
         ${t.sitting ? html`<div class="row"><span class="what">Handed back by</span> <span>${t.sitting}</span></div>` : nothing}
-        ${t.by ? html`<div class="row"><span class="what">The being</span> <span>${t.by.label ?? html`<code>${t.by.agentIri}</code>`}</span></div>` : nothing}
+        ${t.by ? html`<div class="row"><span class="what">The being</span> ${this.beingLink(model, beingName(model) ?? '')}</div>` : nothing}
         ${t.run ? html`<div class="row"><span class="what">In run</span> <button class="link" @click=${() => this.emit({ kind: 'open-run', runIri: t.run!.iri, runId: t.run!.id, graphId })}>${t.run.id}</button></div>` : nothing}
         ${t.at ? html`<div class="row"><span class="what">At</span> <span>${whenWords(t.at)}</span></div>` : nothing}
         ${!t.sitting && !t.by && !t.run && !t.at ? html`<p class="muted">No testimony recorded: who made it and when are not known.</p>` : nothing}

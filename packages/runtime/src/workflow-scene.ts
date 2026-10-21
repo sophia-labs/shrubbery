@@ -25,6 +25,7 @@ import {
 } from '@shrubbery/nucleus/files-canvas'
 import { css, html, LitElement, nothing, svg, type TemplateResult } from 'lit'
 import { repeat } from 'lit/directives/repeat.js'
+import './being/being-face-element.js'
 import type {
   WorkflowDestinationView, WorkflowPlanOptions, WorkflowPlanStepView, WorkflowSourceView, WorkflowStackView,
 } from './render-workspace.js'
@@ -658,8 +659,9 @@ export class ShWorkflowScene extends LitElement {
       const step = node.step
       const run = stepRunState(step)
       const tally = tallyWords(step)
+      const being = plan.cast?.find((face) => face.stepId === step.id)
       return common([step.label, step.job, stepModeWords(step), tally].filter(Boolean).join(', '), html`
-        <div class="head">${glyph(step.checks ? 'check' : 'step')}<div class="label" title=${step.label}>${step.label}</div></div>
+        <div class="head">${being ? html`<sh-being-mark agent-id=${being.agentId} name=${being.name} .size=${18}></sh-being-mark>` : glyph(step.checks ? 'check' : 'step')}<div class="label" title=${step.label}>${step.label}</div></div>
         <div class="sub">${step.job} · ${step.checks ? 'checks each' : step.mode === 'perItem' ? '× each' : 'once'}</div>
         ${tally ? html`<div class="tally">${tally}</div>` : nothing}`, { run, changed: step.changed })
     }

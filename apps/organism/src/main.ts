@@ -286,6 +286,8 @@ import {
   chooseFrom,
   type ChoiceItem,
   makeObjectEmbedRenderer,
+  beingDirectory,
+  type BeingRef,
   OBJECT_VIEW_INTENT_EVENT,
   type ObjectViewIntent,
   type ObjectPageOptions,
@@ -513,8 +515,10 @@ import {
   readGraphPlanRun,
   startGraphPlanRun,
 } from './cell/graph-plan.js'
+import { readBeingRef } from './cell/being-reader.js'
 import { makeTypedObjectReader, type ClassLookup, type TypedObjectReader } from './cell/typed-object-reader.js'
 import {
+  beingFaces,
   classLabelOf,
   classPluralOf,
   humanizeKey,
@@ -1469,13 +1473,13 @@ function workflowDraftGraph(documentId: string): string {
   return `urn:sophia:wf:${documentId}:draft`
 }
 
-function openWorkflowDocument(documentId: string, inputs: Record<string, unknown> = {}): void {
-  openWorkflowPlan(currentGraphId, workflowDraftGraph(documentId), inputs, documentId)
+function openWorkflowDocument(documentId: string, inputs: Record<string, unknown> = {}, focus: WorkflowFocus | null = null): void {
+  openWorkflowPlan(currentGraphId, workflowDraftGraph(documentId), inputs, documentId, focus)
   currentSidebarSelectedId = documentId
   rerenderCurrentSource()
 }
 
-function openWorkflowPlan(graphId: string, definition: string, inputs: Record<string, unknown>, documentId: string | null = null): void {
+function openWorkflowPlan(graphId: string, definition: string, inputs: Record<string, unknown>, documentId: string | null = null, focus: WorkflowFocus | null = null): void {
   closeWorkflowPlan()
   leaveObjectPage()
   clearTagLensState()
@@ -1496,7 +1500,7 @@ function openWorkflowPlan(graphId: string, definition: string, inputs: Record<st
     fingerprints: new Map(),
     changedAt: new Map(),
     selected: null,
-    focus: null,
+    focus,
     agents: [],
     runId: null,
     runStatus: null,
@@ -1908,6 +1912,11 @@ function workflowPlanView(state: CurrentWorkflowPlan, now: number): WorkflowPlan
   const stepIdOf = (stepIri: string): string => sketch?.steps.find((step) => step.iri === stepIri)?.id ?? local(stepIri)
   const beings: Record<string, string> = {}
   for (const [stepIri, agentIri] of state.typing?.castAgents ?? []) beings[stepIdOf(stepIri)] = agentIri
+  // The cast (world-UX slice A): one face per being, its sittings keyed by agentId, named by the post that cast it.
+  const cast = beingFaces({ posts: [...steps].sort((a, b) => (a.phase?.order ?? 0) - (b.phase?.order ?? 0)), sittings: state.agents, cast: beings })
+  for (const face of cast) {
+    beingDirectory.set({ iri: face.iri, name: face.name, documentId: state.documentId, stepId: face.stepId })
+  }
   const reason = (verdict: unknown): string => {
     if (verdict && typeof verdict === 'object') {
       const v = verdict as Record<string, unknown>
@@ -1954,6 +1963,7 @@ function workflowPlanView(state: CurrentWorkflowPlan, now: number): WorkflowPlan
     graphId: state.graphId,
     unfitSittings: (state.typing?.unfitSittings ?? []).map((u) => ({ step: stepIdOf(u.step), sitting: u.sitting, violations: u.violations })),
     beings,
+    cast,
     onOpenObject: (target) => openObjectPage(target.graphId ?? state.graphId, target.iri, workflowBack(state)),
     onEmbedObject: (target) => void embedObjectInDocument({ ...target, graphId: target.graphId ?? state.graphId }),
   }
@@ -2059,9 +2069,60 @@ function typedObjectReader(): TypedObjectReader | null {
   const caller = store?.contract.rawMcp
   if (!caller) return null
   if (typedObjectReaderFor?.caller !== caller) {
-    typedObjectReaderFor = { caller, reader: makeTypedObjectReader({ callTool: (name, args) => caller.callTool(name, args) }) }
+    const reader = makeTypedObjectReader({ callTool: (name, args) => caller.callTool(name, args) })
+    // Every object read also learns who made it (D9): its face names the being by the post that cast it.
+    typedObjectReaderFor = {
+      caller,
+      reader: {
+        ...reader,
+        async read(graphId, iri) {
+          const read = await reader.read(graphId, iri)
+          for (const triple of read?.triples ?? []) {
+            if (triple.s === iri && triple.p === `${OBJECT_WF}producedBy` && triple.o.type === 'uri') void learnBeing(graphId, triple.o.value)
+          }
+          return read
+        },
+      },
+    }
   }
   return typedObjectReaderFor.reader
+}
+
+// ── The cast (world-UX slice A, 2026-10-21): who a being is, and the door to its page in its workflow ──────────────
+const beingLookups = new Map<string, Promise<BeingRef | null>>()
+
+/** Learn a being's name and door from the graph's runs (once per being; a miss is tried again after half a minute). */
+function learnBeing(graphId: string, agentIri: string): Promise<BeingRef | null> {
+  const known = beingDirectory.get(agentIri)
+  if (known) return Promise.resolve(known)
+  const key = `${graphId}\u0000${agentIri}`
+  const pending = beingLookups.get(key)
+  if (pending) return pending
+  const caller = store?.contract.rawMcp
+  if (!caller) return Promise.resolve(null)
+  const lookup = readBeingRef((g, query) => caller.callTool('sparql_query', { graphId: g, query }), graphId, agentIri)
+    .then((ref) => {
+      if (ref) beingDirectory.set(ref)
+      else setTimeout(() => beingLookups.delete(key), 30_000)
+      return ref
+    })
+    .catch(() => {
+      setTimeout(() => beingLookups.delete(key), 30_000)
+      return null
+    })
+  beingLookups.set(key, lookup)
+  return lookup
+}
+
+/** Open a being's page: its post in its workflow, full size, with its sittings. */
+async function openBeingPage(graphId: string, agentIri: string): Promise<void> {
+  const ref = await learnBeing(graphId, agentIri)
+  if (!ref?.documentId || !ref.stepId) {
+    err('this being has no post in a workflow this workspace knows')
+    return
+  }
+  leaveObjectPage()
+  openWorkflowDocument(ref.documentId, {}, { key: `step:${ref.stepId}` })
 }
 
 type CurrentObjectPage = {
@@ -2257,6 +2318,8 @@ function onObjectViewIntent(event: Event): void {
   } else if (intent.kind === 'open-document') {
     leaveObjectPage()
     void openDocumentFromShell({ graphId: intent.graphId ?? currentGraphId, documentId: intent.documentId, ...(intent.blockId ? { blockId: intent.blockId } : {}) })
+  } else if (intent.kind === 'open-being') {
+    void openBeingPage(intent.graphId ?? currentGraphId, intent.iri)
   } else if (intent.kind === 'embed') {
     void embedObjectInDocument(intent)
   } else if (intent.kind === 'open-run') {

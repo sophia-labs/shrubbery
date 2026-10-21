@@ -149,7 +149,7 @@ import { LAYOUT_DASHBOARD_COMPONENT } from './layout/layout-dashboard-host.js'
 import { createQueryTextResolver, NamedQueryRegistry } from './layout/named-query-registry.js'
 import { contestedCardParams, objectLocator, type SourceObjectService } from './layout/source-object-service.js'
 import type { TypedObjectService } from './object-view/typed-object-service.js'
-import type { ObjectModel } from '@shrubbery/nucleus/object-faces'
+import type { BeingFace, ObjectModel } from '@shrubbery/nucleus/object-faces'
 import type { ObjectUsage } from './object-view/object-view-element.js'
 import './object-view/object-view-element.js'
 import type {
@@ -390,6 +390,11 @@ export interface WorkflowAgentRunView {
   readonly tools: readonly { readonly gate: string; readonly args: unknown; readonly at: number | null }[]
   readonly output: unknown
   readonly error: string | null
+  /** The being that sat (`agent-<16 hex>`, shared by every sitting of the post), its kind, this sitting's session. */
+  readonly agentId?: string | null
+  readonly agentType?: string | null
+  readonly sessionId?: string | null
+  readonly nodeKey?: string | null
 }
 
 /**
@@ -447,6 +452,8 @@ export interface WorkflowPlanOptions {
   readonly unfitSittings?: readonly WorkflowUnfitSittingView[]
   /** The being each step cast in the last run (`wf:castAgent`), by step id. */
   readonly beings?: Readonly<Record<string, string>>
+  /** The cast of the last run, one face per being, in the order of the posts (world-UX slice A). */
+  readonly cast?: readonly BeingFace[]
   /** Open a typed item as an object, full size (the object page). */
   readonly onOpenObject?: (target: { readonly iri: string; readonly graphId?: string | null }) => void
   /** Embed a typed item in a document ("Embed in a document…"). */

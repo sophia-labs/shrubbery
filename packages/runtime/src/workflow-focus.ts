@@ -12,8 +12,9 @@
  * (`onFocus`, `onSelect`, `onOpenDocument`); the agents come from Choreograph's run (`plan.agents`).
  */
 
-import type { ObjectModel } from '@shrubbery/nucleus/object-faces'
+import type { BeingFace, ObjectModel } from '@shrubbery/nucleus/object-faces'
 import { css, html, LitElement, nothing, type TemplateResult } from 'lit'
+import './being/being-face-element.js'
 import { OBJECT_VIEW_INTENT_EVENT } from './object-view/object-view-element.js'
 import type { WorkflowAgentRunView, WorkflowFocus, WorkflowPlanOptions, WorkflowPlanStepView, WorkflowStackView } from './render-workspace.js'
 import {
@@ -191,6 +192,7 @@ export class ShWorkflowFocus extends LitElement {
       background: var(--mn-color-surface-raised); border: 1px solid var(--mn-color-border-default); color: var(--mn-color-text-secondary); }
     .hero .badge[data-kind='check'] { border-left: 3px solid var(--mn-color-text-danger); }
     .hero .badge svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+    .hero .hero-mark { flex: none; }
     .hero h1 { font: 600 22px/1.2 var(--mn-font-chrome); overflow-wrap: anywhere; }
     .hero .sub { margin-top: 3px; }
     .sub { color: var(--mn-color-text-secondary); }
@@ -325,6 +327,11 @@ export class ShWorkflowFocus extends LitElement {
     return humanName(part.id)
   }
 
+  /** The being a post cast in the last run, or undefined (no run yet, or none recorded). */
+  private faceOf(step: WorkflowPlanStepView): BeingFace | undefined {
+    return this.plan?.cast?.find((face) => face.stepId === step.id)
+  }
+
   private agentsOf(step: WorkflowPlanStepView): WorkflowAgentRunView[] {
     return (this.plan?.agents ?? []).filter((agent) => agent.step === step.label)
       .sort((a, b) => (a.n ?? 0) - (b.n ?? 0))
@@ -395,9 +402,11 @@ export class ShWorkflowFocus extends LitElement {
       </div></div>`
   }
 
-  private hero(kind: 'step' | 'check' | 'stack' | 'refused', title: string, sub: TemplateResult | string, wiring?: TemplateResult): TemplateResult {
+  private hero(kind: 'step' | 'check' | 'stack' | 'refused', title: string, sub: TemplateResult | string, wiring?: TemplateResult, being?: BeingFace): TemplateResult {
     return html`<header class="hero">
-      <div class="badge" data-kind=${kind}>${workflowGlyph(kind)}</div>
+      ${being
+        ? html`<sh-being-mark class="hero-mark" agent-id=${being.agentId} name=${being.name} .size=${40}></sh-being-mark>`
+        : html`<div class="badge" data-kind=${kind}>${workflowGlyph(kind)}</div>`}
       <div><h1>${title}</h1><div class="sub">${sub}</div>${wiring ?? nothing}</div>
     </header>`
   }
@@ -423,10 +432,12 @@ export class ShWorkflowFocus extends LitElement {
     const agents = this.agentsOf(step)
     const made = step.produces ? plan.stacks?.find((s) => s.id === step.produces) : undefined
     const kind = step.checks ? 'check' : 'step'
+    const being = this.faceOf(step)
     return html`<div class="part">
-      ${this.hero(kind, step.label, [step.job, stepModeWords(step), step.phase ? `stage ${step.phase.order}, ${step.phase.title}` : ''].filter(Boolean).join(' · '), this.wiring(step))}
+      ${this.hero(kind, step.label, [step.job, stepModeWords(step), step.phase ? `stage ${step.phase.order}, ${step.phase.title}` : ''].filter(Boolean).join(' · '), this.wiring(step), being)}
       <div class="cols">
         <div>
+          ${being ? html`<section><h2>${step.checks ? 'Who checks' : 'Who is cast'}</h2><sh-being-face .face=${being}></sh-being-face></section>` : nothing}
           <section><h2>${step.checks ? 'What it checks' : 'What they are told'}</h2><p class="instructions">${step.instructions || '(no instructions yet)'}</p></section>
           ${!step.checks && made && stackFieldWords(made).length ? html`<section><h2>${made.itemClass ? `Each ${made.itemClass.label.toLowerCase()} they hand on has` : 'Each item they hand on has'}</h2><ul class="fields">${stackFieldWords(made).map((f) => html`<li>${f}</li>`)}</ul></section>` : nothing}
           ${(step.problems ?? []).length ? html`<section><h2>What keeps them from running</h2>${step.problems!.map((p) => html`<p>${p}</p>`)}</section>` : nothing}
@@ -452,8 +463,8 @@ export class ShWorkflowFocus extends LitElement {
   private renderWork(step: WorkflowPlanStepView, agents: readonly WorkflowAgentRunView[]): TemplateResult {
     if (agents.length === 0) {
       return html`<section><h2>Their work</h2><p class="empty">${this.plan?.run
-        ? 'Choreograph has no record of their agents for the last run.'
-        : 'Not run yet. When the workflow runs, each of their agents shows here: what it was given, what it did, what it handed on.'}</p></section>`
+        ? 'Choreograph has no record of their sittings for the last run.'
+        : 'Not run yet. When the workflow runs, each of their sittings shows here: what they were given, what they did, what they handed on.'}</p></section>`
     }
     // A once step has one agent: its work is shown right here.
     if (step.mode !== 'perItem' && !step.checks && agents.length === 1) return this.renderAgentBody(step, agents[0]!, null)
@@ -469,17 +480,16 @@ export class ShWorkflowFocus extends LitElement {
     const refused = verdicts.filter((v) => v && !v.passed).length
     const inputs = this.inputsOf(step)
     const made = step.produces ? this.plan?.stacks?.find((s) => s.id === step.produces) : undefined
-    const being = this.plan?.beings?.[step.id]
-    return html`<section><h2>Their work in the last run</h2>
+    const being = this.faceOf(step)
+    return html`<section><h2>${being ? `Sittings in the last run` : 'Their work in the last run'}</h2>
       <div class="stats">
-        <span><b>${agents.length}</b> agents</span>
+        <span>${being ? html`<b>${being.name}</b>, ` : nothing}<b>${agents.length.toLocaleString()}</b> ${agents.length === 1 ? 'sitting' : 'sittings'}</span>
         ${step.checks ? html`<span><b>${passed}</b> passed</span><span><b>${refused}</b> refused</span>` : html`<span><b>${done}</b> done</span>`}
         ${failed ? html`<span><b>${failed}</b> failed</span>` : nothing}
         ${running ? html`<span><b>${running}</b> at work</span>` : nothing}
         ${Number.isFinite(start) && end > start ? html`<span>${spanWords(end - start)}</span>` : nothing}
         ${tokens ? html`<span>${tokens.toLocaleString()} tokens</span>` : nothing}
         ${models.length ? html`<span class="sub">${models.join(', ')}</span>` : nothing}
-        ${being ? html`<span class="sub" title=${being}>cast as ${being.slice(being.lastIndexOf(':') + 1)}</span>` : nothing}
       </div>
       <table>
         <thead><tr><th></th><th>#</th><th>Given</th><th>${step.checks ? 'Verdict' : 'Handed on'}</th><th>Time</th><th>Tokens</th></tr></thead>
@@ -518,8 +528,9 @@ export class ShWorkflowFocus extends LitElement {
     const agent = this.agentsOf(step).find((a) => (a.n ?? 1) === n)
     const kind = step.checks ? 'check' : 'step'
     const title = step.mode === 'perItem' || step.checks ? `${step.label}, item ${n}` : step.label
-    if (!agent) return html`${this.hero(kind, title, 'No record of this agent in the last run.', this.wiring(step))}`
-    return html`<div class="part">${this.hero(kind, title, [step.job, agent.model ?? ''].filter(Boolean).join(' · '), this.wiring(step))}
+    const being = this.faceOf(step)
+    if (!agent) return html`${this.hero(kind, title, 'No record of this sitting in the last run.', this.wiring(step), being)}`
+    return html`<div class="part">${this.hero(kind, title, [being ? `a sitting of ${being.name}` : step.job, agent.model ?? ''].filter(Boolean).join(' · '), this.wiring(step), being)}
       ${this.renderAgentBody(step, agent, n)}</div>`
   }
 

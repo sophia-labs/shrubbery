@@ -189,6 +189,8 @@ export {
   type ObjectViewIntent,
   type ObjectViewSlot,
 } from './object-view/object-view-element.js'
+export { beingDirectory, type BeingRef } from './being/being-directory.js'
+export { BEING_INTENT_EVENT, emitBeingIntent, ShBeingFace, ShBeingMark, type BeingIntent } from './being/being-face-element.js'
 export { ShInjerto, type InjertoStatus } from './object-view/injerto-element.js'
 export { chooseFrom, filterChoices, ShChoiceDialog, type ChoiceItem } from './object-view/choice-dialog-element.js'
 export { objectModelOfRead, type TypedObjectRead, type TypedObjectService } from './object-view/typed-object-service.js'
