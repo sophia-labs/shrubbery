@@ -11,7 +11,9 @@
     "./bottom-bar": "./src/mn-bottom-bar.ts",
     "./sophia-suite": "./src/sophia-suite.ts",
     "./app-toolbar": "./src/app-toolbar.ts",
-    "./context-menu": "./src/mn-context-menu.ts"
+    "./context-menu": "./src/mn-context-menu.ts",
+    "./audio-player": "./src/audio-player.ts",
+    "./audio": "./src/audio.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",

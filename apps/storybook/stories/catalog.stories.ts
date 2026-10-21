@@ -33,6 +33,7 @@ import {
   isBuilt,
   type CatalogEntry,
 } from '../catalog/catalog-model.js'
+import { OVILLO_FIXTURE_LEDGERS, OVILLO_FIXTURE_TRACKS } from './audio-player-data.js'
 
 const meta: Meta = {
   title: 'Catalog/Components',
@@ -111,6 +112,12 @@ function renderPrimitive(tag: string): TemplateResult | null {
           <mn-sparkline .values=${[8, 6, 7, 4, 5, 2]} tone="danger" hint="errors"></mn-sparkline>
         </div>
       `
+    case 'mn-audio-player':
+      return html`
+        <mn-audio-player variant="single" .tracks=${[OVILLO_FIXTURE_TRACKS[0]]}></mn-audio-player>
+      `
+    case 'mn-energy-ledger':
+      return html`<mn-energy-ledger .ledgers=${OVILLO_FIXTURE_LEDGERS}></mn-energy-ledger>`
     case 'mn-ribbon':
       return html`
         <mn-ribbon
@@ -1536,6 +1543,8 @@ export const MnBottomBar: Story = memberStory('mn-bottom-bar')
 export const MnChip: Story = memberStory('mn-chip')
 export const MnBadge: Story = memberStory('mn-badge')
 export const MnSparkline: Story = memberStory('mn-sparkline')
+export const MnAudioPlayer: Story = memberStory('mn-audio-player')
+export const MnEnergyLedger: Story = memberStory('mn-energy-ledger')
 export const MnRibbon: Story = memberStory('mn-ribbon')
 export const MnCard: Story = memberStory('mn-card')
 export const MnRelations: Story = memberStory('mn-relations')

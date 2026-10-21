@@ -11,6 +11,7 @@
     "./collab/development-code-editor": "./src/collab/development-code-editor.ts",
     "./harness/in-process-crdt-backend": "./src/harness/in-process-crdt-backend.ts",
     "./layout": "./src/layout/index.ts",
+    "./layout/surface": "./src/layout/workspace-surface-element.ts",
     "./layout/faces/media-face-internal": "./src/layout/faces/media-face-internal.ts",
     "./layout/sealed-open-face-params-internal": "./src/layout/sealed-open-face-params-internal.ts",
     "./layout/source-object-service-internal": "./src/layout/source-object-service.ts",

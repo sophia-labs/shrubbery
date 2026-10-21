@@ -8,11 +8,13 @@
   "exports": {
     ".": "./src/index.ts",
     "./gateway": "./src/gateway/index.ts",
+    "./gardend": "./src/gardend/gardend-source.ts",
     "./access-control": "./src/gateway/control-access.ts",
     "./features": "./src/features.ts",
     "./node": "./src/node/index.ts",
     "./emporium": "./src/emporium/index.ts",
-    "./conformance": "./src/conformance/suite.ts"
+    "./conformance": "./src/conformance/suite.ts",
+    "./conformance/sparql-server": "./src/conformance/sparql-protocol-server.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",

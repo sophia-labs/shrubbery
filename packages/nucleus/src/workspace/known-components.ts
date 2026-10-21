@@ -31,7 +31,7 @@
  * documented serialized anchors that the runtime substitutes/lifts):
  *   @shrubbery/components: mn-top-bar, mn-app-bar, mn-bottom-bar,
  *     mn-garden-home, mn-chip,
- *     mn-badge, mn-sparkline, mn-ribbon, mn-card, mn-relations, mn-graph,
+ *     mn-badge, mn-sparkline, mn-audio-player, mn-energy-ledger, mn-ribbon, mn-card, mn-relations, mn-graph,
  *     mn-graph-panel,
  *     mn-button, mn-icon-button, mn-input, mn-textarea, mn-search-input,
  *     mn-tooltip, mn-avatar, mn-panel-header, mn-dropdown-button,
@@ -92,6 +92,9 @@ const KNOWN_COMPONENT_TAGS: readonly string[] = Object.freeze([
   'mn-chip',
   'mn-badge',
   'mn-sparkline',
+  // The playlist player (Aviary's engine promoted) and an Ariadne World's energy ledger.
+  'mn-audio-player',
+  'mn-energy-ledger',
   'mn-ribbon',
   'mn-card',
   'mn-relations',

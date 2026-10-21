@@ -51,6 +51,8 @@ import './mn-presence-inspector.js'
 import './mn-chip.js'
 import './mn-badge.js'
 import './mn-sparkline.js'
+import './mn-audio-player.js'
+import './mn-energy-ledger.js'
 import './mn-ribbon.js'
 import './mn-card.js'
 import './mn-relations.js'
@@ -245,6 +247,63 @@ export {
   type MnBadgeVariant,
 } from './mn-badge.js'
 export { MnSparkline, type MnSparklineTone } from './mn-sparkline.js'
+// The audio player: Aviary's engine promoted (createAudioPlayer), the playlist
+// and visualizer math, the player element, and the energy-ledger element.
+export {
+  createAudioPlayer,
+  type AudioPlayer,
+  type AudioPlayerOptions,
+  type PlaybackState,
+  type PlaybackStatus,
+  type Track,
+} from './audio-player.js'
+export {
+  MN_REPEAT_MODES,
+  formatClock,
+  nextRepeatMode,
+  nextTrackIndex,
+  playOrder,
+  previousTrackIndex,
+  seededRandom,
+  type MnRepeatMode,
+  type PreviousStep,
+} from './audio-playlist.js'
+export {
+  MnMediaDataError,
+  bodyKindOf,
+  energyAt,
+  energyLevel,
+  energyPolylines,
+  formatQuantity,
+  ledgerBalance,
+  parseEnergyTrace,
+  parsePeaks,
+  peakBins,
+  peaksDuration,
+  spectrumBands,
+  touchedStrings,
+  touchesBetween,
+  type MnEnergyBody,
+  type MnEnergyLedger,
+  type MnEnergyTouch,
+  type MnEnergyTrace,
+  type MnFormattedQuantity,
+  type MnLedgerBalance,
+  type MnWaveformPeaks,
+} from './audio-visuals.js'
+export {
+  MnAudioPlayer,
+  MN_VISUALIZER_MODES,
+  type MnAudioDataLoader,
+  type MnAudioOpenDetail,
+  type MnAudioPlaybackDetail,
+  type MnAudioPlayerVariant,
+  type MnAudioTrack,
+  type MnAudioTrackChangeDetail,
+  type MnAudioTrackChangeReason,
+  type MnVisualizerMode,
+} from './mn-audio-player.js'
+export { MnEnergyLedgerElement } from './mn-energy-ledger.js'
 export { MnRibbon, type MnRibbonSegment } from './mn-ribbon.js'
 export { MnCard } from './mn-card.js'
 export { MnRelations, type MnRelation } from './mn-relations.js'
