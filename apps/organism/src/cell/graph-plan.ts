@@ -538,6 +538,25 @@ export async function startGraphPlanRun(
   return body.runId
 }
 
+/**
+ * Stop a run in progress (Choreograph's `POST /api/workflows/runs/:runId/stop`, owner only): its sittings end now and
+ * the run becomes `stopped`. Choreograph answers `stopping` (202) when its driver has not finished within its wait;
+ * the poll then sees `stopped`. A run that had already ended is left as it was.
+ */
+export async function stopGraphPlanRun(service: GraphPlanService, runId: string): Promise<string> {
+  const response = await fetch(`${service.origin}${service.mount}/api/workflows/runs/${encodeURIComponent(runId)}/stop`, {
+    method: 'POST',
+    headers: serviceHeaders(service),
+    body: JSON.stringify({ reason: 'stopped from the workflow pane' }),
+  })
+  const body = (await response.json().catch(() => ({}))) as { run?: { status?: unknown }; error?: unknown }
+  if (!response.ok || typeof body.run?.status !== 'string') {
+    const message = typeof body.error === 'string' ? body.error : `HTTP ${response.status}`
+    throw new Error(`the run did not stop: ${message}`)
+  }
+  return body.run.status
+}
+
 export interface GraphPlanRunProgress {
   readonly status: string
   /** Per step label (without its ` #n` item suffix): finished and failed agent nodes. */

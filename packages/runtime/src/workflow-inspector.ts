@@ -22,7 +22,7 @@ import './being/being-face-element.js'
 import type {
   WorkflowAuthoringView, WorkflowDestinationView, WorkflowPlanOptions, WorkflowPlanStepView, WorkflowSourceView, WorkflowStackView,
 } from './render-workspace.js'
-import { humanName, nodeKey, stepModeWords, stepRunState } from './workflow-scene.js'
+import { humanName, nodeKey, stepModeWords, stepRunState, workflowRunLive } from './workflow-scene.js'
 
 const ITEMS_SHOWN = 60
 
@@ -225,6 +225,8 @@ export class ShWorkflowInspector extends LitElement {
     .action[disabled] { opacity: .45; cursor: default; }
     .quiet { font: inherit; border: 1px solid var(--mn-color-border-default); background: var(--mn-color-surface-raised); color: inherit; border-radius: var(--mn-radius-control, 6px); padding: 3px 10px; cursor: pointer; }
     .quiet:hover { border-color: var(--mn-color-border-accent); }
+    .run-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .stop[disabled] { opacity: .45; cursor: default; }
     .link { font: inherit; border: 0; background: none; padding: 0; color: var(--mn-color-text-accent, var(--mn-color-accent)); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
     .link[data-here] { color: var(--mn-color-text-primary); font-weight: 600; text-decoration: none; }
     .event { margin: 6px 0; }
@@ -292,9 +294,13 @@ export class ShWorkflowInspector extends LitElement {
   }
 
   private runButton(plan: WorkflowPlanOptions): TemplateResult {
-    const running = plan.run?.status === 'running'
+    const running = workflowRunLive(plan.run?.status)
+    const stopping = plan.run?.status === 'stopping'
     const canRun = plan.status === 'ready' && Boolean(plan.digest) && !running
-    return html`<button class="action" ?disabled=${!canRun} @click=${() => plan.onRun?.()}>${running ? 'Running…' : plan.run ? 'Run this version again' : 'Approve and run this version'}</button>`
+    const stop = running && plan.onStop
+      ? html`<button class="quiet stop" ?disabled=${stopping} @click=${() => plan.onStop?.()}>${stopping ? 'Stopping…' : 'Stop this run'}</button>`
+      : nothing
+    return html`<div class="run-actions"><button class="action" ?disabled=${!canRun} @click=${() => plan.onRun?.()}>${running ? 'Running…' : plan.run ? 'Run this version again' : 'Approve and run this version'}</button>${stop}</div>`
   }
 
   private publishButton(plan: WorkflowPlanOptions, destination: WorkflowDestinationView | null): TemplateResult | typeof nothing {
@@ -309,9 +315,9 @@ export class ShWorkflowInspector extends LitElement {
   }
 
   private renderOverview(plan: WorkflowPlanOptions): TemplateResult {
-    const running = plan.run?.status === 'running'
+    const running = workflowRunLive(plan.run?.status)
     const tone = running ? 'running' : plan.status
-    const statusWords = running ? 'Running'
+    const statusWords = running ? (plan.run?.status === 'stopping' ? 'Stopping' : 'Running')
       : plan.status === 'loading' ? 'Reading the workflow…'
         : plan.status === 'error' ? `Could not read it: ${plan.error ?? ''}`
           : plan.status === 'invalid' ? (plan.steps.length === 0 ? 'Empty: nothing to run yet' : 'Not runnable yet')
@@ -335,7 +341,7 @@ export class ShWorkflowInspector extends LitElement {
       </ul></section>` : nothing}
       <section>${this.runButton(plan)}</section>
       ${plan.run ? html`<section><h2>The last run</h2>
-        <p>${plan.run.status === 'running' ? 'Running now.' : `It ${plan.run.status === 'completed' ? 'finished' : plan.run.status}.`}${plan.run.message ? html` ${plan.run.message}.` : nothing}</p>
+        <p>${plan.run.status === 'running' ? 'Running now.' : plan.run.status === 'stopping' ? 'Stopping now.' : `It ${plan.run.status === 'completed' ? 'finished' : plan.run.status}.`}${plan.run.message ? html` ${plan.run.message}.` : nothing}</p>
         ${this.publishButton(plan, null)}
       </section>` : nothing}
       ${phases.length > 0 ? html`<section><h2>The order of work</h2><ol class="order">

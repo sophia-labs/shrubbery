@@ -55,6 +55,11 @@ const FIT_MAX_ZOOM = 1
 
 export type StepRunState = 'idle' | 'running' | 'done' | 'failed'
 
+/** A run still in hand: running, or asked to stop and not yet stopped (Choreograph's `stopping`). */
+export function workflowRunLive(status: string | null | undefined): boolean {
+  return status === 'running' || status === 'stopping'
+}
+
 export function stepRunState(step: WorkflowPlanStepView): StepRunState {
   const p = step.progress
   if (!p) return 'idle'

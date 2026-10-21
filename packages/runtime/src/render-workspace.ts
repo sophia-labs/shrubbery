@@ -122,7 +122,7 @@ import type {
 import type { EditorHostBinding } from './editor-host-binding.js'
 import type { SalienceBundle } from './editor-services/salience-bundle-service.js'
 import type { WireBundle } from './editor-services/wire-bundle-service.js'
-import './workflow-scene.js'
+import { workflowRunLive } from './workflow-scene.js'
 import './workflow-inspector.js'
 import './workflow-focus.js'
 import { renderFilesPane, type WorkspaceFilesOptions } from './files-pane.js'
@@ -444,6 +444,8 @@ export interface WorkflowPlanOptions {
   /** The agents of the last run, in the order they were queued. */
   readonly agents?: readonly WorkflowAgentRunView[] | null
   readonly onRun?: () => void
+  /** Stop the run in progress: Choreograph ends its sittings and marks it stopped. */
+  readonly onStop?: () => void
   readonly onPublish?: (destination: string | null) => void
   readonly onOpenDocument?: (target: { readonly documentId: string; readonly blockId?: string | null }) => void
   /** The graph the workflow lives in (its typed items' graph). */
@@ -2171,8 +2173,9 @@ const WORKFLOW_PLAN_STYLE = `
 
 /** What the Run pill says: the one action the canvas keeps, and how the workflow stands. */
 function workflowPillWords(plan: WorkflowPlanOptions): { words: string; tone: string; running: boolean } {
-  const running = plan.run?.status === 'running'
+  const running = workflowRunLive(plan.run?.status)
   if (running) {
+    if (plan.run?.status === 'stopping') return { words: 'Stopping…', tone: 'running', running }
     const working = plan.steps.filter((step) => step.progress && step.progress.started > step.progress.done + step.progress.failed)
     const at = working.map((step) => {
       const p = step.progress!
@@ -2195,7 +2198,7 @@ function workflowPillWords(plan: WorkflowPlanOptions): { words: string; tone: st
 }
 
 /** The workflow pane: the canvas, and the Run pill floating over it. Everything else is in the right sidebar. */
-function renderWorkflowPlan(plan: WorkflowPlanOptions): TemplateResult {
+export function renderWorkflowPlan(plan: WorkflowPlanOptions): TemplateResult {
   const pill = workflowPillWords(plan)
   const canRun = plan.status === 'ready' && Boolean(plan.digest) && !pill.running
   const publish = plan.publish && plan.publish.count > 0 && plan.publish.status !== 'done' ? plan.publish : null
@@ -2208,6 +2211,8 @@ function renderWorkflowPlan(plan: WorkflowPlanOptions): TemplateResult {
       <span class="words" role="status" aria-live="polite" data-tone=${pill.tone} title=${pill.words}
         @click=${() => { if (pill.tone === 'invalid') plan.onSelect?.(null) }}>${pill.words}</span>
       ${publish ? html`<button data-quiet ?disabled=${publish.status === 'publishing'} @click=${() => plan.onPublish?.(publish.destination)}>${publish.status === 'publishing' ? 'Publishing…' : `Publish ${publish.count}`}</button>` : nothing}
+      ${pill.running && plan.onStop ? html`<button data-quiet ?disabled=${plan.run?.status === 'stopping'} title="Stop this run: its agents end now"
+        @click=${() => plan.onStop?.()}>${plan.run?.status === 'stopping' ? 'Stopping…' : 'Stop'}</button>` : nothing}
       <button ?disabled=${!canRun} title=${plan.digest ? `Approve and run this version (${plan.digest.slice(0, 19)}…)` : 'Approve and run this version'}
         @click=${() => plan.onRun?.()}>${pill.running ? 'Running' : plan.run ? 'Run again' : 'Run'}</button>
     </div>

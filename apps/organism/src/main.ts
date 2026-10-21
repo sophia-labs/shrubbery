@@ -514,6 +514,7 @@ import {
   publishableFindings,
   readGraphPlanRun,
   startGraphPlanRun,
+  stopGraphPlanRun,
 } from './cell/graph-plan.js'
 import { readBeingRef } from './cell/being-reader.js'
 import { makeTypedObjectReader, type ClassLookup, type TypedObjectReader } from './cell/typed-object-reader.js'
@@ -1406,6 +1407,8 @@ type CurrentWorkflowPlan = {
   runStatus: string | null
   /** Why the last Run did not start (Choreograph's refusal), until the next one does. */
   runRefusal: string | null
+  /** Why the last Stop did not take, while the run goes on. */
+  stopFailure: string | null
   /** What the last run testified: each collection's items and each check's refusals. */
   results: GraphPlanResults | null
   /** What the last run testified about its items' types (typed objects D5): typed triples, unfit sittings, beings. */
@@ -1505,6 +1508,7 @@ function openWorkflowPlan(graphId: string, definition: string, inputs: Record<st
     runId: null,
     runStatus: null,
     runRefusal: null,
+    stopFailure: null,
     results: null,
     typing: null,
     classes: new Map(),
@@ -1583,11 +1587,11 @@ async function pollWorkflowPlan(state: CurrentWorkflowPlan): Promise<void> {
         await loadWorkflowPlanResults(state)
       }
     }
-    if (state.runId && state.runStatus === 'running') {
+    if (state.runId && (state.runStatus === 'running' || state.runStatus === 'stopping')) {
       const run = await readGraphPlanRun(workflowPlanService(), state.runId)
       state.progress = run.byLabel
       state.agents = run.agents
-      if (run.status !== 'running') {
+      if (run.status !== 'running' && run.status !== 'stopping') {
         state.runStatus = run.status
         await loadWorkflowPlanResults(state)
       }
@@ -1805,6 +1809,7 @@ async function publishWorkflowFindings(state: CurrentWorkflowPlan, destination: 
 function runLine(state: CurrentWorkflowPlan): { id: string; status: string; message?: string | null } {
   const id = state.runId ?? '-'
   const status = state.runStatus ?? 'running'
+  if (status === 'running' && state.stopFailure) return { id, status, message: state.stopFailure }
   if (status !== 'failed') return { id, status }
   const failures = [...state.progress.entries()].filter(([, counts]) => counts.failed > 0)
   const lastStep = state.plan?.phases.at(-1)?.steps.find((step) => step.produces)
@@ -1956,6 +1961,7 @@ function workflowPlanView(state: CurrentWorkflowPlan, now: number): WorkflowPlan
     onFocus: (focus) => focusWorkflowNode(state, focus),
     agents: state.agents,
     onRun: () => void runWorkflowPlan(state),
+    onStop: () => void stopWorkflowRun(state),
     onPublish: (destination) => void publishWorkflowFindings(state, destination),
     onOpenDocument: (target) => {
       void openDocumentFromShell({ graphId: state.graphId, documentId: target.documentId, ...(target.blockId ? { blockId: target.blockId } : {}) })
@@ -2044,6 +2050,7 @@ async function runWorkflowPlan(state: CurrentWorkflowPlan): Promise<void> {
     state.runId = runId
     state.runStatus = 'running'
     state.runRefusal = null
+    state.stopFailure = null
     state.progress = new Map()
     state.results = null
     state.typing = null
@@ -2055,6 +2062,28 @@ async function runWorkflowPlan(state: CurrentWorkflowPlan): Promise<void> {
     state.runRefusal = error instanceof Error ? error.message : String(error)
     state.view = workflowPlanView(state, Date.now())
   }
+  rerenderCurrentSource()
+}
+
+/** Stop the run in progress. Until Choreograph says `stopped`, the pane says Stopping and the poll keeps reading. */
+async function stopWorkflowRun(state: CurrentWorkflowPlan): Promise<void> {
+  if (!state.runId || state.runStatus !== 'running') return
+  const runId = state.runId
+  state.runStatus = 'stopping'
+  state.view = workflowPlanView(state, Date.now())
+  rerenderCurrentSource()
+  try {
+    const status = await stopGraphPlanRun(workflowPlanService(), runId)
+    if (state.runId !== runId) return
+    state.runStatus = status
+    state.stopFailure = null
+    if (status !== 'stopping' && status !== 'running') await loadWorkflowPlanResults(state)
+  } catch (error) {
+    if (state.runId !== runId) return
+    state.runStatus = 'running'
+    state.stopFailure = error instanceof Error ? error.message : String(error)
+  }
+  state.view = workflowPlanView(state, Date.now())
   rerenderCurrentSource()
 }
 
