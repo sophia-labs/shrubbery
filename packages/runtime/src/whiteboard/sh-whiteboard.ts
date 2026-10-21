@@ -284,13 +284,15 @@ export class ShWhiteboard extends LitElement {
       key,
       initialData: {
         elements: initial,
-        appState: { viewBackgroundColor: page.theme === 'dark' ? '#121212' : '#ffffff', theme: page.theme ?? 'light' },
+        // Transparent, so the pane's Sophia surface shows through. Excalidraw's dark theme inverts the canvas
+        // (invert(93%) hue-rotate(180deg)); a dark background colour came out as a light grey wash over the board.
+        appState: { viewBackgroundColor: 'transparent', theme: page.theme ?? 'light' },
         scrollToContent: true,
       },
       theme: page.theme ?? 'light',
       viewModeEnabled: page.readOnly === true,
       isCollaborating: true,
-      UIOptions: { canvasActions: { loadScene: false, saveToActiveFile: false, toggleTheme: false } },
+      UIOptions: { canvasActions: { loadScene: false, saveToActiveFile: false, toggleTheme: false, changeViewBackgroundColor: false } },
       onInitialize,
       onChange: (_elements: unknown, appState: Record<string, any>) => {
         binding.localChanged()
