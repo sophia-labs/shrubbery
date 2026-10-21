@@ -73,7 +73,6 @@ export class ShBeingFace extends LitElement {
     .card .mark { --being-mark-size: 44px; }
     .who { min-width: 0; }
     .name { font: 600 15px/1.25 var(--mn-font-chrome); overflow-wrap: anywhere; }
-    .eyebrow { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--mn-color-text-secondary); }
     .facts { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 4px; color: var(--mn-color-text-secondary); }
     .facts .bad { color: var(--mn-color-text-danger); }
     .line { display: flex; align-items: center; gap: 8px; min-width: 0; }
@@ -92,7 +91,6 @@ export class ShBeingFace extends LitElement {
     const facts = beingFacts(face)
     return html`<div class="card" data-agent=${face.agentId}>${mark}
       <div class="who">
-        <div class="eyebrow">${face.checks ? 'Checks as' : 'Cast as'} · ${face.mark.colorName}</div>
         <div class="name" title=${face.iri}>${face.name}</div>
         ${facts.length ? html`<div class="facts">${facts.map((fact) => html`<span class=${/ failed$/.test(fact) ? 'bad' : ''}>${fact}</span>`)}</div>` : nothing}
       </div></div>`
