@@ -1,6 +1,6 @@
 # graph: urn:mnemosyne:local:graph:freud-dreams:projection:agents
 @prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
-@prefix agt: <https://sophia-labs.ai/ontology/agent#> .
+@prefix agt: <http://mnemosyne.dev/agent#> .
 
 <urn:sophia:agent:agent-62517a586738e5e9> a agt:Agent ;
     rdfs:label "Experiment clerk" .
