@@ -68,6 +68,23 @@ footer says `layout built-in`. To put the layouts in the graph:
 The shell owns one audio engine (`createAudioPlayer`, with the Web Audio tap) and
 hands it to every player on the page, so playback carries across pages.
 
+## The mark
+
+An egg made out of one string ("ovillo" is a ball of thread, from the Latin for a
+little egg): one continuous thread once around an egg, three windings across it,
+and the loose end trailing out along the ground, like Ariadne's thread. It is one
+path in `packages/components/src/ovillo-mark.ts` (the icon `ovillo`, the suite's
+Ovillo entry, on the carmine tile `--mn-app-tile-ovillo`), drawn by
+`scripts/ovillo-mark.py`. The same thread, as files for the static site and the TV app:
+
+| file | what |
+|---|---|
+| `public/ovillo-mark.svg` | the thread alone, `currentColor` when inlined; carmine-700, carmine-300 in the dark |
+| `public/favicon.svg` | the tile: the carmine diagonal, the thread in white |
+| `public/tv-banner.png` | 320 × 180, the tile, the mark and "Ovillo" in Literata (`node scripts/render-banner.mjs`) |
+
+`tests/mark.test.ts` keeps the files' path identical to the icon's.
+
 ## Tests
 
 ```sh

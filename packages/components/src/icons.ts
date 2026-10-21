@@ -42,6 +42,7 @@
 
 import { html, type TemplateResult } from 'lit'
 import { unsafeHTML } from 'lit/directives/unsafe-html.js'
+import { OVILLO_MARK_NODE } from './ovillo-mark.js'
 import {
   // Theme / skin / chrome actions
   Sun,
@@ -298,6 +299,8 @@ const iconMap: Record<string, IconNode> = {
   'list-music': ListMusic,
   'mic': Mic,
   'guitar': Guitar,
+  // Not lucide's: Ovillo's own mark, an egg made out of one string (ovillo-mark.ts).
+  'ovillo': OVILLO_MARK_NODE as IconNode,
   'undo': RotateCcw,
   'rotate-ccw': RotateCcw,
   'trash': Trash2,

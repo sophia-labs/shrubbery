@@ -49,7 +49,7 @@ export const SOPHIA_APPS: Readonly<Record<string, SophiaAppIdentity>> = Object.f
   grapevine: { id: 'grapevine', label: 'Grapevine', icon: 'message-circle', description: 'Conversations with your agents' },
   flow: { id: 'flow', label: 'Flow', icon: 'network', description: 'Mithras Flow: systems, requirements and trades on one board' },
   hoja: { id: 'hoja', label: 'Hoja', icon: 'leaf', description: 'A quiet place for your notes', stage: 'experimental' },
-  ovillo: { id: 'ovillo', label: 'Ovillo', icon: 'audio-lines', description: 'Pieces played by Ariadne Worlds, and their energy', stage: 'experimental' },
+  ovillo: { id: 'ovillo', label: 'Ovillo', icon: 'ovillo', description: 'Pieces played by Ariadne Worlds, and their energy', stage: 'experimental' },
 })
 
 /** The catalogue identity for an id; an unknown id gets a title-cased label and a generic tile. */

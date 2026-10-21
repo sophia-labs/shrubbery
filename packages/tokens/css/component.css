@@ -21,10 +21,12 @@
    * Brand constants, not skin roles: an app keeps its colour in every skin so
    * the launcher reads the same everywhere. Flat 2D shading: two tones split
    * by one hard diagonal, no gloss. White glyphs clear 3:1 on every tone
-   * (lightest: fern-500 4.0:1, cobalt-400 3.6:1, purple-400 3.9:1). */
+   * (lightest: fern-500 4.0:1, cobalt-400 3.6:1, purple-400 3.9:1, carmine-600 4.7:1).
+   * Ovillo's is carmine, the red of Ariadne's thread. */
   --mn-app-tile-garden:      linear-gradient(155deg, var(--mn-ref-fern-500) 0 58%, var(--mn-ref-fern-600) 58%);
   --mn-app-tile-hoja:        linear-gradient(155deg, var(--mn-ref-fern-600) 0 58%, var(--mn-ref-fern-700) 58%);
   --mn-app-tile-choreograph: linear-gradient(155deg, var(--mn-ref-cobalt-400) 0 58%, var(--mn-ref-cobalt-500) 58%);
+  --mn-app-tile-ovillo:      linear-gradient(155deg, var(--mn-ref-carmine-600) 0 58%, var(--mn-ref-carmine-700) 58%);
   --mn-app-tile-default:     linear-gradient(155deg, var(--mn-ref-purple-400) 0 58%, var(--mn-ref-purple-500) 58%);
 
   /* ── Bottom bar ───────────────────────────────────────────────────────── */

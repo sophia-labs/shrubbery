@@ -255,6 +255,7 @@ export class MnTopBar extends SkinAware(LitElement) {
     .app-tile[data-app-id='hoja'] { background: var(--mn-app-tile-hoja, var(--mn-app-tile-garden, var(--mn-app-tile-default))); }
     .app-tile[data-app-id='grapevine'] { background: var(--mn-app-tile-grapevine, var(--mn-app-tile-default)); }
     .app-tile[data-app-id='flow'] { background: var(--mn-app-tile-flow, var(--mn-app-tile-default)); }
+    .app-tile[data-app-id='ovillo'] { background: var(--mn-app-tile-ovillo, var(--mn-app-tile-default)); }
 
     /* ── Floating panel: the app launcher ────────────────────────────────────
        Native top layer (popover="auto": light dismiss + Escape for free), so
@@ -313,6 +314,8 @@ export class MnTopBar extends SkinAware(LitElement) {
       grid-template-columns: 36px 1fr auto;
       align-items: center;
       column-gap: 12px;
+      /* A launcher row may be an <a> (an app link): border-box keeps width + padding inside the panel. */
+      box-sizing: border-box;
       width: 100%;
       padding: 8px;
       border: 0;

@@ -227,6 +227,8 @@ export class MnAudioPlayer extends SkinAware(LitElement) {
         --mn-audio-body-3: var(--mn-chart-categorical-3, #7b61c9);
         --mn-audio-body-4: var(--mn-chart-categorical-4, #6f7d16);
         --mn-audio-screen-height: 196px;
+        /* A knob: a shell may set it on the element to give the playlist more or less room. */
+        --mn-audio-playlist-max-height: 620px;
       }
       * {
         box-sizing: border-box;
@@ -708,7 +710,7 @@ export class MnAudioPlayer extends SkinAware(LitElement) {
         overflow: hidden;
         display: flex;
         flex-direction: column;
-        max-height: var(--mn-audio-playlist-max-height, 620px);
+        max-height: var(--mn-audio-playlist-max-height);
       }
       .list-card ol {
         overflow-y: auto;

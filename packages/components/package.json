@@ -13,7 +13,8 @@
     "./app-toolbar": "./src/app-toolbar.ts",
     "./context-menu": "./src/mn-context-menu.ts",
     "./audio-player": "./src/audio-player.ts",
-    "./audio": "./src/audio.ts"
+    "./audio": "./src/audio.ts",
+    "./ovillo-mark": "./src/ovillo-mark.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",
