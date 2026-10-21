@@ -18,6 +18,7 @@ import type * as Y from 'yjs'
 import {
   type AwarenessLike, collaboratorsOf, isLeader, publishPointer, toolDrewLine,
 } from './whiteboard-presence.js'
+import { applySophiaPalette, WHITEBOARD_DEFAULTS, WHITEBOARD_THEME_CSS } from './whiteboard-theme.js'
 import { type WbElement, type WbScene, type WbToolWrite, WhiteboardBinding } from './whiteboard-binding.js'
 
 export interface WhiteboardPageOptions {
@@ -38,10 +39,11 @@ export interface WhiteboardPageOptions {
 
 interface ExcalidrawModule {
   readonly Excalidraw: unknown
+  readonly MainMenu: any
   readonly restoreElements: (elements: readonly unknown[], existing: unknown, opts?: { refreshDimensions?: boolean }) => readonly unknown[]
   readonly CaptureUpdateAction: { readonly NEVER: unknown }
   readonly cssText: string
-  createElement(type: unknown, props: Record<string, unknown>): unknown
+  createElement(type: unknown, props: Record<string, unknown> | null, ...children: unknown[]): unknown
   createRoot(container: Element): { render(node: unknown): void; unmount(): void }
 }
 
@@ -66,15 +68,21 @@ export function loadExcalidraw(): Promise<ExcalidrawModule> {
     w.EXCALIDRAW_ASSET_PATH = new URL(WHITEBOARD_ASSET_PATH, window.location.origin).toString()
     // @ts-ignore -- resolved by Vite's CSS inline plugin, as the Files canvas runtime does.
     const cssModulePromise: Promise<{ default: string }> = import('@excalidraw/excalidraw/index.css?inline')
-    modulePromise = Promise.all([import('@excalidraw/excalidraw'), import('react'), import('react-dom/client'), cssModulePromise]).then(
-      ([excalidraw, react, reactDom, cssModule]) => {
+    modulePromise = Promise.all([import('@excalidraw/excalidraw'), import('react'), import('react-dom/client'), cssModulePromise, import('@excalidraw/common')]).then(
+      ([excalidraw, react, reactDom, cssModule, common]) => {
+        try {
+          const style = getComputedStyle(document.documentElement)
+          applySophiaPalette(common, (token) => style.getPropertyValue(token).trim())
+        } catch { /* the picker keeps Excalidraw's own colours */ }
         const ex = excalidraw as unknown as {
           Excalidraw: unknown
+          MainMenu: unknown
           restoreElements: ExcalidrawModule['restoreElements']
           CaptureUpdateAction: ExcalidrawModule['CaptureUpdateAction']
         }
         return {
           Excalidraw: ex.Excalidraw,
+          MainMenu: ex.MainMenu,
           restoreElements: ex.restoreElements,
           CaptureUpdateAction: ex.CaptureUpdateAction,
           cssText: cssModule.default,
@@ -148,7 +156,7 @@ export class ShWhiteboard extends LitElement {
     .stage { position: relative; flex: 1; min-height: 0; }
     .canvas { position: absolute; inset: 0; }
     .rings { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
-    .ring { position: absolute; border: 2px solid var(--mn-color-border-accent, #6741d9); border-radius: 6px; box-shadow: 0 0 0 4px color-mix(in srgb, var(--mn-color-border-accent, #6741d9) 25%, transparent);
+    .ring { position: absolute; border: 2px solid var(--mn-color-border-accent, #326f4c); border-radius: 6px; box-shadow: 0 0 0 4px color-mix(in srgb, var(--mn-color-border-accent, #326f4c) 25%, transparent);
       transition: opacity 600ms ease; }
     .state { position: absolute; inset: 0; display: grid; place-items: center; color: var(--mn-color-text-secondary); padding: 24px; text-align: center; }
   `
@@ -247,7 +255,11 @@ export class ShWhiteboard extends LitElement {
     const container = document.createElement('div')
     container.style.cssText = 'position:absolute;inset:0;'
     shadow.appendChild(container)
-    adoptStyleSheet(styleRootOf(shadow), 'excalidraw-whiteboard', runtime.cssText.replace(/:root\b/g, '.excalidraw'))
+    const excalidrawCss = runtime.cssText.replace(/:root\b/g, '.excalidraw') + WHITEBOARD_THEME_CSS
+    adoptStyleSheet(styleRootOf(shadow), 'excalidraw-whiteboard', excalidrawCss)
+    // Excalidraw portals its dialogs (help, export image, clear canvas) to <body>, outside the shadow root; every rule
+    // is scoped to `.excalidraw`, so the same sheet on the document dresses them in Sophia too.
+    adoptStyleSheet(document, 'excalidraw-whiteboard-dialogs', excalidrawCss)
     host.addEventListener('pointerup', this.onPointerUpCapture, true)
 
     const refresh = (elements: readonly WbElement[]): readonly WbElement[] =>
@@ -286,12 +298,14 @@ export class ShWhiteboard extends LitElement {
         elements: initial,
         // Transparent, so the pane's Sophia surface shows through. Excalidraw's dark theme inverts the canvas
         // (invert(93%) hue-rotate(180deg)); a dark background colour came out as a light grey wash over the board.
-        appState: { viewBackgroundColor: 'transparent', theme: page.theme ?? 'light' },
+        appState: { viewBackgroundColor: 'transparent', theme: page.theme ?? 'light', ...WHITEBOARD_DEFAULTS },
         scrollToContent: true,
       },
       theme: page.theme ?? 'light',
       viewModeEnabled: page.readOnly === true,
       isCollaborating: true,
+      aiEnabled: false,
+      libraryReturnUrl: window.location.origin,
       UIOptions: { canvasActions: { loadScene: false, saveToActiveFile: false, toggleTheme: false, changeViewBackgroundColor: false } },
       onInitialize,
       onChange: (_elements: unknown, appState: Record<string, any>) => {
@@ -311,12 +325,29 @@ export class ShWhiteboard extends LitElement {
     }
     const reactRoot = runtime.createRoot(container)
     this.root = reactRoot
-    reactRoot.render(runtime.createElement(runtime.Excalidraw, props))
+    reactRoot.render(runtime.createElement(runtime.Excalidraw, props, this.mainMenu(runtime)))
 
     this.awarenessListener = () => this.updateCollaborators()
     awareness.on('change', this.awarenessListener)
     this.resizeObserver = new ResizeObserver(() => this.updateRings())
     this.resizeObserver.observe(stage)
+  }
+
+  /** A short main menu: no socials, no Excalidraw+, no hosted-library browser. Search, export an image, preferences, help, clear. */
+  private mainMenu(runtime: ExcalidrawModule): unknown {
+    const M = runtime.MainMenu
+    if (!M?.DefaultItems) return null
+    const D = M.DefaultItems
+    const h = runtime.createElement
+    return h(M, null,
+      h(D.SearchMenu, null),
+      h(D.SaveAsImage, null),
+      h(M.Separator, null),
+      h(D.Preferences, null),
+      h(D.Help, null),
+      h(M.Separator, null),
+      h(D.ClearCanvas, null),
+    )
   }
 
   private updateCollaborators(): void {

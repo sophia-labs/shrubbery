@@ -21,6 +21,16 @@ export interface CollaboratorView {
 
 const FIELD = 'whiteboard'
 
+/** Sophia's categorical hues (light values: fern, cobalt, ochre, carmine, indigo, azure, moss, purple). A collaborator's
+ * cursor is drawn in one of them, chosen by name, so a board's presence reads as Sophia and a person keeps one colour. */
+export const COLLABORATOR_HUES = ['#326f4c', '#1a5fa3', '#d97706', '#be123c', '#4f46e5', '#016278', '#2b6549', '#6d28d9'] as const
+
+export function collaboratorHue(name: string): string {
+  let h = 0
+  for (let i = 0; i < name.length; i += 1) h = (h * 31 + name.charCodeAt(i)) >>> 0
+  return COLLABORATOR_HUES[h % COLLABORATOR_HUES.length]!
+}
+
 /** Everyone else in the room: Excalidraw's `collaborators` map (keyed by a stable per-client id). */
 export function collaboratorsOf(awareness: AwarenessLike): Map<string, CollaboratorView> {
   const out = new Map<string, CollaboratorView>()
@@ -29,7 +39,7 @@ export function collaboratorsOf(awareness: AwarenessLike): Map<string, Collabora
     const user = (state.user ?? {}) as { name?: unknown; color?: unknown; type?: unknown }
     const wb = (state[FIELD] ?? {}) as { pointer?: { x?: unknown; y?: unknown; tool?: unknown } }
     const name = typeof user.name === 'string' && user.name ? user.name : 'Someone'
-    const color = typeof user.color === 'string' && user.color ? user.color : '#868e96'
+    const color = collaboratorHue(name)
     const p = wb.pointer
     out.set(`client-${clientId}`, {
       id: `client-${clientId}`,

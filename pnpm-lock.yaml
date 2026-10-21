@@ -1148,6 +1148,9 @@ importers:
       '@codemirror/view':
         specifier: 6.38.1
         version: 6.38.1
+      '@excalidraw/common':
+        specifier: 0.18.0-4ce38fb
+        version: 0.18.0-4ce38fb
       '@excalidraw/excalidraw':
         specifier: 0.18.0-4ce38fb
         version: 0.18.0-4ce38fb(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)

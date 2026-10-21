@@ -36,6 +36,7 @@
     "@codemirror/search": "6.5.11",
     "@codemirror/state": "6.5.2",
     "@codemirror/view": "6.38.1",
+    "@excalidraw/common": "0.18.0-4ce38fb",
     "@excalidraw/excalidraw": "0.18.0-4ce38fb",
     "@shrubbery/chat-kernel": "workspace:*",
     "@shrubbery/editor-kernel": "workspace:*",
