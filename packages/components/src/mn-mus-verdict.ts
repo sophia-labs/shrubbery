@@ -117,7 +117,7 @@ const LEDGER: ReadonlyArray<{ key: keyof MnMusWorldReceipt; label: string }> = [
 export class MnMusVerdict extends SkinAware(LitElement) {
   static styles = css`
     :host { display: block; min-width: 0; font-family: var(--mn-font-sans, system-ui, sans-serif); color: var(--mn-color-text-primary, #1d2420); font-size: 14px; line-height: 1.45; }
-    section { padding: 12px 14px; border: 1px solid var(--mn-color-border-subtle, #dfe5e1); border-radius: var(--mn-radius-md, 10px); background: var(--mn-color-surface-raised, var(--mn-color-surface, #fff)); }
+    section { padding: 12px 14px; border: 1px solid var(--mn-color-border-subtle, #dfe5e1); border-radius: var(--mn-radius-md, 10px); background: var(--mn-color-surface-raised, #fff); }
     section + section { margin-top: 10px; }
     h3 { margin: 0 0 6px; font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--mn-color-text-secondary, #4d5952); }
     .status { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
@@ -130,7 +130,7 @@ export class MnMusVerdict extends SkinAware(LitElement) {
       all: unset; box-sizing: border-box; width: 100%; cursor: pointer; display: grid; grid-template-columns: auto 1fr; gap: 2px 8px;
       padding: 6px 8px; border-radius: 6px; border-left: 3px solid var(--sev, #768079); background: color-mix(in srgb, var(--sev, #768079) 7%, transparent);
     }
-    li button:focus-visible { outline: 2px solid var(--mn-color-focus-ring, #39765a); outline-offset: 1px; }
+    li button:focus-visible { outline: 2px solid var(--mn-color-border-focus, #39765a); outline-offset: 1px; }
     li.error { --sev: var(--mn-color-danger, #b3261e); }
     li.warning { --sev: var(--mn-color-warning, #9a6400); }
     li.info { --sev: var(--mn-color-text-muted, #768079); }

@@ -44,7 +44,7 @@ export class MnMusTakePlayer extends SkinAware(LitElement) {
       font: inherit; font-size: 13px; display: grid; place-items: center;
     }
     button:disabled { opacity: 0.5; cursor: default; }
-    button:focus-visible, input:focus-visible { outline: 2px solid var(--mn-color-focus-ring, #39765a); outline-offset: 2px; }
+    button:focus-visible, input:focus-visible { outline: 2px solid var(--mn-color-border-focus, #39765a); outline-offset: 2px; }
     input[type='range'] { flex: 1; min-width: 60px; accent-color: var(--mn-color-accent, #39765a); }
     .clock { flex: none; font-family: var(--mn-font-mono, ui-monospace, monospace); font-variant-numeric: tabular-nums; font-size: 12px; color: var(--mn-color-text-secondary, #4d5952); }
     .error { color: var(--mn-color-text-danger, #b3261e); font-size: 12px; margin-top: 4px; }
