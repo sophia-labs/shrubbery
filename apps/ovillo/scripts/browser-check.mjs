@@ -249,6 +249,56 @@ try {
     await sleep(600)
   }
 
+  // ── The tract: breathing silently until START; then the World sounds; TV mode and the mute lock ──
+  if (!process.env.SKIP_TRACT) {
+    const T = `window.__deep('mn-ovillo-tract')[0]`
+    const openTract = async (query) => {
+      await cdp('Page.navigate', { url: url.replace(/[?#].*$/, '') + query + '#/tract' })
+      let ok = false
+      for (let i = 0; i < 160 && !ok; i++) { await sleep(250); ok = await ev(`(() => { ${PRELUDE}; return ${T}?.dataset.tract === 'ready' && !!window.__tract })()`) }
+      return ok
+    }
+    const base = new URL(url).search.replace(/^\?/, '')
+    const q = (extra) => `?${[base, extra].filter(Boolean).join('&')}`
+    await cdp('Emulation.setDeviceMetricsOverride', { width: 1280, height: 1400, deviceScaleFactor: 1, mobile: false })
+    check(await openTract(q('')), 'the tract mounts: the organ, the cross-section, the books')
+    const s0 = await ev(`(() => ({ live: window.__tract.live, dsp: window.__tract.dspLoad, rtf: window.__tract.wasmRtf, lung: window.__tract.state[8] }))()`)
+    await sleep(1500)
+    const s1 = await ev(`(() => ({ live: window.__tract.live, lung: window.__tract.state[8], frames: window.__tract.state[22] }))()`)
+    check(s0.live === false && s0.dsp === null, 'the tract starts quiet: no audio, the silent World drives the pictures')
+    check(s0.rtf > 0, `the wasm real-time factor is measured (${Number(s0.rtf).toFixed(1)}×)`)
+    await shot('tract-1280-light-quiet')
+    await ev(`(() => { ${PRELUDE}; ${T}.shadowRoot.getElementById('start').click() })()`)
+    let live = false
+    for (let i = 0; i < 80 && !live; i++) { await sleep(250); live = await ev(`window.__tract.live`) }
+    check(live, 'START gives the World to the worklet: it sounds')
+    await sleep(1500)
+    const s2 = await ev(`(() => ({ dsp: window.__tract.dspLoad, f0: window.__tract.state[9], books: ${T}.shadowRoot.getElementById('h-books').textContent, readout: ${T}.shadowRoot.getElementById('readout').children.length }))()`)
+    console.log(`     tract: DSP ${(s2.dsp * 100).toFixed(1)}% · F0 ${Number(s2.f0).toFixed(1)} Hz · books ${s2.books} · ${s2.readout / 2} readouts`)
+    check(s2.dsp !== null && s2.dsp > 0, 'the worklet reports its DSP load')
+    check(s2.readout >= 30, 'the books are on screen')
+    await ev(`(() => { ${PRELUDE}; ${T}.shadowRoot.querySelector('[data-gesture="7"]').click() })()`)
+    await sleep(1200)
+    await shot('tract-1280-light-live')
+    await cdp('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 2, mobile: true })
+    await sleep(900)
+    o = await overflow()
+    check(o.scrollWidth <= o.clientWidth, `390 px tract: no horizontal scroll (scrollWidth ${o.scrollWidth}${o.wide.length ? `; wide: ${o.wide.join(', ')}` : ''})`)
+    await shot('tract-390-light')
+    // TV mode: window.ovilloTV drives it; ?mute=1 is a hard lock.
+    await cdp('Emulation.setDeviceMetricsOverride', { width: 1280, height: 720, deviceScaleFactor: 1, mobile: false })
+    check(await openTract(q('tv=1&mute=1')), 'TV mode mounts (?tv=1&mute=1)')
+    const tv = await ev(`(() => { ${PRELUDE}; const t = ${T}; const before = window.__tract.state[26]; const handled = window.ovilloTV('right');
+      return new Promise((r) => setTimeout(() => r({ handled, before, after: window.__tract.state[26], tv: t.classList.contains('tv'), legend: !t.shadowRoot.getElementById('legend').hidden,
+        muted: !t.shadowRoot.getElementById('h-muted').hidden, master: t.shadowRoot.getElementById('o-master').textContent }), 600)) })()`)
+    check(tv.handled === true && tv.after > tv.before, `window.ovilloTV('right') moves the tongue (${Number(tv.before).toFixed(2)} → ${Number(tv.after).toFixed(2)})`)
+    check(tv.tv && tv.legend, 'TV mode shows the organ with the remote legend')
+    await ev(`window.ovilloTV('m')`)
+    const locked = await ev(`(() => { ${PRELUDE}; return ${T}.shadowRoot.getElementById('o-master').textContent })()`)
+    check(tv.muted && tv.master === 'muted' && locked === 'muted', '?mute=1 is a hard lock (M does not unmute)')
+    await shot('tract-tv-1280')
+  }
+
   // Stop (silence the engine) before closing.
   await ev(`document.getElementById('ovillo-audio').pause()`)
   const clean = logs.filter((l) => !/^console\.(debug|info|log):/.test(l))

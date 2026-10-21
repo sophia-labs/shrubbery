@@ -326,17 +326,16 @@ function pieceScoreFace(v: PieceFaceValue): TemplateResult {
 // ── Mount points ─────────────────────────────────────────────────────────────
 
 /** The live instruments' modules, loaded once on demand (each brings its own canvas/WebGL and audio code). */
-const MOUNT_MODULES: Partial<Record<'bench' | 'tract', () => Promise<unknown>>> = {
+const MOUNT_MODULES: Record<'bench' | 'tract', () => Promise<unknown>> = {
   bench: () => import('./bench/mn-ovillo-bench.js'),
+  tract: () => import('./tract/mn-ovillo-tract.js'),
 }
 const mountLoads = new Map<string, Promise<unknown>>()
 
 function loadMount(kind: 'bench' | 'tract'): Promise<unknown> {
   let p = mountLoads.get(kind)
   if (!p) {
-    const load = MOUNT_MODULES[kind]
-    if (!load) return Promise.reject(new Error(`<mn-ovillo-${kind}> is not built into this app yet`))
-    p = load()
+    p = MOUNT_MODULES[kind]()
     p.catch(() => mountLoads.delete(kind))
     mountLoads.set(kind, p)
   }
@@ -345,22 +344,8 @@ function loadMount(kind: 'bench' | 'tract'): Promise<unknown> {
 
 const MOUNT_TITLES = { bench: 'The bench', tract: 'The tract' } as const
 
-function beingBuilt(kind: 'bench' | 'tract'): TemplateResult {
-  const tag = `mn-ovillo-${kind}`
-  return html`<section class="ov-face mount" data-face=${`mount-${kind}`} data-mount=${tag} data-mounted="false">
-    <div class="mount-empty">
-      <span class="eyebrow">Being built</span>
-      <h1 class="display">${MOUNT_TITLES[kind]}</h1>
-      <p class="prose">The vocal tract: an Ariadne World shaped as a throat and mouth, its organ, orbs and cross-section, live.</p>
-      <p class="quiet"><code>&lt;${tag}&gt;</code> mounts here.</p>
-      <a class="link" href=${routeHash({ name: 'home' })}>← Back to the gallery</a>
-    </div>
-  </section>`
-}
-
 function mountFace(v: MountFaceValue): TemplateResult {
   if (v.kind === 'score') return scoreEditorFace(v)
-  if (!MOUNT_MODULES[v.kind]) return beingBuilt(v.kind)
   const kind = v.kind
   const tag = kind === 'bench' ? 'mn-ovillo-bench' : 'mn-ovillo-tract'
   const loading = loadMount(kind)

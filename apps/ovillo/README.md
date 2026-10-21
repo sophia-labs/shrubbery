@@ -71,7 +71,7 @@ footer says `layout built-in`. To put the layouts in the graph:
 | `#/` | the gallery: playlists, the player, the piece playing, about |
 | `#/piece/<slug>` | the piece page |
 | `#/bench` | `mn-ovillo-bench` (Class C, loaded on demand): the live bench, ovillo-web in an AudioWorklet via `addWasmWorklet`, in Sophia's controls: the strings to pluck (Z–N), the guitarist's patterns, pickup, tempo, master, the configuration map (string body → B♭ bore), knobs, the World's energy, the spectrum, DSP load and the live closure residual, and the graph's bench scores. Quiet until a gesture |
-| `#/tract` | **mount point** for `mn-ovillo-tract` |
+| `#/tract` | `mn-ovillo-tract` (Class C, three.js, loaded on demand): the vocal tract as a true `mus_ariadne` World (ovillo `main` 80c4325), its program ported line for line into the element (`tract-engine.js`) and its worklet verbatim: the organ, the cross-section, the orbs, consonants and touch constrictions, presets, the books and the DSP load, its about text; Sophia's controls around it. `?lite=1` light mode, `?tv=1` TV mode with `window.ovilloTV(key)`, `?mute=1` a hard lock. Quiet until START |
 | `#/score/<slug>` | the score editor: Hoja's MUS mode (`mountMusWorkbench`) on a MUS piece's score, checked as you type, rendered by its Ariadne World in a Worker (about a minute for a 30 s piece, with progress; "the first 2 bars" in seconds), the take in `mn-audio-player` with its energy and the receipt's ledger. Bench (JSON) scores stay read-only |
 
 The shell owns one audio engine (`createAudioPlayer`, with the Web Audio tap) and

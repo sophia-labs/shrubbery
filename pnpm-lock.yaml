@@ -554,6 +554,9 @@ importers:
       lit:
         specifier: ^3.1.4
         version: 3.3.3
+      three:
+        specifier: ^0.170.0
+        version: 0.170.0
     devDependencies:
       '@types/node':
         specifier: ^22.7.4

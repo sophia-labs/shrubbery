@@ -22,6 +22,7 @@ import '../src/ovillo-app.js'
 // in a shadow root when its definition arrives later (browsers do: the CDP check covers that path), so load it first.
 import '../src/ov-score-workbench.js'
 import '../src/bench/mn-ovillo-bench.js'
+import '../src/tract/mn-ovillo-tract.js'
 import type { OvilloApp } from '../src/ovillo-app.js'
 import { FIXTURE_DIR, ovilloSiteMiddleware, resolveOvilloSite } from '../src/shell/site-middleware.js'
 
@@ -110,11 +111,14 @@ describe('ovillo-app on the fixture', () => {
     expect(face('piece-world')!.querySelector('[data-bench]')!.textContent).toContain('glass')
   })
 
-  it('the bench mounts, quiet; the tract is still a mount point', async () => {
+  it('the bench mounts, quiet; the tract mounts and says why it cannot start here', async () => {
     await go('#/tract')
     const tract = await until(() => face('mount-tract'), 'the tract mount')
-    expect(tract.dataset.mounted).toBe('false')
-    expect(tract.textContent).toContain('<mn-ovillo-tract>')
+    const tractEl = tract.querySelector('mn-ovillo-tract') as (HTMLElement & { wasm: string }) | null
+    expect(tractEl).not.toBeNull()
+    expect(tractEl!.wasm).toBe('http://127.0.0.1:47931/wasm/tract.wasm')
+    // This test server serves no tract module (and happy-dom has no WebGL): the element says it could not start.
+    await until(() => tractEl!.shadowRoot?.querySelector('.error')?.textContent?.includes('could not start'), 'the tract to say why it is not running')
     await go('#/bench')
     const bench = await until(() => face('mount-bench'), 'the bench mount')
     expect(bench.dataset.mounted).toBe('true')
