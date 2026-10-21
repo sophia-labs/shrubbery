@@ -46,6 +46,7 @@ import { WireShortcuts } from './extensions/wire-shortcuts'
 import { OpaqueBlock, UnsupportedBlock, UnsupportedMark } from './extensions/unsupported-content'
 import { DataTable } from './extensions/data-table'
 import type { ClipboardWriter, MermaidRenderHost } from './extensions/copyable-code-block'
+import { CodeView, type CodeHighlighter } from './extensions/code-view'
 
 export type {
   MarginGlossOpenTarget,
@@ -124,6 +125,15 @@ export interface KernelOptions {
    * false (standalone keeps history — the existing undo round-trip).
    */
   collaborative?: boolean
+  /**
+   * Syntax colour for code blocks while editing (the reader's `CodeView`, on the editing roster): the HOST supplies the
+   * grammar (`highlight(code, language)`, e.g. Hoja's MUS mode); the kernel stays free of grammars. Absent = no colour.
+   */
+  codeHighlight?: CodeHighlighter | null
+  /** Line numbers in the gutter of highlighted code blocks. Default false. */
+  codeLineNumbers?: boolean
+  /** Host extensions appended after the kernel roster (decoration plugins such as `FenceDiagnostics`). */
+  extraExtensions?: Extensions
 }
 
 /**
@@ -141,6 +151,14 @@ export interface KernelOptions {
  * is why it lands here alongside the customs.
  */
 export function kernelExtensions(opts: KernelOptions = {}): Extensions {
+  const host: Extensions = [
+    ...(opts.codeHighlight ? [CodeView.configure({ highlight: opts.codeHighlight, lineNumbers: opts.codeLineNumbers ?? false })] : []),
+    ...(opts.extraExtensions ?? []),
+  ]
+  return [...kernelRoster(opts), ...host]
+}
+
+function kernelRoster(opts: KernelOptions): Extensions {
   const profile = opts.profile ?? 'document'
   if (profile === 'source') return baseExtensions({ profile, collaborative: opts.collaborative })
   const wikiLink = WikiLink.configure({
@@ -285,9 +303,10 @@ export * from './extensions/unsupported-content'
 export * from './tag-suggestions'
 export * from './extensions/data-table'
 export * from './extensions/code-view'
+export * from './extensions/fence-diagnostics'
 export * from './extensions/reader-image'
 export * from './reader'
 // Re-export the TipTap Editor type — it is already the public return type of
 // createKernelEditor, so hosts can name it without importing @tiptap/core
 // directly (keeps @tiptap out of host dependency surfaces).
-export type { Editor } from '@tiptap/core'
+export type { Editor, Extensions } from '@tiptap/core'
