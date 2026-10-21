@@ -12,5 +12,7 @@ run:item-9 a wf:Item, wf:Unfit ;
     wf:violation "who: a value is required and none was given" ;
     wf:violation "page: \"thirty-three\" is not an integer" ;
     wf:producedBy <urn:sophia:agent:agent-62517a586738e5e9> ;
+    wf:itemClass <urn:sophia:type:freud-dreams:workspace#DreamReport> ;
+    wf:itemVocab "workspace@1" ;
     wf:sitting "Experiment clerk #5" ;
     prov:generatedAtTime "2026-10-20T19:58:41Z"^^xsd:dateTime .
