@@ -10,6 +10,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "serve": "tsx scripts/serve.mts",
+    "bundle": "node scripts/bundle.mjs",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:run": "vitest run",

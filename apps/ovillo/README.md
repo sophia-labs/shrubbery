@@ -40,6 +40,23 @@ OVILLO_BENCH_WASM=<ovillo>/site/bench/ovillo_web.wasm  # bash site/bench/build.s
 OVILLO_TRACT_WASM=<ovillo>/site/tract/tract.wasm
 ```
 
+## The deployable bundle
+
+One directory that is a public-mode gardend's `siteDir` for the graph `ovillo`: the built app (reading the graph from
+the same origin's `/mcp`), the graph builder's `media/`, `scores/`, `receipts/`, `llms.txt` and `index.md` (gardend
+serves the markdown twin to an `Accept` that is not HTML), the graph as N-Triples in `graph/`, and the engines in
+`wasm/`. The page carries the deploy CSP as a meta tag (own-origin scripts, `'wasm-unsafe-eval'`, `blob:` workers,
+inline styles); `MANIFEST.sha256` and `bundle.json` say what went in.
+
+```sh
+OVILLO_OUT=<ovillo>/site/graph/out OVILLO_MUS_WASM=… OVILLO_BENCH_WASM=… OVILLO_TRACT_WASM=… \
+  pnpm --filter @shrubbery/ovillo bundle -- --out <dir>
+# then public.json: {"graphs": ["ovillo"], "siteDir": "<dir>"}, and the graph loaded (user:rdf and :ux:config)
+```
+
+gardend's site serving answers a Range request with the whole file, so the media is not seekable when gardend
+serves it: put `/media/` behind the front proxy's file server (or give gardend Range) when this is deployed.
+
 ## Where the graph comes from
 
 ```
