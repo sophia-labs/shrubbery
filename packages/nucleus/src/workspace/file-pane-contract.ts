@@ -44,6 +44,7 @@ export type FilePaneOperationState = 'pending' | 'success' | 'terminal-error' | 
 export type FilePaneAction =
   | 'new-document'
   | 'new-workflow'
+  | 'new-whiteboard'
   | 'upload'
   | 'new-folder'
   | 'refresh'

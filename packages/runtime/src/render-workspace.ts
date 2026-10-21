@@ -123,6 +123,8 @@ import type { EditorHostBinding } from './editor-host-binding.js'
 import type { SalienceBundle } from './editor-services/salience-bundle-service.js'
 import type { WireBundle } from './editor-services/wire-bundle-service.js'
 import { workflowRunLive } from './workflow-scene.js'
+import type { WhiteboardPageOptions } from './whiteboard/sh-whiteboard.js'
+import './whiteboard/sh-whiteboard.js'
 import './workflow-inspector.js'
 import './workflow-focus.js'
 import { renderFilesPane, type WorkspaceFilesOptions } from './files-pane.js'
@@ -1602,6 +1604,12 @@ export interface RenderWorkspaceOptions {
    */
   readonly objectPage?: ObjectPageOptions | null
   /**
+   * Optional whiteboard for the center surface (2026-10-21): a document of kind `whiteboard`, an Excalidraw canvas on the
+   * document's room, drawn on by people here and by agents through `whiteboard_apply`. The shell leases the room
+   * and owns rename and link navigation.
+   */
+  readonly whiteboardPage?: WhiteboardPageOptions | null
+  /**
    * Optional controlled Zotero-source workbench for the center surface. The host
    * only reflects shell-owned Zotero item/annotation/wire state and forwards
    * intents; source materialization, daily-note promotion queues, API reads, and
@@ -2245,6 +2253,11 @@ const OBJECT_PAGE_STYLE = `
 `
 
 /** The object page (typed objects D8.2): a breadcrumb with its way back, and the object's pane. */
+/** A whiteboard (2026-10-21): the Excalidraw canvas on the document's room, the whole main pane. */
+function renderWhiteboardPage(page: WhiteboardPageOptions): TemplateResult {
+  return html`<sh-whiteboard .page=${page} style="display:flex;height:100%" data-surface="whiteboard"></sh-whiteboard>`
+}
+
 function renderObjectPage(page: ObjectPageOptions): TemplateResult {
   const model = page.status === 'ready' ? page.model ?? null : null
   const back = page.back ?? null
@@ -2740,6 +2753,7 @@ function bodyFor(
   files: WorkspaceFilesOptions | null = null,
   workflowPlan: WorkflowPlanOptions | null = null,
   objectPage: ObjectPageOptions | null = null,
+  whiteboardPage: WhiteboardPageOptions | null = null,
 ): unknown {
   const configuredSurface = configuredSurfaceOwnsRegion(config, regionId)
   // master §3 Slice 8, WS3 §5.2 — the legacy (non-Surface) render path's own
@@ -2755,6 +2769,9 @@ function bodyFor(
   }
   if (!configuredSurface && role === 'center' && objectPage) {
     return renderObjectPage(objectPage)
+  }
+  if (!configuredSurface && role === 'center' && whiteboardPage) {
+    return renderWhiteboardPage(whiteboardPage)
   }
   if (!configuredSurface && role === 'center' && workflowPlan) {
     return renderWorkflowPlan(workflowPlan)
@@ -3146,6 +3163,7 @@ function renderSpine(
   files: WorkspaceFilesOptions | null = null,
   workflowPlan: WorkflowPlanOptions | null = null,
   objectPage: ObjectPageOptions | null = null,
+  whiteboardPage: WhiteboardPageOptions | null = null,
 ): TemplateResult | typeof nothing {
   // ── Plan-derived positions (same 20/75 for GARDEN_DEFAULT, divergent for variants) ──
   const outerSplit = plan.spine.kind === 'split' ? (plan.spine as SplitNode) : null
@@ -3210,6 +3228,7 @@ function renderSpine(
         files,
         workflowPlan,
         objectPage,
+        whiteboardPage,
       )
       const controls = renderPanelEdgeControls(head.role, panelLayout)
       const landmarkRole = landmarkRoleFor(head.role)
@@ -3259,6 +3278,7 @@ function renderSpine(
       files,
       workflowPlan,
       objectPage,
+      whiteboardPage,
     )
     const startControls = renderPanelEdgeControls(head.role, panelLayout)
     const landmarkRole = landmarkRoleFor(head.role)
@@ -3298,6 +3318,8 @@ const SURFACE_FACE = Object.freeze({
   workflowPlan: 'garden.workflow-plan',
   /** Typed objects D8.2: one generic object page, `{graphId, iri}`. */
   objectPage: 'garden.object-page',
+  /** A whiteboard document: an Excalidraw canvas on its room. */
+  whiteboardPage: 'garden.whiteboard',
   zoteroSource: 'garden.zotero-source',
   artifact: 'garden.artifact',
   dailyHome: 'garden.daily-note-home',
@@ -3328,6 +3350,7 @@ type WorkspaceSurfaceFaceState =
   | { readonly kind: 'tag-lens'; readonly value: TagLensOptions }
   | { readonly kind: 'workflow-plan'; readonly value: WorkflowPlanOptions }
   | { readonly kind: 'object-page'; readonly value: ObjectPageOptions }
+  | { readonly kind: 'whiteboard'; readonly value: WhiteboardPageOptions }
   | { readonly kind: 'zotero-source'; readonly value: ZoteroSourceOptions }
   | { readonly kind: 'artifact'; readonly value: ArtifactViewOptions }
   | { readonly kind: 'daily-home'; readonly value: NonNullable<RenderWorkspaceOptions['dailyNotes']> }
@@ -3797,6 +3820,9 @@ function renderWorkspaceSurfaceFace(target: HTMLElement, raw: unknown): unknown 
     case 'object-page':
       decorateSurfaceTarget(target, { role: 'center', surfacePart: 'center-route' })
       return renderObjectPage(state.value)
+    case 'whiteboard':
+      decorateSurfaceTarget(target, { role: 'center', surfacePart: 'center-route' })
+      return renderWhiteboardPage(state.value)
     case 'zotero-source':
       decorateSurfaceTarget(target, { role: 'center', surfacePart: 'center-route' })
       return renderZoteroSource(state.value)
@@ -3995,6 +4021,10 @@ function ensureWorkspaceSurfaceDefined(): void {
     {
       faceId: SURFACE_FACE.objectPage, persistence: 'stamp', minWidth: 300, minHeight: 200,
       accepts: locator => acceptsSurfaceIri(locator, 'object:'),
+    },
+    {
+      faceId: SURFACE_FACE.whiteboardPage, persistence: 'stamp', minWidth: 320, minHeight: 240,
+      accepts: locator => acceptsSurfaceIri(locator, 'whiteboard:'),
     },
     {
       faceId: SURFACE_FACE.zoteroSource, persistence: 'stamp', minWidth: 320, minHeight: 180,
@@ -4421,6 +4451,11 @@ function assembleWorkspaceSurface(
     if (opts.objectPage) {
       return addLeaf('workspace-center-object-page', SURFACE_FACE.objectPage, surfaceResource(`object:${opts.objectPage.graphId}:${opts.objectPage.iri}`), {
         kind: 'object-page', value: opts.objectPage,
+      })
+    }
+    if (opts.whiteboardPage) {
+      return addLeaf('workspace-center-whiteboard', SURFACE_FACE.whiteboardPage, surfaceResource(`whiteboard:${opts.whiteboardPage.graphId}:${opts.whiteboardPage.documentId}`), {
+        kind: 'whiteboard', value: opts.whiteboardPage,
       })
     }
     if (opts.workflowPlan) {
@@ -5139,6 +5174,7 @@ export function renderWorkspaceTemplate(
     files = null,
     workflowPlan = null,
     objectPage = null,
+    whiteboardPage = null,
     graphPanel = null,
     outlinePanel = null,
     vtuberControls = null,
@@ -5234,6 +5270,7 @@ export function renderWorkspaceTemplate(
     files,
     workflowPlan,
     objectPage,
+    whiteboardPage,
   )
 
   // `.main` body: with NO rails it is the bare spine (GardenDefault path —

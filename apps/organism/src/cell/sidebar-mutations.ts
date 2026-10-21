@@ -228,6 +228,19 @@ export async function createSidebarWorkflow(
   return { documentId }
 }
 
+/** A new whiteboard: a document of kind `whiteboard`, an empty live Excalidraw canvas. One definition shared by this button and any agent. */
+export async function createSidebarWhiteboard(
+  mcp: SidebarMutationMcp,
+  input: { readonly graphId: string; readonly title: string; readonly parentId?: string | null },
+): Promise<{ documentId: string }> {
+  const graphId = requiredTrimmed(input.graphId, 'graphId')
+  const title = requiredTrimmed(input.title, 'title')
+  const result = await mcp.toolsCall('whiteboard_create', { graphId, title, parentId: optionalTrimmed(input.parentId) })
+  const documentId = createdDocumentId(result)
+  if (!documentId) throw new Error('gardend did not say which whiteboard it made')
+  return { documentId }
+}
+
 /** The `documentId` of a `create_document` answer: the tools/call result's `structuredContent`, or its JSON text. */
 function createdDocumentId(result: unknown): string | null {
   if (typeof result !== 'object' || result === null) return null

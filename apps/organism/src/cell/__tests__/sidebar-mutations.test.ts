@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   createSidebarDocument,
   createSidebarFolder,
+  createSidebarWhiteboard,
   defaultSidebarIdFactory,
   deleteSidebarDocument,
   deleteSidebarFolder,
@@ -27,6 +28,14 @@ function recordingMcp(result: unknown = {}): SidebarMutationMcp & { calls: Array
 }
 
 describe('sidebar mutation adapter', () => {
+  it('creates a whiteboard through whiteboard_create and reads back the document id', async () => {
+    const mcp = recordingMcp({ structuredContent: { documentId: 'doc-board', graphId: 'g', title: 'Atlas' } })
+    const result = await createSidebarWhiteboard(mcp, { graphId: ' g ', title: ' Atlas ', parentId: ' folder-a ' })
+    expect(result).toEqual({ documentId: 'doc-board' })
+    expect(mcp.calls).toEqual([{ name: 'whiteboard_create', args: { graphId: 'g', title: 'Atlas', parentId: 'folder-a' } }])
+    await expect(createSidebarWhiteboard(recordingMcp({}), { graphId: 'g', title: 'x' })).rejects.toThrow(/which whiteboard/)
+  })
+
   it('creates documents through Garden-compatible MCP arguments', async () => {
     const mcp = recordingMcp()
     const result = await createSidebarDocument(

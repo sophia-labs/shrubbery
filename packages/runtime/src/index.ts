@@ -1087,3 +1087,5 @@ export {
   type FilesPageTableGroup,
   type FilesPageValue,
 } from './files-page.js'
+
+export { ShWhiteboard, WhiteboardBinding, WHITEBOARD_ASSET_PATH, type WhiteboardPageOptions } from './whiteboard/index.js'

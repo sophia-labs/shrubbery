@@ -402,6 +402,7 @@ import {
 import { createObservatoryFreshnessAttachment } from './cell/observatory-freshness-attachment.js'
 import { RoomMirror, createRoomMirrorStamp, mcpRoomMirrorDumper } from './cell/room-mirror.js'
 import type { QueryBlockService } from '@shrubbery/runtime'
+import type { WhiteboardPageOptions } from '@shrubbery/runtime'
 import { createShellNamedQueryRegistry } from './harness/shell-named-query-registry.js'
 import { isEmbeddableFocusIri } from '@shrubbery/runtime/layout'
 import { SYNC_QUERY } from './harness/source-sync-query-catalog.js'
@@ -483,6 +484,7 @@ import {
   createSidebarDocument,
   createSidebarFolder,
   createSidebarWorkflow,
+  createSidebarWhiteboard,
   deleteSidebarDocument,
   deleteSidebarFolder,
   moveSidebarDocument,
@@ -1452,6 +1454,103 @@ function showWorkflowInspector(): void {
   if (currentRightPanel === 'inspector') return
   if (workflowRestorePanel === null) workflowRestorePanel = currentRightPanel
   transitionRightPanel('inspector')
+}
+
+/** A whiteboard (documentKind "whiteboard") open as the whole main pane; its room is leased the way the editor leases one. */
+type CurrentWhiteboard = {
+  readonly graphId: string
+  readonly documentId: string
+  readonly key: string
+  readonly lease: { readonly provider: { readonly doc: unknown; readonly awareness: unknown }; release(): void } | null
+  readonly error: string | null
+}
+let currentWhiteboard: CurrentWhiteboard | null = null
+let whiteboardLeaseSeq = 0
+
+function whiteboardFromUrl(): string | null {
+  try {
+    return new URL(window.location.href).searchParams.get('wb')?.trim() || null
+  } catch {
+    return null
+  }
+}
+
+function writeWhiteboardToUrl(documentId: string | null): void {
+  try {
+    const url = new URL(window.location.href)
+    if (documentId) url.searchParams.set('wb', documentId)
+    else url.searchParams.delete('wb')
+    window.history.replaceState(window.history.state, '', url)
+  } catch {
+    // URL reflection is best-effort; the shell state remains authoritative.
+  }
+}
+
+function closeWhiteboard(): void {
+  const open = currentWhiteboard
+  if (!open) return
+  currentWhiteboard = null
+  try { open.lease?.release() } catch { /* the lease is already gone */ }
+  writeWhiteboardToUrl(null)
+}
+
+function openWhiteboardDocument(documentId: string): void {
+  const graphId = currentGraphId
+  closeWorkflowPlan()
+  leaveObjectPage()
+  clearTagLensState()
+  clearZoteroSourceState()
+  clearArtifactSurfaceState()
+  closeWhiteboard()
+  openDocId = null
+  teardownEditorClaim()
+  let lease: CurrentWhiteboard['lease'] = null
+  let error: string | null = null
+  if (!store) {
+    error = 'Open a live cell source to draw on a whiteboard.'
+  } else {
+    try {
+      lease = roomPoolFor(store.contract.crdt).acquire(
+        { kind: 'doc', graphId, docId: documentId },
+        `whiteboard::${graphId}::${documentId}::${++whiteboardLeaseSeq}`,
+      )
+    } catch (cause) {
+      error = cause instanceof Error ? cause.message : String(cause)
+    }
+  }
+  currentWhiteboard = { graphId, documentId, key: `${graphId}/${documentId}`, lease, error }
+  currentSidebarSelectedId = documentId
+  writeWhiteboardToUrl(documentId)
+  rerenderCurrentSource()
+}
+
+function whiteboardPageView(open: CurrentWhiteboard): WhiteboardPageOptions {
+  return {
+    graphId: open.graphId,
+    documentId: open.documentId,
+    title: sidebarNodeById(open.documentId)?.label ?? 'Whiteboard',
+    status: open.error ? 'error' : 'ready',
+    error: open.error,
+    provider: open.lease?.provider ?? null,
+    theme: effectiveTheme(appliedSkin(), currentTheme) === 'dark' ? 'dark' : 'light',
+    onRename: title => { void renameDocumentFromSidebar(open.documentId, title) },
+    onOpenLink: link => openWhiteboardLink(open.graphId, link),
+  }
+}
+
+/** A shape's link was clicked: a document of this graph or a typed object opens in the shell; a web address is the canvas's own. */
+function openWhiteboardLink(graphId: string, link: string): boolean {
+  const match = /^mnemosyne:\/\/document\/([^/]+)\/([^/?#]+)/.exec(link)
+  if (match) {
+    const [, linkGraph, linkDoc] = match
+    void openDocumentFromShell({ graphId: decodeURIComponent(linkGraph ?? graphId), documentId: decodeURIComponent(linkDoc ?? '') })
+    return true
+  }
+  if (/^[a-z][a-z0-9+.-]*:/i.test(link) && !/^https?:/i.test(link)) {
+    openObjectPage(graphId, link, currentPlaceBack())
+    return true
+  }
+  return false
 }
 
 function workflowPlanFromUrl(): { definition: string; inputs: Record<string, unknown> } | null {
@@ -3376,6 +3475,7 @@ function releaseArtifactHistoryObjectUrls(): void {
 }
 
 function clearArtifactSurfaceState(): void {
+  closeWhiteboard()
   currentArtifactHtmlPreview?.dispose()
   currentArtifactHtmlPreview = null
   artifactImageGenerationAbort?.abort()
@@ -5282,6 +5382,32 @@ async function createWorkflowFromSidebar(title: string, parentId: string | null 
   }, `created workflow "${title}"`, 'create workflow error')
 }
 
+async function createWhiteboardFromSidebar(title: string, parentId: string | null = null): Promise<void> {
+  const activeStore = liveSidebarMutationStore('create whiteboard')
+  if (!activeStore) return
+  const graphId = currentGraphId
+  let createdDocumentId: string | null = null
+  ok(`creating whiteboard "${title}"...`)
+  await runMobileFileMutation({
+    action: 'create-document',
+    graphId,
+    label: title,
+    store: activeStore,
+    perform: async () => {
+      const created = await createSidebarWhiteboard(activeStore.contract.mcp, { graphId, title, parentId })
+      createdDocumentId = created.documentId
+      if (!(await refreshAfterSidebarMutation(activeStore, graphId))) {
+        throw new SidebarMutationRejectedError('The workspace changed before the new whiteboard could be checked.')
+      }
+      openWhiteboardDocument(created.documentId)
+      homeActivityStore.markCreated(graphId, created.documentId)
+    },
+    isReflected: () => Boolean(createdDocumentId && sidebarNodeById(createdDocumentId)?.label === title),
+    reflectedMessage: `${title} is present in the current files.`,
+    notReflectedMessage: `Garden did not return ${title} in the refreshed file list.`,
+  }, `created whiteboard "${title}"`, 'create whiteboard error')
+}
+
 async function createFolderFromSidebar(
   name: string,
   parentId: string | null = null,
@@ -5565,6 +5691,11 @@ function handleSidebarNodeOpen(detail: SidebarNodeDetail): void {
   if (detail.node.documentKind === 'workflow') {
     placeReturn = null
     openWorkflowDocument(detail.id)
+    return
+  }
+  if (detail.node.documentKind === 'whiteboard') {
+    placeReturn = null
+    openWhiteboardDocument(detail.id)
     return
   }
   currentSidebarSelectedId = null
@@ -5929,6 +6060,17 @@ function handleSidebarAction(detail: SidebarActionDetail): void {
       }).then((name) => {
         if (!name) return
         void createWorkflowFromSidebar(name)
+      })
+      return
+    case 'new-whiteboard':
+      void promptForText({
+        title: 'New Whiteboard',
+        message: 'Name the whiteboard. You and Sophia draw on it together.',
+        placeholder: 'Untitled whiteboard',
+        confirmText: 'Create',
+      }).then((name) => {
+        if (!name) return
+        void createWhiteboardFromSidebar(name)
       })
       return
     case 'new-folder':
@@ -9214,6 +9356,8 @@ function renderConfig(config: WorkspaceConfig, app: string | undefined): string 
   const chat = ensureChatClaim()
   const tagLens = currentTagLens
   const workflowPlan = !openDocId && !tagLens ? currentWorkflowPlan?.view ?? null : null
+  const whiteboardOpen = !openDocId && !tagLens && currentWhiteboard && currentWhiteboard.graphId === currentGraphId ? currentWhiteboard : null
+  const whiteboardPage = whiteboardOpen ? whiteboardPageView(whiteboardOpen) : null
   // Typed objects D8.2: an object opened full size takes the center, over a workflow it came from (which waits beneath).
   const objectPage = !openDocId && !tagLens && currentObjectPage ? objectPageView(currentObjectPage) : null
   // Leaving a workflow for anything else gives the right sidebar back what it showed before the workflow took it.
@@ -9233,7 +9377,7 @@ function renderConfig(config: WorkspaceConfig, app: string | undefined): string 
   const parkedWork = currentParkedWorkOptions()
   // The Files route yields to every other explicit center route, and stays closed once another took over.
   const filesShellNow = bindFilesShell()
-  const filesBlocked = Boolean(openDocId || centerPanesVisible || tagLens || workflowPlan || objectPage || zoteroSource
+  const filesBlocked = Boolean(openDocId || centerPanesVisible || tagLens || workflowPlan || whiteboardPage || objectPage || zoteroSource
     || artifactSurface || docHistorySurface || contested || parkedWork)
   if (filesBlocked) filesShellNow?.leave()
   const files = !filesBlocked && (app === undefined || app === 'garden') ? filesShellNow?.options() ?? null : null
@@ -9245,7 +9389,7 @@ function renderConfig(config: WorkspaceConfig, app: string | undefined): string 
   // Preserve the saved notebook fragment on arrival; an explicit shell route
   // uses the ordinary editor center for this view, without writing UX state.
   config = withNotebookWorkspaceShell(config, {
-    preferHostRoute: Boolean(openDocId || centerPanesVisible || tagLens || workflowPlan || objectPage || zoteroSource
+    preferHostRoute: Boolean(openDocId || centerPanesVisible || tagLens || workflowPlan || whiteboardPage || objectPage || zoteroSource
       || artifactSurface || docHistorySurface || contested || parkedWork || files),
   })
   // Grapevine (Sophia Chat) needs the hosted gateway: it does not join a self-host's picker.
@@ -9470,6 +9614,7 @@ function renderConfig(config: WorkspaceConfig, app: string | undefined): string 
         }
       : {}),
     ...(workflowPlan ? { workflowPlan } : {}),
+    ...(whiteboardPage ? { whiteboardPage } : {}),
     ...(objectPage ? { objectPage } : {}),
     ...(zoteroSource
       ? {
@@ -10741,6 +10886,8 @@ function startCellMode(): void {
       const isIri = /^[a-z][a-z0-9+.-]*:/i.test(fromUrl.definition)
       openWorkflowPlan(graphId, isIri ? fromUrl.definition : workflowDraftGraph(fromUrl.definition), fromUrl.inputs, isIri ? null : fromUrl.definition)
     }
+    const whiteboardId = whiteboardFromUrl()
+    if (whiteboardId) openWhiteboardDocument(whiteboardId)
     const objectIri = objectPageFromUrl()
     if (objectIri) openObjectPage(graphId, objectIri, currentWorkflowPlan ? workflowBack(currentWorkflowPlan) : null)
   }

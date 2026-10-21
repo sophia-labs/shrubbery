@@ -37,7 +37,7 @@ describe('actual main notebook caller composition', () => {
     // `files`: the Files center route (CONTRACT-files rudiments, 2026-10-05) is an explicit route like the others.
     // `workflowPlan`: a workflow's plan in the main pane (2026-10-18) is one too, and so is `objectPage`, a typed
     // object's own page (2026-10-20).
-    const fields = ['openDocId', 'centerPanesVisible', 'tagLens', 'zoteroSource', 'artifactSurface', 'docHistorySurface', 'contested', 'parkedWork', 'files', 'workflowPlan', 'objectPage']
+    const fields = ['openDocId', 'centerPanesVisible', 'tagLens', 'zoteroSource', 'artifactSurface', 'docHistorySurface', 'contested', 'parkedWork', 'files', 'workflowPlan', 'whiteboardPage', 'objectPage']
     const route = (active?: string) => {
       const context: Record<string, unknown> = { config: original, withNotebookWorkspaceShell }
       for (const field of fields) context[field] = field === active ? 'present' : null

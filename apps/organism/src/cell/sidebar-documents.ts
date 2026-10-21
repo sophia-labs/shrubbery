@@ -372,6 +372,7 @@ interface SidebarNodeDraft {
 /** A workflow is a document of kind `workflow` (its plan is RDF); it reads as one in the tree. */
 function documentIcon(doc: Pick<SidebarDocument, 'readOnly' | 'documentKind'>): string {
   if (doc.documentKind === 'workflow') return 'workflow'
+  if (doc.documentKind === 'whiteboard') return 'pencil'
   return doc.readOnly ? 'book-open' : 'file-text'
 }
 
