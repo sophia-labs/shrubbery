@@ -11,7 +11,7 @@
  */
 
 import { html, nothing, type TemplateResult } from 'lit'
-import { html as staticHtml, unsafeStatic } from 'lit/static-html.js'
+import { until } from 'lit/directives/until.js'
 import type { ResourceLocator } from '@shrubbery/nucleus/layout'
 import type { WorkspaceBoundFaceDefinition } from '@shrubbery/runtime/layout/surface'
 import {
@@ -100,6 +100,8 @@ export interface MountFaceValue {
   readonly engine: AudioPlayer
   /** Same-origin URLs of the wasm modules the mounts load. */
   readonly wasm: { readonly mus: string; readonly bench: string; readonly tract: string }
+  /** The graph's bench scores (`ovillo-score-json`), for the bench to play. */
+  readonly benchScores: ReadonlyArray<{ readonly id: string; readonly title: string; readonly json: string }>
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -323,25 +325,61 @@ function pieceScoreFace(v: PieceFaceValue): TemplateResult {
 
 // ── Mount points ─────────────────────────────────────────────────────────────
 
-const MOUNTS = {
-  bench: { tag: 'mn-ovillo-bench', title: 'The bench', what: 'The live bench: the Ovillo rig (a simulated guitarist into an Ariadne World) running in this page, its screens and patch controls in Sophia’s language.' },
-  tract: { tag: 'mn-ovillo-tract', title: 'The tract', what: 'The vocal tract: an Ariadne World shaped as a throat and mouth, its organ, orbs and cross-section, live.' },
-} as const
+/** The live instruments' modules, loaded once on demand (each brings its own canvas/WebGL and audio code). */
+const MOUNT_MODULES: Partial<Record<'bench' | 'tract', () => Promise<unknown>>> = {
+  bench: () => import('./bench/mn-ovillo-bench.js'),
+}
+const mountLoads = new Map<string, Promise<unknown>>()
+
+function loadMount(kind: 'bench' | 'tract'): Promise<unknown> {
+  let p = mountLoads.get(kind)
+  if (!p) {
+    const load = MOUNT_MODULES[kind]
+    if (!load) return Promise.reject(new Error(`<mn-ovillo-${kind}> is not built into this app yet`))
+    p = load()
+    p.catch(() => mountLoads.delete(kind))
+    mountLoads.set(kind, p)
+  }
+  return p
+}
+
+const MOUNT_TITLES = { bench: 'The bench', tract: 'The tract' } as const
+
+function beingBuilt(kind: 'bench' | 'tract'): TemplateResult {
+  const tag = `mn-ovillo-${kind}`
+  return html`<section class="ov-face mount" data-face=${`mount-${kind}`} data-mount=${tag} data-mounted="false">
+    <div class="mount-empty">
+      <span class="eyebrow">Being built</span>
+      <h1 class="display">${MOUNT_TITLES[kind]}</h1>
+      <p class="prose">The vocal tract: an Ariadne World shaped as a throat and mouth, its organ, orbs and cross-section, live.</p>
+      <p class="quiet"><code>&lt;${tag}&gt;</code> mounts here.</p>
+      <a class="link" href=${routeHash({ name: 'home' })}>← Back to the gallery</a>
+    </div>
+  </section>`
+}
 
 function mountFace(v: MountFaceValue): TemplateResult {
   if (v.kind === 'score') return scoreEditorFace(v)
-  const m = MOUNTS[v.kind]
-  const defined = typeof customElements !== 'undefined' && customElements.get(m.tag) !== undefined
-  return html`<section class="ov-face mount" data-face=${`mount-${v.kind}`} data-mount=${m.tag} data-mounted=${String(defined)}>
-    ${defined
-      ? staticHtml`<${unsafeStatic(m.tag)} class="mounted"></${unsafeStatic(m.tag)}>`
-      : html`<div class="mount-empty">
-          <span class="eyebrow">Being built</span>
-          <h1 class="display">${m.title}</h1>
-          <p class="prose">${m.what}</p>
-          <p class="quiet"><code>&lt;${m.tag}&gt;</code> mounts here when it is registered.</p>
-          <a class="link" href=${routeHash({ name: 'home' })}>← Back to the gallery</a>
-        </div>`}
+  if (!MOUNT_MODULES[v.kind]) return beingBuilt(v.kind)
+  const kind = v.kind
+  const tag = kind === 'bench' ? 'mn-ovillo-bench' : 'mn-ovillo-tract'
+  const loading = loadMount(kind)
+  const defined = typeof customElements !== 'undefined' && customElements.get(tag) !== undefined
+  // The element is written now and upgrades when its module arrives; until then (or if it cannot load) the
+  // face says so.
+  const status = until(
+    loading.then(
+      () => nothing,
+      (error: unknown) => html`<p class="error" role="alert">${MOUNT_TITLES[kind]} could not load: ${error instanceof Error ? error.message : String(error)}</p>`,
+    ),
+    defined ? nothing : html`<p class="quiet">Loading ${MOUNT_TITLES[kind].toLowerCase()}…</p>`,
+  )
+  return html`<section class="ov-face mount" data-face=${`mount-${kind}`} data-mount=${tag} data-mounted=${String(defined)}>
+    <nav class="piece-nav"><a href=${routeHash({ name: 'home' })}>← Gallery</a></nav>
+    ${status}
+    ${kind === 'bench'
+      ? html`<mn-ovillo-bench class="mounted" wasm=${v.wasm.bench} .scores=${v.benchScores}></mn-ovillo-bench>`
+      : html`<mn-ovillo-tract class="mounted" wasm=${v.wasm.tract}></mn-ovillo-tract>`}
   </section>`
 }
 

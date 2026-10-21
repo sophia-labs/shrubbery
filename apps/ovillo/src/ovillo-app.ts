@@ -531,6 +531,19 @@ export class OvilloApp extends LitElement {
 
   // ── The surface model ─────────────────────────────────────────────────────
 
+  private benchScoresCache: { graph: OvilloGraph; scores: MountFaceValue['benchScores'] } | null = null
+
+  /** Every bench score the graph carries (the bench plays them live). */
+  private benchScores(graph: OvilloGraph): MountFaceValue['benchScores'] {
+    if (this.benchScoresCache?.graph !== graph) {
+      const scores = graph.pieces
+        .filter((p) => p.score?.format === 'ovillo-score-json' && p.score.text)
+        .map((p) => ({ id: p.iri, title: p.title, json: p.score!.text! }))
+      this.benchScoresCache = { graph, scores }
+    }
+    return this.benchScoresCache.scores
+  }
+
   private routePiece(): OvilloPiece | null {
     const r = this.route
     if (!this.graph || (r.name !== 'piece' && r.name !== 'score')) return null
@@ -618,11 +631,11 @@ export class OvilloApp extends LitElement {
         } satisfies AboutFaceValue
       }
       case OVILLO_FACE_IDS.bench:
-        return { kind: 'bench', piece: null, missingSlug: '', engine: this.engine, wasm: this.wasm } satisfies MountFaceValue
+        return { kind: 'bench', piece: null, missingSlug: '', engine: this.engine, wasm: this.wasm, benchScores: this.benchScores(graph) } satisfies MountFaceValue
       case OVILLO_FACE_IDS.tract:
-        return { kind: 'tract', piece: null, missingSlug: '', engine: this.engine, wasm: this.wasm } satisfies MountFaceValue
+        return { kind: 'tract', piece: null, missingSlug: '', engine: this.engine, wasm: this.wasm, benchScores: this.benchScores(graph) } satisfies MountFaceValue
       case OVILLO_FACE_IDS.scoreEditor:
-        return { kind: 'score', piece, missingSlug: this.route.name === 'score' ? this.route.slug : '', engine: this.engine, wasm: this.wasm } satisfies MountFaceValue
+        return { kind: 'score', piece, missingSlug: this.route.name === 'score' ? this.route.slug : '', engine: this.engine, wasm: this.wasm, benchScores: this.benchScores(graph) } satisfies MountFaceValue
       default:
         return piece ? this.pieceValue(graph, piece) : null
     }

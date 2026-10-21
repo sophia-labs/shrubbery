@@ -212,9 +212,42 @@ try {
     check(o.scrollWidth <= o.clientWidth, `390 px score editor: no horizontal scroll (scrollWidth ${o.scrollWidth}${o.wide.length ? `; wide: ${o.wide.join(', ')}` : ''})`)
     await shot('score-390-light')
   }
-  await ev(`location.hash = '#/bench'`)
-  await sleep(700)
-  await shot('bench-390-light')
+  // ── The bench: quiet until a gesture; then the World sounds and its telemetry moves ──
+  if (!process.env.SKIP_BENCH) {
+    await cdp('Emulation.setDeviceMetricsOverride', { width: 1280, height: 1500, deviceScaleFactor: 1, mobile: false })
+    await ev(`document.getElementById('ovillo-audio').pause()`)
+    await ev(`location.hash = '#/bench'`)
+    const B = `window.__deep('mn-ovillo-bench')[0]`
+    let up = false
+    for (let i = 0; i < 60 && !up; i++) { await sleep(250); up = await ev(`(() => { ${PRELUDE}; return !!${B}?.shadowRoot?.querySelector('.bench') })()`) }
+    check(up, 'the bench mounts')
+    await sleep(800)
+    check(await ev(`(() => { ${PRELUDE}; return ${B}.audioState })()`) === 'off', 'the bench starts quiet: no audio until a gesture')
+    await shot('bench-1280-light-quiet')
+    await ev(`(() => { ${PRELUDE}; ${B}.shadowRoot.querySelector('[data-action=start]').click() })()`)
+    let on = ''
+    for (let i = 0; i < 120 && on !== 'on'; i++) { await sleep(250); on = await ev(`(() => { ${PRELUDE}; return ${B}.audioState })()`) }
+    check(on === 'on', `Start audio starts the World (${on})`)
+    await ev(`(() => { ${PRELUDE}; ${B}.shadowRoot.querySelector('[data-action=guitarist]').click() })()`)
+    await sleep(2500)
+    const bt = () => ev(`(() => { ${PRELUDE}; const b = ${B}; const t = b.telemetry; return { load: t?.load ?? -1, resid: t?.closureResidual, material: t?.material, sample: t?.sample, levels: [...b.shadowRoot.querySelectorAll('.meter')].map((m) => Number(m.dataset.level)) } })()`)
+    const b1 = await bt()
+    await sleep(1500)
+    const b2 = await bt()
+    console.log(`     bench: load ${(b2.load * 100).toFixed(0)}% · residual ${b2.resid} · material ${b1.material} → ${b2.material} · samples ${b1.sample} → ${b2.sample}`)
+    check(b2.sample > b1.sample, 'the World renders, live')
+    check(b2.load > 0 && b2.load < 5, `the DSP load is reported (${(b2.load * 100).toFixed(0)}%)`)
+    check(Number.isFinite(b2.resid), `the live closure residual is reported (${b2.resid})`)
+    check(b2.levels.some((v, i) => Math.abs(v - b1.levels[i]) > 0.002) && b2.levels[0] > 0, 'the World’s energy meters move')
+    await shot('bench-1280-light-playing')
+    await cdp('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 2, mobile: true })
+    await sleep(900)
+    o = await overflow()
+    check(o.scrollWidth <= o.clientWidth, `390 px bench: no horizontal scroll (scrollWidth ${o.scrollWidth}${o.wide.length ? `; wide: ${o.wide.join(', ')}` : ''})`)
+    await shot('bench-390-light')
+    await ev(`location.hash = '#/'`)
+    await sleep(600)
+  }
 
   // Stop (silence the engine) before closing.
   await ev(`document.getElementById('ovillo-audio').pause()`)

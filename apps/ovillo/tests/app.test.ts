@@ -21,6 +21,7 @@ import '../src/ovillo-app.js'
 // The score editor's module is loaded on demand in the page; happy-dom does not upgrade an element that is already
 // in a shadow root when its definition arrives later (browsers do: the CDP check covers that path), so load it first.
 import '../src/ov-score-workbench.js'
+import '../src/bench/mn-ovillo-bench.js'
 import type { OvilloApp } from '../src/ovillo-app.js'
 import { FIXTURE_DIR, ovilloSiteMiddleware, resolveOvilloSite } from '../src/shell/site-middleware.js'
 
@@ -109,16 +110,20 @@ describe('ovillo-app on the fixture', () => {
     expect(face('piece-world')!.querySelector('[data-bench]')!.textContent).toContain('glass')
   })
 
-  it('the bench and tract are mount points that wait for their components', async () => {
+  it('the bench mounts, quiet; the tract is still a mount point', async () => {
     await go('#/tract')
     const tract = await until(() => face('mount-tract'), 'the tract mount')
     expect(tract.dataset.mounted).toBe('false')
     expect(tract.textContent).toContain('<mn-ovillo-tract>')
-    customElements.define('mn-ovillo-bench', class extends HTMLElement {})
     await go('#/bench')
     const bench = await until(() => face('mount-bench'), 'the bench mount')
     expect(bench.dataset.mounted).toBe('true')
-    expect(bench.querySelector('mn-ovillo-bench')).not.toBeNull()
+    const el = bench.querySelector('mn-ovillo-bench') as (HTMLElement & { audioState: string; scores: unknown[]; wasm: string }) | null
+    expect(el).not.toBeNull()
+    expect(el!.audioState).toBe('off')
+    expect(el!.wasm).toBe('http://127.0.0.1:47931/wasm/ovillo_web.wasm')
+    // The graph's bench scores go to the bench to play.
+    expect(el!.scores.map((sc) => (sc as { title: string }).title)).toEqual(['Agua mansa'])
   })
 
   it('the score editor: Hoja’s MUS mode for a MUS score, and says how long a render takes', async () => {
