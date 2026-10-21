@@ -16,6 +16,25 @@
 
 import type { SourceTerm } from '@shrubbery/nucleus'
 
+const ECHAR: Readonly<Record<string, string>> = { t: '\t', b: '\b', n: '\n', r: '\r', f: '\f', '"': '"', "'": "'", '\\': '\\' }
+
+/**
+ * A literal's lexical form, unescaped in one pass as N-Triples writes it: every ECHAR (`\t \b \n \r \f \" \' \\`)
+ * and UCHAR (`\uXXXX`, `\UXXXXXXXX`). An escape outside the grammar is kept as written. (Until 2026-10-21 only
+ * `\"`, `\n` and `\\` were undone, one after another: a tab came back as the two characters `\t`, which a note list
+ * in TSV made visible.)
+ */
+export function unescapeLexical(lex: string): string {
+  return lex.replace(/\\(?:u([0-9A-Fa-f]{4})|U([0-9A-Fa-f]{8})|([\s\S]))/g, (whole, u4: string | undefined, u8: string | undefined, c: string | undefined) => {
+    if (u4) return String.fromCharCode(Number.parseInt(u4, 16))
+    if (u8) {
+      const cp = Number.parseInt(u8, 16)
+      return cp <= 0x10ffff ? String.fromCodePoint(cp) : whole
+    }
+    return (c !== undefined && ECHAR[c]) || whole
+  })
+}
+
 /**
  * Unwrap a SPARQL row value (an N-Triples-style string) into a SourceTerm.
  *   "<iri>"                 → { type:'iri', value:'iri' }
@@ -42,11 +61,7 @@ export function parseTerm(raw: string): SourceTerm {
       }
     }
     if (close === -1) return { type: 'literal', value: s }
-    const lex = s
-      .slice(1, close)
-      .replace(/\\"/g, '"')
-      .replace(/\\n/g, '\n')
-      .replace(/\\\\/g, '\\')
+    const lex = unescapeLexical(s.slice(1, close))
     const rest = s.slice(close + 1).trim()
     if (rest.startsWith('^^<') && rest.endsWith('>')) {
       return { type: 'literal', value: lex, datatype: rest.slice(3, -1) }

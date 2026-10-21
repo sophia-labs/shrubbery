@@ -69,6 +69,7 @@ const TYPES: Record<string, string> = {
   '.md': 'text/markdown; charset=utf-8',
   '.nt': 'application/n-triples; charset=utf-8',
   '.svg': 'image/svg+xml',
+  '.tsv': 'text/tab-separated-values; charset=utf-8',
   '.wasm': 'application/wasm',
 }
 

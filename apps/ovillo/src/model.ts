@@ -7,7 +7,7 @@
  * absent (undefined), never a default, and the views say so.
  *
  * Lenient where the contract leaves room: a URL-valued property (`ovl:audio`,
- * `ovl:peaks`, `ovl:energyTrace`, `ovl:receipt`) may be an IRI or a literal;
+ * `ovl:peaks`, `ovl:energyTrace`, `ovl:receipt`, `ovl:analysis`) may be an IRI or a literal;
  * `dcterms:created` may be a date or a dateTime.
  */
 
@@ -44,6 +44,12 @@ export interface OvilloBenchRun {
 
 export interface OvilloLedger extends MnEnergyLedger {
   readonly iri: string
+  /** The World's stored energy before its first frame and after its last, and the frames it stepped: stated by a
+   * World receipt an example writes (the trombone's), not by `mus render`'s (absent there). */
+  readonly initialEnergy?: number
+  readonly finalEnergy?: number
+  readonly sampleFrames?: number
+  readonly simulatedSeconds?: number
 }
 
 export interface OvilloRender {
@@ -53,6 +59,8 @@ export interface OvilloRender {
   readonly peaks?: string
   readonly energyTrace?: string
   readonly receipt?: string
+  /** A measurement of the render made after the World (pitch, cents, sounded partial per note), when one was made. */
+  readonly analysis?: string
   readonly durationSeconds?: number
   readonly renderDigest?: string
   readonly engineVersion?: string
@@ -210,6 +218,10 @@ export function parseOvillo(triples: readonly Triple[]): OvilloGraph {
       radiation: g.number(iri, ovl('radiation')),
       closureResidual: g.number(iri, ovl('closureResidual')),
       maxFrameResidual: g.number(iri, ovl('maxFrameResidual')),
+      initialEnergy: g.number(iri, ovl('initialEnergy')),
+      finalEnergy: g.number(iri, ovl('finalEnergy')),
+      sampleFrames: g.number(iri, ovl('sampleFrames')),
+      simulatedSeconds: g.number(iri, ovl('simulatedSeconds')),
     })
 
   const bench = (iri: string): OvilloBenchRun =>
@@ -231,6 +243,7 @@ export function parseOvillo(triples: readonly Triple[]): OvilloGraph {
       peaks: g.text(iri, ovl('peaks')),
       energyTrace: g.text(iri, ovl('energyTrace')),
       receipt: g.text(iri, ovl('receipt')),
+      analysis: g.text(iri, ovl('analysis')),
       durationSeconds: g.number(iri, ovl('durationSeconds')),
       renderDigest: g.text(iri, ovl('renderDigest')),
       engineVersion: g.text(iri, ovl('engineVersion')),

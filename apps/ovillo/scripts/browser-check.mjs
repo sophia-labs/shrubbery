@@ -4,6 +4,8 @@
 // the console stays clean (CSP refusals included), no horizontal scroll at 390 px, playback
 // advances, the visualizers move (energy meters, spectrum, scope), and screenshots at
 // 1280 and 390 px, light and dark, gallery and piece page. Exits 1 if a check fails.
+// OVILLO_CHECK_PIECE=<slug> also walks that piece: its page (for a note-list piece, the table, the measurement,
+// what the receipt does not state), playback in the muted tab with its energy meters, 390 px, its score route.
 import { spawn } from 'node:child_process'
 import { mkdirSync, writeFileSync } from 'node:fs'
 
@@ -297,6 +299,94 @@ try {
     const locked = await ev(`(() => { ${PRELUDE}; return ${T}.shadowRoot.getElementById('o-master').textContent })()`)
     check(tv.muted && tv.master === 'muted' && locked === 'muted', '?mute=1 is a hard lock (M does not unmute)')
     await shot('tract-tv-1280')
+  }
+
+  // ── One named piece, start to end (OVILLO_CHECK_PIECE=<slug>): its page, its traces, playback, its score route ──
+  // For a piece whose score is a note list (a World a Rust example plays, the trombone v1) it also checks the table,
+  // the measurement beside it, and that the page says what the receipt does not state.
+  const only = process.env.OVILLO_CHECK_PIECE
+  if (only) {
+    const base = new URL(url).search
+    await cdp('Emulation.setDeviceMetricsOverride', { width: 1280, height: 1400, deviceScaleFactor: 1, mobile: false })
+    await cdp('Page.navigate', { url: url.replace(/[?#].*$/, '') + base + `#/piece/${only}` })
+    let up = false
+    for (let i = 0; i < 80 && !up; i++) { await sleep(250); up = await ev(`(() => { ${PRELUDE}; return !!window.__deep('[data-face=piece-score]')[0] && !!window.__player() })()`) }
+    check(up, `#/piece/${only}: the piece page renders`)
+    await setTheme('light')
+    await sleep(1500)
+    const P = await ev(`(async () => { ${PRELUDE};
+      const face = (n) => window.__deep('[data-face=' + n + ']')[0];
+      const t = window.__deep('ov-energy-trace')[0];
+      const receiptUrl = [...face('piece-receipt').querySelectorAll('.files a')].find((a) => a.textContent.startsWith('receipt'))?.getAttribute('href');
+      const receipt = receiptUrl ? await (await fetch(receiptUrl)).json() : null;
+      const table = face('piece-score').querySelector('.notes[role=table]');
+      return {
+        faces: window.__deep('[data-face]').map((f) => f.dataset.face),
+        title: face('piece-player').querySelector('h1')?.textContent,
+        format: (face('piece-score').querySelector('.eyebrow')?.textContent ?? '').trim(),
+        rows: table ? Number(table.dataset.rows) : -1,
+        bodyRows: face('piece-score').querySelectorAll('.body [role=row]').length,
+        same: face('piece-score').querySelectorAll('[role=cell][data-same=true]').length,
+        measured: (face('piece-score').querySelector('[data-measured]')?.textContent ?? '').replace(/\\s+/g, ' ').trim(),
+        editorLink: !!face('piece-score').querySelector('a.link'),
+        notes: receipt?.notes ?? null,
+        schema: receipt?.schema ?? null,
+        unstated: (face('piece-receipt').textContent.match(/not in this receipt/g) ?? []).length,
+        exampleReceipt: !!face('piece-receipt').querySelector('[data-example-receipt]'),
+        stored: (face('piece-ledger').querySelector('[data-stored]')?.textContent ?? '').replace(/\\s+/g, ' ').trim(),
+        ledger: !!face('piece-ledger').querySelector('mn-energy-ledger')?.shadowRoot?.querySelector('.world'),
+        bodies: t ? [...t.shadowRoot.querySelectorAll('polyline')].map((p) => p.dataset.body) : [],
+        units: (face('piece-trace').querySelector('[data-units]')?.textContent ?? '').trim(),
+        world: face('piece-world').textContent.replace(/\\s+/g, ' ').trim(),
+      } })()`)
+    console.log(`     ${P.title} · ${P.format} · rows ${P.rows} (${P.bodyRows} drawn, ${P.same} on their partial) · receipt ${P.schema} ${P.notes} notes · bodies ${P.bodies.join(', ')}`)
+    console.log(`     measured: ${P.measured}`)
+    console.log(`     stored: ${P.stored}`)
+    console.log(`     units: ${P.units}`)
+    check(['piece-player', 'piece-trace', 'piece-ledger', 'piece-world', 'piece-receipt', 'piece-score'].every((f) => P.faces.includes(f)), `${only}: the piece page has its faces`)
+    if (P.format.includes('ovillo-notes-tsv')) {
+      check(P.rows === P.notes && P.bodyRows === P.notes, `${only}: the note list is a table, one row per note the receipt counts (${P.rows} / ${P.notes})`)
+      check(P.same === P.notes && P.measured.includes(`${P.notes} of ${P.notes} notes sound the partial`), `${only}: the measurement sits beside the notes (${P.same} on their partial)`)
+      check(!P.editorLink, `${only}: no score-editor link for a note list`)
+      check(P.unstated >= 2 && P.exampleReceipt, `${only}: the receipt face says what the receipt does not state (${P.unstated} fields) and shows its own figures`)
+      check(P.stored.includes('before its first frame'), `${only}: the ledger face states the World's stored energy at both ends`)
+    }
+    check(P.ledger, `${only}: the ledger is drawn`)
+    check(P.bodies.length >= 1, `${only}: the energy trace draws its bodies (${P.bodies.join(', ')})`)
+    check(P.units.length > 0, `${only}: the page says what the trace's channels are`)
+    await shot(`only-${only}-1280-light`)
+    // play it, muted (the browser runs with --mute-audio): the piece page's own player
+    await ev(`(() => { ${PRELUDE}; window.__in(window.__player(), 'button[data-action=toggle]').click() })()`)
+    await sleep(1800)
+    const s1 = await sample()
+    await sleep(1200)
+    const s2 = await sample()
+    console.log(`     ${only}: t ${s1.t.toFixed(2)} → ${s2.t.toFixed(2)} s · ${s2.status} · ${s2.mode} · levels ${s1.levels.map((v) => v.toFixed(2))} → ${s2.levels.map((v) => v.toFixed(2))} · frames ${s1.frames} → ${s2.frames}`)
+    check(s2.status === 'playing' && !s2.paused && s2.t > s1.t + 0.5, `${only}: it plays and advances (${s1.t.toFixed(2)} → ${s2.t.toFixed(2)} s)`)
+    check(s2.mode === 'energy' && s2.levels.length === P.bodies.length, `${only}: the player's energy screen has a meter per body (${s2.levels.length})`)
+    check(s2.levels.some((v, i) => Math.abs(v - s1.levels[i]) > 0.005), `${only}: the energy meters move with the sound`)
+    const head = await ev(`(() => { ${PRELUDE}; return Number(window.__deep('ov-energy-trace')[0]?.shadowRoot?.querySelector('.head')?.dataset.seconds ?? -1) })()`)
+    check(head > 0, `${only}: the full-size trace's playhead follows (${head} s)`)
+    await shot(`only-${only}-1280-light-playing`)
+    await setTheme('dark')
+    await sleep(700)
+    await shot(`only-${only}-1280-dark-playing`)
+    await setTheme('light')
+    await ev(`document.getElementById('ovillo-audio').pause()`)
+    await cdp('Emulation.setDeviceMetricsOverride', { width: 1280, height: 3200, deviceScaleFactor: 1, mobile: false })
+    await sleep(900)
+    await shot(`only-${only}-1280-full-light`)
+    await cdp('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 2, mobile: true })
+    await sleep(900)
+    o = await overflow()
+    check(o.scrollWidth <= o.clientWidth, `${only} at 390 px: no horizontal scroll (scrollWidth ${o.scrollWidth}${o.wide.length ? `; wide: ${o.wide.join(', ')}` : ''})`)
+    await shot(`only-${only}-390-light`)
+    await ev(`location.hash = '#/score/${only}'`)
+    let ro = null
+    for (let i = 0; i < 40 && !ro; i++) { await sleep(250); ro = await ev(`(() => { ${PRELUDE}; const f = window.__deep('[data-face=mount-score]')[0]; return f ? { mount: f.dataset.mount, format: f.dataset.format, text: f.textContent.replace(/\\s+/g, ' ') } : null })()`) }
+    check(!!ro && (ro.format !== 'ovillo-notes-tsv' || (ro.mount === 'read-only' && ro.text.includes('no MUS score to edit'))), `#/score/${only}: ${ro?.mount} (${ro?.format})`)
+    await ev(`location.hash = '#/'`)
+    await sleep(500)
   }
 
   // Stop (silence the engine) before closing.

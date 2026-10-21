@@ -8,6 +8,10 @@
  * component when it is registered (`mn-ovillo-bench`, `mn-ovillo-tract`), and
  * until then say what will mount there. The score editor shows the score
  * in Hoja's MUS mode for MUS pieces (ov-score-workbench), read-only for bench scores.
+ * A piece whose score is a note list (`ovillo-notes-tsv`: a World a Rust example
+ * plays, the trombone v1) shows the list as a table, the measurement of the
+ * render beside it when the graph names one, and its receipt's own figures;
+ * what the receipt does not state is said, not filled in.
  */
 
 import { html, nothing, type TemplateResult } from 'lit'
@@ -23,7 +27,8 @@ import {
   type MnEnergyTrace,
 } from '@shrubbery/components/audio'
 import { OVILLO_FACE_IDS } from './face-ids.js'
-import type { OvilloPiece, OvilloRender } from './model.js'
+import type { OvilloLedger, OvilloPiece, OvilloRender } from './model.js'
+import { NOTES_TSV, NotesTsvError, fxNames, noteName, pairNotes, parseNotesTsv, type NoteRow, type NotesAnalysis } from './notes.js'
 import { routeHash } from './routes.js'
 import { SITE_ORIGIN } from './vocab.js'
 
@@ -75,7 +80,24 @@ export interface ReceiptJson {
   readonly warnings?: readonly unknown[]
   readonly peakDbfs?: number
   readonly rmsDbfs?: number
+  // An example's World receipt (ovillo.trombone-nd-render.v1): the World's own receipt under `ledger`, the player's moves.
+  readonly notes?: number
+  readonly seconds?: number
+  readonly realTimeFactorWall?: number
+  readonly outputScale?: number
+  readonly peak?: number
+  readonly ledger?: { readonly sampleFrames?: number; readonly globalClosureResidual?: number; readonly maximumLocalResidual?: number }
+  readonly moves?: {
+    readonly slide_moves?: number
+    readonly slide_work?: number
+    readonly slide_disposal?: number
+    readonly lip_retunes?: number
+    readonly lip_work?: number
+  }
 }
+
+/** An energy trace as the page read it, with what the file says its channels are (its `units`). */
+export type PieceEnergyTrace = MnEnergyTrace & { readonly unitsText?: string }
 
 export interface PieceFaceValue {
   readonly piece: OvilloPiece
@@ -85,8 +107,10 @@ export interface PieceFaceValue {
   readonly next: OvilloPiece | null
   readonly engine: AudioPlayer
   readonly loader: MnAudioDataLoader
-  readonly energy: FetchedJson<MnEnergyTrace>
+  readonly energy: FetchedJson<PieceEnergyTrace>
   readonly receipt: FetchedJson<ReceiptJson>
+  /** The measurement of the render the graph names (`ovl:analysis`), if any. */
+  readonly analysis: FetchedJson<NotesAnalysis>
   /** Resolved same-origin URLs of the render's files, for the receipt's links. */
   readonly files: ReadonlyArray<{ readonly label: string; readonly href: string }>
   readonly onSeek: (seconds: number) => void
@@ -226,7 +250,8 @@ function pieceTraceFace(v: PieceFaceValue): TemplateResult {
     ${faceHead('Energy', 'Where the energy is, by body')}
     ${r?.energyTrace
       ? html`<ov-energy-trace .trace=${v.energy.data} .error=${v.energy.error} .engine=${v.engine} track-id=${v.piece.iri}
-          @ov-trace-seek=${(e: CustomEvent<{ seconds: number }>) => v.onSeek(e.detail.seconds)}></ov-energy-trace>`
+          @ov-trace-seek=${(e: CustomEvent<{ seconds: number }>) => v.onSeek(e.detail.seconds)}></ov-energy-trace>
+          <div class="units-line">${v.energy.data?.unitsText ? html`<p class="quiet units" data-units>The file says: ${v.energy.data.unitsText}.</p>` : nothing}</div>`
       : html`<p class="quiet">This render states no energy trace${r?.bench ? ' (a bench run keeps its closure residual instead)' : ''}.</p>`}
   </section>`
 }
@@ -236,7 +261,8 @@ function pieceLedgerFace(v: PieceFaceValue): TemplateResult {
   return html`<section class="ov-face" data-face="piece-ledger">
     ${faceHead('Ledger', r && r.ledgers.length > 1 ? `${r.ledgers.length} Worlds` : 'The World’s energy ledger')}
     ${r && r.ledgers.length > 0
-      ? html`<mn-energy-ledger .ledgers=${r.ledgers}></mn-energy-ledger>`
+      ? html`<mn-energy-ledger .ledgers=${r.ledgers}></mn-energy-ledger>
+          <div class="stored-ends">${r.ledgers.map(storedEnds)}</div>`
       : r?.bench
         ? html`<dl class="facts">
             ${row('Closure residual', formatQuantity(r.bench.closureResidual, 'J')?.text)}
@@ -245,6 +271,16 @@ function pieceLedgerFace(v: PieceFaceValue): TemplateResult {
           <p class="quiet">A bench run states its closure residual; it keeps no per-World ledger.</p>`
         : html`<mn-energy-ledger .ledgers=${[]}></mn-energy-ledger>`}
   </section>`
+}
+
+/** Where a World receipt states the stored energy at both ends: what the run began and ended with. */
+function storedEnds(l: OvilloLedger): TemplateResult | typeof nothing {
+  if (l.initialEnergy === undefined || l.finalEnergy === undefined) return nothing
+  const change = l.finalEnergy - l.initialEnergy
+  return html`<p class="quiet stored" data-stored=${l.world}>World ${l.world} held ${formatQuantity(l.initialEnergy, 'J')?.text} before its first
+    frame and ${formatQuantity(l.finalEnergy, 'J')?.text} after its last${l.sampleFrames !== undefined ? ` (${l.sampleFrames.toLocaleString('en-US')} frames)` : ''},
+    as its receipt states: a stored change of ${formatQuantity(change, 'J')?.text}${change < 0 ? ', energy it began with and spent' : ''}.
+    Read off the receipt, not computed from the rows above.</p>`
 }
 
 function patchSummary(patch: string | undefined): TemplateResult | string {
@@ -281,18 +317,38 @@ function pieceWorldFace(v: PieceFaceValue): TemplateResult {
   </section>`
 }
 
+/** An absent field, said: the em dash, and why when the receipt was read and simply does not state it. */
+function unstated(receipt: ReceiptJson | null): TemplateResult | undefined {
+  return receipt ? html`<span class="absent">— <span class="quiet">(not in this receipt)</span></span>` : undefined
+}
+
+function exampleReceiptFacts(receipt: ReceiptJson): TemplateResult | typeof nothing {
+  if (!receipt.ledger && !receipt.moves) return nothing
+  const m = receipt.moves ?? {}
+  const q = (x: number | undefined): string | undefined => formatQuantity(x, 'J')?.text
+  return html`<dl class="facts" data-example-receipt>
+    ${row('Notes played', receipt.notes)}
+    ${row('World frames', receipt.ledger?.sampleFrames?.toLocaleString('en-US'))}
+    ${row('Real-time factor', receipt.realTimeFactorWall !== undefined ? `${receipt.realTimeFactorWall.toFixed(2)}× (wall)` : undefined)}
+    ${row('Slide moves', m.slide_moves !== undefined ? html`${m.slide_moves.toLocaleString('en-US')} <span class="quiet">(${q(m.slide_work)} work, ${q(m.slide_disposal)} radiated off)</span>` : undefined)}
+    ${row('Lip retunes', m.lip_retunes !== undefined ? html`${m.lip_retunes.toLocaleString('en-US')} <span class="quiet">(${q(m.lip_work)} work)</span>` : undefined)}
+    ${row('Global closure residual', q(receipt.ledger?.globalClosureResidual))}
+    ${row('Output scale', receipt.outputScale !== undefined ? `${receipt.outputScale.toPrecision(4)} (the World's emission to full scale, set once)` : undefined)}
+  </dl>`
+}
+
 function receiptFacts(r: OvilloRender, receipt: ReceiptJson | null): TemplateResult {
   return html`<dl class="facts">
     ${row('Duration', r.durationSeconds !== undefined ? `${formatClock(r.durationSeconds)} (${r.durationSeconds.toFixed(2)} s)` : undefined)}
-    ${row('Engine', r.engineVersion ? html`<code>${r.engineVersion}</code>` : undefined)}
-    ${row('Render digest', shortDigest(r.renderDigest))}
+    ${row('Engine', r.engineVersion ? html`<code>${r.engineVersion}</code>` : unstated(receipt))}
+    ${row('Render digest', r.renderDigest ? shortDigest(r.renderDigest) : unstated(receipt) ?? '—')}
     ${row('World peak', num(r.worldPeakDbfs, 'dBFS'))}
     ${row('World RMS', num(r.worldRmsDbfs, 'dBFS'))}
     ${row('Page gain', r.pageGainDb !== undefined ? `${r.pageGainDb >= 0 ? '+' : ''}${r.pageGainDb.toFixed(1)} dB` : undefined)}
     ${row('Wall time', num(r.wallSeconds ?? receipt?.wallSeconds, 's'))}
     ${row('Events', r.eventCount ?? receipt?.eventCount)}
-    ${receipt ? row('Warnings', receipt.warnings?.length ?? '—') : nothing}
-    ${receipt ? row('Bad tokens', receipt.badTokens?.length ?? '—') : nothing}
+    ${receipt ? row('Warnings', receipt.warnings?.length ?? unstated(receipt)) : nothing}
+    ${receipt ? row('Bad tokens', receipt.badTokens?.length ?? unstated(receipt)) : nothing}
     ${r.sourceRevision ? row('Source revision', html`<code title=${r.sourceRevision}>${r.sourceRevision.slice(0, 10)}</code>`) : nothing}
     ${r.created ? row('Rendered', r.created) : nothing}
   </dl>`
@@ -303,14 +359,76 @@ function pieceReceiptFace(v: PieceFaceValue): TemplateResult {
   return html`<section class="ov-face" data-face="piece-receipt">
     ${faceHead('Receipt', 'The render')}
     ${r ? receiptFacts(r, v.receipt.data) : html`<p class="quiet">The graph states no render for this piece.</p>`}
+    ${v.receipt.data ? exampleReceiptFacts(v.receipt.data) : nothing}
     ${v.receipt.error ? html`<p class="error">The receipt file could not be read: ${v.receipt.error}</p>` : nothing}
     ${v.receipt.data?.schema ? html`<p class="quiet">Receipt schema <code>${v.receipt.data.schema}</code>.</p>` : nothing}
     ${v.files.length ? html`<ul class="files">${v.files.map((f) => html`<li><a href=${f.href}>${f.label}</a></li>`)}</ul>` : nothing}
   </section>`
 }
 
+function notesTable(text: string, v: PieceFaceValue): TemplateResult {
+  let rows: NoteRow[]
+  try {
+    rows = pairNotes(parseNotesTsv(text), v.analysis.data)
+  } catch (error) {
+    return html`<p class="error">The note list could not be read: ${error instanceof NotesTsvError ? error.message : String(error)}</p>
+      <pre class="score" tabindex="0" aria-label="Note list, read-only">${text}</pre>`
+  }
+  const a = v.analysis.data
+  const measured = rows.some((r) => r.measured)
+  const s = a?.summary
+  return html`<div class="notes-list">${measured && s
+      ? html`<p class="quiet" data-measured>Measured on this render, after the World (<code>mus_analysis.trombone_world_analyse</code>):
+          ${s.sounded_intended_partial ?? '—'} of ${s.notes ?? rows.length} notes sound the partial they were placed on;
+          median ${s.median_abs_cents?.toFixed(1) ?? '—'} cents from the written pitch, ${s.max_abs_cents?.toFixed(1) ?? '—'} at most;
+          sustained notes at one written dynamic spread over a median of ${s.level_spread?.median_db?.toFixed(1) ?? '—'} dB.</p>`
+      : v.piece.render?.analysis
+        ? html`<p class="quiet">${v.analysis.error ? `The measurement could not be read: ${v.analysis.error}` : 'Reading the measurement…'}</p>`
+        : html`<p class="quiet">This render was not measured: the table is the list as written.</p>`}
+    <div class="notes-wrap" tabindex="0" role="region" aria-label="The note list">
+      <div class="notes" role="table" aria-label="Notes" data-rows=${rows.length} data-with-measurement=${String(measured)}>
+        <div class="head" role="rowgroup"><div role="row">
+          ${['#', 'Start', 'Note', 'Partial', 'Slide', 'Articulation', 'Dynamic', 'Bore mode', ...(measured ? ['Measured', 'Cents', 'Sounded'] : [])].map(
+            (h) => html`<span role="columnheader">${h}</span>`,
+          )}
+        </div></div>
+        <div class="body" role="rowgroup">${rows.map(({ written: w, measured: m }, i) => {
+          const cells: Array<string | TemplateResult> = [
+            String(i + 1),
+            `${w.startS.toFixed(2)} s`,
+            noteName(w.midi),
+            w.partial !== undefined ? String(w.partial) : '—',
+            w.position !== undefined
+              ? html`${w.position}${w.slideM !== undefined ? html` <span class="quiet">${(w.slideM * 100).toFixed(1)} cm</span>` : nothing}`
+              : '—',
+            [w.art?.toLowerCase(), ...fxNames(w.fx)].filter(Boolean).join(', ') || '—',
+            w.vel !== undefined ? w.vel.toFixed(2) : '—',
+            w.boreHz !== undefined ? `${w.boreHz.toFixed(1)} Hz` : '—',
+          ]
+          if (measured) {
+            cells.push(m && m.f > 0 ? `${m.f.toFixed(1)} Hz` : '—', m && m.f > 0 ? `${m.cents >= 0 ? '+' : '−'}${Math.abs(m.cents).toFixed(1)}` : '—')
+          }
+          return html`<div role="row">${cells.map((c) => html`<span role="cell">${c}</span>`)}${measured
+            ? html`<span role="cell" data-same=${String(!!m && m.sounded_partial === w.partial)}>${m ? m.sounded_partial : '—'}</span>`
+            : nothing}</div>`
+        })}</div>
+      </div>
+    </div></div>`
+}
+
 function pieceScoreFace(v: PieceFaceValue): TemplateResult {
   const s = v.piece.score
+  if (s?.format === NOTES_TSV) {
+    return html`<section class="ov-face" data-face="piece-score">
+      <header class="face-head row-head">
+        <div><span class="eyebrow">Notes · ${s.format}</span><h2>The note list the player was given</h2></div>
+      </header>
+      <p class="quiet">This piece has no written score: ${s.generator ? html`<code>${s.generator}</code>` : 'a program'} gave the World's player
+        these notes and wrote them beside the audio. ${s.repoPath ? html`In the repository at <code>${s.repoPath}</code>.` : 'The list is not in the repository; the example writes it when it renders.'}
+        Read-only. Digest ${shortDigest(s.sourceDigest)}.</p>
+      ${s.text ? notesTable(s.text, v) : html`<p class="quiet">The graph carries no note list for this piece.</p>`}
+    </section>`
+  }
   return html`<section class="ov-face" data-face="piece-score">
     <header class="face-head row-head">
       <div><span class="eyebrow">Score${s?.format ? ` · ${s.format}` : ''}</span><h2>${s?.repoPath ?? 'The score'}</h2></div>
@@ -403,7 +521,9 @@ function scoreEditorFace(v: MountFaceValue): TemplateResult {
       : html`<div class="read-only">
           <p class="quiet">${s?.format === 'ovillo-score-json'
             ? 'This is a score for the bench’s simulated guitarist (JSON); the bench plays it live. It stays read-only here.'
-            : 'This piece has no MUS score to edit.'}</p>
+            : s?.format === NOTES_TSV
+              ? 'This piece has no MUS score to edit: its World is played by a program, from this note list (read-only).'
+              : 'This piece has no MUS score to edit.'}</p>
           ${s?.text ? html`<pre class="score" tabindex="0" aria-label="Score, read-only">${s.text}</pre>` : nothing}
         </div>`}
   </section>`

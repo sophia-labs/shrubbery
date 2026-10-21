@@ -19,7 +19,7 @@
  */
 import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { compareTriples, parseNT, type Triple } from '@shrubbery/nucleus'
@@ -168,6 +168,14 @@ describe('a real public-mode gardend, as a visitor', () => {
     const graph = parseOvillo(read.triples)
     expect(graph.pieces.length).toBeGreaterThan(0)
     for (const p of graph.pieces) expect(p.render?.audio, p.slug).toBeTruthy()
+    // With OVILLO_OUT naming the graph this gardend serves, the SELECT read is the built graph's, model for model
+    // (the stores write numbers in their own lexical forms, so triples are compared through the codec; score
+    // texts, tabs and all, must come back byte for byte).
+    const out = process.env.OVILLO_OUT
+    if (out && existsSync(join(out, 'ovillo.nt'))) {
+      const built = parseOvillo(parseNT(readFileSync(join(out, 'ovillo.nt'), 'utf8')))
+      expect(graph).toEqual(built)
+    }
     // A visitor may not dump: the dump is refused, which is why the app SELECTs.
     await expect(source.read(OVILLO_DATA_GRAPH)).rejects.toMatchObject({ name: 'TripleSourceError' })
     const layouts = await loadOvilloLayouts(source)

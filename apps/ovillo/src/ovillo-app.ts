@@ -44,9 +44,11 @@ import {
   type GalleryFaceValue,
   type MountFaceValue,
   type NowFaceValue,
+  type PieceEnergyTrace,
   type PieceFaceValue,
   type ReceiptJson,
 } from './faces.js'
+import { parseNotesAnalysis, type NotesAnalysis } from './notes.js'
 import { readGraph, type GraphReadTestimony } from './graph-read.js'
 import { bindPieceLayout, loadOvilloLayouts, type OvilloLayouts } from './layout.js'
 import { resolveMediaUrl, type MediaResolution } from './media.js'
@@ -58,6 +60,13 @@ import { OVILLO_DATA_GRAPH, idIri } from './vocab.js'
 import './ov-energy-trace.js'
 
 const SURFACE_TAG = 'ovillo-surface'
+
+/** The energy trace, and the file's own words about its channels (`units`), which the piece page shows. */
+function readEnergyTrace(json: unknown): PieceEnergyTrace {
+  const trace: MnEnergyTrace = parseEnergyTrace(json)
+  const units = (json as { units?: unknown }).units
+  return typeof units === 'string' && units ? { ...trace, unitsText: units } : trace
+}
 defineWorkspaceSurfaceElement(SURFACE_TAG, OVILLO_FACE_CATALOGUE)
 
 const SKINS: readonly Skin[] = ['garden', 'emporium']
@@ -355,6 +364,41 @@ export class OvilloApp extends LitElement {
     @media (max-width: 760px) { .mount { padding: 14px 10px; } }
     .mount-empty { max-width: 62ch; }
     .mount .score { margin-top: 12px; }
+    .absent { color: var(--mn-color-text-muted, #6b7280); }
+    .units, .stored { font-size: 0.8125rem; margin: 10px 0 0; max-width: 80ch; }
+    .notes-wrap {
+      max-height: 460px;
+      overflow: auto;
+      border-radius: var(--mn-radius-md, 8px);
+      border: 1px solid var(--mn-color-border-subtle, #e5e7eb);
+      margin-top: 8px;
+    }
+    .notes {
+      display: table;
+      border-collapse: collapse;
+      width: 100%;
+      font-size: 0.75rem;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+    .notes [role='rowgroup'].head { display: table-header-group; }
+    .notes [role='rowgroup'].body { display: table-row-group; }
+    .notes [role='row'] { display: table-row; }
+    .notes [role='columnheader'], .notes [role='cell'] {
+      display: table-cell;
+      padding: 4px 8px;
+      text-align: right;
+      border-bottom: 1px solid var(--mn-color-border-subtle, #e5e7eb);
+    }
+    .notes [role='columnheader'] {
+      position: sticky;
+      top: 0;
+      background: var(--mn-color-surface-sunken, #f3f4f6);
+      font-weight: var(--mn-font-weight-medium, 560);
+      color: var(--mn-color-text-secondary, #4b5563);
+    }
+    .notes [role='row'] > :nth-child(6) { text-align: left; white-space: normal; min-width: 9em; }
+    .notes [data-same='false'] { color: var(--mn-color-text-danger, #b91c1c); }
 
     /* ── Boot, errors, the testimony strip ── */
     .boot {
@@ -588,12 +632,14 @@ export class OvilloApp extends LitElement {
     const i = order.indexOf(piece)
     const energyUrl = resolveMediaUrl(r?.energyTrace, this.media)
     const receiptUrl = resolveMediaUrl(r?.receipt, this.media)
+    const analysisUrl = resolveMediaUrl(r?.analysis, this.media)
     const track = trackForPiece(piece, this.media)
     const files = [
       { label: 'mp3', href: resolveMediaUrl(r?.audio, this.media) },
       { label: 'waveform peaks (JSON)', href: resolveMediaUrl(r?.peaks, this.media) },
       { label: 'energy trace (JSON)', href: energyUrl },
       { label: 'receipt (JSON)', href: receiptUrl },
+      { label: 'measurement (JSON)', href: analysisUrl },
     ].filter((f): f is { label: string; href: string } => !!f.href)
     return {
       piece,
@@ -602,8 +648,9 @@ export class OvilloApp extends LitElement {
       next: i >= 0 && i < order.length - 1 ? order[i + 1] : null,
       engine: this.engine,
       loader: this.loader,
-      energy: this.want<MnEnergyTrace>(energyUrl, parseEnergyTrace),
+      energy: this.want<PieceEnergyTrace>(energyUrl, readEnergyTrace),
       receipt: this.want<ReceiptJson>(receiptUrl, (j) => j as ReceiptJson),
+      analysis: this.want<NotesAnalysis>(analysisUrl, parseNotesAnalysis),
       files,
       onSeek: (seconds) => {
         if (!track) return
