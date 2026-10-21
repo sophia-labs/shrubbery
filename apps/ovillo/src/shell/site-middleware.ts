@@ -12,7 +12,27 @@
  * Which site: `OVILLO_OUT=<graph builder out dir>` (`ovillo.nt` + `site/`), or
  * `OVILLO_NT` + `OVILLO_SITE` separately; by default the app's fixture. Nothing
  * is copied into this repo from there and nothing there is written.
+ *
+ *   GET /wasm/<module>.wasm     the engines, from the paths OVILLO_MUS_WASM, OVILLO_BENCH_WASM, OVILLO_TRACT_WASM
+ *                               name (the ovillo repo builds them; they are never vendored here)
  */
+
+/** The wasm modules the app loads, by published name, and the env variable that names each one's file. */
+export const OVILLO_WASM: Readonly<Record<string, string>> = {
+  'mus_wasm.wasm': 'OVILLO_MUS_WASM',
+  'ovillo_web.wasm': 'OVILLO_BENCH_WASM',
+  'tract.wasm': 'OVILLO_TRACT_WASM',
+}
+
+/** Published name → file, for the modules the environment names (and that exist). */
+export function resolveOvilloWasm(env: NodeJS.ProcessEnv = process.env): Record<string, string> {
+  const out: Record<string, string> = {}
+  for (const [name, key] of Object.entries(OVILLO_WASM)) {
+    const file = env[key]
+    if (file && existsSync(file)) out[name] = resolve(file)
+  }
+  return out
+}
 
 import { createReadStream, existsSync, statSync } from 'node:fs'
 import type { IncomingMessage, ServerResponse } from 'node:http'
@@ -114,7 +134,7 @@ function inside(root: string, rel: string): string | null {
 
 export type Middleware = (req: IncomingMessage, res: ServerResponse, next: () => void) => void
 
-export function ovilloSiteMiddleware(site: OvilloSite): Middleware {
+export function ovilloSiteMiddleware(site: OvilloSite, wasm: Readonly<Record<string, string>> = {}): Middleware {
   const siteRoot = resolve(site.siteDir)
   return (req, res, next) => {
     if (req.method !== 'GET' && req.method !== 'HEAD') return next()
@@ -123,6 +143,13 @@ export function ovilloSiteMiddleware(site: OvilloSite): Middleware {
     if (path === '/graph/ux-config.nt') {
       if (!site.uxNt) return sendText(res, 404, 'ovillo: this site has no :ux:config layout graph')
       return serveFile(req, res, site.uxNt)
+    }
+    const module = /^\/wasm\/([a-z0-9_]+\.wasm)$/.exec(path)?.[1]
+    if (module) {
+      const file = wasm[module]
+      // Not named here: a built bundle may carry it in its own wasm/ (the next handler serves that).
+      if (!file) return next()
+      return serveFile(req, res, file, 'application/wasm')
     }
     if (/^\/(media|scores|receipts)\//.test(path) || path === '/llms.txt') {
       const abs = inside(siteRoot, path.slice(1))

@@ -13,7 +13,7 @@ import { createServer, request as httpRequest } from 'node:http'
 import { existsSync, statSync } from 'node:fs'
 import { join, normalize, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { ovilloSiteMiddleware, resolveOvilloSite, serveFile } from '../src/shell/site-middleware.js'
+import { ovilloSiteMiddleware, resolveOvilloSite, resolveOvilloWasm, serveFile } from '../src/shell/site-middleware.js'
 
 export const OVILLO_CSP = [
   "default-src 'self'",
@@ -39,7 +39,7 @@ const dist = resolve(arg('dist', join(appDir, 'dist')))
 const port = Number(arg('port', '4180'))
 const gardend = arg('gardend', '')
 const site = resolveOvilloSite()
-const siteMiddleware = ovilloSiteMiddleware(site)
+const siteMiddleware = ovilloSiteMiddleware(site, resolveOvilloWasm())
 
 if (!existsSync(join(dist, 'index.html'))) {
   console.error(`no built app at ${dist}: run the build first`)

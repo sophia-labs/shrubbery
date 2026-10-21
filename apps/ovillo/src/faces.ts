@@ -7,7 +7,7 @@
  * The bench, the tract and the score editor are MOUNT POINTS: they draw the
  * component when it is registered (`mn-ovillo-bench`, `mn-ovillo-tract`), and
  * until then say what will mount there. The score editor shows the score
- * read-only until Hoja's MUS mode lands (scoreEditorFace is its seam).
+ * in Hoja's MUS mode for MUS pieces (ov-score-workbench), read-only for bench scores.
  */
 
 import { html, nothing, type TemplateResult } from 'lit'
@@ -96,6 +96,10 @@ export interface MountFaceValue {
   readonly kind: 'bench' | 'tract' | 'score'
   readonly piece: OvilloPiece | null
   readonly missingSlug: string
+  /** The app's audio engine (the score editor's takes play through it). */
+  readonly engine: AudioPlayer
+  /** Same-origin URLs of the wasm modules the mounts load. */
+  readonly wasm: { readonly mus: string; readonly bench: string; readonly tract: string }
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -341,10 +345,22 @@ function mountFace(v: MountFaceValue): TemplateResult {
   </section>`
 }
 
+let workbench: Promise<unknown> | null = null
+/** The editor's module, loaded once on demand (it brings TipTap); a failure is said, not swallowed. */
+function loadScoreWorkbench(): Promise<unknown> {
+  if (!workbench) {
+    workbench = import('./ov-score-workbench.js').catch((error: unknown) => {
+      workbench = null
+      console.error('ovillo: the score editor could not load', error)
+    })
+  }
+  return workbench
+}
+
 /**
- * The score editor's seam. Today: the score, read-only, and where Hoja's MUS
- * mode will mount (a `mus` grammar for Hoja, its check beside it, then the
- * render in the browser). That builder replaces the body of this function.
+ * The score editor: Hoja's MUS mode on the piece's score (ov-score-workbench,
+ * loaded on demand), for MUS pieces. A bench score (the bench's JSON) stays
+ * read-only: the bench plays it live, and there is no MUS mode for it.
  */
 function scoreEditorFace(v: MountFaceValue): TemplateResult {
   const p = v.piece
@@ -353,13 +369,20 @@ function scoreEditorFace(v: MountFaceValue): TemplateResult {
       <a class="link" href=${routeHash({ name: 'home' })}>← Back to the gallery</a></section>`
   }
   const s = p.score
-  return html`<section class="ov-face mount" data-face="mount-score" data-mount="hoja-mus" data-score=${s?.iri ?? ''} data-format=${s?.format ?? ''}>
+  const mus = s?.format === 'mus' && !!s.text
+  if (mus) void loadScoreWorkbench()
+  return html`<section class="ov-face mount" data-face="mount-score" data-mount=${mus ? 'hoja-mus' : 'read-only'} data-score=${s?.iri ?? ''} data-format=${s?.format ?? ''}>
     <nav class="piece-nav"><a href=${routeHash({ name: 'piece', slug: p.slug })}>← ${p.title}</a></nav>
-    <span class="eyebrow">Score editor · being built</span>
+    <span class="eyebrow">Score editor${s?.format ? ` · ${s.format}` : ''}</span>
     <h1 class="display">${p.title}</h1>
-    <p class="quiet">Hoja's MUS mode mounts here: the score in Hoja with the <code>mus</code> grammar, its check beside it,
-      and a render in the browser by the same World. Until then, the score as the graph keeps it:</p>
-    ${s?.text ? html`<pre class="score" tabindex="0" aria-label="Score, read-only">${s.text}</pre>` : html`<p class="quiet">The graph carries no score text for this piece.</p>`}
+    ${mus
+      ? html`<ov-score-workbench .piece=${{ iri: p.iri, slug: p.slug, title: p.title, note: p.note, score: s!.text! }} .engine=${v.engine} wasm=${v.wasm.mus}></ov-score-workbench>`
+      : html`<div class="read-only">
+          <p class="quiet">${s?.format === 'ovillo-score-json'
+            ? 'This is a score for the bench’s simulated guitarist (JSON); the bench plays it live. It stays read-only here.'
+            : 'This piece has no MUS score to edit.'}</p>
+          ${s?.text ? html`<pre class="score" tabindex="0" aria-label="Score, read-only">${s.text}</pre>` : nothing}
+        </div>`}
   </section>`
 }
 

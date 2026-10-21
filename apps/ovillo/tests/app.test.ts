@@ -18,6 +18,9 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import '@shrubbery/components/top-bar'
 import '@shrubbery/components/audio'
 import '../src/ovillo-app.js'
+// The score editor's module is loaded on demand in the page; happy-dom does not upgrade an element that is already
+// in a shadow root when its definition arrives later (browsers do: the CDP check covers that path), so load it first.
+import '../src/ov-score-workbench.js'
 import type { OvilloApp } from '../src/ovillo-app.js'
 import { FIXTURE_DIR, ovilloSiteMiddleware, resolveOvilloSite } from '../src/shell/site-middleware.js'
 
@@ -118,12 +121,23 @@ describe('ovillo-app on the fixture', () => {
     expect(bench.querySelector('mn-ovillo-bench')).not.toBeNull()
   })
 
-  it('the score editor shows the score until Hoja’s MUS mode mounts', async () => {
+  it('the score editor: Hoja’s MUS mode for a MUS score, and says how long a render takes', async () => {
     await go('#/score/hilo-de-luz')
     const editor = await until(() => face('mount-score'), 'the score editor mount')
     expect(editor.dataset.mount).toBe('hoja-mus')
     expect(editor.dataset.format).toBe('mus')
-    expect(editor.querySelector('pre.score')!.textContent).toBe(readFileSync(join(FIXTURE_DIR, 'site/scores/hilo-de-luz.mus'), 'utf8'))
+    const bench = await until(() => editor.querySelector('ov-score-workbench')?.querySelector('hoja-mus-editor'), 'the workbench', 20000)
+    expect(bench).not.toBeNull()
+    expect(editor.textContent).toContain('about a minute for a 30-second piece')
+    expect(editor.querySelector('[data-excerpt="2"]')).not.toBeNull()
+  })
+
+  it('a bench score stays read-only', async () => {
+    await go('#/score/agua-mansa')
+    const editor = await until(() => face('mount-score')?.dataset.mount === 'read-only' ? face('mount-score') : null, 'the read-only score')
+    expect(editor.querySelector('ov-score-workbench')).toBeNull()
+    expect(editor.querySelector('pre.score')!.textContent).toBe(readFileSync(join(FIXTURE_DIR, 'site/scores/agua-mansa.json'), 'utf8'))
+    expect(editor.textContent).toContain('the bench plays it live')
   })
 
   it('an unknown piece is said plainly', async () => {

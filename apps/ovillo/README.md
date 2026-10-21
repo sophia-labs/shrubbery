@@ -31,6 +31,15 @@ pnpm --filter @shrubbery/ovillo serve -- --port 4180 [--gardend http://127.0.0.1
 node apps/ovillo/scripts/browser-check.mjs 'http://127.0.0.1:4180/' <out-dir>   # muted headless Chrome over CDP
 ```
 
+The engines are WebAssembly built in the ovillo repo and **never vendored here**: name the files and the
+dev server serves them at `/wasm/`, and the build copies them into `dist/wasm/`:
+
+```sh
+OVILLO_MUS_WASM=<ovillo>/mus-rs/…/mus_wasm.wasm      # bash mus-rs/crates/mus-wasm/build.sh
+OVILLO_BENCH_WASM=<ovillo>/site/bench/ovillo_web.wasm  # bash site/bench/build.sh
+OVILLO_TRACT_WASM=<ovillo>/site/tract/tract.wasm
+```
+
 ## Where the graph comes from
 
 ```
@@ -63,7 +72,7 @@ footer says `layout built-in`. To put the layouts in the graph:
 | `#/piece/<slug>` | the piece page |
 | `#/bench` | **mount point** for `mn-ovillo-bench` (drawn when the tag is registered) |
 | `#/tract` | **mount point** for `mn-ovillo-tract` |
-| `#/score/<slug>` | **mount point** for Hoja's MUS mode: today the score, read-only; `scoreEditorFace` in `src/faces.ts` is the seam |
+| `#/score/<slug>` | the score editor: Hoja's MUS mode (`mountMusWorkbench`) on a MUS piece's score, checked as you type, rendered by its Ariadne World in a Worker (about a minute for a 30 s piece, with progress; "the first 2 bars" in seconds), the take in `mn-audio-player` with its energy and the receipt's ledger. Bench (JSON) scores stay read-only |
 
 The shell owns one audio engine (`createAudioPlayer`, with the Web Audio tap) and
 hands it to every player on the page, so playback carries across pages.

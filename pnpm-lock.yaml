@@ -536,6 +536,9 @@ importers:
       '@shrubbery/components':
         specifier: workspace:*
         version: link:../../packages/components
+      '@shrubbery/hoja':
+        specifier: workspace:*
+        version: link:../../packages/hoja
       '@shrubbery/nucleus':
         specifier: workspace:*
         version: link:../../packages/nucleus

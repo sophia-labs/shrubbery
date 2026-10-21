@@ -18,6 +18,7 @@
   },
   "dependencies": {
     "@shrubbery/components": "workspace:*",
+    "@shrubbery/hoja": "workspace:*",
     "@shrubbery/nucleus": "workspace:*",
     "@shrubbery/runtime": "workspace:*",
     "@shrubbery/source": "workspace:*",

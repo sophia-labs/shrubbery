@@ -74,6 +74,13 @@ const APP_LINKS: readonly ChromeAppLink[] = [
   { id: 'garden', label: 'Garden', icon: 'sprout', href: 'https://garden.sophia-labs.com/' },
 ]
 
+/** `wasm/<module>` beside index.html, or where `?muswasm=` / `?benchwasm=` / `?tractwasm=` say. */
+export function wasmUrls(search: string, base: string = document.baseURI): { mus: string; bench: string; tract: string } {
+  const p = new URLSearchParams(search)
+  const at = (key: string, file: string): string => new URL(p.get(key) ?? `wasm/${file}`, base).href
+  return { mus: at('muswasm', 'mus_wasm.wasm'), bench: at('benchwasm', 'ovillo_web.wasm'), tract: at('tractwasm', 'tract.wasm') }
+}
+
 function initialTheme(): Theme {
   try {
     const saved = localStorage.getItem(THEME_KEY)
@@ -341,6 +348,11 @@ export class OvilloApp extends LitElement {
       margin: 0;
     }
     .mount { padding: var(--mn-space-6, 24px); }
+    .score-bench { display: grid; gap: 12px; margin-top: 8px; min-width: 0; }
+    .bench-intro { margin: 0; }
+    .excerpt { display: flex; flex-wrap: wrap; gap: 6px; }
+    .workbench-host { min-width: 0; }
+    @media (max-width: 760px) { .mount { padding: 14px 10px; } }
     .mount-empty { max-width: 62ch; }
     .mount .score { margin-top: 12px; }
 
@@ -393,6 +405,8 @@ export class OvilloApp extends LitElement {
 
   readonly config: OvilloSourceConfig = sourceConfig(location.search, import.meta.env.VITE_OVILLO_SOURCE as string | undefined)
   readonly media: MediaResolution = { mediaBase: new URLSearchParams(location.search).get('media') ?? '' }
+  /** The wasm modules beside the page (the bundle's wasm/; never vendored in this repo). */
+  readonly wasm = wasmUrls(location.search)
   readonly source: TripleSource = createOvilloSource(this.config)
   readonly engine: AudioPlayer
   private readonly json = new Map<string, Promise<unknown>>()
@@ -604,11 +618,11 @@ export class OvilloApp extends LitElement {
         } satisfies AboutFaceValue
       }
       case OVILLO_FACE_IDS.bench:
-        return { kind: 'bench', piece: null, missingSlug: '' } satisfies MountFaceValue
+        return { kind: 'bench', piece: null, missingSlug: '', engine: this.engine, wasm: this.wasm } satisfies MountFaceValue
       case OVILLO_FACE_IDS.tract:
-        return { kind: 'tract', piece: null, missingSlug: '' } satisfies MountFaceValue
+        return { kind: 'tract', piece: null, missingSlug: '', engine: this.engine, wasm: this.wasm } satisfies MountFaceValue
       case OVILLO_FACE_IDS.scoreEditor:
-        return { kind: 'score', piece, missingSlug: this.route.name === 'score' ? this.route.slug : '' } satisfies MountFaceValue
+        return { kind: 'score', piece, missingSlug: this.route.name === 'score' ? this.route.slug : '', engine: this.engine, wasm: this.wasm } satisfies MountFaceValue
       default:
         return piece ? this.pieceValue(graph, piece) : null
     }

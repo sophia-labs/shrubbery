@@ -162,6 +162,56 @@ try {
   o = await overflow()
   check(o.scrollWidth <= o.clientWidth, `390 px piece page: no horizontal scroll (scrollWidth ${o.scrollWidth}${o.wide.length ? `; wide: ${o.wide.join(', ')}` : ''})`)
   await shot('piece-390-light')
+  // ── The score editor: the first bars, checked, rendered by the World here, played with its energy ──
+  if (!process.env.SKIP_SCORE) {
+    await cdp('Emulation.setDeviceMetricsOverride', { width: 1280, height: 1100, deviceScaleFactor: 1, mobile: false })
+    const slug = href.replace('#/piece/', '')
+    await ev(`document.getElementById('ovillo-audio').pause()`)
+    await ev(`location.hash = '#/score/${slug}'`)
+    const W = `window.__deep('ov-score-workbench')[0]`
+    const V = `window.__deep('mn-mus-verdict')[0]`
+    let ok = false
+    for (let i = 0; i < 120 && !ok; i++) { await sleep(500); ok = await ev(`(() => { ${PRELUDE}; return !!${V} && !!window.__deep('hoja-mus-editor')[0] })()`) }
+    check(ok, 'the score editor mounts: Hoja’s MUS mode and the verdict face')
+    await ev(`(() => { ${PRELUDE}; ${W}.querySelector('[data-excerpt="2"]').click() })()`)
+    let clean = false
+    for (let i = 0; i < 240 && !clean; i++) { await sleep(500); clean = await ev(`(() => { ${PRELUDE}; const v = ${V}; return !!v?.shadowRoot?.querySelector('.status.clean') && !v.shadowRoot.querySelector('button.go').disabled })()`) }
+    check(clean, 'the first two bars check clean, and RENDER is on')
+    check(await ev(`(() => { ${PRELUDE}; return ${W}.textContent.includes('about a minute for a 30-second piece') })()`), 'the page says a render takes about a minute for a 30-second piece')
+    await shot('score-1280-light-checked')
+    await ev(`(() => { ${PRELUDE}; ${V}.shadowRoot.querySelector('button.go').click() })()`)
+    let progress = 0
+    let took = false
+    const started = Date.now()
+    for (let i = 0; i < 1200 && !took; i++) {
+      await sleep(500)
+      const st = await ev(`(() => { ${PRELUDE}; const v = ${V}.shadowRoot; return { p: Number(v.querySelector('[role=progressbar]')?.getAttribute('aria-valuenow') ?? -1), take: !!v.querySelector('.take mn-audio-player') } })()`)
+      progress = Math.max(progress, st.p)
+      if (st.p > 0 && st.p < 100 && !globalThis.__shotProgress) { globalThis.__shotProgress = true; await shot('score-1280-light-rendering') }
+      took = st.take
+    }
+    console.log(`     render: ${((Date.now() - started) / 1000).toFixed(1)} s, progress seen up to ${progress}%`)
+    check(progress > 0, 'the render shows its progress')
+    check(took, 'the take arrives and plays in mn-audio-player')
+    if (took) {
+      await ev(`(() => { ${PRELUDE}; window.__in(window.__deep('mn-audio-player')[0], 'button[data-action=toggle]').click() })()`)
+      await sleep(1500)
+      const s1 = await sample()
+      await sleep(900)
+      const s2 = await sample()
+      console.log(`     take: t ${s1.t.toFixed(2)} → ${s2.t.toFixed(2)} · ${s2.mode} · levels ${s1.levels.map((v) => v.toFixed(2))} → ${s2.levels.map((v) => v.toFixed(2))}`)
+      check(s2.status === 'playing' && s2.t > s1.t, 'the take plays (through the app’s one engine)')
+      check(s2.mode === 'energy' && s2.levels.length === 3, 'the take’s energy trace is in the player’s energy screen')
+      check(await ev(`(() => { ${PRELUDE}; return !!${V}.shadowRoot.querySelector('.ledger') })()`), 'the take’s ledger is shown beside it')
+      await shot('score-1280-light-take')
+      await ev(`document.getElementById('ovillo-audio').pause()`)
+    }
+    await cdp('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 2, mobile: true })
+    await sleep(900)
+    o = await overflow()
+    check(o.scrollWidth <= o.clientWidth, `390 px score editor: no horizontal scroll (scrollWidth ${o.scrollWidth}${o.wide.length ? `; wide: ${o.wide.join(', ')}` : ''})`)
+    await shot('score-390-light')
+  }
   await ev(`location.hash = '#/bench'`)
   await sleep(700)
   await shot('bench-390-light')
