@@ -24,6 +24,15 @@ describe('mn-advanced-wire-menu', () => {
     document.body.replaceChildren()
   })
 
+  it('fixed-direction hides the direction choice and ignores the r key', async () => {
+    const el = await mount(menu => { menu.fixedDirection = true })
+    expect(sr(el).querySelector('[role="group"][aria-label="Wire direction"]')).toBeNull()
+    const panel = sr(el).querySelector('[data-wire-advanced-menu]') as HTMLElement
+    panel.dispatchEvent(new KeyboardEvent('keydown', { key: 'r', bubbles: true, composed: true }))
+    el.dispatchEvent(new KeyboardEvent('keydown', { key: 'r', bubbles: true, composed: true }))
+    expect(el.direction).toBe('forward')
+  })
+
   it('renders the default Garden predicate taxonomy and initial direction', async () => {
     const el = await mount()
 

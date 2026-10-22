@@ -135,6 +135,16 @@ export function wireBoardProvenance(
   return { boardId, boardTitle, label: `from board ${boardTitle}` }
 }
 
+/**
+ * The predicate to preselect in the menu for an arrow labelled `label`: the label itself when it already is a valid
+ * single-token predicate name (`supports`, `condenses_into`), else `null`. A multi-word label ("condenses into") is
+ * prose, not a predicate: seeding it would let Enter confirm a name gardend cannot make an IRI of.
+ */
+export function predicateSeedFromLabel(label: string | undefined | null): string | null {
+  const name = label?.trim()
+  return name && /^[A-Za-z][A-Za-z0-9_-]*$/.test(name) ? name : null
+}
+
 // ---- `whiteboard_apply`'s answer to a `wire` move ----------------------------------------------------------------
 
 export interface AppliedWire {

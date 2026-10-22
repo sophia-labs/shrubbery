@@ -302,6 +302,8 @@ export class MnAdvancedWireMenu extends SkinAware(LitElement) {
   @property({ type: Boolean, reflect: true }) open = false
   @property({ type: String }) selectedPredicate = DEFAULT_WIRE_PREDICATE_URI
   @property({ type: String }) direction: MnWireDirection = 'forward'
+  /** A host that can only make forward wires hides the direction choice and the `r` key. */
+  @property({ type: Boolean, attribute: 'fixed-direction' }) fixedDirection = false
   @property({ attribute: false }) groups: readonly MnWirePredicateGroup[] = defaultPredicateGroups()
 
   @query('[data-wire-advanced-predicate]') private firstPredicateButton?: HTMLButtonElement
@@ -354,7 +356,7 @@ export class MnAdvancedWireMenu extends SkinAware(LitElement) {
       // requested keyboard alias for the visible direction buttons so users
       // can flip direction without leaving the keyboard. Skip when a modifier
       // is held so it doesn't fight browser shortcuts (Cmd-R, Ctrl-R = reload).
-      if (event.metaKey || event.ctrlKey || event.altKey) return
+      if (event.metaKey || event.ctrlKey || event.altKey || this.fixedDirection) return
       eventModifiers(event)
       this.direction =
         this.direction === 'forward'
@@ -469,11 +471,13 @@ export class MnAdvancedWireMenu extends SkinAware(LitElement) {
           ${this.groups.map(group => this.renderGroup(group))}
         </div>
         <footer class="footer">
-          <div class="directions" role="group" aria-label="Wire direction">
-            ${this.renderDirection('forward', 'Forward')}
-            ${this.renderDirection('reverse', 'Reverse')}
-            ${this.renderDirection('bidirectional', 'Both')}
-          </div>
+          ${this.fixedDirection
+            ? html`<div class="directions"></div>`
+            : html`<div class="directions" role="group" aria-label="Wire direction">
+                ${this.renderDirection('forward', 'Forward')}
+                ${this.renderDirection('reverse', 'Reverse')}
+                ${this.renderDirection('bidirectional', 'Both')}
+              </div>`}
           <div class="actions">
             <button
               type="button"

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { projectShellWireBundle } from '../public-shell.js'
 import {
   openingOfBacklink,
+  predicateSeedFromLabel,
   readAppliedWires,
   routeWhiteboardLink,
   surfaceForDocumentKind,
@@ -130,5 +131,15 @@ describe('whiteboard navigation', () => {
     expect(wireBoardProvenance(plain!, () => 'x')).toBeNull()
     // An object with no title is named by the tail of its IRI.
     expect(wireEndOf({ otherDocumentId: '', otherIri: WOLF_MAN })).toEqual({ kind: 'object', iri: WOLF_MAN, label: 'wolf-man' })
+  })
+
+  it('seeds the predicate menu only from a label that is already a valid predicate name', () => {
+    expect(predicateSeedFromLabel('supports')).toBe('supports')
+    expect(predicateSeedFromLabel('  condenses_into ')).toBe('condenses_into')
+    // prose is not a predicate: "condenses into" would reach gardend as an unprojectable IRI
+    expect(predicateSeedFromLabel('condenses into')).toBeNull()
+    expect(predicateSeedFromLabel('a/b')).toBeNull()
+    expect(predicateSeedFromLabel('')).toBeNull()
+    expect(predicateSeedFromLabel(undefined)).toBeNull()
   })
 })

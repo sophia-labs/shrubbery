@@ -533,6 +533,7 @@ import { makeTypedObjectReader, type ClassLookup, type TypedObjectReader } from 
 import { makeBacklinksReader, type BacklinksReader } from './cell/backlinks-reader.js'
 import {
   openingOfBacklink,
+  predicateSeedFromLabel,
   readAppliedWires,
   routeWhiteboardLink,
   surfaceForDocumentKind,
@@ -1699,8 +1700,10 @@ async function pickWhiteboardPredicate(request: WbPredicateRequest): Promise<str
     })
     menu.addEventListener('mn-close', () => finish(null))
     if (groups) menu.groups = groups
-    const start = request.suggestion?.trim()
+    // Seed only a label that already is a valid predicate name; the wire move is always forward.
+    const start = predicateSeedFromLabel(request.suggestion)
     if (start) menu.selectedPredicate = normalizeWirePredicateUri(start)
+    menu.fixedDirection = true
     menu.open = true
     document.body.appendChild(menu)
   })
