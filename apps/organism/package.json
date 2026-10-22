@@ -95,6 +95,7 @@
     "test:wires-browser": "node --import tsx scripts/wires-panel-browser-harness.mts",
     "test:workspace-selector-browser": "node --import tsx scripts/workspace-selector-browser-harness.mts",
     "test:files-quicklook-browser": "node --import tsx scripts/files-quicklook-browser.mts",
+    "test:files-after-workflow-gardend": "node --import tsx scripts/files-after-workflow-gardend-browser.mts",
     "test:files-info-browser": "node --import tsx scripts/files-info-browser.mts",
     "files:info-local": "node --import tsx scripts/files-info-local.mts",
     "files:quicklook-local": "node --import tsx scripts/files-quicklook-local.mts"

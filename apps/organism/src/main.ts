@@ -9099,6 +9099,9 @@ function openFilesRoute(target: { readonly folderId?: string | null; readonly ar
   if (!shell?.visible()) return false
   if (openDocId) closeOpenDocumentSurface(openDocId)
   leaveObjectPage()
+  // A workflow plan outlives its document (it is hidden, never closed, while a document is open), and renderConfig yields the
+  // Files route to it: without this the pane opens, is told to leave in the same render, and the click appears to do nothing.
+  closeWorkflowPlan()
   clearTagLensState()
   clearZoteroSourceState()
   clearArtifactSurfaceState()
@@ -9295,7 +9298,8 @@ function renderConfig(config: WorkspaceConfig, app: string | undefined): string 
       onFileDrop: (files: FileList) => { void handleSidebarFileDrop(files) },
       onOperationRecovery: detail => { void recoverMobileFileOperation(detail) },
       onSectionAction: ({ sectionId, actionId }) => {
-        if (sectionId === 'artifacts' && actionId === FILES_SECTION_ACTION) openFilesRoute({ folderId: null })
+        // The one tree's section is `tree` (filesSidebarSections puts the action there); `artifacts` was the two-tree layout's.
+        if ((sectionId === 'tree' || sectionId === 'artifacts') && actionId === FILES_SECTION_ACTION) openFilesRoute({ folderId: null })
       },
     },
     ...(dailyNotes ? { dailyNotes } : {}),
