@@ -1,0 +1,71 @@
+{
+ "schema": "mus.audio.render-receipt.v1",
+ "renderDigest": "sha256:7c59ee25cfd1f72f43d55fbae078c3c56a84e0242184b5e81493f2ec6672d3f1",
+ "sourceDigest": "sha256:d2d4f89fab48ebfab9571b2fbacdf5e7725e12bb628a6bdc1997e20264a9117f",
+ "engineVersion": "mus-engine/0.2.0-wf8",
+ "peakDbfs": -2.4858332,
+ "rmsDbfs": -17.01124,
+ "durationSeconds": 32.69565217391305,
+ "wallSeconds": 69.136566909,
+ "eventCount": 54,
+ "badTokens": [],
+ "warnings": [],
+ "ariadneWorlds": [
+  {
+   "instrument": "jj",
+   "anatomy": "steel-string-v0",
+   "planDigest": "sha256:15b06a18a40615d7ca5edb250e0b0a1c7fe7d308dc2b03d7df7944054d9cd8a9",
+   "listenerDigest": "sha256:f0975841c6beab0772233b3a239ad3a4d13d497196771d745d234ca4c7d84e9f",
+   "bodies": [
+    "string/6",
+    "string/5",
+    "string/4",
+    "string/3",
+    "string/2",
+    "string/1",
+    "box/0",
+    "box/1",
+    "box/2"
+   ],
+   "plucks": 27,
+   "hammerOns": 0,
+   "pullOffs": 0,
+   "slides": 0,
+   "simulatedSeconds": 32.69564583333333,
+   "sourceWork": 4.317979500903343e-08,
+   "controlWork": 1.4828684842657818e-10,
+   "internalLoss": 4.3031840755173706e-08,
+   "radiation": 2.9616037431471804e-10,
+   "cumulativeClosureResidual": -7.891297749799964e-17,
+   "maximumFrameResidual": 1.9109063290057016e-18
+  },
+  {
+   "instrument": "gg",
+   "anatomy": "steel-string-v0",
+   "planDigest": "sha256:a9f6dbebb3655b5f814f8aa4d574e42f592d2f81e7fc4352c9145913ad91d67c",
+   "listenerDigest": "sha256:d28f95a9da0c832a6550b252bc4a157dcca55c3780e22ca37717e21540ef9df6",
+   "bodies": [
+    "string/6",
+    "string/5",
+    "string/4",
+    "string/3",
+    "string/2",
+    "string/1",
+    "box/0",
+    "box/1",
+    "box/2"
+   ],
+   "plucks": 27,
+   "hammerOns": 0,
+   "pullOffs": 0,
+   "slides": 0,
+   "simulatedSeconds": 30.094958333333334,
+   "sourceWork": 1.428898336767216e-06,
+   "controlWork": 9.620850232431354e-10,
+   "internalLoss": 1.39559796668653e-06,
+   "radiation": 3.425286706371692e-08,
+   "cumulativeClosureResidual": -1.831996739639491e-16,
+   "maximumFrameResidual": 7.653789711389858e-18
+  }
+ ]
+}

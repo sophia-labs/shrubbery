@@ -1,0 +1,38 @@
+{
+  "name": "@shrubbery/ovillo",
+  "version": "0.0.0",
+  "description": "Ovillo as a Sophia app: a gallery of pieces played by Ariadne Worlds (playlist, waveform, live spectrum, and each World's stored energy by body in sync with the sound), the piece pages (score, receipt, ledger, traces), and mount points for the bench, the tract and the score editor. Reads the `ovillo` graph through a TripleSource: built N-Triples, or a public-mode gardend over SPARQL.",
+  "type": "module",
+  "license": "LicenseRef-PolyForm-Noncommercial-1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "serve": "tsx scripts/serve.mts",
+    "bundle": "node scripts/bundle.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:run": "vitest run",
+    "test:watch": "vitest",
+    "fixture:ux": "tsx scripts/emit-ux-config.mts"
+  },
+  "dependencies": {
+    "@shrubbery/components": "workspace:*",
+    "@shrubbery/hoja": "workspace:*",
+    "@shrubbery/nucleus": "workspace:*",
+    "@shrubbery/runtime": "workspace:*",
+    "@shrubbery/source": "workspace:*",
+    "@shrubbery/tokens": "workspace:*",
+    "lit": "^3.1.4",
+    "three": "^0.170.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.4",
+    "happy-dom": "^15.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.4.5",
+    "vite": "^5.4.8",
+    "vitest": "^3.2.6"
+  }
+}

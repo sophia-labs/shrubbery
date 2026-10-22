@@ -1,0 +1,43 @@
+{
+ "schema": "mus.audio.render-receipt.v1",
+ "renderDigest": "sha256:32136c56b62d9e11dab762297d11573c6ec5d219fb1ec1f433152a1741fd7358",
+ "sourceDigest": "sha256:00b888ff66090bb88d7f644309b75877acb279c2dacf5792d923921fcc20188d",
+ "engineVersion": "mus-engine/0.2.0-wf8",
+ "peakDbfs": -2.5241163,
+ "rmsDbfs": -17.035263,
+ "durationSeconds": 53.090909090909086,
+ "wallSeconds": 45.749717906,
+ "eventCount": 96,
+ "badTokens": [],
+ "warnings": [],
+ "ariadneWorlds": [
+  {
+   "instrument": "gt",
+   "anatomy": "steel-string-v0",
+   "planDigest": "sha256:38c305d7bdae10fc40853a020dbdcb56a200943776d364bd147e035f4642eaf7",
+   "listenerDigest": "sha256:4fa901822a5821a0776bba96fdbc22d942e73825216db57afbe190f8efd3f4ed",
+   "bodies": [
+    "string/6",
+    "string/5",
+    "string/4",
+    "string/3",
+    "string/2",
+    "string/1",
+    "box/0",
+    "box/1",
+    "box/2"
+   ],
+   "plucks": 94,
+   "hammerOns": 2,
+   "pullOffs": 0,
+   "slides": 0,
+   "simulatedSeconds": 53.090895833333335,
+   "sourceWork": 4.4360340433820897e-07,
+   "controlWork": 1.4689992959592194e-09,
+   "internalLoss": 4.3676401534549167e-07,
+   "radiation": 8.307446642886222e-09,
+   "cumulativeClosureResidual": 6.998694429983382e-17,
+   "maximumFrameResidual": 2.9256517998163534e-18
+  }
+ ]
+}

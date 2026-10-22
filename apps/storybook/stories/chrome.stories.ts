@@ -13,6 +13,7 @@ import type { Meta, StoryObj } from '@storybook/web-components'
 // Side-effect import = the custom-element upgrade seam (same as the organism).
 import '@shrubbery/components'
 import type { ChromeAppId, ChromeSkinId, MnCrumb, MnQuickClip } from '@shrubbery/components'
+import { icon } from '@shrubbery/components'
 
 const meta: Meta = {
   title: 'Chrome/Bars',
@@ -45,6 +46,27 @@ export const TopBar: StoryObj<TopBarArgs> = {
       .isDark=${args.isDark}
       .activeSkin=${args.activeSkin}
     ></mn-top-bar>
+  `,
+}
+
+/**
+ * Ovillo's tile and mark: an egg made out of one string, on the carmine tile
+ * (--mn-app-tile-ovillo), in the real top bar's masthead and launcher, and the
+ * mark alone at the sizes the chrome uses.
+ */
+export const OvilloTile: Story = {
+  render: () => html`
+    <mn-top-bar
+      active-app="ovillo"
+      brand="Ovillo"
+      .apps=${[{ id: 'ovillo', label: 'Ovillo', icon: 'ovillo' }]}
+      .appLinks=${[{ id: 'garden', label: 'Garden', icon: 'sprout', href: 'https://garden.sophia-labs.com/' }]}
+      .controls=${['theme']}
+    ></mn-top-bar>
+    <div style="display:flex;gap:18px;align-items:center;padding:24px;color:var(--mn-color-text-primary);">
+      ${[16, 24, 48, 96].map((size) => html`<span style="display:inline-grid;place-items:center;width:${size * 1.375}px;height:${size * 1.375}px;border-radius:${size * 0.3}px;background:var(--mn-app-tile-ovillo);color:#fff;">${icon('ovillo', { size })}</span>`)}
+      ${[16, 24, 48].map((size) => icon('ovillo', { size }))}
+    </div>
   `,
 }
 

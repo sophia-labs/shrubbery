@@ -132,6 +132,8 @@ const BUILT_PRIMITIVES: ReadonlyArray<{ tag: string; blurb: string }> = [
   { tag: 'mn-chip', blurb: 'General chip — leading glyph + label, tone routes to skin role tokens, dashed variant. Lifted from wf-chip.' },
   { tag: 'mn-badge', blurb: 'General badge — Garden variant/size/pill/filetype API plus state tone, optional spin/settle motion, and mn-badge-action.' },
   { tag: 'mn-sparkline', blurb: 'General number-series sparkline — accent-toned stroke routed to skin role tokens. Lifted from wf-sparkline.' },
+  { tag: 'mn-audio-player', blurb: 'Playlist audio player — Aviary’s one-element engine promoted, a waveform scrubber, a live spectrum and scope from an AnalyserNode, and an Ariadne World’s stored energy by body in sync with playback; keyboard and Media Session.' },
+  { tag: 'mn-energy-ledger', blurb: 'An Ariadne World’s energy ledger — source work, control work, internal loss, radiation and closure residual as stated, with SI units, exact values and the shares of the work in.' },
   { tag: 'mn-ribbon', blurb: 'General segmented ribbon — accent-ramp tints, active highlight, optional labels (emits mn-ribbon-select). Lifted from wf-phase-ribbon.' },
   { tag: 'mn-card', blurb: 'General catalogue card — header/body/footer slots, interactive surface; the container the primitives sit in.' },
   { tag: 'mn-relations', blurb: 'General relations view — directed FROM→pred→TO edge list (socket-style class-link), predicate/wire kinds; earned by the Emporium pack RELATIONSHIPS section. Generalized, not a port of garden wf viz.' },

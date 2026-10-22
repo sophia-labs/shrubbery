@@ -42,6 +42,7 @@
 
 import { html, type TemplateResult } from 'lit'
 import { unsafeHTML } from 'lit/directives/unsafe-html.js'
+import { OVILLO_MARK_NODE } from './ovillo-mark.js'
 import {
   // Theme / skin / chrome actions
   Sun,
@@ -118,6 +119,14 @@ import {
   Square,
   SkipBack,
   SkipForward,
+  Shuffle,
+  Repeat,
+  Repeat1,
+  ArrowUpRight,
+  AudioLines,
+  ListMusic,
+  Mic,
+  Guitar,
   RotateCcw,
   Trash2,
   Pencil,
@@ -282,6 +291,16 @@ const iconMap: Record<string, IconNode> = {
   'square': Square,
   'skip-back': SkipBack,
   'skip-forward': SkipForward,
+  'shuffle': Shuffle,
+  'repeat': Repeat,
+  'repeat-1': Repeat1,
+  'arrow-up-right': ArrowUpRight,
+  'audio-lines': AudioLines,
+  'list-music': ListMusic,
+  'mic': Mic,
+  'guitar': Guitar,
+  // Not lucide's: Ovillo's own mark, an egg made out of one string (ovillo-mark.ts).
+  'ovillo': OVILLO_MARK_NODE as IconNode,
   'undo': RotateCcw,
   'rotate-ccw': RotateCcw,
   'trash': Trash2,

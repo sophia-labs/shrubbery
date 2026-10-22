@@ -531,6 +531,52 @@ importers:
         specifier: ^8.18.0
         version: 8.21.0
 
+  apps/ovillo:
+    dependencies:
+      '@shrubbery/components':
+        specifier: workspace:*
+        version: link:../../packages/components
+      '@shrubbery/hoja':
+        specifier: workspace:*
+        version: link:../../packages/hoja
+      '@shrubbery/nucleus':
+        specifier: workspace:*
+        version: link:../../packages/nucleus
+      '@shrubbery/runtime':
+        specifier: workspace:*
+        version: link:../../packages/runtime
+      '@shrubbery/source':
+        specifier: workspace:*
+        version: link:../../packages/source
+      '@shrubbery/tokens':
+        specifier: workspace:*
+        version: link:../../packages/tokens
+      lit:
+        specifier: ^3.1.4
+        version: 3.3.3
+      three:
+        specifier: ^0.170.0
+        version: 0.170.0
+    devDependencies:
+      '@types/node':
+        specifier: ^22.7.4
+        version: 22.19.21
+      happy-dom:
+        specifier: ^15.0.0
+        version: 15.11.7
+      tsx:
+        specifier: ^4.19.0
+        version: 4.22.4
+      typescript:
+        specifier: ^5.4.5
+        version: 5.9.3
+      vite:
+        specifier: ^5.4.8
+        version: 5.4.21(@types/node@22.19.21)(lightningcss@1.32.0)(sass@1.51.0)
+      vitest:
+        specifier: ^3.2.6
+        version: 3.2.6(@types/node@22.19.21)(happy-dom@15.11.7)(jsdom@25.0.1(canvas@3.2.3))(lightningcss@1.32.0)(sass@1.51.0)
+
   apps/planter:
     dependencies:
       '@shrubbery/components':
@@ -1027,9 +1073,15 @@ importers:
       '@shrubbery/editor-kernel':
         specifier: workspace:*
         version: link:../editor-kernel
+      highlight.js:
+        specifier: 11.11.2
+        version: 11.11.2
       lit:
         specifier: ^3.0.0
         version: 3.3.3
+      lowlight:
+        specifier: 3.3.0
+        version: 3.3.0
     devDependencies:
       '@types/node':
         specifier: ^22.7.4
@@ -1160,6 +1212,9 @@ importers:
       '@shrubbery/editor-kernel':
         specifier: workspace:*
         version: link:../editor-kernel
+      '@shrubbery/hoja':
+        specifier: workspace:*
+        version: link:../hoja
       '@shrubbery/nucleus':
         specifier: workspace:*
         version: link:../nucleus

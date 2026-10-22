@@ -11,13 +11,16 @@
     "./collab/development-code-editor": "./src/collab/development-code-editor.ts",
     "./harness/in-process-crdt-backend": "./src/harness/in-process-crdt-backend.ts",
     "./layout": "./src/layout/index.ts",
+    "./layout/surface": "./src/layout/workspace-surface-element.ts",
     "./layout/faces/media-face-internal": "./src/layout/faces/media-face-internal.ts",
     "./layout/sealed-open-face-params-internal": "./src/layout/sealed-open-face-params-internal.ts",
     "./layout/source-object-service-internal": "./src/layout/source-object-service.ts",
     "./layout/hosts/guest-app": "./src/layout/hosts/guest-app.ts",
     "./layout/hosts/define-react-face": "./src/layout/hosts/define-react-face.ts",
     "./layout/hosts/sh-guest-island": "./src/layout/hosts/sh-guest-island.ts",
-    "./layout/hosts/scope-css": "./src/layout/hosts/scope-css.ts"
+    "./layout/hosts/scope-css": "./src/layout/hosts/scope-css.ts",
+    "./mus": "./src/mus/index.ts",
+    "./wasm": "./src/wasm/loader.ts"
   },
   "scripts": {
     "build": "tsc --noEmit",
@@ -40,6 +43,7 @@
     "@excalidraw/excalidraw": "0.18.0-4ce38fb",
     "@shrubbery/chat-kernel": "workspace:*",
     "@shrubbery/editor-kernel": "workspace:*",
+    "@shrubbery/hoja": "workspace:*",
     "@shrubbery/nucleus": "workspace:*",
     "@shrubbery/source": "workspace:*",
     "@tiptap/core": "^3.0.0",
