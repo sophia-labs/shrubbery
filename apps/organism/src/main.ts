@@ -11391,6 +11391,11 @@ async function openCellDocument(
       return
     }
   }
+  // A board never loads into the text editor, whichever caller reached here.
+  if (docId && surfaceForDocumentKind(sidebarNodeById(docId)?.documentKind) === 'board') {
+    openWhiteboardDocument(docId)
+    return
+  }
   centerPanesController.dispatch({
     type: 'open',
     detail: {

@@ -155,7 +155,10 @@ export function readAppliedWires(raw: unknown): { readonly wires: readonly Appli
   let body = record(raw)
   let error: string | null = null
   if (body && Array.isArray(body.content)) {
-    const text = body.content.map((part) => (typeof record(part)?.text === 'string' ? (record(part)!.text as string) : '')).join('\n').trim()
+    const text = body.content.map((part) => {
+      const text = record(part)?.text
+      return typeof text === 'string' ? text : ''
+    }).join('\n').trim()
     if (body.isError === true) error = text || 'the cell refused'
     try {
       body = record(JSON.parse(text)) ?? record(body.structuredContent) ?? body

@@ -56,7 +56,7 @@ function cacheKey(args: Record<string, unknown>): string {
 /** A graph or target gardend does not know reads as nobody linking to it. */
 function isUnknown(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error)
-  return /not[ _-]?found|unknown (graph|document)|no such (graph|document)/i.test(message)
+  return /unknown (graph|document)|no such (graph|document)|(graph|document) not found/i.test(message)
 }
 
 /** `get_backlinks {graphId, documentId | iri, blockId?}` parsed into rows; exactly one of `documentId` and `iri` is sent. */
