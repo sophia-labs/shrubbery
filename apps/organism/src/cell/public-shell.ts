@@ -51,6 +51,11 @@ export interface PublicWireSummary {
   readonly other_snippet?: string | null
   readonly local_block_id?: string | null
   readonly local_snippet?: string | null
+  /** An object end: its IRI. `other_document_id` is then `""`. */
+  readonly other_iri?: string | null
+  /** The board an arrow was drawn on, and the arrow (a wire promoted from a whiteboard). */
+  readonly scene_document_id?: string | null
+  readonly scene_element_id?: string | null
 }
 
 export interface PublicWireBundleResponse {
@@ -619,6 +624,52 @@ export function projectPublicWireBundle(bundle: PublicWireBundleResponse | null 
     wiredBlockIds: (bundle?.wired_block_ids ?? []).map((id) => extractBlockId(id) ?? id),
     outgoing: (bundle?.outgoing_wires ?? []).map(mapWire).filter((wire) => wire.otherDocumentId),
     incoming: (bundle?.incoming_wires ?? []).map(mapWire).filter((wire) => wire.otherDocumentId),
+  }
+}
+
+/** A wire as the app reads it: the public wire, plus an object end and the board it was drawn on. */
+export interface ShellWire extends MnPublicWire {
+  readonly otherIri: string | null
+  readonly sceneDocumentId: string | null
+  readonly sceneElementId: string | null
+}
+
+export interface ShellWires {
+  readonly wiredBlockIds: readonly string[]
+  readonly outgoing: readonly ShellWire[]
+  readonly incoming: readonly ShellWire[]
+}
+
+/**
+ * Like {@link projectPublicWireBundle}, but a wire that reaches a typed object is kept (`otherIri`, with an empty
+ * `otherDocumentId`, titled by `other_title`), and a wire drawn on a board carries `sceneDocumentId` and
+ * `sceneElementId`. A wire with neither a document nor an IRI end names nothing and is dropped.
+ */
+export function projectShellWireBundle(bundle: PublicWireBundleResponse | null | undefined): ShellWires {
+  const mapWire = (wire: PublicWireSummary): ShellWire => {
+    const otherIri = wire.other_iri?.trim() || null
+    // An object IRI is not an entity id: it keeps its whole text.
+    const otherDocumentId = otherIri && !wire.other_document_id
+      ? ''
+      : extractEntityId(wire.other_document_id) ?? wire.other_document_id ?? ''
+    return {
+      id: wire.id ?? `${wire.predicate ?? wire.predicate_label ?? 'wire'}:${otherIri ?? otherDocumentId}`,
+      predicateLabel: wire.predicate_label ?? wire.predicate ?? 'related',
+      otherDocumentId,
+      otherTitle: wire.other_title ?? null,
+      otherBlockId: extractBlockId(wire.other_block_id),
+      otherSnippet: wire.other_snippet ?? null,
+      localBlockId: extractBlockId(wire.local_block_id),
+      otherIri,
+      sceneDocumentId: extractEntityId(wire.scene_document_id),
+      sceneElementId: wire.scene_element_id?.trim() || null,
+    }
+  }
+  const named = (wire: ShellWire): boolean => !!wire.otherDocumentId || !!wire.otherIri
+  return {
+    wiredBlockIds: (bundle?.wired_block_ids ?? []).map((id) => extractBlockId(id) ?? id),
+    outgoing: (bundle?.outgoing_wires ?? []).map(mapWire).filter(named),
+    incoming: (bundle?.incoming_wires ?? []).map(mapWire).filter(named),
   }
 }
 

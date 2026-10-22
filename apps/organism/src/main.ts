@@ -294,8 +294,17 @@ import {
   type ObjectUsage,
   objectModelOfRead,
   type WorkflowStackClassView,
+  type WireSummary,
+  type WbBacklink,
+  type WbDemoteRequest,
+  type WbPickLinkRequest,
+  type WbPredicateRequest,
+  type WbPromoteRequest,
+  type WbPromoteResult,
+  type WbSidebarNode,
+  type WbTarget,
 } from '@shrubbery/runtime'
-import { EDITOR_SHORTCUTS } from '@shrubbery/nucleus'
+import { EDITOR_SHORTCUTS, MNEMO_NS, normalizeWirePredicateUri, PREDICATE_GROUPS } from '@shrubbery/nucleus'
 import {
   CommandRegistryImpl,
   DEFAULT_RIGHT_PANEL as SHELL_DEFAULT_RIGHT_PANEL,
@@ -359,6 +368,7 @@ import { followWorkspaceTree, treeShows, type TreeExpectation } from './cell/wor
 import {
   addGraphPanelDocumentNode,
   addGraphPanelEdge,
+  addGraphPanelWireEndNode,
   projectDocumentGraph,
   projectSidebarNodeToGraphPanel,
   pushNodeHistory,
@@ -520,6 +530,14 @@ import {
 } from './cell/graph-plan.js'
 import { readBeingRef } from './cell/being-reader.js'
 import { makeTypedObjectReader, type ClassLookup, type TypedObjectReader } from './cell/typed-object-reader.js'
+import { makeBacklinksReader, type BacklinksReader } from './cell/backlinks-reader.js'
+import {
+  openingOfBacklink,
+  readAppliedWires,
+  routeWhiteboardLink,
+  surfaceForDocumentKind,
+  usedInWithBoards,
+} from './cell/whiteboard-navigation.js'
 import {
   beingFaces,
   classLabelOf,
@@ -557,6 +575,7 @@ import type { ReaderAskDetail } from './cell/reader/mn-reader.js'
 import { readerAskText } from './cell/reader/ask-text.js'
 import {
   activeDocumentSelection,
+  backlinkRowId,
   projectInspectorActions,
   projectInspectorModel,
   type InspectorProjectionInput,
@@ -1520,11 +1539,39 @@ function openWhiteboardDocument(documentId: string): void {
   }
   currentWhiteboard = { graphId, documentId, key: `${graphId}/${documentId}`, lease, error }
   currentSidebarSelectedId = documentId
+  currentInspectorSelection = null
   writeWhiteboardToUrl(documentId)
   rerenderCurrentSource()
+  // The board's wires panel, inspector and graph read the same bundle a document's do.
+  void refreshWireBundle()
+}
+
+/**
+ * The document the side panels (wires, inspector, graph, pickers) speak of: the open document, or the open board.
+ * A board is a document of the graph; it has no editor, but everything else about it is a document's.
+ */
+function activeSurfaceDocumentId(): string | null {
+  return openDocId ?? openBoardForPanels()?.documentId ?? null
+}
+
+/** The board the panels speak of: open, of this graph, and not under a text document or a tag lens. */
+function openBoardForPanels(): CurrentWhiteboard | null {
+  if (openDocId || currentTagLens) return null
+  const board = currentWhiteboard
+  return board && board.graphId === currentGraphId ? board : null
 }
 
 function whiteboardPageView(open: CurrentWhiteboard): WhiteboardPageOptions {
+  const readOnly = sidebarNodeById(open.documentId)?.readOnly === true
+  // A read-only board is passed no editing options: it can be looked at, followed and read, never drawn on or wired.
+  const editing: Partial<WhiteboardPageOptions> = readOnly
+    ? {}
+    : {
+        pickLink: request => pickWhiteboardLink(request),
+        pickPredicate: request => pickWhiteboardPredicate(request),
+        promoteArrow: request => promoteWhiteboardArrow(request),
+        demoteArrow: request => demoteWhiteboardArrow(request),
+      }
   return {
     graphId: open.graphId,
     documentId: open.documentId,
@@ -1532,25 +1579,162 @@ function whiteboardPageView(open: CurrentWhiteboard): WhiteboardPageOptions {
     status: open.error ? 'error' : 'ready',
     error: open.error,
     provider: open.lease?.provider ?? null,
+    ...(readOnly ? { readOnly: true } : {}),
     theme: effectiveTheme(appliedSkin(), currentTheme) === 'dark' ? 'dark' : 'light',
     onRename: title => { void renameDocumentFromSidebar(open.documentId, title) },
     onOpenLink: link => openWhiteboardLink(open.graphId, link),
+    // A source, not the reader: a reader that arrives after the board opened is found when it is first needed.
+    typedObjects: () => typedObjectReader(),
+    loadBacklinks: target => backlinksReader()?.read(target) ?? Promise.resolve([]),
+    targetOfSidebarNode: node => whiteboardTargetOfSidebarNode(open.graphId, node),
+    ...editing,
   }
 }
 
 /** A shape's link was clicked: a document of this graph or a typed object opens in the shell; a web address is the canvas's own. */
 function openWhiteboardLink(graphId: string, link: string): boolean {
-  const match = /^mnemosyne:\/\/document\/([^/]+)\/([^/?#]+)/.exec(link)
-  if (match) {
-    const [, linkGraph, linkDoc] = match
-    void openDocumentFromShell({ graphId: decodeURIComponent(linkGraph ?? graphId), documentId: decodeURIComponent(linkDoc ?? '') })
-    return true
+  const route = routeWhiteboardLink(graphId, link)
+  switch (route.kind) {
+    case 'document':
+      void openDocumentFromShell({ graphId: route.graphId, documentId: route.documentId })
+      return true
+    case 'object':
+      openObjectPage(route.graphId, route.iri, currentPlaceBack())
+      return true
+    case 'artifact':
+      if (route.graphId !== currentGraphId) {
+        err('that file is in another graph: open that graph first')
+        return true
+      }
+      openArtifactFromSidebar(route.artifactId, sidebarNodeById(route.artifactId))
+      return true
+    default:
+      return false
   }
-  if (/^[a-z][a-z0-9+.-]*:/i.test(link) && !/^https?:/i.test(link)) {
-    openObjectPage(graphId, link, currentPlaceBack())
-    return true
+}
+
+/** A dragged sidebar node as a card target: a document (a board among them), never a folder, file or tag. */
+function whiteboardTargetOfSidebarNode(graphId: string, node: WbSidebarNode): WbTarget | null {
+  if (node.kind !== 'document' || node.section === 'parked') return null
+  const found = sidebarNodeById(node.id)
+  return { kind: 'document', graphId, documentId: node.id, title: found?.label ?? node.id, documentKind: found?.documentKind ?? null }
+}
+
+/** `Link to…` and `Add a card…`: choose a document of this graph (never the board itself) or a typed object. */
+async function pickWhiteboardLink(request: WbPickLinkRequest): Promise<WbTarget | null> {
+  const reader = typedObjectReader()
+  const documents: ChoiceItem[] = request.accept === 'object'
+    ? []
+    : documentChoices()
+        .filter(choice => choice.id !== request.excludeDocumentId)
+        .map(choice => ({
+          ...choice,
+          id: `document:${choice.id}`,
+          tag: sidebarNodeById(choice.id)?.documentKind === 'whiteboard' ? 'board' : 'document',
+        }))
+  const hits = request.accept === 'document' || !reader
+    ? Promise.resolve([] as Awaited<ReturnType<TypedObjectReader['search']>>)
+    : reader.search(request.graphId).catch(() => [] as Awaited<ReturnType<TypedObjectReader['search']>>)
+  const picked = await chooseFrom(document, {
+    heading: request.heading,
+    placeholder: request.accept === 'object' ? 'Find by class or title' : request.accept === 'document' ? 'Find a document' : 'Find a document or an object',
+    emptyText: 'Nothing to link to yet.',
+    items: hits.then(list => [
+      ...documents,
+      ...list.map(hit => ({ id: `object:${hit.iri}`, label: hit.title, tag: hit.classLabel, sub: hit.iri.slice(hit.iri.lastIndexOf('#') + 1) })),
+    ]),
+  })
+  if (!picked) return null
+  if (picked.startsWith('document:')) {
+    const documentId = picked.slice('document:'.length)
+    const node = sidebarNodeById(documentId)
+    return { kind: 'document', graphId: request.graphId, documentId, title: node?.label ?? documentId, documentKind: node?.documentKind ?? null }
   }
-  return false
+  const iri = picked.slice('object:'.length)
+  const hit = (await hits).find(candidate => candidate.iri === iri)
+  return hit ? { kind: 'object', graphId: request.graphId, iri: hit.iri, label: hit.title, classLabel: hit.classLabel } : null
+}
+
+/** The graph's own predicates (`list_wire_predicates`) beside the built-in groups, for the menu. `undefined`: built-ins only. */
+async function wirePredicateGroupsFor(graphId: string): Promise<NonNullable<MnAdvancedWireMenu['groups']> | undefined> {
+  const caller = store?.contract.rawMcp
+  if (!caller) return undefined
+  try {
+    const raw = await caller.callTool('list_wire_predicates', { graphId }) as Record<string, unknown> | null
+    const list = Array.isArray(raw?.predicates) ? (raw?.predicates as Array<Record<string, unknown>>) : []
+    const custom = list
+      .filter(row => row.category === 'Custom' && typeof row.name === 'string' && row.name)
+      .map(row => ({ uri: row.name as string, label: typeof row.label === 'string' && row.label ? row.label : (row.name as string) }))
+    if (custom.length === 0) return undefined
+    return [
+      { name: 'Default', description: 'General association', predicates: [{ uri: normalizeWirePredicateUri('relatedTo'), label: 'is related to', description: 'General association' }] },
+      ...Object.entries(PREDICATE_GROUPS).map(([name, group]) => ({ name, icon: group.icon, description: group.description, predicates: group.predicates })),
+      { name: 'This graph', description: 'Predicates this graph has used', predicates: custom },
+    ]
+  } catch {
+    return undefined
+  }
+}
+
+/** The predicate a person chose, as the short name gardend's `wire` move takes (`supports`), or the IRI when it has no short form. */
+function wirePredicateName(uri: string): string {
+  return uri.startsWith(MNEMO_NS) ? uri.slice(MNEMO_NS.length) : uri
+}
+
+/** The predicate menu over an arrow's ends; resolves to the predicate's name, or `null` when it was closed. */
+async function pickWhiteboardPredicate(request: WbPredicateRequest): Promise<string | null> {
+  const groups = await wirePredicateGroupsFor(request.graphId)
+  return new Promise<string | null>(resolve => {
+    const menu = document.createElement('mn-advanced-wire-menu') as MnAdvancedWireMenu
+    let settled = false
+    const finish = (value: string | null): void => {
+      if (settled) return
+      settled = true
+      menu.remove()
+      resolve(value)
+    }
+    menu.addEventListener('mn-wire-options-confirm', event => {
+      const predicate = (event as CustomEvent<{ predicate?: string }>).detail?.predicate
+      finish(predicate ? wirePredicateName(predicate) : null)
+    })
+    menu.addEventListener('mn-close', () => finish(null))
+    if (groups) menu.groups = groups
+    const start = request.suggestion?.trim()
+    if (start) menu.selectedPredicate = normalizeWirePredicateUri(start)
+    menu.open = true
+    document.body.appendChild(menu)
+  })
+}
+
+/** `whiteboard_apply` with the single move `wire`: gardend decides the ends and stores the wire. A refusal throws its message. */
+async function promoteWhiteboardArrow(request: WbPromoteRequest): Promise<WbPromoteResult> {
+  const caller = store?.contract.rawMcp
+  if (!caller) throw new Error('turning an arrow into a wire needs a live cell')
+  const raw = await caller.callTool('whiteboard_apply', {
+    graphId: request.graphId,
+    documentId: request.documentId,
+    moves: [{ op: 'wire', arrow: request.arrowId, predicate: request.predicate }],
+  })
+  const applied = readAppliedWires(raw)
+  const wire = applied.wires[0]
+  if (!wire) throw new Error(applied.error ?? 'the cell made no wire for that arrow')
+  backlinksReader()?.forget(request.graphId)
+  void refreshWireBundle()
+  return { wireId: wire.wireId, predicate: wire.predicate ?? request.predicate }
+}
+
+/** Delete an arrow's wire. A wire that is already gone is not an error; the board clears the mark itself. */
+async function demoteWhiteboardArrow(request: WbDemoteRequest): Promise<void> {
+  const current = store
+  if (!current) throw new Error('removing a wire needs a live cell')
+  try {
+    await current.contract.wire.delete(request.graphId, request.wireId)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    if (!/not[ _-]?found|no such|does not exist|unknown wire/i.test(message)) throw error
+  }
+  backlinksReader()?.forget(request.graphId)
+  document.dispatchEvent(new CustomEvent('mn-wire-deleted', { detail: { wireId: request.wireId } }))
 }
 
 function workflowPlanFromUrl(): { definition: string; inputs: Record<string, unknown> } | null {
@@ -2216,7 +2400,52 @@ function typedObjectReader(): TypedObjectReader | null {
   return typedObjectReaderFor.reader
 }
 
-// ── The cast (world-UX slice A, 2026-10-21): who a being is, and the door to its page in its workflow ──────────────
+// ── Backlinks (whiteboard semantics S1): who links to a document, a board or an object, over `get_backlinks` ──────
+let backlinksReaderFor: { readonly caller: unknown; readonly reader: BacklinksReader } | null = null
+
+function backlinksReader(): BacklinksReader | null {
+  const caller = store?.contract.rawMcp
+  if (!caller) return null
+  if (backlinksReaderFor?.caller !== caller) {
+    backlinksReaderFor = { caller, reader: makeBacklinksReader({ callTool: (name, args) => caller.callTool(name, args) }) }
+  }
+  return backlinksReaderFor.reader
+}
+
+/** Read who links to the surface document (lazily, cached by the reader) and show it in the inspector. */
+async function refreshBacklinks(graphId: string, documentId: string): Promise<void> {
+  const reader = backlinksReader()
+  if (!reader) {
+    currentBacklinks = null
+    return
+  }
+  const requestId = ++latestBacklinksRequest
+  try {
+    const rows = await reader.read({ graphId, documentId })
+    if (requestId !== latestBacklinksRequest || graphId !== currentGraphId || documentId !== activeSurfaceDocumentId()) return
+    const same = currentBacklinks?.graphId === graphId && currentBacklinks.documentId === documentId &&
+      JSON.stringify(currentBacklinks.rows) === JSON.stringify(rows)
+    currentBacklinks = { graphId, documentId, rows }
+    if (!same) rerenderCurrentSource()
+  } catch (error) {
+    if (requestId !== latestBacklinksRequest) return
+    currentBacklinks = null
+    console.warn('[backlinks] who links here is unread', error)
+  }
+}
+
+/** Open the source of a "Linked from" row: a board opens as a board, a document at the block. */
+function openBacklinkRow(row: WbBacklink): void {
+  const opening = openingOfBacklink(row, id => sidebarNodeById(id)?.documentKind)
+  leaveObjectPage()
+  if (opening.surface === 'board') {
+    openWhiteboardDocument(opening.documentId)
+    return
+  }
+  void openDocumentFromShell({ graphId: currentGraphId, documentId: opening.documentId, ...(opening.blockId ? { blockId: opening.blockId } : {}) })
+}
+
+// ── The cast (world-UX slice A, 2026-10-21): who a being is, and the door to its page in its workflow ──────────────────────────
 const beingLookups = new Map<string, Promise<BeingRef | null>>()
 
 /** Learn a being's name and door from the graph's runs (once per being; a miss is tried again after half a minute). */
@@ -2299,6 +2528,18 @@ function currentPlaceBack(): { label: string; onBack: () => void } | null {
     const graphId = currentGraphId
     return { label: sidebarNodeById(documentId)?.label ?? 'the document', onBack: () => void openDocumentFromShell({ graphId, documentId }) }
   }
+  const board = openBoardForPanels()
+  if (board) {
+    // The board waits beneath the object page (its room stays leased): back is just leaving the page.
+    const { graphId, documentId } = board
+    return {
+      label: sidebarNodeById(documentId)?.label ?? 'the board',
+      onBack: () => {
+        if (currentWhiteboard?.documentId === documentId && currentWhiteboard.graphId === graphId) closeObjectPage()
+        else void openDocumentFromShell({ graphId, documentId })
+      },
+    }
+  }
   if (currentWorkflowPlan) return workflowBack(currentWorkflowPlan)
   return null
 }
@@ -2308,7 +2549,8 @@ function openObjectPage(graphId: string, iri: string, back: CurrentObjectPage['b
   if (openDocId) closeOpenDocumentSurface(openDocId)
   clearTagLensState()
   clearZoteroSourceState()
-  clearArtifactSurfaceState()
+  // An open board stays open beneath the object page: the page takes the center, and back returns to the board.
+  clearArtifactSurfaceState({ keepBoard: true })
   const page: CurrentObjectPage = { graphId, iri, status: 'loading', model: null, usedIn: null, error: null, back }
   currentObjectPage = page
   writeObjectPageToUrl(iri)
@@ -2348,7 +2590,11 @@ async function loadObjectPage(page: CurrentObjectPage): Promise<void> {
   rerenderCurrentSource()
   if (page.status !== 'ready') return
   try {
-    page.usedIn = (await reader.usedIn(page.graphId, page.iri)).map((usage) => ({ ...usage, title: sidebarNodeById(usage.documentId)?.label ?? null }))
+    const documents = await reader.usedIn(page.graphId, page.iri)
+    // Boards that link to the object, hold it as a card or draw an arrow to it; unread, they are simply absent.
+    const boards = await backlinksReader()?.read({ graphId: page.graphId, iri: page.iri }).catch((): readonly WbBacklink[] => []) ?? []
+    page.usedIn = usedInWithBoards(documents, boards, id => sidebarNodeById(id)?.label)
+      .map((usage) => ({ ...usage, title: usage.title ?? sidebarNodeById(usage.documentId)?.label ?? null }))
   } catch (error) {
     console.warn('[object] where it is used is unread', error)
     page.usedIn = []
@@ -2910,15 +3156,24 @@ function currentCommentPaint(): ReadonlyMap<string, { readonly kind: 'comment' |
 }
 
 function currentInspectorInput(): InspectorProjectionInput {
-  const selection = currentInspectorSelection ?? activeDocumentSelection(currentGraphId, openDocId)
+  const surfaceId = activeSurfaceDocumentId()
+  const selection = currentInspectorSelection ?? activeDocumentSelection(currentGraphId, surfaceId)
+  const surfaceNode = surfaceId ? sidebarNodeById(surfaceId) : null
+  const linkedFrom = currentBacklinks && surfaceId && currentBacklinks.graphId === currentGraphId && currentBacklinks.documentId === surfaceId
+    ? currentBacklinks.rows
+    : undefined
   return {
     selection,
     graphId: currentGraphId,
     graphTitle: currentGraphId,
-    activeDocumentId: openDocId,
-    activeDocumentTitle: openDocId,
+    activeDocumentId: surfaceId,
+    // A board has no id worth reading: it is named by its sidebar title.
+    activeDocumentTitle: openDocId ?? surfaceNode?.label ?? surfaceId,
+    activeDocumentKind: surfaceNode?.documentKind ?? null,
+    titleOf: id => sidebarNodeById(id)?.label,
     wireBundle: currentWireBundle,
     comments: currentDocumentComments(),
+    ...(linkedFrom ? { backlinks: linkedFrom } : {}),
   }
 }
 
@@ -2977,30 +3232,22 @@ function currentGraphPanelOptions(): RenderWorkspaceOptions['graphPanel'] {
     }
   }
 
-  if (openDocId) {
+  const surfaceDocId = activeSurfaceDocumentId()
+  if (surfaceDocId) {
+    const surfaceNode = sidebarNodeById(surfaceDocId)
     const localDocumentNodeId = addGraphPanelDocumentNode(
       nodes,
       edges,
       seenEdges,
       rootNodeId,
       currentGraphId,
-      openDocId,
+      surfaceDocId,
       currentGraphId,
-      openDocId,
-      'Open document',
+      surfaceDocId,
+      surfaceNode?.documentKind === 'whiteboard' ? 'Open board' : 'Open document',
     )
     for (const wire of currentWireBundle?.outgoingWires ?? []) {
-      const otherNodeId = addGraphPanelDocumentNode(
-        nodes,
-        edges,
-        seenEdges,
-        rootNodeId,
-        wire.otherGraphId || currentGraphId,
-        wire.otherDocumentId,
-        currentGraphId,
-        wire.otherTitle,
-        wire.otherSnippet ?? null,
-      )
+      const otherNodeId = addGraphPanelWireEndNode(nodes, edges, seenEdges, rootNodeId, wire, currentGraphId)
       addGraphPanelEdge(edges, seenEdges, {
         id: `wire:outgoing:${wire.id}`,
         from: localDocumentNodeId,
@@ -3013,17 +3260,7 @@ function currentGraphPanelOptions(): RenderWorkspaceOptions['graphPanel'] {
       })
     }
     for (const wire of currentWireBundle?.incomingWires ?? []) {
-      const otherNodeId = addGraphPanelDocumentNode(
-        nodes,
-        edges,
-        seenEdges,
-        rootNodeId,
-        wire.otherGraphId || currentGraphId,
-        wire.otherDocumentId,
-        currentGraphId,
-        wire.otherTitle,
-        wire.otherSnippet ?? null,
-      )
+      const otherNodeId = addGraphPanelWireEndNode(nodes, edges, seenEdges, rootNodeId, wire, currentGraphId)
       addGraphPanelEdge(edges, seenEdges, {
         id: `wire:incoming:${wire.id}`,
         from: otherNodeId,
@@ -3035,12 +3272,27 @@ function currentGraphPanelOptions(): RenderWorkspaceOptions['graphPanel'] {
         bidirectional: wire.bidirectional,
       })
     }
+    // Who links here: a board that links to, holds as a card or draws an arrow to this document is a node with an edge.
+    for (const row of currentBacklinks?.documentId === surfaceDocId ? currentBacklinks.rows : []) {
+      if (row.kind !== 'board-link' && row.kind !== 'board-card' && row.kind !== 'board-connection') continue
+      const boardNodeId = addGraphPanelDocumentNode(
+        nodes, edges, seenEdges, rootNodeId, currentGraphId, row.sourceDocumentId, currentGraphId, row.sourceTitle ?? null, 'Board',
+      )
+      addGraphPanelEdge(edges, seenEdges, {
+        id: `refersTo:${row.sourceDocumentId}:${surfaceDocId}`,
+        from: boardNodeId,
+        to: localDocumentNodeId,
+        predicate: 'refersTo',
+        predicateLabel: 'refers to',
+        kind: 'predicate',
+      })
+    }
   }
 
   const documentProjection = currentDocumentGraphProjection()
   return {
     title: 'Knowledge Space',
-    subtitle: openDocId ? `${currentGraphId} / ${openDocId}` : currentGraphId,
+    subtitle: surfaceDocId ? `${currentGraphId} / ${surfaceDocId}` : currentGraphId,
     status: 'ready',
     nodes: [...nodes.values()],
     edges,
@@ -3066,7 +3318,7 @@ function handleGraphPanelRefresh(_detail: GraphPanelRefreshDetail): void {
   if (sourceSelect.value !== 'CELL_LIVE') return
   ok('refreshing workspace graph projection...')
   void refreshSidebarSections()
-  if (openDocId) void refreshWireBundle()
+  if (activeSurfaceDocumentId()) void refreshWireBundle()
 }
 
 function focusGraphBlock(blockId: string): void {
@@ -3142,7 +3394,11 @@ function handleGraphPanelNodeOpen(detail: GraphPanelNodeOpenDetail): void {
     handleGraphPanelNodeSelect({ id: node.id, node })
     return
   }
-  if ((node.kind === 'document' || node.kind === 'read-only-document' || node.kind === 'portal') && node.documentId) {
+  if (node.kind === 'object' && node.id.startsWith('object:')) {
+    openObjectPage(node.graphId || currentGraphId, node.id.slice('object:'.length), currentPlaceBack())
+    return
+  }
+  if ((node.kind === 'document' || node.kind === 'read-only-document' || node.kind === 'whiteboard' || node.kind === 'portal') && node.documentId) {
     // graph →navigatesTo→ editor is now installed by the edge-interpreter: the
     // open detail flows through graphOpenEmitter → face:graph.toResource → the
     // identical `openDocumentFromShell({graphId: node.graphId ?? currentGraphId,
@@ -3434,7 +3690,25 @@ function handleInspectorRelationOpen(detail: WorkspaceInspectorRelationOpenDetai
     rerenderCurrentSource()
     return
   }
+  if (detail.groupKey === 'linked-from') {
+    const row = currentBacklinks?.rows.find(candidate => backlinkRowId(candidate) === detail.id)
+    if (row) openBacklinkRow(row)
+    return
+  }
+  if (detail.groupKey === 'drawn-on') {
+    const boardId = detail.id.startsWith('board:') ? detail.id.slice('board:'.length) : ''
+    if (boardId) void openDocumentFromShell({ graphId: currentGraphId, documentId: boardId })
+    return
+  }
   if (detail.groupKey === 'wires' || detail.groupKey === 'backlinks') {
+    const wire = [...(currentWireBundle?.outgoingWires ?? []), ...(currentWireBundle?.incomingWires ?? [])].find(item => item.id === detail.id) as
+      | (WireSummary & { readonly otherIri?: string | null })
+      | undefined
+    // A wire that reaches an object opens the object's page.
+    if (wire?.otherIri && !wire.otherDocumentId) {
+      openObjectPage(wire.otherGraphId || currentGraphId, wire.otherIri, currentPlaceBack())
+      return
+    }
     currentInspectorSelection = {
       kind: 'wire',
       graphId: currentGraphId,
@@ -3474,8 +3748,8 @@ function releaseArtifactHistoryObjectUrls(): void {
   currentArtifactHistoryObjectUrls = new Map()
 }
 
-function clearArtifactSurfaceState(): void {
-  closeWhiteboard()
+function clearArtifactSurfaceState(options?: { readonly keepBoard?: boolean }): void {
+  if (!options?.keepBoard) closeWhiteboard()
   currentArtifactHtmlPreview?.dispose()
   currentArtifactHtmlPreview = null
   artifactImageGenerationAbort?.abort()
@@ -7318,15 +7592,17 @@ document.addEventListener(EDITOR_HEADING_IN_VIEW_EVENT, (() => {
 }) as EventListener)
 
 /** Reads state AT CALL TIME so the assembled bundle tracks the open doc. */
-const getScope = (): EditorScope =>
-  openDocId
+const getScope = (): EditorScope => {
+  const documentId = activeSurfaceDocumentId()
+  return documentId
     ? {
         app: currentApp as EditorScope['app'],
         centerMode: 'document',
         graphId: currentGraphId,
-        documentId: openDocId,
+        documentId,
       }
     : NULL_EDITOR_SCOPE
+}
 
 /** One memoized pane-to-document attachment claim. */
 interface EditorClaim {
@@ -7356,6 +7632,9 @@ let editorRoomPool: EditorRoomPool | null = null
 let editorRoomPoolBackend: CellContract['crdt'] | null = null
 let activeEditorIntegration: ActiveEditorIntegration | null = null
 let currentWireBundle: WireBundle | null = null
+/** Who links to the open document or board (`get_backlinks`), with the document it was read for. */
+let currentBacklinks: { readonly graphId: string; readonly documentId: string; readonly rows: readonly WbBacklink[] } | null = null
+let latestBacklinksRequest = 0
 let currentSalienceBundle: SalienceBundle | null = null
 let currentWireContexts = new Map<string, WireContextState>()
 let currentWireRadialContexts = new Map<string, WireRadialContextState>()
@@ -7586,9 +7865,11 @@ function teardownEditorClaim(): void {
 
 async function refreshWireBundle(): Promise<void> {
   const graphId = currentGraphId
-  const documentId = openDocId
+  // The open document, or the open board: a board's wires and backlinks are read like a document's.
+  const documentId = activeSurfaceDocumentId()
   if (!store || !documentId) {
     currentWireBundle = null
+    currentBacklinks = null
     currentWireContexts = new Map()
     currentWireRadialContexts = new Map()
     wireContextRequestIds.clear()
@@ -7596,14 +7877,17 @@ async function refreshWireBundle(): Promise<void> {
     return
   }
   const requestId = ++latestWireBundleRequest
+  // A wire or a link just changed: ask the cell again rather than reuse what the reader kept.
+  backlinksReader()?.forget(graphId)
+  void refreshBacklinks(graphId, documentId)
   try {
     const loader = makeScopedWireBundleLoader(store.contract.rest, getScope)
     const bundle = await loader()
-    if (requestId !== latestWireBundleRequest || graphId !== currentGraphId || documentId !== openDocId) return
+    if (requestId !== latestWireBundleRequest || graphId !== currentGraphId || documentId !== activeSurfaceDocumentId()) return
     currentWireBundle = bundle
     rerenderCurrentSource()
   } catch (e) {
-    if (requestId !== latestWireBundleRequest || graphId !== currentGraphId || documentId !== openDocId) return
+    if (requestId !== latestWireBundleRequest || graphId !== currentGraphId || documentId !== activeSurfaceDocumentId()) return
     currentWireBundle = null
     err(`wire bundle read error:\n${e instanceof Error ? e.message : String(e)}`)
   }
@@ -8300,6 +8584,18 @@ async function deleteWireFromPanel(detail: WireDeleteRequestDetail | undefined):
   const wireId = detail?.wireId
   if (!wireId) return
   if (!editorClaim) {
+    // A board has no editor claim; its wires are deleted through the cell's wire contract all the same.
+    const board = openBoardForPanels()
+    if (board && store) {
+      try {
+        await store.contract.wire.delete(board.graphId, wireId)
+        clearWireContextState(wireId)
+        document.dispatchEvent(new CustomEvent('mn-wire-deleted', { detail: { wireId } }))
+      } catch (e) {
+        err(`wire delete error:\n${e instanceof Error ? e.message : String(e)}`)
+      }
+      return
+    }
     err(`wire delete ignored: no open editor claim for ${wireId}`)
     return
   }
@@ -9358,6 +9654,7 @@ function renderConfig(config: WorkspaceConfig, app: string | undefined): string 
   const workflowPlan = !openDocId && !tagLens ? currentWorkflowPlan?.view ?? null : null
   const whiteboardOpen = !openDocId && !tagLens && currentWhiteboard && currentWhiteboard.graphId === currentGraphId ? currentWhiteboard : null
   const whiteboardPage = whiteboardOpen ? whiteboardPageView(whiteboardOpen) : null
+  const panelBoard = openBoardForPanels()
   // Typed objects D8.2: an object opened full size takes the center, over a workflow it came from (which waits beneath).
   const objectPage = !openDocId && !tagLens && currentObjectPage ? objectPageView(currentObjectPage) : null
   // Leaving a workflow for anything else gives the right sidebar back what it showed before the workflow took it.
@@ -9713,6 +10010,17 @@ function renderConfig(config: WorkspaceConfig, app: string | undefined): string 
             onClose: handleCenterPaneClose,
             onNavigate: handleCenterPaneNavigate,
             onResize: handleCenterPaneResize,
+          },
+        }
+      : {}),
+    ...(!claim && panelBoard
+      ? {
+          editorWireBundle: currentWireBundle,
+          wirePanelContexts: currentWireContexts,
+          wirePanelLocalContext: {
+            graphId: panelBoard.graphId,
+            documentId: panelBoard.documentId,
+            title: sidebarNodeById(panelBoard.documentId)?.label ?? 'Whiteboard',
           },
         }
       : {}),
@@ -11135,6 +11443,12 @@ async function openDocumentFromShell(
     // mode entry; an in-mode graph switch must not re-show the strip.
     if (!store) cellControls.hidden = false
     startCellMode()
+  }
+  // A board is never opened in the text editor: whichever door it came through (a link, a wire end, a graph node,
+  // a backlink row), the document's kind decides.
+  if (surfaceForDocumentKind(sidebarNodeById(documentId)?.documentKind) === 'board') {
+    openWhiteboardDocument(documentId)
+    return
   }
   await openCellDocument(documentId, focusRequest, target)
   if (detail.blockId) {

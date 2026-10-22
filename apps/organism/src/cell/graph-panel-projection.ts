@@ -8,6 +8,7 @@ import type {
   WireBundle,
   WireSummary,
 } from '@shrubbery/runtime'
+import { type WireBoardFields, wireEndOf } from './whiteboard-navigation.js'
 
 export interface DocumentGraphProjection {
   readonly nodes: readonly GraphPanelNode[]
@@ -285,14 +286,17 @@ export function projectSidebarNodeToGraphPanel(
   const sectionId = node.section ?? section.id
   const graphNodeId = graphPanelNodeIdForSidebarNode(section, node, currentGraphId)
   const sourceKind = node.kind ?? 'document'
-  const kind = sourceKind === 'document' && node.readOnly ? 'read-only-document' : sourceKind
+  // A board is a document of kind `whiteboard`: its own node kind (and shape), read-only or not.
+  const kind = sourceKind === 'document' && node.documentKind === 'whiteboard'
+    ? 'whiteboard'
+    : sourceKind === 'document' && node.readOnly ? 'read-only-document' : sourceKind
   upsertGraphPanelNode(nodes, {
     id: graphNodeId,
     label: node.label,
     note: node.badge ?? node.status ?? undefined,
     kind,
     graphId: currentGraphId,
-    documentId: kind === 'document' || kind === 'read-only-document' ? node.id : null,
+    documentId: kind === 'document' || kind === 'read-only-document' || kind === 'whiteboard' ? node.id : null,
     artifactId: kind === 'artifact' ? node.id : null,
     folderId: kind === 'folder' ? node.id : null,
     tagName: kind === 'tag' ? node.label || node.id.replace(/^tag:/, '') : null,
@@ -345,6 +349,50 @@ export function addGraphPanelDocumentNode(
     })
   }
   return nodeId
+}
+
+/**
+ * The far end of a wire as a graph node: a document of the graph (a board among them), or, when the wire reaches a
+ * typed object, an `object` node keyed by its IRI. Returns the node's id.
+ */
+export function addGraphPanelWireEndNode(
+  nodes: Map<string, GraphPanelNode>,
+  edges: GraphPanelEdge[],
+  seenEdges: Set<string>,
+  rootNodeId: string,
+  wire: WireBoardFields & {
+    readonly otherDocumentId: string
+    readonly otherGraphId?: string
+    readonly otherTitle?: string | null
+    readonly otherSnippet?: string | null
+    readonly otherBlockId?: string | null
+  },
+  currentGraphId: string,
+): string {
+  const end = wireEndOf(wire)
+  if (end.kind === 'object') {
+    const id = `object:${end.iri}`
+    upsertGraphPanelNode(nodes, {
+      id,
+      label: end.label,
+      note: wire.otherSnippet || 'Object',
+      kind: 'object',
+      graphId: wire.otherGraphId || currentGraphId,
+      documentId: null,
+    })
+    return id
+  }
+  return addGraphPanelDocumentNode(
+    nodes,
+    edges,
+    seenEdges,
+    rootNodeId,
+    wire.otherGraphId || currentGraphId,
+    wire.otherDocumentId,
+    currentGraphId,
+    wire.otherTitle,
+    wire.otherSnippet ?? null,
+  )
 }
 
 // ── Node-history navigation ───────────────────────────────────────────────────

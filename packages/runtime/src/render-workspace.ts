@@ -642,6 +642,7 @@ export type GraphPanelNodeKind =
   | 'document'
   | 'read-only-document'
   | 'whiteboard'
+  | 'object'
   | 'artifact'
   | 'tag'
   | 'portal'
