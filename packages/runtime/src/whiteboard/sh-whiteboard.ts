@@ -20,7 +20,7 @@ import {
 } from './whiteboard-presence.js'
 import { applySophiaPalette, WHITEBOARD_DEFAULTS, WHITEBOARD_THEME_CSS } from './whiteboard-theme.js'
 import { type WbElement, type WbScene, type WbToolWrite, WhiteboardBinding } from './whiteboard-binding.js'
-import { createSelectionBar, linkElement, selectionOf, type WbSelectionBar, type WbSelectionBarDeps } from './selection-bar.js'
+import { createSelectionBar, linkActionApplies, linkElement, selectionOf, type WbSelectionBar, type WbSelectionBarDeps } from './selection-bar.js'
 import { addCard, attachSidebarDrop, createCardHost } from './card-embed.js'
 import { promoteSelectedArrow } from './arrow-wire.js'
 import type {
@@ -514,14 +514,14 @@ export class ShWhiteboard extends LitElement {
       keywords: ['link', 'document', 'object'],
       trackEvent: false,
       perform: (elements: readonly WbElement[], appState: Record<string, any>) => {
+        if (!linkActionApplies(elements, appState)) return false
         const id = selectionOf(elements, appState).elementId
         if (id) void linkElement(barDeps, id)
         return false
       },
       keyTest: (event: KeyboardEvent) => (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k',
       predicate: (elements: readonly WbElement[], appState: Record<string, any>) => {
-        const sel = selectionOf(elements, appState)
-        return sel.elementId !== null && sel.kind !== 'arrow' && !!this.page?.pickLink
+        return linkActionApplies(elements, appState) && !!this.page?.pickLink
       },
     })
     this.bar.update()

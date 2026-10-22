@@ -9,7 +9,7 @@ import * as Y from 'yjs'
 import fixture from './fixtures/whiteboard-fixture-v2-semantic.json'
 import { WB_LINK_EVENT, WB_SELECTION_EVENT, type WbCanvasApi, type WbLinkChangedDetail, type WbObjectTarget, type WbPickLinkRequest, type WbSelection, type WbTarget } from './semantic-types.js'
 import {
-  actionsFor, barAnchor, boundsOf, createSelectionBar, linkElement, selectionOf, unlinkElement, type WbSelectionBarDeps,
+  actionsFor, barAnchor, boundsOf, createSelectionBar, linkActionApplies, linkElement, selectionOf, unlinkElement, type WbSelectionBarDeps,
 } from './selection-bar.js'
 import type { WhiteboardPageOptions } from './sh-whiteboard.js'
 import { type WbElement, type WbScene, WhiteboardBinding } from './whiteboard-binding.js'
@@ -330,5 +330,32 @@ describe('what the bar offers', () => {
     expect(r.deps.stage.querySelector('.selbar-note')?.textContent).toBe('Linked from 2')
     expect(heard.map((s) => s.elementId)).toEqual([LNK])
     bar.destroy()
+  })
+
+  it('linked_from_does_not_count_the_boards_own_shapes', async () => {
+    const { canvas } = seeded()
+    const r = rig(canvas, { loadBacklinks: async () => [{ kind: 'board-link', sourceDocumentId: 'wb-board' }, { kind: 'wire', sourceDocumentId: 'a' }] })
+    const bar = createSelectionBar(r.deps)
+    canvas.state = { ...canvas.state, selectedElementIds: { [LNK]: true } }
+    bar.update()
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(r.deps.stage.querySelector('.selbar-note')?.textContent).toBe('Linked from 1')
+    bar.destroy()
+  })
+
+  it('an_artifact_or_malformed_embeddable_is_not_a_card', () => {
+    const artifact = { ...ELEMENTS.find((e) => e.id === CRD)!, id: 'art', link: 'mnemosyne://artifact/wb-graph/file-1' } as WbElement
+    const broken = { ...artifact, id: 'bad', link: 'mnemosyne://' } as WbElement
+    expect(selectionOf([artifact], pick('art')).kind).toBe('shape')
+    expect(selectionOf([broken], pick('bad')).kind).toBe('shape')
+    expect(selectionOf(ELEMENTS, pick(CRD)).kind).toBe('card')
+  })
+
+  it('ctrl_k_applies_to_one_shape_or_card_and_never_to_an_arrow', () => {
+    expect(linkActionApplies(ELEMENTS, pick(BOX))).toBe(true)
+    expect(linkActionApplies(ELEMENTS, pick(CRD))).toBe(true)
+    expect(linkActionApplies(ELEMENTS, pick(ARW2))).toBe(false)
+    expect(linkActionApplies(ELEMENTS, pick(BOX, NOTE))).toBe(false)
+    expect(linkActionApplies(ELEMENTS, pick())).toBe(false)
   })
 })

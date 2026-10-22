@@ -199,7 +199,7 @@ describe('the card host', () => {
     expect(other).not.toBe(dark)
     expect(host.renderEmbeddable({ ...element, version: element.version + 1 }, { theme: 'dark' })).toBe(dark)
     // A different link is a different card.
-    const relinked = host.renderEmbeddable({ ...element, link: documentTarget.link } as WbElement, { theme: 'dark' })
+    const relinked = host.renderEmbeddable({ ...element, link: documentLink(GRAPH, 'doc-7') } as WbElement, { theme: 'dark' })
     expect(relinked).not.toBe(dark)
     // Excalidraw's active-state gating owns pointer events: the wrapper forces none on, and a pointerdown on the card
     // still reaches the canvas (so a click selects the card).

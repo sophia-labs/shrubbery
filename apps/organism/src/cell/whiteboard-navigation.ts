@@ -65,7 +65,8 @@ export function isBoardBacklink(row: WbBacklink): boolean {
 
 /**
  * The object page's "Used in": the documents that embed it (as read already), then the boards that link to it or hold
- * it as a card or connection. One entry per document; the first (a document's own block) wins.
+ * it as a card or connection, and the documents wired to it. One entry per document; the first (a document's own
+ * block) wins.
  */
 export function usedInWithBoards(
   usages: readonly ObjectUsage[],
@@ -75,7 +76,8 @@ export function usedInWithBoards(
   const out: ObjectUsage[] = [...usages]
   const seen = new Set(out.map((usage) => usage.documentId))
   for (const row of backlinks) {
-    if (!isBoardBacklink(row) || seen.has(row.sourceDocumentId)) continue
+    // A wire from a document to the object (a promoted arrow, or one drawn by hand) is a use like a board's card.
+    if (!(isBoardBacklink(row) || row.kind === 'wire') || seen.has(row.sourceDocumentId)) continue
     seen.add(row.sourceDocumentId)
     out.push({
       documentId: row.sourceDocumentId,

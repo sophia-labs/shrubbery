@@ -75,6 +75,16 @@ describe('whiteboard navigation', () => {
     ])
   })
 
+  it('the object page lists a document wired to the object once', () => {
+    const rows: WbBacklink[] = [
+      { kind: 'wire', sourceDocumentId: 'doc-notes', predicate: 'supports', wireId: 'wire-wb-0001' },
+      { kind: 'wire', sourceDocumentId: 'doc-other', predicate: 'supports', wireId: 'wire-wb-0002' },
+      { kind: 'link', sourceDocumentId: 'doc-link' },
+    ]
+    const used = usedInWithBoards([{ documentId: 'doc-notes', title: 'Notes' }], rows, (id) => (id === 'doc-other' ? 'Other' : undefined))
+    expect(used.map((usage) => [usage.documentId, usage.title])).toEqual([['doc-notes', 'Notes'], ['doc-other', 'Other']])
+  })
+
   it('reads what whiteboard_apply made, and the cell\'s own words when it refused', () => {
     const wire = { arrowId: 'arw0000000000000000002', wireId: 'wire-wb-0001', predicate: 'supports' }
     const bare = readAppliedWires({ created: [], wires: [wire] })

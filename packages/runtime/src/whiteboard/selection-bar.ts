@@ -21,9 +21,10 @@ import {
   type WbTarget,
 } from './semantic-types.js'
 import type { WbElement } from './whiteboard-binding.js'
-import { isMnemosyneLink, linkOfTarget, recordOfTarget, targetOfElement } from './links.js'
+import type { WbBacklink } from './semantic-types.js'
+import { linkOfTarget, recordOfTarget, targetOfElement } from './links.js'
 import { arrowEndsOf, promoteSelectedArrow, unwireArrow, wireMarkOf } from './arrow-wire.js'
-import { addCard } from './card-embed.js'
+import { addCard, isCard } from './card-embed.js'
 
 /** What the bar needs of its host. The bar reads `page()` and `api()` on every use, never caches them. */
 export interface WbSelectionBarDeps {
@@ -100,7 +101,8 @@ export function selectionOf(elements: readonly WbElement[], appState: Record<str
   const target = targetOfElement(one as { link?: unknown; customData?: Record<string, unknown> })
   let kind: WbSelectionKind = 'shape'
   if (one.type === 'arrow') kind = 'arrow'
-  else if (one.type === 'embeddable' && isMnemosyneLink(rawLink)) kind = 'card'
+  // The same rule the board renders and gardend stores: a document or object link (not an artifact or a malformed one).
+  else if (isCard(one)) kind = 'card'
   return {
     kind,
     ids,
@@ -110,6 +112,15 @@ export function selectionOf(elements: readonly WbElement[], appState: Record<str
     link: rawLink,
     wire: kind === 'arrow' ? wireMarkOf(one) : null,
   }
+}
+
+/**
+ * Whether Ctrl+K (our link action) applies to this selection: one shape or one card. Excalidraw's `ActionManager`
+ * tests only `keyTest`, never `predicate`, so `perform` has to refuse an arrow itself.
+ */
+export function linkActionApplies(elements: readonly WbElement[], appState: Record<string, any>): boolean {
+  const kind = selectionOf(elements, appState).kind
+  return kind === 'shape' || kind === 'card'
 }
 
 /** The union of bounds of `elements` in scene coordinates, rotation ignored; `null` for an empty list. */
@@ -305,6 +316,8 @@ export function createSelectionBar(deps: WbSelectionBarDeps): WbSelectionBar {
     if (!note || !target || !page?.loadBacklinks || (selection.kind !== 'shape' && selection.kind !== 'card')) return
     const request = backlinkTargetOf(target)
     const key = `${request.graphId}|${request.documentId ?? ''}|${request.iri ?? ''}`
+    // A board's own shape linking to the target is not "another place that links here".
+    const others = (rows: readonly WbBacklink[]): number => rows.filter((row) => row.sourceDocumentId !== page.documentId).length
     const apply = (count: number): void => {
       if (count > 0) { note.textContent = `Linked from ${count}`; note.hidden = false } else { note.hidden = true }
     }
@@ -313,8 +326,9 @@ export function createSelectionBar(deps: WbSelectionBarDeps): WbSelectionBar {
     const token = ++backlinkToken
     page.loadBacklinks(request).then(
       (rows) => {
-        backlinkCache.set(key, rows.length)
-        if (!destroyed && token === backlinkToken && bar.contains(note)) apply(rows.length)
+        const count = others(rows)
+        backlinkCache.set(key, count)
+        if (!destroyed && token === backlinkToken && bar.contains(note)) apply(count)
       },
       () => { /* the count is a courtesy; a failed read shows nothing */ },
     )
