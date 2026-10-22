@@ -46,6 +46,7 @@ const engines = (() => {
 const SUITES = [
   { name: 'editor-arrow-across-blocks', filter: '@shrubbery/organism', script: 'test:editor-arrow-across-blocks', engines: ['chromium', 'webkit'] },
   { name: 'editor-find', filter: '@shrubbery/organism', script: 'test:editor-find', engines: ['chromium', 'webkit'] },
+  { name: 'whiteboard-drop-persist', filter: '@shrubbery/organism', script: 'test:whiteboard-drop-persist', engines: ['chromium', 'webkit'] },
   { name: 'value-gutter-zone', filter: '@shrubbery/organism', script: 'test:value-gutter-zone', engines: ['chromium', 'webkit'] },
   { name: 'value-gutter-renew', filter: '@shrubbery/organism', script: 'test:value-gutter-renew', engines: ['chromium', 'webkit'] },
   // The dev server sends no CSP, so the app's own is checked twice: the style policy on the dev server, and the

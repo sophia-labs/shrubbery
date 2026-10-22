@@ -56,6 +56,7 @@
     "verify:unqualified-offline": "node --import tsx scripts/offline-distributed-truth-harness.mts --require-go",
     "test:editor-arrow-across-blocks": "node --import tsx scripts/editor-arrow-across-blocks-browser.mts",
     "test:editor-find": "node --import tsx scripts/editor-find-browser.mts",
+    "test:whiteboard-drop-persist": "node --import tsx scripts/whiteboard-drop-persist-browser.mts",
     "test:app-csp-styles": "node --import tsx scripts/app-csp-styles-browser.mts",
     "test:app-csp-built": "node --import tsx scripts/app-csp-built-browser.mts",
     "test:editor-hover-blink": "node --import tsx scripts/editor-hover-blink-browser.mts",

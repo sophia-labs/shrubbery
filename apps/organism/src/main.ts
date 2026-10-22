@@ -413,6 +413,7 @@ import { createObservatoryFreshnessAttachment } from './cell/observatory-freshne
 import { RoomMirror, createRoomMirrorStamp, mcpRoomMirrorDumper } from './cell/room-mirror.js'
 import type { QueryBlockService } from '@shrubbery/runtime'
 import type { WhiteboardPageOptions } from '@shrubbery/runtime'
+import { flushOpenWhiteboards } from '@shrubbery/runtime'
 import { createShellNamedQueryRegistry } from './harness/shell-named-query-registry.js'
 import { isEmbeddableFocusIri } from '@shrubbery/runtime/layout'
 import { SYNC_QUERY } from './harness/source-sync-query-catalog.js'
@@ -1510,6 +1511,8 @@ function closeWhiteboard(): void {
   const open = currentWhiteboard
   if (!open) return
   currentWhiteboard = null
+  // The last release destroys the room's provider; what the board still holds must reach the room first.
+  flushOpenWhiteboards()
   try { open.lease?.release() } catch { /* the lease is already gone */ }
   writeWhiteboardToUrl(null)
 }
@@ -7710,6 +7713,7 @@ function fixedEditorScope(graphId: string, documentId: string): EditorScope {
 function roomPoolFor(backend: CellContract['crdt']): EditorRoomPool {
   if (editorRoomPool && editorRoomPoolBackend === backend) return editorRoomPool
   teardownEditorClaim()
+  flushOpenWhiteboards()
   editorRoomPool?.destroyAll()
   editorRoomPool = new EditorRoomPool(backend)
   editorRoomPoolBackend = backend
@@ -13546,6 +13550,7 @@ window.addEventListener('beforeunload', () => {
   resetQuickClip(true, false)
   teardownExcalidrawRuntime()
   teardownEditorClaim()
+  flushOpenWhiteboards()
   editorRoomPool?.destroyAll()
   editorRoomPool = null
   editorRoomPoolBackend = null

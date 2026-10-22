@@ -242,3 +242,17 @@ describe('two peers on one board', () => {
     expect(JSON.parse(a.getMap<string>('elements').get('x')!).x).toBe(42)
   })
 })
+
+describe('leaving a board', () => {
+  it('writes what the scene holds even when onChange has not reported it yet', () => {
+    const doc = new Y.Doc()
+    const scene = new SceneModel()
+    // A real timer that has not fired: the leave comes inside the throttle window.
+    const binding = new WhiteboardBinding(doc, { throttleMs: 60_000 })
+    binding.attach(scene)
+    const card = { ...FIXTURE_ELEMENTS[0], id: 'dropped-card', version: 1, versionNonce: 7 } as WbElement
+    scene.elements = [card] // the canvas has it; onChange never ran
+    binding.destroy()
+    expect(doc.getMap<string>('elements').has('dropped-card')).toBe(true)
+  })
+})

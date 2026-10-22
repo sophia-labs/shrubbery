@@ -207,8 +207,17 @@ export class WhiteboardBinding {
     }, LOCAL_ORIGIN)
   }
 
-  destroy(): void {
+  /**
+   * Leaving: take what the scene holds now, not only what `onChange` has reported (React reports a change after a
+   * render, which a leave can beat), and write it.
+   */
+  flushScene(): void {
+    this.localChanged()
     this.flushNow()
+  }
+
+  destroy(): void {
+    this.flushScene()
     this.destroyed = true
     this.elements.unobserve(this.observer)
     this.scene = null

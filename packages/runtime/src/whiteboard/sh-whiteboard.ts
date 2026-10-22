@@ -207,6 +207,20 @@ function busyIdsOf(state: Record<string, any>): Set<string> {
   return busy
 }
 
+/**
+ * Boards with a live binding. The shell releases a board's room lease BEFORE it re-renders, and the last release
+ * destroys the room's provider, so the binding's own flush on unmount would write into a dead doc. The shell calls
+ * `flushOpenWhiteboards()` first.
+ */
+const mountedBindings = new Set<WhiteboardBinding>()
+
+/** Send every open board's queued changes to its room now (before a lease is released). */
+export function flushOpenWhiteboards(): void {
+  for (const binding of mountedBindings) {
+    try { binding.flushScene() } catch { /* a board that cannot flush has nothing more to lose here */ }
+  }
+}
+
 export class ShWhiteboard extends LitElement {
   static override properties = { page: { attribute: false }, presenceLine: { state: true }, notice: { state: true }, editingTitle: { state: true } }
   declare page: WhiteboardPageOptions | null
@@ -330,6 +344,7 @@ export class ShWhiteboard extends LitElement {
   private unmount(): void {
     this.generation += 1
     this.mountedKey = ''
+    if (this.binding) mountedBindings.delete(this.binding)
     this.binding?.destroy()
     this.binding = null
     this.bar?.destroy()
@@ -399,6 +414,7 @@ export class ShWhiteboard extends LitElement {
       onImagesLeftOut: () => { this.notice = 'Images are not shared yet; they stay on this canvas only.' },
     })
     this.binding = binding
+    mountedBindings.add(binding)
     this.awareness = awareness
     const initial = binding.initialElements()
 

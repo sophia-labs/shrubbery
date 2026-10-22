@@ -1089,7 +1089,7 @@ export {
 } from './files-page.js'
 
 export {
-  ShWhiteboard, WhiteboardBinding, WHITEBOARD_ASSET_PATH, type WhiteboardPageOptions,
+  ShWhiteboard, flushOpenWhiteboards, WhiteboardBinding, WHITEBOARD_ASSET_PATH, type WhiteboardPageOptions,
   addCard, arrowEndsOf, artifactLink, attachSidebarDrop, barAnchor, boundsOf, cardSkeleton, createCardHost, createSelectionBar,
   documentLink, isCard, isMnemosyneLink, linkElement, linkOfTarget, makeCardRenderer, objectLink, parseLink, promoteSelectedArrow,
   readSidebarDrop, recordOfElement, recordOfTarget, sceneFromClient, selectionOf, targetOfElement, unlinkElement, unwireArrow,
