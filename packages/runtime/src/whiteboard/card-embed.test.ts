@@ -147,6 +147,13 @@ describe('the card renderer', () => {
     card.querySelector('button')!.click()
     expect(intents).toEqual([{ kind: 'open-document', documentId: 'doc-7', blockId: null, graphId: GRAPH }])
     expect(reads).toBe(0)
+    // Open works before the card is active (pointer events on, canvas not told); the rest of the card is Excalidraw's.
+    const button = card.querySelector('button')!
+    expect(button.style.pointerEvents).toBe('auto')
+    let reached = false
+    document.body.addEventListener('pointerdown', () => { reached = true })
+    button.dispatchEvent(new Event('pointerdown', { bubbles: true }))
+    expect(reached).toBe(false)
   })
 
   it('the injerto Open intent crosses the card once, bubbling and composed', async () => {
@@ -155,13 +162,15 @@ describe('the card renderer', () => {
     document.body.append(node)
     const frame = await settle(node.firstElementChild as HTMLElement)
     const heard: CustomEvent[] = []
-    document.addEventListener(OBJECT_VIEW_INTENT_EVENT, (e) => heard.push(e as CustomEvent))
+    // The target is read while the event is in flight: a composed event's target is cleared once dispatch ends.
+    const targets: unknown[] = []
+    document.addEventListener(OBJECT_VIEW_INTENT_EVENT, (e) => { heard.push(e as CustomEvent); targets.push(e.target) })
     frame.shadowRoot!.querySelector<HTMLButtonElement>('.door')!.click()
     expect(heard).toHaveLength(1)
     expect(heard[0]!.bubbles).toBe(true)
     expect(heard[0]!.composed).toBe(true)
     // One event, re-dispatched from the card itself, not the injerto's own.
-    expect(heard[0]!.target).toBe(node.firstElementChild)
+    expect(targets[0]).toBe(node.firstElementChild)
     expect(heard[0]!.detail.intent).toEqual({ kind: 'open-object', iri: TYPED_ITEM, graphId: GRAPH })
     host.dispose()
   })
@@ -179,8 +188,9 @@ describe('the card host', () => {
     await settle((a as HTMLElement).firstElementChild as HTMLElement)
     expect(document.querySelectorAll('sh-injerto')).toHaveLength(1)
 
+    // A drag or resize bumps `version` on every frame; the card must not rebuild for it.
     const bumped = host.renderEmbeddable({ ...element, version: element.version + 1 }, { theme: 'light' })
-    expect(bumped).not.toBe(a)
+    expect(bumped).toBe(a)
     const dark = host.renderEmbeddable({ ...element, version: element.version + 1 }, { theme: 'dark' })
     expect(dark).not.toBe(bumped)
     expect(((dark as HTMLElement).firstElementChild as HTMLElement).dataset.theme).toBe('dark')
@@ -188,13 +198,17 @@ describe('the card host', () => {
     const other = host.renderEmbeddable(cardElement(documentTarget), { theme: 'dark' })
     expect(other).not.toBe(dark)
     expect(host.renderEmbeddable({ ...element, version: element.version + 1 }, { theme: 'dark' })).toBe(dark)
-    // The card is interactive: pointer-events on, and a pointerdown inside does not reach Excalidraw.
-    expect((dark as HTMLElement).style.pointerEvents).toBe('auto')
+    // A different link is a different card.
+    const relinked = host.renderEmbeddable({ ...element, link: documentTarget.link } as WbElement, { theme: 'dark' })
+    expect(relinked).not.toBe(dark)
+    // Excalidraw's active-state gating owns pointer events: the wrapper forces none on, and a pointerdown on the card
+    // still reaches the canvas (so a click selects the card).
+    expect((dark as HTMLElement).style.pointerEvents).toBe('')
     let reached = false
     document.body.addEventListener('pointerdown', () => { reached = true })
     document.body.append(dark as Node)
     ;((dark as HTMLElement).firstElementChild as HTMLElement).dispatchEvent(new Event('pointerdown', { bubbles: true }))
-    expect(reached).toBe(false)
+    expect(reached).toBe(true)
     host.dispose()
     expect(host.renderEmbeddable(element, { theme: 'light' })).not.toBe(a)
   })

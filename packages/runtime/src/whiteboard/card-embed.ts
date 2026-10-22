@@ -177,6 +177,9 @@ function buildRenderer(source: WbTypedObjectsSource, defaultGraph: string): Card
     open.style.cssText =
       'flex:none;font:inherit;font-size:12px;padding:1px 10px;border-radius:999px;cursor:pointer;' +
       'border:1px solid var(--mn-color-border-default);background:var(--mn-color-surface-raised);color:inherit;'
+    // Excalidraw hands the card pointer events only once it is active; Open is the one control that works before.
+    open.style.pointerEvents = 'auto'
+    open.addEventListener('pointerdown', (event) => event.stopPropagation())
     open.addEventListener('click', () => {
       const intent: ObjectViewIntent = { kind: 'open-document', documentId, blockId: null, graphId: graphId || null }
       card.dispatchEvent(new CustomEvent(OBJECT_VIEW_INTENT_EVENT, { detail: { intent }, bubbles: true, composed: true }))
@@ -224,27 +227,35 @@ export function makeCardRenderer(source: WbTypedObjectsSource, graphId: string):
   return buildRenderer(source, graphId).render
 }
 
+function cardContentKey(element: WbElement): string {
+  const custom = (element as { customData?: Record<string, unknown> }).customData
+  return JSON.stringify([element.link ?? null, custom?.mnemosyne ?? null])
+}
+
 /** The pair of Excalidraw props (`renderEmbeddable`, `validateEmbeddable`) over a {@link makeCardRenderer}. */
 export function createCardHost(options: WbCardHostOptions): WbCardHost {
   const renderer = buildRenderer(options.typedObjects, options.graphId)
-  const entries = new Map<string, { version: number; theme: 'light' | 'dark'; node: unknown; card: HTMLElement }>()
+  const entries = new Map<string, { key: string; theme: 'light' | 'dark'; node: unknown; card: HTMLElement }>()
   return {
     renderEmbeddable(element, appState) {
       const theme = appState?.theme === 'dark' ? 'dark' : 'light'
+      // What draws a card is its link, the snapshot it remembers and the theme. `version` also moves on every drag or
+      // resize frame, which would rebuild the DOM and re-read the object per frame.
+      const key = cardContentKey(element)
       const have = entries.get(element.id)
-      if (have && have.version === element.version && have.theme === theme) return have.node
+      if (have && have.key === key && have.theme === theme) return have.node
       if (have) renderer.release(have.card)
       const card = renderer.render(element, theme)
-      // A centre click must reach the card (it is DOM above the canvas), not Excalidraw's pointer handling.
-      card.addEventListener('pointerdown', (event) => event.stopPropagation())
       const node = options.createElement('div', {
         key: element.id,
         ref: (host: HTMLElement | null) => {
           if (host && card.parentNode !== host) host.replaceChildren(card)
         },
-        style: { width: '100%', height: '100%', pointerEvents: 'auto' },
+        // No pointer-events override: Excalidraw's container is inert until a centre click activates the card, so the
+        // canvas still selects, drags, resizes and binds arrows to it.
+        style: { width: '100%', height: '100%' },
       })
-      entries.set(element.id, { version: element.version, theme, node, card })
+      entries.set(element.id, { key, theme, node, card })
       return node
     },
     validateEmbeddable(link) {
