@@ -51,6 +51,7 @@ const SUITES = [
   // The dev server sends no CSP, so the app's own is checked twice: the style policy on the dev server, and the
   // built SPA served with the desktop app's exact policy read from gardend's src-tauri/tauri.conf.json.
   { name: 'app-csp-styles', filter: '@shrubbery/organism', script: 'test:app-csp-styles', engines: ['chromium', 'webkit'] },
+  { name: 'files-after-workflow', filter: '@shrubbery/organism', script: 'test:files-after-workflow-gardend', engines: ['chromium'] },
   { name: 'app-csp-built', filter: '@shrubbery/organism', script: 'test:app-csp-built', engines: ['webkit', 'chromium'] },
 ]
 const ALL_SUITES = [
