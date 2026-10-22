@@ -20,6 +20,9 @@ import {
 } from './whiteboard-presence.js'
 import { applySophiaPalette, WHITEBOARD_DEFAULTS, WHITEBOARD_THEME_CSS } from './whiteboard-theme.js'
 import { type WbElement, type WbScene, type WbToolWrite, WhiteboardBinding } from './whiteboard-binding.js'
+import { createSelectionBar, linkElement, selectionOf, type WbSelectionBar, type WbSelectionBarDeps } from './selection-bar.js'
+import { addCard, attachSidebarDrop, createCardHost } from './card-embed.js'
+import { promoteSelectedArrow } from './arrow-wire.js'
 import type {
   WbBacklink,
   WbBacklinkTarget,
@@ -31,6 +34,7 @@ import type {
   WbSelection,
   WbSidebarNode,
   WbTarget,
+  WbTypedObjects,
   WbTypedObjectsSource,
 } from './semantic-types.js'
 
@@ -75,6 +79,8 @@ interface ExcalidrawModule {
   readonly MainMenu: any
   readonly restoreElements: (elements: readonly unknown[], existing: unknown, opts?: { refreshDimensions?: boolean }) => readonly unknown[]
   readonly CaptureUpdateAction: { readonly NEVER: unknown }
+  /** The command palette is a child of `<Excalidraw>`; absent in a build that does not export it. */
+  readonly CommandPalette?: unknown
   readonly cssText: string
   createElement(type: unknown, props: Record<string, unknown> | null, ...children: unknown[]): unknown
   createRoot(container: Element): { render(node: unknown): void; unmount(): void }
@@ -82,8 +88,10 @@ interface ExcalidrawModule {
 
 interface ExcalidrawApiLike {
   getSceneElementsIncludingDeleted(): readonly unknown[]
+  // Excalidraw's AppState is passed through untyped; this is the Excalidraw boundary
   getAppState(): Record<string, any>
   updateScene(data: Record<string, unknown>): void
+  registerAction?(action: Record<string, unknown>): void
   setActiveTool?(tool: Record<string, unknown>): void
   scrollToContent?: unknown
 }
@@ -112,12 +120,14 @@ export function loadExcalidraw(): Promise<ExcalidrawModule> {
           MainMenu: unknown
           restoreElements: ExcalidrawModule['restoreElements']
           CaptureUpdateAction: ExcalidrawModule['CaptureUpdateAction']
+          CommandPalette?: unknown
         }
         return {
           Excalidraw: ex.Excalidraw,
           MainMenu: ex.MainMenu,
           restoreElements: ex.restoreElements,
           CaptureUpdateAction: ex.CaptureUpdateAction,
+          CommandPalette: ex.CommandPalette,
           cssText: cssModule.default,
           createElement: react.createElement as unknown as ExcalidrawModule['createElement'],
           createRoot: reactDom.createRoot as unknown as ExcalidrawModule['createRoot'],
@@ -127,6 +137,61 @@ export function loadExcalidraw(): Promise<ExcalidrawModule> {
     modulePromise.catch(() => { modulePromise = null })
   }
   return modulePromise
+}
+
+
+// ---- offline hardening and the semantic props (pure, so a test can hold each one) -----------------------------------
+
+/**
+ * Excalidraw's `UIOptions`. `tools.embeddable: false` is a hint only: the pinned build rebuilds `UIOptions` as
+ * `{ tools: { image } }` and drops every other key, so it does not switch the "Web Embed" tool off. The tool is
+ * kept out by {@link WHITEBOARD_HIDE_TOOLS_CSS} (menu entry) and {@link guardEmbeddableTool} (palette / shortcut),
+ * and `validateEmbeddable` refuses any non-mnemosyne link. Cards come only from our own Add card… flow.
+ */
+export const WHITEBOARD_UI_OPTIONS = {
+  canvasActions: { loadScene: false, saveToActiveFile: false, toggleTheme: false, changeViewBackgroundColor: false },
+  tools: { embeddable: false },
+} as const
+
+/** If the Web Embed tool became active (command palette, shortcut), put the selection tool back. */
+export function guardEmbeddableTool(api: {
+  getAppState(): Record<string, any> // Excalidraw's AppState is passed through untyped; this is the Excalidraw boundary
+  setActiveTool?(tool: Record<string, unknown>): void
+}): void {
+  if (api.getAppState().activeTool?.type === 'embeddable') api.setActiveTool?.({ type: 'selection' })
+}
+
+/** Takes the "Web Embed" entry off the toolbar's extra-tools menu. Adopted next to the board's theme. */
+export const WHITEBOARD_HIDE_TOOLS_CSS = `.excalidraw [data-testid="toolbar-embeddable"] { display: none !important; }`
+
+/**
+ * `validateEmbeddable` must be an explicit boolean function: Excalidraw caches the first answer per element id, and a
+ * function that answers `undefined` is read as "ask the default (any web address)". Whatever `inner` returns or throws,
+ * the answer is `true` or `false`.
+ */
+export function explicitBooleanValidator(inner: (link: unknown) => unknown): (link: string) => boolean {
+  return (link) => {
+    try { return inner(link) === true } catch { return false }
+  }
+}
+
+/**
+ * `onPaste` guard: an HTML paste that carries a remote `<img>` would make Excalidraw fetch that address
+ * (`addElementsFromMixedContentPaste`). Returning `false` stops the paste before it does; the person is told.
+ */
+export function pasteGuard(notify: (message: string) => void): (data: { readonly mixedContent?: ReadonlyArray<{ readonly type: string }> }) => boolean {
+  return (data) => {
+    if (data?.mixedContent?.some((node) => node.type === 'imageUrl')) {
+      notify('Pasting a web image is off: the board never fetches from the network. Drop the image file instead.')
+      return false
+    }
+    return true
+  }
+}
+
+function resolveTypedObjects(source: WbTypedObjectsSource | null | undefined): WbTypedObjects | null {
+  if (!source) return null
+  return typeof source === 'function' ? source() : source
 }
 
 function busyIdsOf(state: Record<string, any>): Set<string> {
@@ -162,6 +227,10 @@ export class ShWhiteboard extends LitElement {
   private rings: Array<{ ids: readonly string[]; until: number }> = []
   private ringLayer: HTMLDivElement | null = null
   private resizeObserver: ResizeObserver | null = null
+  private bar: WbSelectionBar | null = null
+  private detachDrop: (() => void) | null = null
+  private cardHost: { dispose(): void } | null = null
+  private noticeTimer: ReturnType<typeof setTimeout> | null = null
   private readonly onPointerUpCapture = () => {
     this.binding?.localChanged()
     this.binding?.flushNow()
@@ -191,6 +260,14 @@ export class ShWhiteboard extends LitElement {
     .rings { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
     .ring { position: absolute; border: 2px solid var(--mn-color-border-accent, #326f4c); border-radius: 6px; box-shadow: 0 0 0 4px color-mix(in srgb, var(--mn-color-border-accent, #326f4c) 25%, transparent);
       transition: opacity 600ms ease; }
+    .selbar { position: absolute; z-index: 6; display: flex; align-items: center; gap: 2px; box-sizing: border-box; height: 40px;
+      padding: 4px; border: 1px solid var(--mn-color-border-subtle); border-radius: 8px; background: var(--mn-color-surface-raised);
+      color: var(--mn-color-text-primary); box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18); white-space: nowrap; }
+    .selbar[hidden] { display: none; }
+    .selbar button { border: 0; border-radius: 5px; padding: 4px 10px; height: 100%; background: none; color: inherit; font: inherit; cursor: pointer; }
+    .selbar button:hover { background: var(--mn-color-surface-hover); }
+    .selbar button:focus-visible { outline: 2px solid var(--mn-color-border-accent, #326f4c); outline-offset: -2px; }
+    .selbar-note { padding: 0 8px; color: var(--mn-color-text-secondary); font-size: 12px; }
     .state { position: absolute; inset: 0; display: grid; place-items: center; color: var(--mn-color-text-secondary); padding: 24px; text-align: center; }
   `
 
@@ -211,6 +288,13 @@ export class ShWhiteboard extends LitElement {
         ${page.status === 'error' ? html`<div class="state" role="alert">Could not open this whiteboard. ${page.error ?? ''}</div>` : nothing}
         ${page.status === 'loading' ? html`<div class="state">Opening the whiteboard...</div>` : nothing}
       </div>`
+  }
+
+  /** A short line in the header; it clears itself. */
+  private say(message: string): void {
+    this.notice = message
+    if (this.noticeTimer) clearTimeout(this.noticeTimer)
+    this.noticeTimer = setTimeout(() => { this.notice = ''; this.noticeTimer = null }, 6000)
   }
 
   private onTitleKey = (event: KeyboardEvent) => {
@@ -248,6 +332,14 @@ export class ShWhiteboard extends LitElement {
     this.mountedKey = ''
     this.binding?.destroy()
     this.binding = null
+    this.bar?.destroy()
+    this.bar = null
+    this.detachDrop?.()
+    this.detachDrop = null
+    this.cardHost?.dispose()
+    this.cardHost = null
+    if (this.noticeTimer) clearTimeout(this.noticeTimer)
+    this.noticeTimer = null
     if (this.awareness && this.awarenessListener) this.awareness.off('change', this.awarenessListener)
     if (this.awareness) {
       try { publishPointer(this.awareness, null) } catch { /* the room may already be gone */ }
@@ -293,6 +385,8 @@ export class ShWhiteboard extends LitElement {
     // Excalidraw portals its dialogs (help, export image, clear canvas) to <body>, outside the shadow root; every rule
     // is scoped to `.excalidraw`, so the same sheet on the document dresses them in Sophia too.
     adoptStyleSheet(document, 'excalidraw-whiteboard-dialogs', excalidrawCss)
+    adoptStyleSheet(styleRootOf(shadow), 'excalidraw-whiteboard-semantic', WHITEBOARD_HIDE_TOOLS_CSS)
+    adoptStyleSheet(document, 'excalidraw-whiteboard-semantic-dialogs', WHITEBOARD_HIDE_TOOLS_CSS)
     host.addEventListener('pointerup', this.onPointerUpCapture, true)
 
     const refresh = (elements: readonly WbElement[]): readonly WbElement[] =>
@@ -314,6 +408,21 @@ export class ShWhiteboard extends LitElement {
       busyIds: () => (this.api ? busyIdsOf(this.api.getAppState()) : new Set<string>()),
     }
 
+    // The real `.stage` (the canvas's parent) carries the bar and the sidebar drop; both are ours, not Excalidraw's.
+    const stageEl = stage.parentElement ?? stage
+    const barDeps: WbSelectionBarDeps = {
+      stage: stageEl,
+      eventTarget: this,
+      page: () => this.page,
+      api: () => this.api,
+      notify: (message) => this.say(message),
+    }
+    const cardHost = createCardHost({
+      createElement: runtime.createElement,
+      typedObjects: () => resolveTypedObjects(this.page?.typedObjects),
+      graphId: page.graphId,
+    })
+    this.cardHost = cardHost
     const onInitialize = (api: ExcalidrawApiLike) => {
       if (generation !== this.generation) return
       this.api = api
@@ -323,6 +432,9 @@ export class ShWhiteboard extends LitElement {
         binding.attach(port)
         this.updateCollaborators()
         this.updateRings()
+        try { this.mountSemantics(api, barDeps) } catch (error) {
+          this.say(`The selection bar could not start: ${error instanceof Error ? error.message : String(error)}`)
+        }
       })
     }
     const props: Record<string, unknown> = {
@@ -339,11 +451,17 @@ export class ShWhiteboard extends LitElement {
       isCollaborating: true,
       aiEnabled: false,
       libraryReturnUrl: window.location.origin,
-      UIOptions: { canvasActions: { loadScene: false, saveToActiveFile: false, toggleTheme: false, changeViewBackgroundColor: false } },
+      UIOptions: WHITEBOARD_UI_OPTIONS,
+      renderEmbeddable: (element: WbElement, state: { readonly theme?: string }) => cardHost.renderEmbeddable(element, state),
+      validateEmbeddable: explicitBooleanValidator((link) => cardHost.validateEmbeddable(link)),
+      onPaste: pasteGuard((message) => this.say(message)),
       onInitialize,
+      // Excalidraw's AppState is passed through untyped; this is the Excalidraw boundary
       onChange: (_elements: unknown, appState: Record<string, any>) => {
+        if (this.api) guardEmbeddableTool(this.api)
         binding.localChanged()
         if (appState) this.updateRings(appState)
+        this.bar?.update()
       },
       onPointerUpdate: (payload: { pointer: { x: number; y: number }; button: string; pointersMap: Map<number, unknown> }) => {
         const now = Date.now()
@@ -358,7 +476,7 @@ export class ShWhiteboard extends LitElement {
     }
     const reactRoot = runtime.createRoot(container)
     this.root = reactRoot
-    reactRoot.render(runtime.createElement(runtime.Excalidraw, props, this.mainMenu(runtime)))
+    reactRoot.render(runtime.createElement(runtime.Excalidraw, props, this.mainMenu(runtime), this.commandPalette(runtime, barDeps)))
 
     this.awarenessListener = () => this.updateCollaborators()
     awareness.on('change', this.awarenessListener)
@@ -374,6 +492,7 @@ export class ShWhiteboard extends LitElement {
     const h = runtime.createElement
     return h(M, null,
       h(D.SearchMenu, null),
+      D.CommandPalette ? h(D.CommandPalette, null) : null,
       h(D.SaveAsImage, null),
       h(M.Separator, null),
       h(D.Preferences, null),
@@ -381,6 +500,80 @@ export class ShWhiteboard extends LitElement {
       h(M.Separator, null),
       h(D.ClearCanvas, null),
     )
+  }
+
+  /** The bar, the sidebar drop and the Ctrl+K override: everything that needs the live API. */
+  private mountSemantics(api: ExcalidrawApiLike, barDeps: WbSelectionBarDeps): void {
+    const stage = barDeps.stage
+    this.bar = createSelectionBar(barDeps)
+    this.detachDrop = attachSidebarDrop(stage, barDeps)
+    // Ctrl+K (and the properties panel's link button) open our picker instead of Excalidraw's web-address popup.
+    api.registerAction?.({
+      name: 'hyperlink',
+      label: 'Link…',
+      keywords: ['link', 'document', 'object'],
+      trackEvent: false,
+      perform: (elements: readonly WbElement[], appState: Record<string, any>) => {
+        const id = selectionOf(elements, appState).elementId
+        if (id) void linkElement(barDeps, id)
+        return false
+      },
+      keyTest: (event: KeyboardEvent) => (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k',
+      predicate: (elements: readonly WbElement[], appState: Record<string, any>) => {
+        const sel = selectionOf(elements, appState)
+        return sel.elementId !== null && sel.kind !== 'arrow' && !!this.page?.pickLink
+      },
+    })
+    this.bar.update()
+  }
+
+  /** Command-palette entries (Ctrl+/ or Ctrl+Shift+P): Add card…, Link shape…, Make wire…. */
+  private commandPalette(runtime: ExcalidrawModule, deps: WbSelectionBarDeps): unknown {
+    if (!runtime.CommandPalette) return null
+    const editable = (): boolean => this.page?.readOnly !== true
+    const selected = () => {
+      const api = this.api
+      return api ? selectionOf(api.getSceneElementsIncludingDeleted() as readonly WbElement[], api.getAppState()) : null
+    }
+    const items = [
+      {
+        label: 'Add card…',
+        category: 'Links',
+        keywords: ['card', 'object', 'document', 'embed'],
+        viewMode: false,
+        predicate: () => editable() && !!this.page?.pickLink,
+        perform: () => { void addCard(deps) },
+      },
+      {
+        label: 'Link shape…',
+        category: 'Links',
+        keywords: ['link', 'document', 'object'],
+        viewMode: false,
+        predicate: () => {
+          const sel = selected()
+          return editable() && !!this.page?.pickLink && !!sel && (sel.kind === 'shape' || sel.kind === 'card')
+        },
+        perform: () => {
+          const id = selected()?.elementId
+          if (id) void linkElement(deps, id)
+        },
+      },
+      {
+        label: 'Make wire…',
+        category: 'Links',
+        keywords: ['wire', 'predicate', 'arrow', 'connect'],
+        viewMode: false,
+        predicate: () => {
+          const sel = selected()
+          return editable() && !!this.page?.promoteArrow && sel?.kind === 'arrow' && !sel.wire
+        },
+        perform: () => {
+          const id = selected()?.elementId
+          if (id) void promoteSelectedArrow(deps, id)
+        },
+      },
+    ]
+    return runtime.createElement(runtime.CommandPalette, { customCommandPaletteItems: items })
   }
 
   private updateCollaborators(): void {
