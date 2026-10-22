@@ -1,24 +1,31 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { CrdtRoom, ProviderHandle } from '@shrubbery/nucleus'
 import { synchronizedCrdtProviderLifecycle } from '@shrubbery/nucleus'
 import { EditorRoomPool, editorRoomKey } from './editor-room-pool.js'
+import { UNSYNCED_ROOM_LINGER_MS } from '@shrubbery/runtime'
+import { createCrdtProviderLifecycle } from './crdt-provider-lifecycle.js'
 
 interface FakeProvider extends ProviderHandle {
   readonly name: string
   destroyCount: number
 }
 
-function backend(options: { throwFor?: string } = {}) {
+function backend(options: { throwFor?: string; unsynced?: boolean } = {}) {
   const opened: Array<{ room: CrdtRoom; provider: FakeProvider }> = []
+  const lifecycles: Array<ReturnType<typeof createCrdtProviderLifecycle>> = []
   return {
     opened,
+    lifecycles,
     open(room: CrdtRoom): ProviderHandle {
       if (room.docId === options.throwFor) throw new Error(`cannot open ${room.docId}`)
+      if (options.unsynced) lifecycles.push(createCrdtProviderLifecycle({ connection: 'connecting', synchronized: false, shouldConnect: true }))
       const provider: FakeProvider = {
         name: room.docId ?? room.graphId,
         doc: { room },
         awareness: { room },
-        lifecycle: synchronizedCrdtProviderLifecycle(),
+        lifecycle: options.unsynced
+          ? lifecycles.at(-1)!.source
+          : synchronizedCrdtProviderLifecycle(),
         whenRenderable: Promise.resolve(),
         whenEditable: Promise.resolve(),
         whenSynced: Promise.resolve(),
@@ -88,6 +95,66 @@ describe('EditorRoomPool', () => {
     secondary.release()
     expect(provider.destroyCount).toBe(1)
     expect(pool.snapshot()).toEqual({ roomCount: 0, attachmentCount: 0, rooms: [] })
+  })
+
+  it('keeps a released room that never synced until its first sync (WB-DROP)', () => {
+    const factory = backend({ unsynced: true })
+    const pool = new EditorRoomPool(factory)
+    const lease = pool.acquire(docRoom('board'), 'whiteboard::graph::board::1')
+    const provider = lease.provider as FakeProvider
+
+    lease.release()
+    expect(provider.destroyCount).toBe(0)
+    expect(pool.snapshot()).toMatchObject({ roomCount: 1, attachmentCount: 0 })
+
+    factory.lifecycles[0]!.set({ connection: 'connected', synchronized: true, shouldConnect: true })
+    expect(provider.destroyCount).toBe(1)
+    expect(pool.snapshot()).toEqual({ roomCount: 0, attachmentCount: 0, rooms: [] })
+  })
+
+  it('hands a lingering room back, same provider, to the next acquire', () => {
+    const factory = backend({ unsynced: true })
+    const pool = new EditorRoomPool(factory)
+    const first = pool.acquire(docRoom('board'), 'whiteboard::graph::board::1')
+    first.release()
+    const again = pool.acquire(docRoom('board'), 'whiteboard::graph::board::2')
+
+    expect(factory.opened).toHaveLength(1)
+    expect(again.provider).toBe(first.provider)
+    // Synced while held again: nothing is destroyed until that lease goes too.
+    factory.lifecycles[0]!.set({ connection: 'connected', synchronized: true, shouldConnect: true })
+    expect((again.provider as FakeProvider).destroyCount).toBe(0)
+    again.release()
+    expect((again.provider as FakeProvider).destroyCount).toBe(1)
+  })
+
+  it('lets an unsynced room go after the linger bound', () => {
+    vi.useFakeTimers()
+    try {
+      const factory = backend({ unsynced: true })
+      const pool = new EditorRoomPool(factory)
+      const lease = pool.acquire(docRoom('board'), 'whiteboard::graph::board::1')
+      lease.release()
+      vi.advanceTimersByTime(UNSYNCED_ROOM_LINGER_MS - 1)
+      expect((lease.provider as FakeProvider).destroyCount).toBe(0)
+      vi.advanceTimersByTime(1)
+      expect((lease.provider as FakeProvider).destroyCount).toBe(1)
+      // A late sync after the bound changes nothing.
+      factory.lifecycles[0]!.set({ connection: 'connected', synchronized: true, shouldConnect: true })
+      expect((lease.provider as FakeProvider).destroyCount).toBe(1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('destroys a lingering room once on contract replacement', () => {
+    const factory = backend({ unsynced: true })
+    const pool = new EditorRoomPool(factory)
+    const lease = pool.acquire(docRoom('board'), 'whiteboard::graph::board::1')
+    lease.release()
+    pool.destroyAll()
+    factory.lifecycles[0]!.set({ connection: 'connected', synchronized: true, shouldConnect: true })
+    expect((lease.provider as FakeProvider).destroyCount).toBe(1)
   })
 
   it('rejects a second live lease with the same attachment identity', () => {

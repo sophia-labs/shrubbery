@@ -52,7 +52,10 @@ export interface EditorRoomLease {
   readonly roomKey: EditorRoomKey
   readonly provider: ProviderHandle
   readonly released: boolean
-  /** Idempotent. The last release destroys the room provider exactly once. */
+  /**
+   * Idempotent. The last release destroys the room provider exactly once: at once if it has synced,
+   * else after its first sync or `UNSYNCED_ROOM_LINGER_MS`, so edits made before the handshake still reach the cell.
+   */
   release(): void
 }
 
@@ -75,7 +78,16 @@ interface RoomEntry {
   readonly room: CrdtRoom
   readonly provider: ProviderHandle
   readonly attachmentIds: Set<string>
+  /** Set while a released, never-synced room waits for its first sync; calling it cancels the wait. */
+  lingering: (() => void) | null
 }
+
+/**
+ * How long a released room that never synced keeps its socket, waiting to send what was done in it.
+ * The cell answers a room only once it holds the graph's persistence lease, which a long write can hold
+ * for minutes (WB-DROP, 2026-10-22); past this the room is let go and its unsent edits with it.
+ */
+export const UNSYNCED_ROOM_LINGER_MS = 15 * 60_000
 
 interface LeaseState {
   readonly attachmentId: string
@@ -131,9 +143,12 @@ export class EditorRoomPool {
       // Insert only after open succeeds so a failed backend attempt cannot leave
       // a phantom room or reference count behind.
       const provider = this.backend.open(normalized, undefined)
-      entry = { room: normalized, provider, attachmentIds: new Set() }
+      entry = { room: normalized, provider, attachmentIds: new Set(), lingering: null }
       this.rooms.set(roomKey, entry)
     }
+    // Coming back to a room still waiting to sync takes it up again, edits and all.
+    entry.lingering?.()
+    entry.lingering = null
 
     const state: LeaseState = {
       attachmentId,
@@ -181,6 +196,8 @@ export class EditorRoomPool {
 
     let firstError: unknown = null
     for (const entry of entries) {
+      entry.lingering?.()
+      entry.lingering = null
       try {
         entry.provider.destroy()
       } catch (error) {
@@ -202,9 +219,44 @@ export class EditorRoomPool {
     entry.attachmentIds.delete(state.attachmentId)
     if (entry.attachmentIds.size > 0) return
 
+    // A room that never synced still holds everything done in it: y-websocket sends local edits
+    // only in the handshake. Keep it until that handshake, or the linger bound, has passed.
+    if (!entry.provider.lifecycle.get().synchronized) {
+      this.linger(state.roomKey, entry)
+      return
+    }
+    this.retire(state.roomKey, entry)
+  }
+
+  private linger(roomKey: EditorRoomKey, entry: RoomEntry): void {
+    let unsubscribe: () => void = () => {}
+    let timer: ReturnType<typeof setTimeout> | undefined
+    let waiting = true
+    const cancel = (): void => {
+      waiting = false
+      unsubscribe()
+      clearTimeout(timer)
+    }
+    const done = (): void => {
+      if (!waiting) return
+      cancel()
+      if (entry.lingering === cancel) entry.lingering = null
+      if (this.rooms.get(roomKey) === entry && entry.attachmentIds.size === 0) this.retire(roomKey, entry)
+    }
+    entry.lingering = cancel
+    unsubscribe = entry.provider.lifecycle.subscribe((lifecycle) => { if (lifecycle.synchronized) done() })
+    if (!waiting) unsubscribe()
+    timer = waiting ? setTimeout(done, UNSYNCED_ROOM_LINGER_MS) : undefined
+    // The handshake may have finished between the check and the subscription.
+    if (entry.provider.lifecycle.get().synchronized) done()
+  }
+
+  private retire(roomKey: EditorRoomKey, entry: RoomEntry): void {
+    entry.lingering?.()
+    entry.lingering = null
     // Remove before invoking foreign teardown code. Even if destroy throws, the
     // pool cannot double-destroy this provider on a later cleanup pass.
-    this.rooms.delete(state.roomKey)
+    this.rooms.delete(roomKey)
     entry.provider.destroy()
   }
 }

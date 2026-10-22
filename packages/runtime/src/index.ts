@@ -212,6 +212,7 @@ export {
 export {
   EditorRoomPool,
   editorRoomKey,
+  UNSYNCED_ROOM_LINGER_MS,
   type EditorRoomKey,
   type EditorRoomLease,
   type EditorRoomDiagnostic,
