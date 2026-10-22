@@ -71,6 +71,7 @@ export type MnGraphThreeNodeKind =
   | 'document'
   | 'read-only-document'
   | 'whiteboard'
+  | 'object'
   | 'artifact'
   | 'tag'
   | 'portal'
@@ -1135,6 +1136,16 @@ export class MnGraphThree extends SkinAware(LitElement) {
       } else if (kind === 'tag') {
         geometry = new THREE.TetrahedronGeometry(radius * 0.72, 0)
         color = 0xd4e4be
+      } else if (kind === 'whiteboard') {
+        // A board is a drawn page: a broad, thin panel, tilted a little and warmer than a text document.
+        geometry = new THREE.BoxGeometry(radius * 1.6, radius * 0.1, radius * 1.15)
+        rotation.y = random01(hash(node.id) + 50) * Math.PI * 0.3 - 0.15
+        rotation.x = 0.28
+        color = 0xe3c77d
+      } else if (kind === 'object') {
+        // A typed object a wire reaches: a faceted gem, not a page.
+        geometry = new THREE.OctahedronGeometry(radius * 0.7, 0)
+        color = 0xb69ad0
       } else if (kind === 'read-only-document' || node.readOnly) {
         geometry = new THREE.SphereGeometry(radius * 0.75, 16, 12)
         scale.set(0.9, 0.6, 1)
@@ -1242,7 +1253,7 @@ export class MnGraphThree extends SkinAware(LitElement) {
         halo.rotation.x = Math.PI / 2
         group.add(halo)
       }
-      if (node.kind === 'document' || node.kind === 'code' || node.kind === 'image') {
+      if (node.kind === 'document' || node.kind === 'whiteboard' || node.kind === 'code' || node.kind === 'image') {
         hit.add(new THREE.LineSegments(
           new THREE.EdgesGeometry(shape.geometry, 20),
           new THREE.LineBasicMaterial({ color: 0x2a2f29, transparent: true, opacity: 0.62 }),
@@ -1574,7 +1585,7 @@ export class MnGraphThree extends SkinAware(LitElement) {
       this._activateNode(node)
       return
     }
-    const expandable = ['document', 'read-only-document', 'artifact', 'portal', 'tag'].includes(node.kind ?? '')
+    const expandable = ['document', 'read-only-document', 'whiteboard', 'artifact', 'portal', 'tag'].includes(node.kind ?? '')
     if (expandable && this._stage) {
       const rect = this._stage.getBoundingClientRect()
       const cardWidth = Math.min(270, Math.max(180, rect.width - 16))

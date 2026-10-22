@@ -5,6 +5,7 @@ import type { GraphPanelEdge, GraphPanelNode, SidebarNode, SidebarSection, WireB
 import {
   addGraphPanelDocumentNode,
   addGraphPanelEdge,
+  addGraphPanelWireEndNode,
   graphPanelNodeIdForSidebarNode,
   projectDocumentGraph,
   projectSidebarNodeToGraphPanel,
@@ -193,5 +194,47 @@ describe('pushNodeHistory', () => {
 
   it('drops forward entries when selecting from behind the tip (no redo into a diverged branch)', () => {
     expect(pushNodeHistory(['a', 'b', 'c'], 0, 'x')).toEqual({ history: ['a', 'x'], index: 1 })
+  })
+})
+
+describe('boards in the workspace graph', () => {
+  const section: SidebarSection = { id: 'documents', label: 'Documents' }
+
+  it('a_board_is_a_whiteboard_node', () => {
+    const nodes = new Map<string, GraphPanelNode>()
+    const edges: GraphPanelEdge[] = []
+    const seen = new Set<string>()
+    const board: SidebarNode = { id: 'wb-board', label: 'Dream-work board', documentKind: 'whiteboard' }
+    const text: SidebarNode = { id: 'doc-traumdeutung', label: 'The Interpretation of Dreams' }
+    const readOnlyBoard: SidebarNode = { id: 'wb-ro', label: 'Archived board', documentKind: 'whiteboard', readOnly: true }
+    projectSidebarNodeToGraphPanel(section, board, 'graph:wb-graph', nodes, edges, seen, 'wb-graph')
+    projectSidebarNodeToGraphPanel(section, text, 'graph:wb-graph', nodes, edges, seen, 'wb-graph')
+    projectSidebarNodeToGraphPanel(section, readOnlyBoard, 'graph:wb-graph', nodes, edges, seen, 'wb-graph')
+
+    // The board is its own kind (and opens by its document id), a text document stays a document.
+    expect(nodes.get('doc:wb-board')).toMatchObject({ kind: 'whiteboard', documentId: 'wb-board', label: 'Dream-work board' })
+    expect(nodes.get('doc:doc-traumdeutung')).toMatchObject({ kind: 'document' })
+    // Read-only does not turn a board back into a document-shaped node.
+    expect(nodes.get('doc:wb-ro')).toMatchObject({ kind: 'whiteboard', documentId: 'wb-ro', readOnly: true })
+    expect(edges).toContainEqual(expect.objectContaining({ from: 'graph:wb-graph', to: 'doc:wb-board', predicate: 'contains' }))
+  })
+
+  it('a wire that reaches an object is an object node, and one that reaches a board keeps the board node', () => {
+    const nodes = new Map<string, GraphPanelNode>()
+    const edges: GraphPanelEdge[] = []
+    const seen = new Set<string>()
+    projectSidebarNodeToGraphPanel(section, { id: 'wb-board', label: 'Dream-work board', documentKind: 'whiteboard' }, 'graph:wb-graph', nodes, edges, seen, 'wb-graph')
+    const iri = 'urn:mnemosyne:local:graph:wb-graph:dream:wolf-man'
+    const objectId = addGraphPanelWireEndNode(nodes, edges, seen, 'graph:wb-graph', {
+      otherDocumentId: '', otherIri: iri, otherGraphId: 'wb-graph', otherTitle: 'The Wolf Man dream',
+    }, 'wb-graph')
+    const boardId = addGraphPanelWireEndNode(nodes, edges, seen, 'graph:wb-graph', {
+      otherDocumentId: 'wb-board', otherGraphId: 'wb-graph', otherTitle: 'Dream-work board',
+    }, 'wb-graph')
+
+    expect(objectId).toBe(`object:${iri}`)
+    expect(nodes.get(objectId)).toMatchObject({ kind: 'object', label: 'The Wolf Man dream', documentId: null })
+    expect(boardId).toBe('doc:wb-board')
+    expect(nodes.get(boardId)).toMatchObject({ kind: 'whiteboard' })
   })
 })

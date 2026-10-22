@@ -9,6 +9,8 @@
 
 import type { SelectedObject } from '@shrubbery/nucleus'
 import type {
+  WbBacklink,
+  WbBacklinkKind,
   WireBundle,
   WireSummary,
   WorkspaceComment,
@@ -18,6 +20,7 @@ import type {
   WorkspaceInspectorRelationItem,
   WorkspaceInspectorRelations,
 } from '@shrubbery/runtime'
+import { type WireBoardFields, wireBoardProvenance, wireEndOf } from './whiteboard-navigation.js'
 
 export interface InspectorProjectionInput {
   readonly selection: SelectedObject | null
@@ -27,6 +30,49 @@ export interface InspectorProjectionInput {
   readonly activeDocumentTitle?: string | null
   readonly wireBundle?: WireBundle | null
   readonly comments?: readonly WorkspaceComment[]
+  /** The active document's `documentKind` (a board is `whiteboard`), so the inspector can name it. */
+  readonly activeDocumentKind?: string | null
+  /** The sidebar title of a document, for "from board {title}" on a wire. */
+  readonly titleOf?: (documentId: string) => string | undefined
+  /** Who links to the active document (`get_backlinks`), already read; the inspector lists them as "Linked from". */
+  readonly backlinks?: readonly WbBacklink[]
+}
+
+const LINKED_FROM_ORDER: readonly WbBacklinkKind[] = [
+  'board-link', 'board-card', 'board-connection', 'wire', 'embed', 'wikilink', 'link',
+]
+
+const LINKED_FROM_LABEL: Readonly<Record<WbBacklinkKind, string>> = {
+  'board-link': 'Link on a board',
+  'board-card': 'Card on a board',
+  'board-connection': 'Arrow on a board',
+  wire: 'Wire',
+  embed: 'Embed',
+  wikilink: 'Wikilink',
+  link: 'Link',
+}
+
+/** The id an inspector row carries, so the shell can find the backlink a click means. */
+export function backlinkRowId(row: WbBacklink): string {
+  return [row.kind, row.sourceDocumentId, row.sourceBlockId ?? '', row.wireId ?? '', row.viaConnection ?? ''].join('|')
+}
+
+function linkedFromItem(row: WbBacklink): WorkspaceInspectorRelationItem {
+  const isBoard = row.sourceKind === 'whiteboard'
+  return {
+    id: backlinkRowId(row),
+    primary: row.sourceTitle || row.sourceDocumentId,
+    secondary: [LINKED_FROM_LABEL[row.kind], row.predicate].filter(Boolean).join(' - '),
+    icon: isBoard ? 'pencil' : 'corner-up-right',
+  }
+}
+
+/** "Linked from": the rows grouped by kind (boards first), each opening its source. `null` when nothing links here. */
+function linkedFromGroup(backlinks: readonly WbBacklink[] | undefined): WorkspaceInspectorRelationGroup | null {
+  if (!backlinks?.length) return null
+  const rank = (row: WbBacklink): number => LINKED_FROM_ORDER.indexOf(row.kind)
+  const sorted = [...backlinks].sort((a, b) => rank(a) - rank(b))
+  return { key: 'linked-from', label: 'Linked from', icon: 'corner-up-right', items: sorted.map(linkedFromItem) }
 }
 
 function valueOf(selection: SelectedObject, key: string): string | undefined {
@@ -49,14 +95,36 @@ function allWires(bundle: WireBundle | null | undefined): readonly WireSummary[]
   return bundle ? [...bundle.outgoingWires, ...bundle.incomingWires] : []
 }
 
-function relationItemFromWire(wire: WireSummary, direction: 'outgoing' | 'incoming'): WorkspaceInspectorRelationItem {
+/** A bundle wire as the cell now sends it: the document ends of `WireSummary`, plus an object end and a board. */
+type BoardAwareWire = WireSummary & WireBoardFields
+
+function relationItemFromWire(wire: BoardAwareWire, direction: 'outgoing' | 'incoming', boardTitle?: (id: string) => string | undefined): WorkspaceInspectorRelationItem {
   const arrow = direction === 'outgoing' ? '->' : '<-'
+  const end = wireEndOf(wire)
+  const board = wireBoardProvenance(wire, (id) => boardTitle?.(id))
   return {
     id: wire.id,
-    primary: `${wire.predicateLabel} ${arrow} ${wire.otherTitle || wire.otherDocumentId}`,
-    secondary: wire.bidirectional ? 'bidirectional' : wire.otherSnippet || wire.localSnippet,
-    icon: 'git-branch',
+    primary: `${wire.predicateLabel} ${arrow} ${end.label}`,
+    secondary: [
+      wire.bidirectional ? 'bidirectional' : wire.otherSnippet || wire.localSnippet,
+      end.kind === 'object' ? 'object' : undefined,
+      board?.label,
+    ].filter(Boolean).join(' - ') || undefined,
+    icon: end.kind === 'object' ? 'diamond' : 'git-branch',
   }
+}
+
+/** The boards this document's wires were drawn on (other than the document itself): each opens its board. */
+function drawnOnGroup(wires: readonly BoardAwareWire[], input: InspectorProjectionInput): WorkspaceInspectorRelationGroup | null {
+  const seen = new Set<string>()
+  const items: WorkspaceInspectorRelationItem[] = []
+  for (const wire of wires) {
+    const board = wireBoardProvenance(wire, (id) => input.titleOf?.(id))
+    if (!board || board.boardId === input.activeDocumentId || seen.has(board.boardId)) continue
+    seen.add(board.boardId)
+    items.push({ id: `board:${board.boardId}`, primary: board.boardTitle, secondary: 'Wires drawn on this board', icon: 'pencil' })
+  }
+  return items.length ? { key: 'drawn-on', label: 'Drawn on', icon: 'pencil', items } : null
 }
 
 function commentRelation(comment: WorkspaceComment): WorkspaceInspectorRelationItem {
@@ -78,13 +146,13 @@ function activeDocumentRelations(input: InspectorProjectionInput, blockId?: stri
       key: 'wires',
       label: 'Wires',
       icon: 'git-branch',
-      items: outgoing.map((wire) => relationItemFromWire(wire, 'outgoing')),
+      items: outgoing.map((wire) => relationItemFromWire(wire, 'outgoing', input.titleOf)),
     },
     {
       key: 'backlinks',
       label: 'Backlinks',
       icon: 'corner-up-right',
-      items: incoming.map((wire) => relationItemFromWire(wire, 'incoming')),
+      items: incoming.map((wire) => relationItemFromWire(wire, 'incoming', input.titleOf)),
     },
     {
       key: 'comments',
@@ -93,6 +161,11 @@ function activeDocumentRelations(input: InspectorProjectionInput, blockId?: stri
       items: comments.map(commentRelation),
     },
   ]
+  // A block's backlinks are asked of the block; the document-wide read is shown on the document itself.
+  const linkedFrom = blockId ? null : linkedFromGroup(input.backlinks)
+  if (linkedFrom) groups.push(linkedFrom)
+  const drawnOn = blockId ? null : drawnOnGroup([...outgoing, ...incoming], input)
+  if (drawnOn) groups.push(drawnOn)
   return { scope: 'active', groups }
 }
 
@@ -114,9 +187,9 @@ export function projectInspectorModel(input: InspectorProjectionInput): Workspac
     return {
       identity: {
         kind: 'document',
-        icon: 'file-text',
+        icon: active && input.activeDocumentKind === 'whiteboard' ? 'pencil' : 'file-text',
         title: documentTitle(input, documentId),
-        typeLabel: 'Document',
+        typeLabel: active && input.activeDocumentKind === 'whiteboard' ? 'Whiteboard' : 'Document',
         chips: [
           { label: 'Graph', value: valueOf(selection, 'graphId') ?? input.graphId ?? '', mono: true },
           { label: 'Document', value: documentId, mono: true },
@@ -175,7 +248,7 @@ export function projectInspectorModel(input: InspectorProjectionInput): Workspac
       identity: {
         kind: 'wire',
         icon: 'git-branch',
-        title: wire ? `${wire.predicateLabel} -> ${wire.otherTitle || wire.otherDocumentId}` : 'Wire',
+        title: wire ? `${wire.predicateLabel} -> ${wireEndOf(wire).label}` : 'Wire',
         typeLabel: 'Wire',
         chips: [
           { label: 'Graph', value: valueOf(selection, 'graphId') ?? input.graphId ?? '', mono: true },
