@@ -20,8 +20,6 @@ import { WhiteboardBinding, type WbElement, type WbScene } from './whiteboard-bi
 const GRAPH = 'freud-dreams'
 const store = loadFixtures()
 const present: WbTypedObjects = { ...fixtureTypedObjectService(store), search: async () => [] }
-/** A reader whose graph holds nothing: every object is gone. */
-const gone: WbTypedObjects = { read: async () => null, search: async () => [] }
 
 const MISSING_IRI = 'urn:mnemosyne:local:graph:freud-dreams:dream:never-written'
 
@@ -102,14 +100,16 @@ describe('the card renderer', () => {
 
   it('card_reads_the_object_live_and_shows_the_snapshot_when_gone', async () => {
     // The same card, drawn twice against a reader that changes under it: the board stores no object, only a snapshot.
-    let service: WbTypedObjects = present
-    const render = makeCardRenderer(() => service, GRAPH)
+    const live = loadFixtures()
+    const liveService: WbTypedObjects = { ...fixtureTypedObjectService(live), search: async () => [] }
+    const render = makeCardRenderer(liveService, GRAPH)
     const element = cardElement(objectTarget)
     const first = render(element, 'light')
     document.body.append(first)
     expect((await settle(first)).status).toBe('ready')
 
-    service = gone
+    // The object disappears from the real store under the card.
+    live.update('DROP ALL')
     const second = render({ ...element, version: element.version + 1 }, 'light')
     document.body.append(second)
     const frame = await settle(second)
@@ -123,12 +123,12 @@ describe('the card renderer', () => {
     const lostCard = makeCardRenderer(present, GRAPH)(cardElement({ ...objectTarget, iri: MISSING_IRI, label: 'Lost dream' }), 'dark')
     document.body.append(lostCard)
     expect((await settle(lostCard)).status).toBe('absent')
-    const broken: WbTypedObjects = { read: async () => { throw new Error('graph unreachable') }, search: async () => [] }
-    const bad = makeCardRenderer(broken, GRAPH)(element, 'light')
+    // A real failure: an IRI the real query builder refuses makes the real read reject.
+    const bad = makeCardRenderer(present, GRAPH)(cardElement({ ...objectTarget, iri: 'not-an-iri' }), 'light')
     document.body.append(bad)
     const badFrame = await settle(bad)
     expect(badFrame.status).toBe('error')
-    expect(badFrame.error).toBe('graph unreachable')
+    expect(badFrame.error).toContain('not an absolute IRI')
     // No service at all: still a card, still honest, never a throw.
     const none = makeCardRenderer(() => null, GRAPH)(element, 'light')
     document.body.append(none)
@@ -137,7 +137,7 @@ describe('the card renderer', () => {
 
   it('a document card draws its title with an Open door and reads nothing', () => {
     let reads = 0
-    const counting: WbTypedObjects = { read: async () => { reads += 1; return null }, search: async () => [] }
+    const counting: WbTypedObjects = { ...present, read: (g, i) => { reads += 1; return present.read(g, i) } }
     const card = makeCardRenderer(counting, GRAPH)(cardElement(documentTarget), 'light')
     document.body.append(card)
     expect(card.querySelector('sh-injerto')).toBeNull()
@@ -259,8 +259,8 @@ describe('the skeleton', () => {
 describe('placing', () => {
   it('scene_from_client_inverts_scroll_and_zoom', () => {
     const app = { scrollX: -100, scrollY: 40, zoom: { value: 2 } }
-    // client = (scene + scroll) * zoom + offset
-    expect(sceneFromClient({ x: 300, y: 250 }, app, { left: 100, top: 50 })).toEqual({ x: 0, y: 60 })
+    // client = (scene + scroll) * zoom + offset, so scene = (client - offset) / zoom - scroll
+    expect(sceneFromClient({ x: 300, y: 250 }, app, { left: 100, top: 50 })).toEqual({ x: 200, y: 60 })
     const scene = { x: 37, y: -12 }
     const client = { x: (scene.x + app.scrollX) * 2 + 100, y: (scene.y + app.scrollY) * 2 + 50 }
     expect(sceneFromClient(client, app, { left: 100, top: 50 })).toEqual(scene)
