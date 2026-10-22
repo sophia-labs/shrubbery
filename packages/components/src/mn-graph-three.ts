@@ -70,6 +70,7 @@ export type MnGraphThreeNodeKind =
   | 'folder'
   | 'document'
   | 'read-only-document'
+  | 'whiteboard'
   | 'artifact'
   | 'tag'
   | 'portal'

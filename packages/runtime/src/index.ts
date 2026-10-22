@@ -1088,4 +1088,17 @@ export {
   type FilesPageValue,
 } from './files-page.js'
 
-export { ShWhiteboard, WhiteboardBinding, WHITEBOARD_ASSET_PATH, type WhiteboardPageOptions } from './whiteboard/index.js'
+export {
+  ShWhiteboard, WhiteboardBinding, WHITEBOARD_ASSET_PATH, type WhiteboardPageOptions,
+  addCard, arrowEndsOf, artifactLink, attachSidebarDrop, barAnchor, boundsOf, cardSkeleton, createCardHost, createSelectionBar,
+  documentLink, isCard, isMnemosyneLink, linkElement, linkOfTarget, makeCardRenderer, objectLink, parseLink, promoteSelectedArrow,
+  readSidebarDrop, recordOfElement, recordOfTarget, sceneFromClient, selectionOf, targetOfElement, unlinkElement, unwireArrow,
+  wireMarkOf, WB_CARD_EVENT, WB_LINK_EVENT, WB_SELECTION_EVENT, WB_WIRE_EVENT,
+  type WbArrowEnd, type WbArrowEnds, type WbArrowWireDeps, type WbBacklink, type WbBacklinkKind, type WbBacklinksResult,
+  type WbBacklinkTarget, type WbBounds, type WbCanvasApi, type WbCardAddedDetail, type WbCardFlowDeps, type WbCardHost,
+  type WbCardHostOptions, type WbCardRenderer, type WbCreateElement, type WbDemoteRequest, type WbDocumentTarget,
+  type WbLinkChangedDetail, type WbLinkTarget, type WbMnemosyneRecord, type WbObjectHit, type WbObjectTarget,
+  type WbPickLinkRequest, type WbPredicateRequest, type WbPromoteRequest, type WbPromoteResult, type WbSelection,
+  type WbSelectionBar, type WbSelectionBarDeps, type WbSelectionKind, type WbSidebarNode, type WbTarget, type WbTypedObjects,
+  type WbTypedObjectsSource, type WbWireChangedDetail, type WbWireMark,
+} from './whiteboard/index.js'

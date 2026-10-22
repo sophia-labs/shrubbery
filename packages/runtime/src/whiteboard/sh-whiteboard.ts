@@ -20,6 +20,19 @@ import {
 } from './whiteboard-presence.js'
 import { applySophiaPalette, WHITEBOARD_DEFAULTS, WHITEBOARD_THEME_CSS } from './whiteboard-theme.js'
 import { type WbElement, type WbScene, type WbToolWrite, WhiteboardBinding } from './whiteboard-binding.js'
+import type {
+  WbBacklink,
+  WbBacklinkTarget,
+  WbDemoteRequest,
+  WbPickLinkRequest,
+  WbPredicateRequest,
+  WbPromoteRequest,
+  WbPromoteResult,
+  WbSelection,
+  WbSidebarNode,
+  WbTarget,
+  WbTypedObjectsSource,
+} from './semantic-types.js'
 
 export interface WhiteboardPageOptions {
   readonly graphId: string
@@ -35,6 +48,26 @@ export interface WhiteboardPageOptions {
   readonly onRename?: (title: string) => void
   /** A shape's link was clicked: the shell opens the document or object. Return true when it handled the link. */
   readonly onOpenLink?: (link: string) => boolean
+
+  // ---- the semantic surface (SPRINT U0; types in `semantic-types.ts`). All optional: a board without them is the
+  // ---- plain board it was, and a read-only board offers none of the editing ones.
+
+  /** The graph's typed objects: `read` draws cards live, `search` feeds the pickers. Owned by the shell (S1). */
+  readonly typedObjects?: WbTypedObjectsSource | null
+  /** Choose a document or a typed object (the shell's `chooseFrom`). Resolves to `null` when cancelled. */
+  readonly pickLink?: (request: WbPickLinkRequest) => Promise<WbTarget | null>
+  /** Choose a wire predicate (the shell's `<mn-advanced-wire-menu>` over `list_wire_predicates`). `null`: cancelled. */
+  readonly pickPredicate?: (request: WbPredicateRequest) => Promise<string | null>
+  /** Promote an arrow to a wire: the shell runs `whiteboard_apply {moves: [{op: 'wire', arrow, predicate}]}`. */
+  readonly promoteArrow?: (request: WbPromoteRequest) => Promise<WbPromoteResult>
+  /** Delete an arrow's wire (the board then clears the mark itself). */
+  readonly demoteArrow?: (request: WbDemoteRequest) => Promise<void>
+  /** Who links here (`get_backlinks`): the bar shows a count on a linked shape or card. */
+  readonly loadBacklinks?: (target: WbBacklinkTarget) => Promise<readonly WbBacklink[]>
+  /** A dragged sidebar node as a card target; `null` for a node a board cannot hold (a folder). */
+  readonly targetOfSidebarNode?: (node: WbSidebarNode) => WbTarget | null
+  /** The selection changed (the same detail as `WB_SELECTION_EVENT`). */
+  readonly onSelection?: (selection: WbSelection) => void
 }
 
 interface ExcalidrawModule {
