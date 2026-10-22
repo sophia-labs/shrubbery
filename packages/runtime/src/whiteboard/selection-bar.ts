@@ -44,6 +44,7 @@ export interface WbSelectionBar {
   destroy(): void
 }
 
+// Excalidraw's AppState is passed through untyped; this is the Excalidraw boundary
 type Loose = Record<string, any>
 
 /** Height of the bar, px. The CSS gives the bar exactly this height so `barAnchor` can place it without measuring. */

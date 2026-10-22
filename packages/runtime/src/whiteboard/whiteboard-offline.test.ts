@@ -8,7 +8,7 @@ import { dirname, join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import { createCardHost } from './card-embed.js'
-import { explicitBooleanValidator, pasteGuard, WHITEBOARD_HIDE_TOOLS_CSS, WHITEBOARD_UI_OPTIONS } from './sh-whiteboard.js'
+import { explicitBooleanValidator, guardEmbeddableTool, pasteGuard, WHITEBOARD_HIDE_TOOLS_CSS, WHITEBOARD_UI_OPTIONS } from './sh-whiteboard.js'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const REPO_ROOT = join(HERE, '..', '..', '..', '..')
@@ -63,7 +63,7 @@ describe('validateEmbeddable', () => {
     }
   })
 
-  // needs S3: createCardHost's body (its signature is in the tree, its body is a stub until S3 lands).
+  // BLOCKED: card-embed.ts createCardHost body (S3)
   it('the card host answers true only for a mnemosyne link, as a boolean', () => {
     const host = createCardHost({ createElement: () => null, typedObjects: () => null, graphId: 'wb-graph' })
     const validate = explicitBooleanValidator((link) => host.validateEmbeddable(link))
@@ -77,14 +77,24 @@ describe('validateEmbeddable', () => {
 
 describe('the Web Embed tool', () => {
   it('embeddable_tool_is_off', () => {
+    // The hint stays, but the pinned build ignores it: it rebuilds UIOptions keeping only tools.image.
     expect(WHITEBOARD_UI_OPTIONS.tools.embeddable).toBe(false)
-    // The file-opening and theme switches stay off as they were.
     expect(WHITEBOARD_UI_OPTIONS.canvasActions.loadScene).toBe(false)
-    // The pinned build gates the tool on exactly this option...
     const bundle = readFileSync(join(excalidrawDist(), 'dev', 'index.js'), 'utf8')
-    expect(bundle).toContain('props.UIOptions.tools?.[tool] === false')
-    // ...but still draws the (disabled) menu entry, which the board's own CSS takes off the screen.
-    expect(bundle).toContain('data-testid": "toolbar-embeddable"')
+    // Documents the normalization: if an Excalidraw upgrade starts honouring the key, this fails and is noticed.
+    expect(bundle).toContain('image: props.UIOptions?.tools?.image ?? true')
+    // So the board puts the selection tool back whenever the embeddable tool becomes active.
+    const calls: Array<Record<string, unknown>> = []
+    const recorder = (type: string) => ({
+      getAppState: () => ({ activeTool: { type } }),
+      setActiveTool: (tool: Record<string, unknown>) => { calls.push(tool) },
+    })
+    guardEmbeddableTool(recorder('embeddable'))
+    expect(calls).toEqual([{ type: 'selection' }])
+    guardEmbeddableTool(recorder('selection'))
+    guardEmbeddableTool(recorder('rectangle'))
+    expect(calls).toHaveLength(1)
+    // And the menu entry is taken off the screen.
     expect(WHITEBOARD_HIDE_TOOLS_CSS).toContain('[data-testid="toolbar-embeddable"]')
     expect(WHITEBOARD_HIDE_TOOLS_CSS).toContain('display: none')
   })

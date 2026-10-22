@@ -88,6 +88,7 @@ interface ExcalidrawModule {
 
 interface ExcalidrawApiLike {
   getSceneElementsIncludingDeleted(): readonly unknown[]
+  // Excalidraw's AppState is passed through untyped; this is the Excalidraw boundary
   getAppState(): Record<string, any>
   updateScene(data: Record<string, unknown>): void
   registerAction?(action: Record<string, unknown>): void
@@ -142,16 +143,25 @@ export function loadExcalidraw(): Promise<ExcalidrawModule> {
 // ---- offline hardening and the semantic props (pure, so a test can hold each one) -----------------------------------
 
 /**
- * Excalidraw's `UIOptions`. `tools.embeddable: false` switches the "Web Embed" tool off (`isToolSupported` and the
- * command palette read it); the pinned build still draws that menu entry, disabled, so {@link WHITEBOARD_HIDE_TOOLS_CSS}
- * takes it off the screen. Cards come only from our own Add card… flow. Nothing here contacts the network.
+ * Excalidraw's `UIOptions`. `tools.embeddable: false` is a hint only: the pinned build rebuilds `UIOptions` as
+ * `{ tools: { image } }` and drops every other key, so it does not switch the "Web Embed" tool off. The tool is
+ * kept out by {@link WHITEBOARD_HIDE_TOOLS_CSS} (menu entry) and {@link guardEmbeddableTool} (palette / shortcut),
+ * and `validateEmbeddable` refuses any non-mnemosyne link. Cards come only from our own Add card… flow.
  */
 export const WHITEBOARD_UI_OPTIONS = {
   canvasActions: { loadScene: false, saveToActiveFile: false, toggleTheme: false, changeViewBackgroundColor: false },
   tools: { embeddable: false },
 } as const
 
-/** Takes the disabled "Web Embed" entry off the toolbar's extra-tools menu. Adopted next to the board's theme. */
+/** If the Web Embed tool became active (command palette, shortcut), put the selection tool back. */
+export function guardEmbeddableTool(api: {
+  getAppState(): Record<string, any> // Excalidraw's AppState is passed through untyped; this is the Excalidraw boundary
+  setActiveTool?(tool: Record<string, unknown>): void
+}): void {
+  if (api.getAppState().activeTool?.type === 'embeddable') api.setActiveTool?.({ type: 'selection' })
+}
+
+/** Takes the "Web Embed" entry off the toolbar's extra-tools menu. Adopted next to the board's theme. */
 export const WHITEBOARD_HIDE_TOOLS_CSS = `.excalidraw [data-testid="toolbar-embeddable"] { display: none !important; }`
 
 /**
@@ -446,7 +456,9 @@ export class ShWhiteboard extends LitElement {
       validateEmbeddable: explicitBooleanValidator((link) => cardHost.validateEmbeddable(link)),
       onPaste: pasteGuard((message) => this.say(message)),
       onInitialize,
+      // Excalidraw's AppState is passed through untyped; this is the Excalidraw boundary
       onChange: (_elements: unknown, appState: Record<string, any>) => {
+        if (this.api) guardEmbeddableTool(this.api)
         binding.localChanged()
         if (appState) this.updateRings(appState)
         this.bar?.update()
