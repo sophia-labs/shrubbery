@@ -649,6 +649,60 @@ describe('WireBundleService — GRAPH-scoped read bundle against the real store'
     expect(queryStore(store, noGraph).rows).toEqual([])
   })
 
+  it('keeps a wire whose far end is a typed object, and names the board it was drawn on', async () => {
+    const OBJECT = 'urn:mnemosyne:local:graph:graph-a:dream:wolf-man'
+    const store = seedWorkspaceStore(GRAPH_ID, DOCS, [
+      {
+        id: 'wire-obj',
+        sourceDocumentId: 'doc-architecture',
+        sourceBlockId: 'shape-1',
+        targetResource: OBJECT,
+        targetTitle: 'Wolf Man',
+        sceneDocumentId: 'doc-architecture',
+        sceneElementId: 'arw-1',
+        predicate: 'supports',
+      },
+      {
+        // drawn on the board, neither end in it: listed as outgoing, far end the object
+        id: 'wire-elsewhere',
+        sourceDocumentId: 'doc-billing',
+        targetResource: OBJECT,
+        sceneDocumentId: 'doc-architecture',
+        sceneElementId: 'arw-2',
+      },
+      {
+        // an object into this document, drawn on another board
+        id: 'wire-into',
+        sourceResource: OBJECT,
+        targetDocumentId: 'doc-architecture',
+        sceneDocumentId: 'doc-billing',
+        sceneElementId: 'arw-3',
+      },
+      { id: 'wire-unrelated', sourceDocumentId: 'doc-billing', targetResource: OBJECT, sceneDocumentId: 'doc-billing' },
+    ])
+    const bundle = await makeWireBundleService(makeOxigraphRestClient(store)).loadBundle(GRAPH_ID, 'doc-architecture')
+
+    expect(bundle.outgoingWires.map((wire) => wire.id)).toEqual(['wire-elsewhere', 'wire-obj'])
+    expect(bundle.incomingWires.map((wire) => wire.id)).toEqual(['wire-into'])
+    const obj = bundle.outgoingWires.find((wire) => wire.id === 'wire-obj')
+    expect(obj).toMatchObject({
+      otherDocumentId: '',
+      otherIri: OBJECT,
+      otherTitle: 'Wolf Man',
+      localBlockId: 'shape-1',
+      sceneDocumentId: 'doc-architecture',
+      sceneElementId: 'arw-1',
+    })
+    const elsewhere = bundle.outgoingWires.find((wire) => wire.id === 'wire-elsewhere')
+    expect(elsewhere?.otherIri).toBe(OBJECT)
+    expect(elsewhere?.otherTitle).toBeUndefined()
+    expect(bundle.incomingWires[0]).toMatchObject({ otherIri: OBJECT, otherDocumentId: '', sceneDocumentId: 'doc-billing' })
+    // a plain document wire carries none of the new fields
+    const plain = (await makeWireBundleService(makeOxigraphRestClient(seedWorkspaceStore(GRAPH_ID, DOCS, WIRES))).loadBundle(GRAPH_ID, 'doc-architecture')).outgoingWires[0]
+    expect(plain).not.toHaveProperty('otherIri')
+    expect(plain).not.toHaveProperty('sceneDocumentId')
+  })
+
   it('marks both local endpoints for same-document wires', async () => {
     const store = seedWorkspaceStore(GRAPH_ID, DOCS, [
       {

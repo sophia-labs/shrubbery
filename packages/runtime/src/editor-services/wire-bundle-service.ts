@@ -19,6 +19,11 @@ export interface WireSummary {
   readonly otherDocumentId: string
   readonly otherGraphId: string
   readonly otherBlockId?: string
+  /** The far end is a typed object, not a document: its IRI (`otherDocumentId` is then empty). */
+  readonly otherIri?: string
+  /** The board an arrow was promoted from, and the arrow's element id (absent for wires not drawn on a board). */
+  readonly sceneDocumentId?: string
+  readonly sceneElementId?: string
   readonly localBlockId?: string
   readonly otherTitle?: string
   readonly otherSnippet?: string
@@ -56,15 +61,26 @@ export function wireBundleSparql(graphId: string, documentId: string): string {
     'PREFIX mnemo: <http://mnemosyne.ai/vocab#>',
     'PREFIX doc: <http://mnemosyne.dev/doc#>',
     'PREFIX dcterms: <http://purl.org/dc/terms/>',
-    'SELECT ?wire ?sourceDoc ?targetDoc ?sourceBlock ?targetBlock ?targetGraph ?predicate ?bidirectional',
+    'SELECT ?wire ?sourceDoc ?targetDoc ?sourceRes ?targetRes ?sceneDoc ?sceneEl ?sourceBlock ?targetBlock ?targetGraph ?predicate ?bidirectional',
     '       (COALESCE(?cachedSourceTitle, ?sourceDctitle, ?sourceDocTitle, "Untitled") AS ?sourceTitle)',
     '       (COALESCE(?cachedTargetTitle, ?targetDctitle, ?targetDocTitle, "Untitled") AS ?targetTitle)',
     '       ?sourceSnippet ?targetSnippet (COALESCE(?wireSnapshotAt, ?wireCreatedAt) AS ?snapshotAt)',
     `WHERE { GRAPH <${ws}> {`,
     '  ?wire a mnemo:Wire .',
-    '  ?wire mnemo:sourceDocument ?sourceDoc .',
-    '  ?wire mnemo:targetDocument ?targetDoc .',
-    `  FILTER(?sourceDoc = <${document}> || ?targetDoc = <${document}>)`,
+    // A wire end is a document or, since whiteboard semantics, a typed object (`*Resource`), so the document ends
+    // are optional; a wire also belongs to the board it was drawn on (`sceneDocumentId`, a string).
+    // The title lookups nest inside the document end: with the end unbound they would match every title.
+    '  OPTIONAL { ?wire mnemo:sourceDocument ?sourceDoc .',
+    '    OPTIONAL { ?sourceDoc dcterms:title ?sourceDctitle }',
+    '    OPTIONAL { ?sourceDoc doc:title ?sourceDocTitle } }',
+    '  OPTIONAL { ?wire mnemo:targetDocument ?targetDoc .',
+    '    OPTIONAL { ?targetDoc dcterms:title ?targetDctitle }',
+    '    OPTIONAL { ?targetDoc doc:title ?targetDocTitle } }',
+    '  OPTIONAL { ?wire mnemo:sourceResource ?sourceRes }',
+    '  OPTIONAL { ?wire mnemo:targetResource ?targetRes }',
+    '  OPTIONAL { ?wire mnemo:sceneDocumentId ?sceneDoc }',
+    '  OPTIONAL { ?wire mnemo:sceneElementId ?sceneEl }',
+    `  FILTER(?sourceDoc = <${document}> || ?targetDoc = <${document}> || ?sceneDoc = ${JSON.stringify(documentId)})`,
     '  OPTIONAL { ?wire mnemo:sourceBlock ?sourceBlock }',
     '  OPTIONAL { ?wire mnemo:targetBlock ?targetBlock }',
     '  OPTIONAL { ?wire mnemo:targetGraph ?targetGraph }',
@@ -76,10 +92,6 @@ export function wireBundleSparql(graphId: string, documentId: string): string {
     '  OPTIONAL { ?wire mnemo:targetSnippet ?targetSnippet }',
     '  OPTIONAL { ?wire mnemo:snapshotAt ?wireSnapshotAt }',
     '  OPTIONAL { ?wire doc:createdAt ?wireCreatedAt }',
-    '  OPTIONAL { ?sourceDoc dcterms:title ?sourceDctitle }',
-    '  OPTIONAL { ?sourceDoc doc:title ?sourceDocTitle }',
-    '  OPTIONAL { ?targetDoc dcterms:title ?targetDctitle }',
-    '  OPTIONAL { ?targetDoc doc:title ?targetDocTitle }',
     '} }',
     'ORDER BY ?wire',
   ].join('\n')
@@ -153,9 +165,13 @@ export function rowsToWireBundle(
   for (const row of rows) {
     const sourceDocumentId = bareDocumentId(row.sourceDoc)
     const targetDocumentId = bareDocumentId(row.targetDoc)
-    if (!sourceDocumentId || !targetDocumentId) continue
+    // Each end names a document or an object; a wire with an unnamed end is not a wire.
+    if (!sourceDocumentId && !namedNodeIri(row.sourceRes)) continue
+    if (!targetDocumentId && !namedNodeIri(row.targetRes)) continue
 
-    const isOutgoing = sourceDocumentId === documentId
+    // A wire drawn on this board with neither end in it is listed as outgoing (its far end is the target).
+    const drawnHere = unquoteLiteral(row.sceneDoc) === documentId
+    const isOutgoing = sourceDocumentId === documentId || (drawnHere && targetDocumentId !== documentId)
     const isIncoming = targetDocumentId === documentId
     if (!isOutgoing && !isIncoming) continue
 
@@ -179,10 +195,15 @@ function rowToWireSummary(graphId: string, row: SolutionRow, outgoing: boolean):
   const targetBlockId = bareBlockId(row.targetBlock)
   const predicate = namedNodeIri(row.predicate) ?? wirePredicateUri(DEFAULT_WIKILINK_PREDICATE)
   const otherDocumentId = outgoing ? targetDocumentId : sourceDocumentId
+  const otherIri = (outgoing ? namedNodeIri(row.targetRes) : namedNodeIri(row.sourceRes)) ?? undefined
+  const sceneDocumentId = unquoteLiteral(row.sceneDoc)
+  const sceneElementId = unquoteLiteral(row.sceneEl)
   const otherGraphId = outgoing ? unquoteLiteral(row.targetGraph) || graphId : graphId
   const otherBlockId = outgoing ? targetBlockId : sourceBlockId
   const localBlockId = outgoing ? sourceBlockId : targetBlockId
-  const otherTitle = outgoing ? unquoteLiteral(row.targetTitle) : unquoteLiteral(row.sourceTitle)
+  const rawTitle = outgoing ? unquoteLiteral(row.targetTitle) : unquoteLiteral(row.sourceTitle)
+  // An object end has no document to title it: "Untitled" is the query's filler, not a title.
+  const otherTitle = otherIri && !otherDocumentId && rawTitle === 'Untitled' ? '' : rawTitle
   const localSnippet = outgoing ? unquoteLiteral(row.sourceSnippet) : unquoteLiteral(row.targetSnippet)
   const otherSnippet = outgoing ? unquoteLiteral(row.targetSnippet) : unquoteLiteral(row.sourceSnippet)
   return {
@@ -192,6 +213,9 @@ function rowToWireSummary(graphId: string, row: SolutionRow, outgoing: boolean):
     otherDocumentId,
     otherGraphId,
     ...(otherBlockId ? { otherBlockId } : {}),
+    ...(otherIri ? { otherIri } : {}),
+    ...(sceneDocumentId ? { sceneDocumentId } : {}),
+    ...(sceneElementId ? { sceneElementId } : {}),
     ...(localBlockId ? { localBlockId } : {}),
     ...(otherTitle ? { otherTitle } : {}),
     ...(otherSnippet ? { otherSnippet } : {}),

@@ -89,8 +89,14 @@ export interface BlockSeed {
 
 export interface WireSeed {
   readonly id: string
-  readonly sourceDocumentId: string
-  readonly targetDocumentId: string
+  readonly sourceDocumentId?: string
+  readonly targetDocumentId?: string
+  /** An end that is a typed object (an IRI), in place of a document. */
+  readonly sourceResource?: string
+  readonly targetResource?: string
+  /** The board the arrow was drawn on, and the arrow. */
+  readonly sceneDocumentId?: string
+  readonly sceneElementId?: string
   readonly sourceBlockId?: string
   readonly targetBlockId?: string
   readonly targetGraphId?: string
@@ -146,9 +152,25 @@ export function seedWorkspaceStore(
   for (const wire of wires) {
     const subj = namedNode(wireRefUri(graphId, wire.id))
     store.add(quad(subj, namedNode(RDF_TYPE), namedNode(`${WIRE_NS}Wire`), g))
-    store.add(quad(subj, namedNode(`${WIRE_NS}sourceDocument`), namedNode(documentRefUri(wire.sourceDocumentId)), g))
-    store.add(quad(subj, namedNode(`${WIRE_NS}targetDocument`), namedNode(documentRefUri(wire.targetDocumentId)), g))
-    if (wire.sourceBlockId !== undefined) {
+    if (wire.sourceDocumentId !== undefined) {
+      store.add(quad(subj, namedNode(`${WIRE_NS}sourceDocument`), namedNode(documentRefUri(wire.sourceDocumentId)), g))
+    }
+    if (wire.targetDocumentId !== undefined) {
+      store.add(quad(subj, namedNode(`${WIRE_NS}targetDocument`), namedNode(documentRefUri(wire.targetDocumentId)), g))
+    }
+    if (wire.sourceResource !== undefined) {
+      store.add(quad(subj, namedNode(`${WIRE_NS}sourceResource`), namedNode(wire.sourceResource), g))
+    }
+    if (wire.targetResource !== undefined) {
+      store.add(quad(subj, namedNode(`${WIRE_NS}targetResource`), namedNode(wire.targetResource), g))
+    }
+    if (wire.sceneDocumentId !== undefined) {
+      store.add(quad(subj, namedNode(`${WIRE_NS}sceneDocumentId`), literal(wire.sceneDocumentId), g))
+    }
+    if (wire.sceneElementId !== undefined) {
+      store.add(quad(subj, namedNode(`${WIRE_NS}sceneElementId`), literal(wire.sceneElementId), g))
+    }
+    if (wire.sourceBlockId !== undefined && wire.sourceDocumentId !== undefined) {
       store.add(
         quad(
           subj,
@@ -158,7 +180,7 @@ export function seedWorkspaceStore(
         ),
       )
     }
-    if (wire.targetBlockId !== undefined) {
+    if (wire.targetBlockId !== undefined && wire.targetDocumentId !== undefined) {
       store.add(
         quad(
           subj,
