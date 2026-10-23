@@ -1,3 +1,4 @@
+import { LocaleController, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, type TemplateResult } from 'lit'
 import { customElement, property, state } from 'lit/decorators.js'
 import type { WireBundle, WireSummary } from '../editor-services/index.js'
@@ -115,6 +116,8 @@ function panelIcon(name: WirePanelIcon): TemplateResult {
 
 @customElement('sh-wires-panel')
 export class ShWiresPanel extends LitElement {
+  protected readonly _locale = new LocaleController(this)
+
   private static readonly WIRE_PREVIEW_LIMIT = 8
 
   static styles = css`
@@ -873,7 +876,7 @@ export class ShWiresPanel extends LitElement {
       <div class="wire-endpoint" data-wire-endpoint=${label}>
         ${showTitle
           ? html`<div class="endpoint-title-row">
-              <span class="flow-label">${label}</span>
+              <span class="flow-label">${t(label)}</span>
               <strong class="endpoint-title" title=${title}>${title}</strong>
               ${actions}
             </div>`
@@ -881,7 +884,7 @@ export class ShWiresPanel extends LitElement {
         ${isDocumentLevel && !text
           ? nothing
           : html`<blockquote class="snippet ${label === 'here' ? 'local' : ''} ${text ? '' : 'missing'}">
-              ${text || `No ${label} snippet yet`}
+              ${text || (label === 'here' ? t('No here snippet yet') : t('No there snippet yet'))}
             </blockquote>`}
       </div>
     `
@@ -913,8 +916,8 @@ export class ShWiresPanel extends LitElement {
         type="button"
         class="action-button"
         data-wire-panel-pin-wire
-        title="Pin full wire"
-        aria-label="Pin full wire"
+        title=${t('Pin full wire')}
+        aria-label=${t('Pin full wire')}
         @click=${(event: Event) => this.runCardAction(event, () => this.pinWire(wire, direction))}
       >${panelIcon('link')}</button>`)
     }
@@ -923,8 +926,8 @@ export class ShWiresPanel extends LitElement {
         type="button"
         class="action-button"
         data-wire-panel-pin-block
-        title="Pin local block"
-        aria-label="Pin local block"
+        title=${t('Pin local block')}
+        aria-label=${t('Pin local block')}
         @click=${(event: Event) => this.runCardAction(event, () => this.pinWireBlock(wire))}
       >${panelIcon('block')}</button>`)
     }
@@ -933,8 +936,8 @@ export class ShWiresPanel extends LitElement {
         type="button"
         class="action-button"
         data-wire-panel-pin
-        title="Pin connected document"
-        aria-label="Pin connected document"
+        title=${t('Pin connected document')}
+        aria-label=${t('Pin connected document')}
         @click=${(event: Event) => this.runCardAction(event, () => this.pinWireDocument(wire))}
       >${panelIcon('pin')}</button>`)
     }
@@ -943,8 +946,8 @@ export class ShWiresPanel extends LitElement {
         type="button"
         class="action-button"
         data-wire-panel-refresh
-        title="Refresh snapshot"
-        aria-label="Refresh snapshot"
+        title=${t('Refresh snapshot')}
+        aria-label=${t('Refresh snapshot')}
         @click=${(event: Event) => this.runCardAction(event, () => this.refreshWire(wire))}
       >${panelIcon('refresh')}</button>`)
     }
@@ -953,8 +956,8 @@ export class ShWiresPanel extends LitElement {
         type="button"
         class="action-button delete"
         data-wire-panel-delete
-        title="Delete wire"
-        aria-label="Delete wire"
+        title=${t('Delete wire')}
+        aria-label=${t('Delete wire')}
         @click=${(event: Event) => this.runCardAction(event, () => this.deleteWire(wire))}
       >${panelIcon('trash')}</button>`)
     }
@@ -1008,10 +1011,10 @@ export class ShWiresPanel extends LitElement {
   private renderContext(wire: WireSummary): TemplateResult {
     const state = this.contextFor(wire.id)
     if (!state || state.status === 'loading') {
-      return html`<div class="context-inline" @click=${(event: Event) => event.stopPropagation()}><div class="context-loading">Loading…</div></div>`
+      return html`<div class="context-inline" @click=${(event: Event) => event.stopPropagation()}><div class="context-loading">${t('Loading…')}</div></div>`
     }
     if (state.status === 'error') {
-      return html`<div class="context-inline" @click=${(event: Event) => event.stopPropagation()}><div class="context-error">${state.message ?? 'Could not load context'}</div></div>`
+      return html`<div class="context-inline" @click=${(event: Event) => event.stopPropagation()}><div class="context-error">${state.message ?? t('Could not load context')}</div></div>`
     }
 
     const data = state.data
@@ -1019,9 +1022,9 @@ export class ShWiresPanel extends LitElement {
     return html`
       <div class="context-inline" @click=${(event: Event) => event.stopPropagation()}>
         ${title ? html`<div class="context-title">${title}</div>` : nothing}
-        ${data.mode === 'toc' ? html`<div class="context-mode">Table of contents</div>` : nothing}
+        ${data.mode === 'toc' ? html`<div class="context-mode">${t('Table of contents')}</div>` : nothing}
         ${data.blocks.length === 0
-          ? html`<div class="context-empty">No preview available</div>`
+          ? html`<div class="context-empty">${t('No preview available')}</div>`
           : data.blocks.map((block) => html`
               <div class="context-block ${block.isTarget ? 'is-target' : ''}">
                 ${block.type === 'heading' && block.level
@@ -1040,7 +1043,7 @@ export class ShWiresPanel extends LitElement {
     return html`
       <div class="header">
         <div class="title">
-          <span>Wires</span>
+          <span>${t('Wires')}</span>
           ${ready && total > 0 ? html`<span class="count">${total}</span>` : nothing}
         </div>
         <div class="header-actions">
@@ -1049,8 +1052,8 @@ export class ShWiresPanel extends LitElement {
                 type="button"
                 class="icon-button"
                 data-wire-panel-wire-document
-                title="Create document wire"
-                aria-label="Create document wire"
+                title=${t('Create document wire')}
+                aria-label=${t('Create document wire')}
                 @click=${(event: MouseEvent) => this.requestDocumentWire(event)}
               >${panelIcon('add')}</button>`
             : nothing}
@@ -1059,8 +1062,8 @@ export class ShWiresPanel extends LitElement {
                 type="button"
                 class="icon-button"
                 data-wire-panel-refresh-all
-                title="Refresh all snapshots"
-                aria-label="Refresh all snapshots"
+                title=${t('Refresh all snapshots')}
+                aria-label=${t('Refresh all snapshots')}
                 @click=${() => this.refreshAllWires()}
               >${panelIcon('refresh')}</button>`
             : nothing}
@@ -1069,8 +1072,8 @@ export class ShWiresPanel extends LitElement {
                 type="button"
                 class="icon-button"
                 data-wire-panel-close
-                title="Close wires panel"
-                aria-label="Close wires panel"
+                title=${t('Close wires panel')}
+                aria-label=${t('Close wires panel')}
                 @click=${() => this.closePanel()}
               >${panelIcon('close')}</button>`
             : nothing}
@@ -1080,29 +1083,29 @@ export class ShWiresPanel extends LitElement {
         ${this.status === 'loading'
           ? html`<div class="state loading" data-wire-panel-state="loading" role="status">
               <div class="spinner" aria-hidden="true"></div>
-              <div class="state-copy">Loading wires…</div>
+              <div class="state-copy">${t('Loading wires…')}</div>
             </div>`
           : this.status === 'error'
             ? html`<div class="state error" data-wire-panel-state="error" role="alert">
                 <div class="state-icon">${panelIcon('wire')}</div>
-                <div class="state-title">Could not load wires</div>
-                <div class="state-copy">${this.error?.trim() || 'The wire projection is currently unavailable.'}</div>
+                <div class="state-title">${t('Could not load wires')}</div>
+                <div class="state-copy">${this.error?.trim() || t('The wire projection is currently unavailable.')}</div>
               </div>`
             : this.status === 'idle'
               ? html`<div class="state idle" data-wire-panel-state="idle">
                   <div class="state-icon">${panelIcon('wire')}</div>
-                  <div class="state-title">Wires not loaded</div>
-                  <div class="state-copy">Open a document to inspect its semantic connections.</div>
+                  <div class="state-title">${t('Wires not loaded')}</div>
+                  <div class="state-copy">${t('Open a document to inspect its semantic connections.')}</div>
                 </div>`
               : total === 0
                 ? html`<div class="state empty" data-wire-panel-state="empty">
                     <div class="state-icon">${panelIcon('wire')}</div>
-                    <div class="state-title">No wires yet</div>
-                    <div class="state-copy">Click the wire button in the toolbar to create semantic connections between documents.</div>
+                    <div class="state-title">${t('No wires yet')}</div>
+                    <div class="state-copy">${t('Click the wire button in the toolbar to create semantic connections between documents.')}</div>
                   </div>`
                 : [
-                    this.renderSection('Outgoing', this.outgoingWires, 'outgoing'),
-                    this.renderSection('Incoming', this.incomingWires, 'incoming'),
+                    this.renderSection(t('Outgoing'), this.outgoingWires, 'outgoing'),
+                    this.renderSection(t('Incoming'), this.incomingWires, 'incoming'),
                   ]}
       </div>
     `

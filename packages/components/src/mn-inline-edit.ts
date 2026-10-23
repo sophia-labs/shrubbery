@@ -5,6 +5,7 @@
  * cancelable `mn-save` event; hosts decide whether the rename is accepted.
  */
 
+import { LocaleController, localizeLabel, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, type PropertyValues } from 'lit'
 import { customElement, property, query, state } from 'lit/decorators.js'
 import { classMap } from 'lit/directives/class-map.js'
@@ -17,6 +18,8 @@ export interface MnInlineEditSaveDetail {
 
 @customElement('mn-inline-edit')
 export class MnInlineEdit extends SkinAware(LitElement) {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     :host {
       display: inline-flex;
@@ -203,7 +206,7 @@ export class MnInlineEdit extends SkinAware(LitElement) {
         class="label"
         role="button"
         tabindex="0"
-        title="Click to rename"
+        title=${t('Click to rename')}
         @click=${this.handleLabelActivate}
         @dblclick=${this.handleLabelActivate}
         @keydown=${(event: KeyboardEvent) => {
@@ -221,7 +224,7 @@ export class MnInlineEdit extends SkinAware(LitElement) {
           class=${classMap({ input: true, error: !!this.error })}
           type="text"
           .value=${this.editValue}
-          placeholder=${this.placeholder}
+          placeholder=${localizeLabel(this.placeholder)}
           aria-label=${this.label}
           aria-invalid=${this.error ? 'true' : 'false'}
           aria-describedby=${this.error ? 'mn-inline-edit-error' : nothing}

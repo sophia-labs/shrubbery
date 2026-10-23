@@ -7,6 +7,7 @@
  * A verb the shell cannot honour is absent, not disabled (Law 6). Persistent conditions (read-only, preferences that
  * cannot be saved) are one note above the center; transient messages are the status line's, one polite live region.
  */
+import { t } from '@shrubbery/nucleus'
 import { html, nothing, type TemplateResult } from 'lit'
 import { repeat } from 'lit/directives/repeat.js'
 import { ref } from 'lit/directives/ref.js'
@@ -367,15 +368,15 @@ function chooseFiles(event: Event, value: WorkspaceFilesOptions): void {
  */
 function renderReaderRow(value: WorkspaceFilesOptions, preview: FilesPanePreview | null, name: string): TemplateResult {
   const pdf = preview?.kind === 'pdf' ? preview : null
-  return html`<header class="reader-row" role="toolbar" aria-label="Opened file" ${ref(roving)}>
-    <button type="button" class="tool" data-action="back" aria-label="Back to files" @click=${() => value.onClosePreview()}>← <span class="label">Back</span></button>
+  return html`<header class="reader-row" role="toolbar" aria-label=${t('Opened file')} ${ref(roving)}>
+    <button type="button" class="tool" data-action="back" aria-label=${t('Back to files')} @click=${() => value.onClosePreview()}>← <span class="label">${t('Back')}</span></button>
     <span class="title" title=${name}>${name}</span>
     ${preview?.kind === 'reader' && preview.label ? html`<span class="kind" data-kind-label>${preview.label}</span>` : nothing}
     ${preview?.kind === 'reader' && typeof preview.source === 'boolean' && value.onPreviewSource ? html`<button type="button" class="tool"
-      data-action="source" aria-pressed=${preview.source ? 'true' : 'false'} aria-label="Show the source"
-      @click=${() => value.onPreviewSource?.(!preview.source)}>&lt;/&gt;<span class="label"> Source</span></button>` : nothing}
-    ${pdf && value.onReloadPreview ? html`<button type="button" class="tool" data-action="reload" aria-label="Reload original file"
-      @click=${() => value.onReloadPreview?.()}>↻<span class="label"> Reload</span></button>` : nothing}
+      data-action="source" aria-pressed=${preview.source ? 'true' : 'false'} aria-label=${t('Show the source')}
+      @click=${() => value.onPreviewSource?.(!preview.source)}>&lt;/&gt;<span class="label"> ${t('Source')}</span></button>` : nothing}
+    ${pdf && value.onReloadPreview ? html`<button type="button" class="tool" data-action="reload" aria-label=${t('Reload original file')}
+      @click=${() => value.onReloadPreview?.()}>↻<span class="label"> ${t('Reload')}</span></button>` : nothing}
     ${value.onDownload && preview?.kind !== 'file' ? html`<button type="button" class="tool" data-action="download" aria-label="Download ${name}"
       @click=${() => value.onDownload?.()}>↓<span class="label"> Download</span></button>` : nothing}
   </header>`
@@ -384,31 +385,31 @@ function renderReaderRow(value: WorkspaceFilesOptions, preview: FilesPanePreview
 function roving(el: Element | undefined): void { if (el) rovingToolbar(el) }
 
 function renderTrashRow(trash: FilesPaneTrash): TemplateResult {
-  return html`<header class="reader-row" role="toolbar" aria-label="Trash" ${ref(roving)}>
-    <button type="button" class="tool" data-action="back" aria-label="Back to files" @click=${() => trash.onBack()}>← <span class="label">Back</span></button>
-    <span class="title">Trash</span>
+  return html`<header class="reader-row" role="toolbar" aria-label=${t('Trash')} ${ref(roving)}>
+    <button type="button" class="tool" data-action="back" aria-label=${t('Back to files')} @click=${() => trash.onBack()}>← <span class="label">${t('Back')}</span></button>
+    <span class="title">${t('Trash')}</span>
   </header>`
 }
 
 function renderTrash(trash: FilesPaneTrash): TemplateResult {
-  return html`<section class="trash" aria-label="Trash" data-trash>
+  return html`<section class="trash" aria-label=${t('Trash')} data-trash>
     ${trash.note ? html`<p class="note" role="note">${trash.note}</p>` : nothing}
-    ${trash.status === 'loading' ? html`<p class="empty">Reading the trash…</p>`
+    ${trash.status === 'loading' ? html`<p class="empty">${t('Reading the trash…')}</p>`
       : trash.status === 'error' ? html`<p class="empty error" role="alert">${trash.error}</p>`
-      : trash.items.length === 0 ? html`<p class="empty" data-empty>The trash is empty.</p>`
+      : trash.items.length === 0 ? html`<p class="empty" data-empty>${t('The trash is empty.')}</p>`
       : html`<div role="list" aria-label=${`Trash, ${trash.items.length} ${trash.items.length === 1 ? 'item' : 'items'}`}>
         ${repeat(trash.items, item => item.key, item => html`<div role="row" data-key=${item.key} data-kind=${item.kind}>
           <span class="name"><mn-file-glyph kind=${item.kind === 'document' ? 'document' : 'file'} size="16"></mn-file-glyph>${item.label}</span>
           <span>${item.type}</span>
           <span>${item.when}</span>
           <span class="acts">
-            <button type="button" class="tool" data-action="restore" aria-label=${`Restore ${item.label}`} @click=${() => trash.onRestore(item.key)}>Restore</button>
+            <button type="button" class="tool" data-action="restore" aria-label=${`Restore ${item.label}`} @click=${() => trash.onRestore(item.key)}>${t('Restore')}</button>
             ${trash.canPurge ? html`<button type="button" class="tool danger" data-action="purge" aria-label=${`Delete ${item.label} forever`}
-              @click=${() => trash.onPurge(item.key)}>Delete forever</button>` : nothing}
+              @click=${() => trash.onPurge(item.key)}>${t('Delete forever')}</button>` : nothing}
           </span>
           ${item.confirm ? html`<div class="confirm" role="alertdialog" aria-label=${`Delete ${item.label} forever?`}><span>${item.confirm}</span>
-            <button type="button" class="tool danger" data-action="confirm-purge" @click=${() => trash.onConfirmPurge(item.key)}>Delete forever</button>
-            <button type="button" class="tool" data-action="cancel-purge" @click=${() => trash.onCancelPurge()}>Cancel</button></div>` : nothing}
+            <button type="button" class="tool danger" data-action="confirm-purge" @click=${() => trash.onConfirmPurge(item.key)}>${t('Delete forever')}</button>
+            <button type="button" class="tool" data-action="cancel-purge" @click=${() => trash.onCancelPurge()}>${t('Cancel')}</button></div>` : nothing}
         </div>`)}
       </div>`}
   </section>`
@@ -419,36 +420,36 @@ function renderHeader(value: WorkspaceFilesOptions): TemplateResult {
   if (value.page) return renderReaderRow(value, value.preview, value.page.name)
   if (value.preview) return renderReaderRow(value, value.preview, value.preview.name)
   const crumbs = value.breadcrumbs
-  return html`<header role="toolbar" aria-label="Files" ${ref(roving)}>
-    <nav aria-label="Folder path">
+  return html`<header role="toolbar" aria-label=${t('Files')} ${ref(roving)}>
+    <nav aria-label=${t('Folder path')}>
       ${crumbs.map((crumb, index) => html`<span class="crumb">${index ? html`<span class="sep" aria-hidden="true">›</span>` : nothing}<button
         type="button" aria-current=${index === crumbs.length - 1 ? 'location' : nothing}
         @click=${() => value.onNavigate(crumb.id)}>${crumb.label}</button></span>`)}
     </nav>
     <div class="actions">
-      <div class="seg" role="radiogroup" aria-label="View as">
+      <div class="seg" role="radiogroup" aria-label=${t('View as')}>
         ${(['canvas', 'list'] as const).map(face => html`<button type="button" role="radio" data-face=${face}
           aria-checked=${value.face === face ? 'true' : 'false'}
-          @click=${() => { if (value.face !== face) value.onFace(face) }}>${face === 'canvas' ? 'Canvas' : 'List'}</button>`)}
+          @click=${() => { if (value.face !== face) value.onFace(face) }}>${face === 'canvas' ? 'Canvas' : t('List')}</button>`)}
       </div>
       ${value.canChangeView && value.face === 'canvas' ? html`<span class="view">
-        <select aria-label="Icon size" .value=${value.iconSize}
+        <select aria-label=${t('Icon size')} .value=${value.iconSize}
           @change=${(e: Event) => value.onIconSize((e.currentTarget as HTMLSelectElement).value as FilesIconSize)}>
-          <option value="small" ?selected=${value.iconSize === 'small'}>Small icons</option>
-          <option value="medium" ?selected=${value.iconSize === 'medium'}>Medium icons</option>
-          <option value="large" ?selected=${value.iconSize === 'large'}>Large icons</option>
+          <option value="small" ?selected=${value.iconSize === 'small'}>${t('Small icons')}</option>
+          <option value="medium" ?selected=${value.iconSize === 'medium'}>${t('Medium icons')}</option>
+          <option value="large" ?selected=${value.iconSize === 'large'}>${t('Large icons')}</option>
         </select>
-        <label><input type="checkbox" aria-label="Snap to grid" .checked=${value.snapToGrid}
+        <label><input type="checkbox" aria-label=${t('Snap to grid')} .checked=${value.snapToGrid}
           @change=${(e: Event) => value.onSnapToGrid((e.currentTarget as HTMLInputElement).checked)} /> Grid</label>
       </span>` : nothing}
       ${value.needsLook && value.face === 'list' ? html`<button type="button" class="tool" data-action="needs-look" aria-pressed=${value.needsLook.on ? 'true' : 'false'}
-        title="Only the files with a value the readers disagreed on"
+        title=${t('Only the files with a value the readers disagreed on')}
         @click=${() => value.needsLook?.onToggle(!value.needsLook.on)}>Disputed · ${value.needsLook.count}</button>` : nothing}
-      ${value.onOpenTrash ? html`<button type="button" class="tool" data-action="trash" title="Trash" @click=${() => value.onOpenTrash?.()}>Trash</button>` : nothing}
-      ${value.canCreate ? html`<button type="button" class="tool" data-action="new-folder" title="New folder (⌘⇧N)"
-        @click=${() => value.onNewFolder()}>New folder</button>` : nothing}
+      ${value.onOpenTrash ? html`<button type="button" class="tool" data-action="trash" title=${t('Trash')} @click=${() => value.onOpenTrash?.()}>${t('Trash')}</button>` : nothing}
+      ${value.canCreate ? html`<button type="button" class="tool" data-action="new-folder" title=${t('New folder (⌘⇧N)')}
+        @click=${() => value.onNewFolder()}>${t('New folder')}</button>` : nothing}
       ${value.canUpload ? html`<button type="button" class="tool" data-action="upload" title=${`Upload files (up to ${value.maxUploadLabel} each)`}
-        @click=${(e: Event) => ((e.currentTarget as HTMLElement).nextElementSibling as HTMLInputElement | null)?.click()}>Upload</button><input
+        @click=${(e: Event) => ((e.currentTarget as HTMLElement).nextElementSibling as HTMLInputElement | null)?.click()}>${t('Upload')}</button><input
         class="visually-hidden" type="file" multiple tabindex="-1" aria-hidden="true" @change=${(e: Event) => chooseFiles(e, value)} />` : nothing}
     </div>
   </header>`
@@ -488,12 +489,12 @@ function renderList(value: WorkspaceFilesOptions): TemplateResult {
   const tracks = lead ? `minmax(10rem, 1fr) 3.5rem ${lead.cells.map(c => c.width ?? 'minmax(5rem, 1fr)').join(' ')} 8rem 4.5rem` : ''
   return html`<div class=${sheets ? 'list has-evidence' : 'list'} style=${tracks ? `--mn-evidence-tracks: ${tracks}` : nothing} role="grid" aria-label=${`Folder list, ${value.rows.length} ${value.rows.length === 1 ? 'item' : 'items'}`}
     aria-multiselectable="true" @keydown=${keydown}
-    @dragover=${(e: DragEvent) => { if (value.canUpload && Array.from(e.dataTransfer?.types ?? []).includes('Files')) e.preventDefault() }}
+    @dragover=${(e: DragEvent) => { if (value.canUpload && Array.from(e.dataTransfer?.types ?? []).includes(t('Files'))) e.preventDefault() }}
     @drop=${drop}>
-    <div role="row" class="head"><span role="columnheader">Name</span><span role="columnheader" class="type">Type</span>${lead ? [...lead.cells.map((c, i) => html`<span role="columnheader" class=${i ? 'ev' : 'ev strong'}>${c.header}</span>`),
-      html`<span role="columnheader">Status</span>`] : nothing}<span role="columnheader" class="size">Size</span></div>
+    <div role="row" class="head"><span role="columnheader">${t('Name')}</span><span role="columnheader" class="type">${t('Type')}</span>${lead ? [...lead.cells.map((c, i) => html`<span role="columnheader" class=${i ? 'ev' : 'ev strong'}>${c.header}</span>`),
+      html`<span role="columnheader">${t('Status')}</span>`] : nothing}<span role="columnheader" class="size">${t('Size')}</span></div>
     ${value.rows.length === 0 ? (value.needsLook?.on
-      ? html`<div class="files-empty" data-empty-filter><p>Nothing here is disputed.</p></div>` : renderFilesEmpty(value.canUpload)) : nothing}
+      ? html`<div class="files-empty" data-empty-filter><p>${t('Nothing here is disputed.')}</p></div>` : renderFilesEmpty(value.canUpload)) : nothing}
     ${repeat(value.rows, row => row.key, (row, index) => html`<div role="row" data-key=${row.key} aria-selected=${row.selected ? 'true' : 'false'}
       tabindex=${row.selected || (index === 0 && !value.rows.some(r => r.selected)) ? '0' : '-1'}
       @click=${(e: MouseEvent) => select(e, row.key)}
@@ -539,7 +540,7 @@ function renderRowNaming(value: WorkspaceFilesOptions, key: string, naming: NonN
   // The refusal is bound inside its own element: a binding that directly follows a void element is mis-parsed by some
   // DOM implementations (happy-dom), and the pane must not depend on the parser's mercy.
   const refusal = naming.error ? html`<span class="rename-error" role="alert">${naming.error}</span>` : nothing
-  return html`<span class="rename-wrap"><input class="rename" type="text" aria-label="Name"
+  return html`<span class="rename-wrap"><input class="rename" type="text" aria-label=${t('Name')}
     value=${naming.initial} aria-invalid=${naming.error ? 'true' : 'false'} ${ref(focusOnce)} @keydown=${keydown}
     @click=${(e: Event) => e.stopPropagation()} @dblclick=${(e: Event) => e.stopPropagation()}><span class="rename-after">${refusal}</span></span>`
 }
@@ -598,7 +599,7 @@ function renderReader(value: WorkspaceFilesOptions, preview: ReaderPreview): Tem
   const view = preview.view
   const note = preview.truncated
     ? html`<p class="note" role="note" data-truncated>Showing the first ${preview.truncated.shown} of ${preview.truncated.total}.${value.onPreviewShowAll
-      ? html` <button type="button" data-action="show-all" @click=${() => value.onPreviewShowAll?.()}>Show all</button>` : nothing}</p>`
+      ? html` <button type="button" data-action="show-all" @click=${() => value.onPreviewShowAll?.()}>${t('Show all')}</button>` : nothing}</p>`
     : preview.note ? html`<p class="note" role="note">${preview.note}</p>` : nothing
   return html`<section class="opened" aria-label=${`${preview.label} ${preview.name}`} data-viewer=${preview.label}>
     ${note}
@@ -629,9 +630,9 @@ function renderFilePage(value: WorkspaceFilesOptions, preview: FilePagePreview):
       <mn-file-glyph kind="file" type=${preview.caption} size="96"></mn-file-glyph>
       <h2>${preview.name}</h2>
       <dl>
-        <dt>Kind</dt><dd data-field="kind">${preview.typeLabel}</dd>
-        ${preview.size ? html`<dt>Size</dt><dd data-field="size">${preview.size}</dd>` : nothing}
-        ${preview.modified ? html`<dt>Modified</dt><dd data-field="modified">${preview.modified}</dd>` : nothing}
+        <dt>${t('Kind')}</dt><dd data-field="kind">${preview.typeLabel}</dd>
+        ${preview.size ? html`<dt>${t('Size')}</dt><dd data-field="size">${preview.size}</dd>` : nothing}
+        ${preview.modified ? html`<dt>${t('Modified')}</dt><dd data-field="modified">${preview.modified}</dd>` : nothing}
       </dl>
       ${preview.status === 'loading' ? html`<p>Reading ${preview.name}…</p>` : nothing}
       ${value.onDownload ? html`<button type="button" class="tool" data-action="download" aria-label="Download ${preview.name}"
@@ -644,7 +645,7 @@ function renderFilePage(value: WorkspaceFilesOptions, preview: FilePagePreview):
 /** The page's source section: the viewer in a frame (a picture or a page flows; a reader keeps its own scroll). */
 function renderSource(value: WorkspaceFilesOptions): TemplateResult {
   const preview = value.preview
-  if (!preview) return html`<p class="fp-snote">Opening…</p>`
+  if (!preview) return html`<p class="fp-snote">${t('Opening…')}</p>`
   const flows = preview.kind === 'file' || preview.kind === 'image' || (preview.kind === 'media' && preview.media === 'audio')
   return html`<div class="fp-source" ?data-flow=${flows}>${renderPreview(value, preview)}</div>`
 }
@@ -666,7 +667,7 @@ export function renderFilesPane(value: WorkspaceFilesOptions): TemplateResult {
     : renderList(value)
   // The style sits inside the section: a template that begins with a binding is parsed as a processing instruction by
   // some DOM implementations (happy-dom), and the pane must not depend on the parser's mercy.
-  return html`<section class="mn-files-pane" aria-label="Files" data-graph-id=${value.graphId}>${STYLE}${page ? FILES_PAGE_STYLE : nothing}
+  return html`<section class="mn-files-pane" aria-label=${t('Files')} data-graph-id=${value.graphId}>${STYLE}${page ? FILES_PAGE_STYLE : nothing}
     ${renderHeader(value)}
     ${value.banner ? html`<p class="note" role="note">${value.banner}</p>` : nothing}
     <div class="center">${center}</div>

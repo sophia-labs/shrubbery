@@ -6,6 +6,7 @@
  * emits upgrade/dismiss intents.
  */
 
+import { LocaleController, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, unsafeCSS, type TemplateResult } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 import { SkinAware } from './skin-aware.js'
@@ -43,6 +44,8 @@ function defaultDismissable(level: MnStorageThreshold): boolean {
 
 @customElement('mn-storage-banner')
 export class MnStorageBanner extends SkinAware(LitElement) {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     ${unsafeCSS(iconStyles)}
 
@@ -244,7 +247,7 @@ export class MnStorageBanner extends SkinAware(LitElement) {
           <div class="banner-row">
             <span class="banner-text">${this.message}</span>
             ${dismiss
-              ? html`<button type="button" class="dismiss-btn" aria-label="Dismiss" @click=${this.dismiss}>${icon('x', { size: 14 })}</button>`
+              ? html`<button type="button" class="dismiss-btn" aria-label=${t('Dismiss')} @click=${this.dismiss}>${icon('x', { size: 14 })}</button>`
               : nothing}
           </div>
           <button type="button" class="upgrade-btn" @click=${this.upgrade}>${this.upgradeLabel}</button>
@@ -258,7 +261,7 @@ export class MnStorageBanner extends SkinAware(LitElement) {
           ${this.upgradeLabel} ${icon('external-link', { size: 14 })}
         </button>
         ${dismiss
-          ? html`<button type="button" class="dismiss-btn" aria-label="Dismiss" @click=${this.dismiss}>${icon('x', { size: 14 })}</button>`
+          ? html`<button type="button" class="dismiss-btn" aria-label=${t('Dismiss')} @click=${this.dismiss}>${icon('x', { size: 14 })}</button>`
           : nothing}
       </div>
     `

@@ -6,6 +6,7 @@
  * for a shell to observe.
  */
 
+import { LocaleController, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, unsafeCSS } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 import { SkinAware } from './skin-aware.js'
@@ -15,6 +16,8 @@ import './sophia-hero-canvas.js'
 
 @customElement('sophia-labs-landing')
 export class SophiaLabsLanding extends SkinAware(LitElement) {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = [
     css`
       ${unsafeCSS(iconStyles)}
@@ -215,7 +218,7 @@ export class SophiaLabsLanding extends SkinAware(LitElement) {
           <h1 class="wordmark">Sophia Labs</h1>
 
           <div class="mission">
-            <p class="mission-headline">Making it more joyful to think together.</p>
+            <p class="mission-headline">${t('Making it more joyful to think together.')}</p>
             <div class="mission-body">
               <p>
                 We build shared worlds for human and machine thought. Our first
@@ -231,20 +234,20 @@ export class SophiaLabsLanding extends SkinAware(LitElement) {
           </div>
 
           <section class="projects">
-            <div class="projects-label">Current Work</div>
+            <div class="projects-label">${t('Current Work')}</div>
             <a class="project-link" href=${this.gardenHref} @click=${() => this.action('garden', 'projects', this.gardenHref)}>
               <span class="project-icon">${icon('sprout', { size: 18 })}</span>
               <div class="project-info">
                 <div class="project-name">Garden</div>
-                <div class="project-desc">Write, connect, think - with an AI that remembers</div>
+                <div class="project-desc">${t('Write, connect, think - with an AI that remembers')}</div>
               </div>
-              <span class="project-status">Live</span>
+              <span class="project-status">${t('Live')}</span>
               <span class="project-arrow">${icon('chevron-right', { size: 18 })}</span>
             </a>
           </section>
         </div>
 
-        <footer class="landing-footer">San Francisco | Mexico City</footer>
+        <footer class="landing-footer">${t('San Francisco | Mexico City')}</footer>
       </section>
     `
   }

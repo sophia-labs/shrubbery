@@ -5,6 +5,7 @@
  * Shrubbery keeps the branded overlay but emits host-owned intents instead.
  */
 
+import { LocaleController, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, unsafeCSS, type TemplateResult } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 import { SkinAware } from './skin-aware.js'
@@ -28,9 +29,9 @@ function stageLabel(state: MnRestoreOperationState | ''): string {
     case 'pending':
       return 'Preparing'
     case 'locking':
-      return 'Acquiring lock'
+      return t('Acquiring lock')
     case 'backing_up':
-      return 'Backing up'
+      return t('Backing up')
     case 'restoring':
       return 'Restoring'
     case 'rebuilding':
@@ -42,7 +43,7 @@ function stageLabel(state: MnRestoreOperationState | ''): string {
     case 'failed':
       return 'Failed'
     case 'rolled_back':
-      return 'Rolled back'
+      return t('Rolled back')
     default:
       return ''
   }
@@ -50,6 +51,8 @@ function stageLabel(state: MnRestoreOperationState | ''): string {
 
 @customElement('mn-restore-overlay')
 export class MnRestoreOverlay extends SkinAware(LitElement) {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     ${unsafeCSS(iconStyles)}
 
@@ -301,12 +304,12 @@ export class MnRestoreOverlay extends SkinAware(LitElement) {
 
   private _renderSuccess(): TemplateResult {
     return html`
-      <div class="content" role="alertdialog" aria-modal="true" aria-label=${this.heading || 'Restore completed'}>
+      <div class="content" role="alertdialog" aria-modal="true" aria-label=${this.heading || t('Restore completed')}>
         <div class="state-icon" data-tone="success">${icon('check', { size: 34 })}</div>
-        <h2 class="title">${this.heading || 'Restore Complete'}</h2>
-        <p class="message">${this.message || 'Your workspace has been restored. Reload to reconnect to the restored state.'}</p>
+        <h2 class="title">${this.heading || t('Restore Complete')}</h2>
+        <p class="message">${this.message || t('Your workspace has been restored. Reload to reconnect to the restored state.')}</p>
         <div class="actions">
-          <button type="button" class="dismiss-button" @click=${() => this._dismiss()}>${this.primaryLabel || 'Reload'}</button>
+          <button type="button" class="dismiss-button" @click=${() => this._dismiss()}>${this.primaryLabel || t('Reload')}</button>
           ${this.secondaryLabel
             ? html`<button type="button" class="dismiss-button secondary-button" @click=${() => this._dismissSecondary()}>${this.secondaryLabel}</button>`
             : nothing}
@@ -318,17 +321,17 @@ export class MnRestoreOverlay extends SkinAware(LitElement) {
   private _renderFailure(): TemplateResult {
     const rolledBack = this.operationState === 'rolled_back'
     return html`
-      <div class="content" role="alertdialog" aria-modal="true" aria-label=${this.heading || (rolledBack ? 'Restore rolled back' : 'Restore failed')}>
+      <div class="content" role="alertdialog" aria-modal="true" aria-label=${this.heading || (rolledBack ? t('Restore rolled back') : t('Restore failed'))}>
         <div class="state-icon" data-tone="danger">${icon('alert-circle', { size: 34 })}</div>
-        <h2 class="title">${this.heading || (rolledBack ? 'Restore Rolled Back' : 'Restore Failed')}</h2>
+        <h2 class="title">${this.heading || (rolledBack ? t('Restore Rolled Back') : t('Restore Failed'))}</h2>
         <p class="message">
           ${this.message || (rolledBack
-            ? 'The restore could not be completed. Your workspace has been returned to its previous state.'
-            : 'Something went wrong during the restore. Your workspace may need attention.')}
+            ? t('The restore could not be completed. Your workspace has been returned to its previous state.')
+            : t('Something went wrong during the restore. Your workspace may need attention.'))}
         </p>
         ${this.error ? html`<div class="error-detail">${this.error}</div>` : nothing}
         <div class="actions">
-          <button type="button" class="dismiss-button" @click=${() => this._dismiss()}>${this.primaryLabel || 'Dismiss'}</button>
+          <button type="button" class="dismiss-button" @click=${() => this._dismiss()}>${this.primaryLabel || t('Dismiss')}</button>
           ${this.secondaryLabel
             ? html`<button type="button" class="dismiss-button secondary-button" @click=${() => this._dismissSecondary()}>${this.secondaryLabel}</button>`
             : nothing}
@@ -340,13 +343,13 @@ export class MnRestoreOverlay extends SkinAware(LitElement) {
   private _renderProgress(): TemplateResult {
     const label = stageLabel(this.operationState)
     return html`
-      <div class="content" role="alert" aria-live="polite" aria-label=${this.heading || 'Restore in progress'}>
+      <div class="content" role="alert" aria-live="polite" aria-label=${this.heading || t('Restore in progress')}>
         <div class="spinner-container">
           <div class="spinner-ring"></div>
           <div class="spinner-icon">${icon('clock', { size: 24 })}</div>
         </div>
-        <h2 class="title">${this.heading || 'Restoring Workspace'}</h2>
-        <p class="message">${this.message || 'Please wait while your workspace is being restored.'}</p>
+        <h2 class="title">${this.heading || t('Restoring Workspace')}</h2>
+        <p class="message">${this.message || t('Please wait while your workspace is being restored.')}</p>
         <div class="progress">
           <div class="progress-track">
             <div class="progress-fill" style=${`width: ${this._progressPercent()}%`}></div>

@@ -6,6 +6,7 @@
  * turns those effects into shell-observable CTA events.
  */
 
+import { LocaleController, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, unsafeCSS } from 'lit'
 import { customElement, property, state } from 'lit/decorators.js'
 import { SkinAware } from './skin-aware.js'
@@ -31,6 +32,8 @@ function emitAction(host: HTMLElement, detail: MnLandingActionDetail): void {
 
 @customElement('garden-landing')
 export class GardenLanding extends SkinAware(LitElement) {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = [
     css`
       ${unsafeCSS(iconStyles)}
@@ -655,38 +658,38 @@ export class GardenLanding extends SkinAware(LitElement) {
     switch (this.activeDetail) {
       case 'documents':
         return html`
-          <h3>Documents stay readable.</h3>
+          <h3>${t('Documents stay readable.')}</h3>
           <ul>
-            <li>Write in a normal editor with headings, lists, comments, links, and source material.</li>
-            <li>Imports keep their original file beside the editable document.</li>
-            <li>Daily notes, folders, history, and public publishing stay part of the same workspace.</li>
+            <li>${t('Write in a normal editor with headings, lists, comments, links, and source material.')}</li>
+            <li>${t('Imports keep their original file beside the editable document.')}</li>
+            <li>${t('Daily notes, folders, history, and public publishing stay part of the same workspace.')}</li>
           </ul>
         `
       case 'retrieval':
         return html`
-          <h3>Retrieval is grounded.</h3>
+          <h3>${t('Retrieval is grounded.')}</h3>
           <ul>
-            <li>Blocks, documents, tags, wires, and source annotations become addressable context.</li>
-            <li>Sophia can cite the workspace it is using instead of treating memory as a black box.</li>
-            <li>The graph gives agents a live map of what matters now.</li>
+            <li>${t('Blocks, documents, tags, wires, and source annotations become addressable context.')}</li>
+            <li>${t('Sophia can cite the workspace it is using instead of treating memory as a black box.')}</li>
+            <li>${t('The graph gives agents a live map of what matters now.')}</li>
           </ul>
         `
       case 'graph':
         return html`
-          <h3>The graph is first-class.</h3>
+          <h3>${t('The graph is first-class.')}</h3>
           <ul>
-            <li>Every connection can carry a predicate, not just a backlink.</li>
-            <li>Documents, blocks, artifacts, comments, and workflows share one semantic substrate.</li>
-            <li>Local and hosted modes use the same vocabulary boundary.</li>
+            <li>${t('Every connection can carry a predicate, not just a backlink.')}</li>
+            <li>${t('Documents, blocks, artifacts, comments, and workflows share one semantic substrate.')}</li>
+            <li>${t('Local and hosted modes use the same vocabulary boundary.')}</li>
           </ul>
         `
       default:
         return html`
-          <h3>Click a layer.</h3>
+          <h3>${t('Click a layer.')}</h3>
           <ul>
-            <li>Garden keeps prose comfortable while making structure available to tools.</li>
-            <li>The visible document and the underlying graph are two views of one workspace.</li>
-            <li>That is the foundation for collaboration with Sophia and other agents.</li>
+            <li>${t('Garden keeps prose comfortable while making structure available to tools.')}</li>
+            <li>${t('The visible document and the underlying graph are two views of one workspace.')}</li>
+            <li>${t('That is the foundation for collaboration with Sophia and other agents.')}</li>
           </ul>
         `
     }
@@ -696,26 +699,26 @@ export class GardenLanding extends SkinAware(LitElement) {
     switch (this.activeCollab) {
       case 'people':
         return html`
-          <h3>People</h3>
+          <h3>${t('People')}</h3>
           <ul>
-            <li>Share public graphs, write together, and preserve the reasoning trail.</li>
-            <li>Comments and wires make disagreement and evidence visible beside the draft.</li>
+            <li>${t('Share public graphs, write together, and preserve the reasoning trail.')}</li>
+            <li>${t('Comments and wires make disagreement and evidence visible beside the draft.')}</li>
           </ul>
         `
       case 'sophia':
         return html`
           <h3>Sophia</h3>
           <ul>
-            <li>Sophia works from the workspace graph, not just the current prompt.</li>
-            <li>The assistant can follow links, cite blocks, and keep continuity across sessions.</li>
+            <li>${t('Sophia works from the workspace graph, not just the current prompt.')}</li>
+            <li>${t('The assistant can follow links, cite blocks, and keep continuity across sessions.')}</li>
           </ul>
         `
       case 'agents':
         return html`
-          <h3>Agents</h3>
+          <h3>${t('Agents')}</h3>
           <ul>
-            <li>Local tools can read, write, search, and connect the same graph through explicit contracts.</li>
-            <li>Agent work lands as structured changes instead of untraceable side effects.</li>
+            <li>${t('Local tools can read, write, search, and connect the same graph through explicit contracts.')}</li>
+            <li>${t('Agent work lands as structured changes instead of untraceable side effects.')}</li>
           </ul>
         `
       default:
@@ -728,9 +731,9 @@ export class GardenLanding extends SkinAware(LitElement) {
       <section class="hero">
         <garden-hero-canvas .blobCount=${14}></garden-hero-canvas>
         <div class="hero-content">
-          <div class="kicker">Research and writing, with memory</div>
+          <div class="kicker">${t('Research and writing, with memory')}</div>
           <h1 class="wordmark">Garden</h1>
-          <h2 class="headline">Where research becomes understanding.</h2>
+          <h2 class="headline">${t('Where research becomes understanding.')}</h2>
           <p class="summary">
             Garden is a knowledge environment for long projects: a calm writing
             workspace, a semantic graph underneath, and an AI collaborator that can
@@ -745,14 +748,14 @@ export class GardenLanding extends SkinAware(LitElement) {
             </a>
           </div>
         </div>
-        <div class="scroll-indicator">Scroll</div>
+        <div class="scroll-indicator">${t('Scroll')}</div>
       </section>
 
       <section id="preview" class="band">
         <div class="inner">
           <div class="section-header">
-            <div class="section-label">One Workspace</div>
-            <h2 class="section-title">Research on the left. Draft in the center. Help in context.</h2>
+            <div class="section-label">${t('One Workspace')}</div>
+            <h2 class="section-title">${t('Research on the left. Draft in the center. Help in context.')}</h2>
             <p class="section-desc">
               Garden keeps the whole thinking surface together: documents, notes,
               comments, wires, graph views, and chat all live around the editor.
@@ -765,7 +768,7 @@ export class GardenLanding extends SkinAware(LitElement) {
             <img class="mobile-shot" src=${this.mobileScreenshotSrc} alt="Garden mobile workspace" />
           </div>
           ${this.screenshotExpanded ? html`
-            <button class="lightbox" type="button" @click=${() => { this.screenshotExpanded = false }} aria-label="Close expanded screenshot">
+            <button class="lightbox" type="button" @click=${() => { this.screenshotExpanded = false }} aria-label=${t('Close expanded screenshot')}>
               <img src=${this.screenshotSrc} alt="Garden workspace full screen" />
             </button>
           ` : nothing}
@@ -775,8 +778,8 @@ export class GardenLanding extends SkinAware(LitElement) {
       <section class="band alt">
         <div class="inner">
           <div class="section-header">
-            <div class="section-label">Your Data Lives Twice</div>
-            <h2 class="section-title">It looks like a writing app. Underneath, it is a knowledge graph.</h2>
+            <div class="section-label">${t('Your Data Lives Twice')}</div>
+            <h2 class="section-title">${t('It looks like a writing app. Underneath, it is a knowledge graph.')}</h2>
             <p class="section-desc">
               The editor stays humane. The substrate stays explicit enough for
               search, agents, provenance, and public views.
@@ -786,29 +789,29 @@ export class GardenLanding extends SkinAware(LitElement) {
             <div class="arch-map">
               <button class="arch-node reset ${this.activeDetail === 'documents' ? 'active' : ''}" type="button" @click=${() => { this.activeDetail = this.activeDetail === 'documents' ? null : 'documents' }}>
                 ${icon('file-text', { size: 24 })}
-                <div class="arch-node-title">Documents</div>
-                <div class="arch-node-desc">Readable writing surface</div>
-                <div class="card-hint">Inspect</div>
+                <div class="arch-node-title">${t('Documents')}</div>
+                <div class="arch-node-desc">${t('Readable writing surface')}</div>
+                <div class="card-hint">${t('Inspect')}</div>
               </button>
               <div class="arch-row">
                 <button class="arch-node reset ${this.activeDetail === 'retrieval' ? 'active' : ''}" type="button" @click=${() => { this.activeDetail = this.activeDetail === 'retrieval' ? null : 'retrieval' }}>
                   ${icon('bot', { size: 24 })}
-                  <div class="arch-node-title">Retrieval</div>
-                  <div class="arch-node-desc">Context Sophia can use</div>
-                  <div class="card-hint">Inspect</div>
+                  <div class="arch-node-title">${t('Retrieval')}</div>
+                  <div class="arch-node-desc">${t('Context Sophia can use')}</div>
+                  <div class="card-hint">${t('Inspect')}</div>
                 </button>
                 <div class="arch-link"></div>
                 <button class="arch-node reset ${this.activeDetail === 'graph' ? 'active' : ''}" type="button" @click=${() => { this.activeDetail = this.activeDetail === 'graph' ? null : 'graph' }}>
                   ${icon('network', { size: 24 })}
-                  <div class="arch-node-title">Graph</div>
-                  <div class="arch-node-desc">Semantic relationships</div>
-                  <div class="card-hint">Inspect</div>
+                  <div class="arch-node-title">${t('Graph')}</div>
+                  <div class="arch-node-desc">${t('Semantic relationships')}</div>
+                  <div class="card-hint">${t('Inspect')}</div>
                 </button>
               </div>
             </div>
             <div class="arch-detail">
               ${this.activeDetail ? html`
-                <button class="close-button" type="button" @click=${() => { this.activeDetail = null }} aria-label="Close architecture detail">${icon('x', { size: 16 })}</button>
+                <button class="close-button" type="button" @click=${() => { this.activeDetail = null }} aria-label=${t('Close architecture detail')}>${icon('x', { size: 16 })}</button>
               ` : nothing}
               ${this.detailTemplate()}
             </div>
@@ -819,8 +822,8 @@ export class GardenLanding extends SkinAware(LitElement) {
       <section class="band">
         <div class="inner">
           <div class="section-header">
-            <div class="section-label">Beyond Backlinks</div>
-            <h2 class="section-title">Every connection tells you what it means.</h2>
+            <div class="section-label">${t('Beyond Backlinks')}</div>
+            <h2 class="section-title">${t('Every connection tells you what it means.')}</h2>
             <p class="section-desc">
               Garden wires are typed. A note can support a claim, contradict a
               draft, cite a source, or open a new line of inquiry.
@@ -828,16 +831,16 @@ export class GardenLanding extends SkinAware(LitElement) {
           </div>
           <div class="wires-grid">
             <div class="wire-panel">
-              <div class="mini-label">Before</div>
-              <p class="wire-row">source <span class="wire-edge">links to</span> draft</p>
-              <p class="wire-row">note <span class="wire-edge">links to</span> note</p>
-              <p class="wire-copy">A backlink tells you that two things are connected, then leaves the relationship implicit.</p>
+              <div class="mini-label">${t('Before')}</div>
+              <p class="wire-row">${t('source')} <span class="wire-edge">${t('links to')}</span> draft</p>
+              <p class="wire-row">${t('note')} <span class="wire-edge">${t('links to')}</span> ${t('note')}</p>
+              <p class="wire-copy">${t('A backlink tells you that two things are connected, then leaves the relationship implicit.')}</p>
             </div>
             <div class="wire-panel">
               <div class="mini-label">Garden</div>
-              <p class="wire-row">source <span class="wire-edge">supports</span> claim</p>
-              <p class="wire-row">field note <span class="wire-edge">complicates</span> theory</p>
-              <p class="wire-copy">A wire names the relationship so people and agents can reason over it later.</p>
+              <p class="wire-row">${t('source')} <span class="wire-edge">${t('supports')}</span> claim</p>
+              <p class="wire-row">${t('field note')} <span class="wire-edge">${t('complicates')}</span> theory</p>
+              <p class="wire-copy">${t('A wire names the relationship so people and agents can reason over it later.')}</p>
             </div>
           </div>
         </div>
@@ -846,12 +849,12 @@ export class GardenLanding extends SkinAware(LitElement) {
       <section class="band alt">
         <div class="inner sophia-panel">
           <div class="timeline" aria-hidden="true">
-            <span class="timeline-month">Month 1</span><span class="timeline-line"></span>
-            <span class="timeline-month">Month 2</span><span class="timeline-line"></span>
-            <span class="timeline-month now">Now</span>
+            <span class="timeline-month">${t('Month 1')}</span><span class="timeline-line"></span>
+            <span class="timeline-month">${t('Month 2')}</span><span class="timeline-line"></span>
+            <span class="timeline-month now">${t('Now')}</span>
           </div>
-          <div class="section-label">Why Sophia</div>
-          <h2 class="section-title">An AI collaborator with continuity.</h2>
+          <div class="section-label">${t('Why Sophia')}</div>
+          <h2 class="section-title">${t('An AI collaborator with continuity.')}</h2>
           <p class="lede">
             Sophia attunes to the workspace: documents, links, tags, wires, and
             the history of what mattered. The goal is not just faster text. It is
@@ -863,27 +866,27 @@ export class GardenLanding extends SkinAware(LitElement) {
       <section class="band">
         <div class="inner">
           <div class="section-header">
-            <div class="section-label">Not Just You</div>
-            <h2 class="section-title">Write together.</h2>
-            <p class="section-desc">Garden is designed for a future where human collaborators, Sophia, and local agents can work in the same structured space.</p>
+            <div class="section-label">${t('Not Just You')}</div>
+            <h2 class="section-title">${t('Write together.')}</h2>
+            <p class="section-desc">${t('Garden is designed for a future where human collaborators, Sophia, and local agents can work in the same structured space.')}</p>
           </div>
           <div class="collab-grid">
             ${[
-              ['people', 'user', 'People', 'Collaborators share context instead of sending static files.'],
+              ['people', 'user', t('People'), 'Collaborators share context instead of sending static files.'],
               ['sophia', 'bot', 'Sophia', 'The assistant reads the graph that your work already produces.'],
-              ['agents', 'git-merge', 'Agents', 'Tools can make precise, inspectable changes through the same boundary.'],
+              ['agents', 'git-merge', t('Agents'), 'Tools can make precise, inspectable changes through the same boundary.'],
             ].map(([id, glyph, title, desc]) => html`
               <button class="collab-card reset ${this.activeCollab === id ? 'active' : ''}" type="button" @click=${() => { this.activeCollab = this.activeCollab === id ? null : id as 'people' | 'sophia' | 'agents' }}>
                 ${icon(glyph, { size: 24 })}
                 <div class="card-title">${title}</div>
                 <div class="card-desc">${desc}</div>
-                <div class="card-hint">Open</div>
+                <div class="card-hint">${t('Open')}</div>
               </button>
             `)}
           </div>
           ${this.activeCollab ? html`
             <div class="collab-detail">
-              <button class="close-button" type="button" @click=${() => { this.activeCollab = null }} aria-label="Close collaboration detail">${icon('x', { size: 16 })}</button>
+              <button class="close-button" type="button" @click=${() => { this.activeCollab = null }} aria-label=${t('Close collaboration detail')}>${icon('x', { size: 16 })}</button>
               ${this.collabTemplate()}
             </div>
           ` : nothing}
@@ -893,23 +896,23 @@ export class GardenLanding extends SkinAware(LitElement) {
       <section class="band alt">
         <div class="inner">
           <div class="section-header">
-            <div class="section-label">And More</div>
-            <h2 class="section-title">Dozens of small surfaces, one workspace.</h2>
+            <div class="section-label">${t('And More')}</div>
+            <h2 class="section-title">${t('Dozens of small surfaces, one workspace.')}</h2>
           </div>
           <div class="graph-shot">
             <img src=${this.graphScreenshotSrc} alt="Garden graph view" />
           </div>
           <div class="more-grid">
-            <div class="more-card">Public graph publishing for readable shared work.</div>
-            <div class="more-card">Original-file views beside editable extracted documents.</div>
-            <div class="more-card">Daily notes, source annotations, history, and workspace restoration.</div>
+            <div class="more-card">${t('Public graph publishing for readable shared work.')}</div>
+            <div class="more-card">${t('Original-file views beside editable extracted documents.')}</div>
+            <div class="more-card">${t('Daily notes, source annotations, history, and workspace restoration.')}</div>
           </div>
         </div>
       </section>
 
       <section class="band cta">
         <div class="inner">
-          <h2>Build a memory palace for your work.</h2>
+          <h2>${t('Build a memory palace for your work.')}</h2>
           <div class="cta-row">
             <a class="btn-primary" href=${this.appHref} @click=${() => this.action('signup', 'footer', this.appHref)}>
               Sign up ${icon('arrow-right', { size: 18 })}
@@ -918,32 +921,32 @@ export class GardenLanding extends SkinAware(LitElement) {
               vera@sophia-labs.com
             </a>
           </div>
-          <div class="footer-note">Questions, collaborations, and field reports are welcome.</div>
+          <div class="footer-note">${t('Questions, collaborations, and field reports are welcome.')}</div>
         </div>
       </section>
 
       <section class="band alt">
         <div class="inner">
           <div class="section-header">
-            <div class="section-label">Open By Default</div>
-            <h2 class="section-title">See the work in progress.</h2>
-            <p class="section-desc">Garden is being built in public conversation with researchers, writers, and software agents.</p>
+            <div class="section-label">${t('Open By Default')}</div>
+            <h2 class="section-title">${t('See the work in progress.')}</h2>
+            <p class="section-desc">${t('Garden is being built in public conversation with researchers, writers, and software agents.')}</p>
           </div>
           <div class="community-grid">
             <a class="community-link" href=${this.discordHref} target="_blank" rel="noopener" @click=${() => this.action('discord', 'community', this.discordHref)}>
-              <small>Community</small>
+              <small>${t('Community')}</small>
               <div class="card-title">Discord</div>
-              <div class="card-desc">Join discussions, demos, and design notes.</div>
+              <div class="card-desc">${t('Join discussions, demos, and design notes.')}</div>
             </a>
             <a class="community-link" href="https://github.com/sophia-labs" target="_blank" rel="noopener" @click=${() => this.action('github', 'community', 'https://github.com/sophia-labs')}>
-              <small>Source</small>
+              <small>${t('Source')}</small>
               <div class="card-title">GitHub</div>
-              <div class="card-desc">Follow the implementation as it evolves.</div>
+              <div class="card-desc">${t('Follow the implementation as it evolves.')}</div>
             </a>
             <a class="community-link" href=${this.emailHref} @click=${() => this.action('email', 'community', this.emailHref)}>
-              <small>Contact</small>
-              <div class="card-title">Email</div>
-              <div class="card-desc">Talk with us about research workflows.</div>
+              <small>${t('Contact')}</small>
+              <div class="card-title">${t('Email')}</div>
+              <div class="card-desc">${t('Talk with us about research workflows.')}</div>
             </a>
           </div>
         </div>

@@ -12,6 +12,7 @@
  * Pure: no DOM, no network.
  */
 
+import { formatNumber, t } from '../i18n/index.js'
 import { type AgentMark, agentMark } from '../kinds/card.js'
 
 export const AGENT_IRI_PREFIX = 'urn:sophia:agent:'
@@ -128,7 +129,7 @@ export function beingFaces(input: {
 
 /** "1 sitting", "26 sittings". */
 export function sittingsWords(count: number): string {
-  return `${count.toLocaleString()} ${count === 1 ? 'sitting' : 'sittings'}`
+  return t('being.sittings', { count, number: formatNumber(count) })
 }
 
 /** "Experiment clerk, 26 sittings": who, and how many times they sat (the face's headline in a sentence). */
@@ -142,7 +143,7 @@ export function beingFacts(face: BeingFace): string[] {
     face.kind ?? '',
     face.models.join(', '),
     face.sittings > 0 ? sittingsWords(face.sittings) : '',
-    face.failed > 0 ? `${face.failed} failed` : '',
-    face.askedAgain > 0 ? `${face.askedAgain} asked again` : '',
+    face.failed > 0 ? t('being.failed', { count: face.failed }) : '',
+    face.askedAgain > 0 ? t('being.askedAgain', { count: face.askedAgain }) : '',
   ].filter(Boolean)
 }

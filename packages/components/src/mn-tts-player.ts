@@ -6,6 +6,7 @@
  * all playback/settings changes leave as intent events.
  */
 
+import { LocaleController, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, unsafeCSS, type TemplateResult } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 import { SkinAware } from './skin-aware.js'
@@ -29,13 +30,15 @@ export interface MnTtsActionDetail {
 
 const DEFAULT_SPEEDS: readonly number[] = [0.75, 1, 1.25, 1.5, 2]
 const DEFAULT_TIERS: readonly MnTtsTierOption[] = [
-  { value: 'classic', label: 'Classic' },
-  { value: 'enhanced', label: 'Enhanced' },
-  { value: 'local', label: 'Local' },
+  { value: 'classic', get label() { return t('Classic') } },
+  { value: 'enhanced', get label() { return t('Enhanced') } },
+  { value: 'local', get label() { return t('Local') } },
 ]
 
 @customElement('mn-tts-player')
 export class MnTtsPlayer extends SkinAware(LitElement) {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     ${unsafeCSS(iconStyles)}
 
@@ -228,7 +231,7 @@ export class MnTtsPlayer extends SkinAware(LitElement) {
   }
 
   private renderPlaybackControls(): TemplateResult {
-    if (this.status === 'loading') return html`<span class="loading">Loading...</span>`
+    if (this.status === 'loading') return html`<span class="loading">${t('Loading...')}</span>`
     return html`
       <button
         type="button"
@@ -245,14 +248,14 @@ export class MnTtsPlayer extends SkinAware(LitElement) {
     if (this.totalBlocks <= 1) return nothing
     return html`
       <div class="separator"></div>
-      <button type="button" class="tts-btn" title="Previous block" ?disabled=${this.currentBlockIndex === 0} @click=${this.skipBack}>
+      <button type="button" class="tts-btn" title=${t('Previous block')} ?disabled=${this.currentBlockIndex === 0} @click=${this.skipBack}>
         ${icon('skip-back', { size: 14 })}
       </button>
       <span class="progress">${this.currentBlockIndex + 1} / ${this.totalBlocks}</span>
       <button
         type="button"
         class="tts-btn"
-        title="Next block"
+        title=${t('Next block')}
         ?disabled=${this.currentBlockIndex >= this.totalBlocks - 1}
         @click=${this.skipForward}
       >
@@ -276,14 +279,14 @@ export class MnTtsPlayer extends SkinAware(LitElement) {
         ${this.currentBlockText ? html`<span class="block-preview">${this.currentBlockText}</span>` : nothing}
 
         <div class="end-controls">
-          <select .value=${String(this.speed)} title="Playback speed" @change=${this.changeSpeed}>
+          <select .value=${String(this.speed)} title=${t('Playback speed')} @change=${this.changeSpeed}>
             ${this.speeds.map(value => html`<option value=${value} ?selected=${this.speed === value}>${value}x</option>`)}
           </select>
-          <select .value=${this.tier} title="Voice tier" @change=${this.changeTier}>
+          <select .value=${this.tier} title=${t('Voice tier')} @change=${this.changeTier}>
             ${this.tiers.map(option => html`<option value=${option.value} ?selected=${this.tier === option.value}>${option.label}</option>`)}
           </select>
           <div class="separator"></div>
-          <button type="button" class="tts-btn" title="Close" @click=${this.stop}>
+          <button type="button" class="tts-btn" title=${t('Close')} @click=${this.stop}>
             ${icon('x', { size: 14 })}
           </button>
         </div>

@@ -8,6 +8,7 @@
  * keyboard focus. Selection leaves as a composed event.
  */
 
+import { LocaleController, localizeLabel, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, unsafeCSS, type PropertyValues } from 'lit'
 import { customElement, property, query, state } from 'lit/decorators.js'
 import { classMap } from 'lit/directives/class-map.js'
@@ -63,6 +64,8 @@ function isSelectable(entry: MenuEntry): entry is MenuItemEntry {
 
 @customElement('mn-context-menu')
 export class MnContextMenu extends SkinAware(LitElement) {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     ${unsafeCSS(iconStyles)}
 
@@ -466,7 +469,7 @@ export class MnContextMenu extends SkinAware(LitElement) {
 
     let actionableIndex = 0
     return html`
-      <div class="menu" role="menu" aria-label="Context menu">
+      <div class="menu" role="menu" aria-label=${t('Context menu')}>
         ${repeat(
           this.items,
           (entry, index) => (isItem(entry) ? entry.id : `${entry.type}-${index}`),
@@ -478,7 +481,7 @@ export class MnContextMenu extends SkinAware(LitElement) {
               return html`
                 <div class="menu-header" role="presentation">
                   <span class="menu-header-icon" aria-hidden="true">${icon('folder', { size: 12 })}</span>
-                  <span class="menu-header-text">${entry.content}</span>
+                  <span class="menu-header-text">${localizeLabel(entry.content)}</span>
                 </div>
               `
             }
@@ -516,7 +519,7 @@ export class MnContextMenu extends SkinAware(LitElement) {
                 ${item.icon
                   ? html`<span class="item-icon" aria-hidden="true">${icon(item.icon, { size: 14 })}</span>`
                   : nothing}
-                <span class="item-label">${item.label}</span>
+                <span class="item-label">${localizeLabel(item.label)}</span>
                 ${item.shortcut ? html`<span class="item-shortcut">${item.shortcut}</span>` : nothing}
                 ${item.submenu?.length
                   ? html`<span class="submenu-icon" aria-hidden="true">${icon('chevron-right', { size: 14 })}</span>`

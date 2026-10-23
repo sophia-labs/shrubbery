@@ -1,4 +1,5 @@
 /** Read-only Agent ontology/status view. Reports are testimony, never a liveness probe. */
+import { LocaleController, localeSource, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, type TemplateResult, type PropertyValues } from 'lit'
 import { customElement, property, state } from 'lit/decorators.js'
 import { repeat } from 'lit/directives/repeat.js'
@@ -26,6 +27,8 @@ export type WfAgentStatusReadState = 'idle' | 'loading' | 'ready' | 'empty' | 'u
 
 @customElement('wf-agent-status-view')
 export class WfAgentStatusView extends SkinAware(LitElement) {
+  protected readonly _locale = new LocaleController(this)
+
   @property({ type: String }) graphId = ''
   @property({ type: String }) source = ''
   @property({ type: String }) status: WfAgentStatusReadState = 'idle'
@@ -122,47 +125,47 @@ export class WfAgentStatusView extends SkinAware(LitElement) {
 
   private presence(agent: WfAgentStatusSubject): TemplateResult {
     const current = agent.reports.some(report => this.current(report))
-    return html`<span class="presence" data-current=${String(current)}><span class="dot" aria-hidden="true"></span>${current ? 'Recent report' : agent.reports.length ? 'Report expired' : 'No status report'}</span>`
+    return html`<span class="presence" data-current=${String(current)}><span class="dot" aria-hidden="true"></span>${current ? t('Recent report') : agent.reports.length ? t('Report expired') : t('No status report')}</span>`
   }
 
   private renderDetail(agent: WfAgentStatusSubject | undefined): TemplateResult {
-    if (!agent) return html`<div class="detail"><h3>Choose an Agent</h3><p class="muted">Inspect reported work and its source. Selecting an Agent does not start or contact it.</p></div>`
+    if (!agent) return html`<div class="detail"><h3>${t('Choose an Agent')}</h3><p class="muted">${t('Inspect reported work and its source. Selecting an Agent does not start or contact it.')}</p></div>`
     return html`<section class="detail" aria-label=${`Agent details: ${agent.label}`}>
       <h3>${agent.label}</h3>${this.presence(agent)}
-      <dl><dt>Agent identity</dt><dd><code>${agent.agentIri}</code></dd><dt>Agent ID</dt><dd><code>${agent.agentId}</code></dd></dl>
-      <p class="muted">Status is editable graph testimony, not independently verified runtime liveness or authenticated Agent/body identity.</p>
+      <dl><dt>${t('Agent identity')}</dt><dd><code>${agent.agentIri}</code></dd><dt>${t('Agent ID')}</dt><dd><code>${agent.agentId}</code></dd></dl>
+      <p class="muted">${t('Status is editable graph testimony, not independently verified runtime liveness or authenticated Agent/body identity.')}</p>
       ${agent.reports.length ? agent.reports.map(report => html`<article class="report">
-        <h4>${this.current(report) ? 'Reported work' : 'Expired report'}</h4>
-        <p class="activity">${report.activity || 'No activity description supplied.'}</p>
+        <h4>${this.current(report) ? t('Reported work') : t('Expired report')}</h4>
+        <p class="activity">${report.activity || t('No activity description supplied.')}</p>
         <dl>
-          <dt>Attribution</dt><dd>${report.attribution}</dd>
-          <dt>Reporter</dt><dd><code>${report.reporterPrincipal || 'Not independently bound'}</code></dd>
-          <dt>Body</dt><dd><code>${report.bodyId}</code></dd>
-          <dt>Session</dt><dd><code>${report.sessionId || 'Not linked'}</code></dd>
-          <dt>Reported</dt><dd>${new Date(report.reportedAtMs).toLocaleString()}</dd>
-          <dt>Expires</dt><dd>${new Date(report.expiresAtMs).toLocaleString()}</dd>
+          <dt>${t('Attribution')}</dt><dd>${report.attribution}</dd>
+          <dt>${t('Reporter')}</dt><dd><code>${report.reporterPrincipal || t('Not independently bound')}</code></dd>
+          <dt>${t('Body')}</dt><dd><code>${report.bodyId}</code></dd>
+          <dt>${t('Session')}</dt><dd><code>${report.sessionId || t('Not linked')}</code></dd>
+          <dt>${t('Reported')}</dt><dd>${new Date(report.reportedAtMs).toLocaleString(localeSource.get())}</dd>
+          <dt>${t('Expires')}</dt><dd>${new Date(report.expiresAtMs).toLocaleString(localeSource.get())}</dd>
         </dl>
-        ${report.runId ? html`<p class="muted">Reported run (unverified): <code>${report.runId}</code>. Use Runs to inspect its runtime evidence.</p>` : html`<p class="muted">Workflow run not linked.</p>`}
-      </article>`) : html`<p class="activity muted">This Agent has no status report in this workspace. That does not establish whether a body is running elsewhere.</p>`}
-      ${this.conversationAvailable ? html`<p class="activity"><button @click=${()=>this.dispatchEvent(new CustomEvent('choreo-agent-conversation',{detail:{agentIri:agent.agentIri},bubbles:true,composed:true}))}>Open conversation in Grapevine</button></p><p class="muted">Grapevine will resolve an explicitly configured topic for this Agent; opening does not send a message.</p>` : html`<p class="activity muted">Grapevine conversation navigation is unavailable in this host.</p>`}
+        ${report.runId ? html`<p class="muted">${t('Reported run (unverified):')} <code>${report.runId}</code>. Use Runs to inspect its runtime evidence.</p>` : html`<p class="muted">${t('Workflow run not linked.')}</p>`}
+      </article>`) : html`<p class="activity muted">${t('This Agent has no status report in this workspace. That does not establish whether a body is running elsewhere.')}</p>`}
+      ${this.conversationAvailable ? html`<p class="activity"><button @click=${()=>this.dispatchEvent(new CustomEvent('choreo-agent-conversation',{detail:{agentIri:agent.agentIri},bubbles:true,composed:true}))}>${t('Open conversation in Grapevine')}</button></p><p class="muted">${t('Grapevine will resolve an explicitly configured topic for this Agent; opening does not send a message.')}</p>` : html`<p class="activity muted">${t('Grapevine conversation navigation is unavailable in this host.')}</p>`}
     </section>`
   }
 
   private renderBody(): TemplateResult {
-    if (this.status === 'loading') return html`<div class="state" role="status">Reading Agent status…</div>`
-    if (this.status === 'unavailable') return html`<div class="state"><h3>Agent status unavailable</h3><p>${this.error || 'This host does not yet provide the Agent status read interface.'}</p></div>`
-    if (this.status === 'error') return html`<div class="state error" role="alert"><h3>Could not read Agent status</h3><p>${this.error}</p></div>`
-    if (this.status === 'idle') return html`<div class="state"><h3>Agent status has not been read</h3><p>Refresh to read the current workspace’s accessible reports.</p></div>`
-    if (this.status === 'empty') return html`<div class="state"><h3>No Agent reports in this workspace</h3><p>A successful read returned no reported Agents. This is not a whole-network census.</p></div>`
-    if (!this.agents.length) return html`<div class="state error" role="alert">The Agent status snapshot is incomplete. Refresh to try again.</div>`
+    if (this.status === 'loading') return html`<div class="state" role="status">${t('Reading Agent status…')}</div>`
+    if (this.status === 'unavailable') return html`<div class="state"><h3>${t('Agent status unavailable')}</h3><p>${this.error || t('This host does not yet provide the Agent status read interface.')}</p></div>`
+    if (this.status === 'error') return html`<div class="state error" role="alert"><h3>${t('Could not read Agent status')}</h3><p>${this.error}</p></div>`
+    if (this.status === 'idle') return html`<div class="state"><h3>${t('Agent status has not been read')}</h3><p>${t('Refresh to read the current workspace’s accessible reports.')}</p></div>`
+    if (this.status === 'empty') return html`<div class="state"><h3>${t('No Agent reports in this workspace')}</h3><p>${t('A successful read returned no reported Agents. This is not a whole-network census.')}</p></div>`
+    if (!this.agents.length) return html`<div class="state error" role="alert">${t('The Agent status snapshot is incomplete. Refresh to try again.')}</div>`
     return html`
-      <div class="narrow-picker"><label>Agent<select aria-label="Select Agent" .value=${this.selectedAgentIri} @change=${(event:Event) => this.select((event.target as HTMLSelectElement).value)}><option value="">Choose an Agent</option>${this.agents.map(agent => html`<option value=${agent.agentIri}>${agent.label}</option>`)}</select></label></div>
-      <div class="content"><nav class="list" aria-label="Agents in this workspace">${repeat(this.agents, agent=>agent.agentIri, agent=>html`<button class="agent" aria-pressed=${String(agent.agentIri===this.selectedAgentIri)} @click=${()=>this.select(agent.agentIri)}><span class="agent-label">${agent.label}</span>${this.presence(agent)}</button>`)}</nav>${this.renderDetail(this.agents.find(agent=>agent.agentIri===this.selectedAgentIri))}</div>`
+      <div class="narrow-picker"><label>${t('Agent')}<select aria-label=${t('Select Agent')} .value=${this.selectedAgentIri} @change=${(event:Event) => this.select((event.target as HTMLSelectElement).value)}><option value="">${t('Choose an Agent')}</option>${this.agents.map(agent => html`<option value=${agent.agentIri}>${agent.label}</option>`)}</select></label></div>
+      <div class="content"><nav class="list" aria-label=${t('Agents in this workspace')}>${repeat(this.agents, agent=>agent.agentIri, agent=>html`<button class="agent" aria-pressed=${String(agent.agentIri===this.selectedAgentIri)} @click=${()=>this.select(agent.agentIri)}><span class="agent-label">${agent.label}</span>${this.presence(agent)}</button>`)}</nav>${this.renderDetail(this.agents.find(agent=>agent.agentIri===this.selectedAgentIri))}</div>`
   }
 
   render(): TemplateResult {
-    return html`<section class="pane" aria-label="Agent situational awareness">
-      <header><div class="heading"><h2>Agents</h2><p class="scope muted">Workspace: ${this.graphId || 'not bound'} · not a global roster</p>${this.observedAtMs ? html`<p class="scope muted">Read ${new Date(this.observedAtMs).toLocaleString()} from ${this.source}</p>` : nothing}</div><button ?disabled=${this.status==='loading'} @click=${()=>this.dispatchEvent(new CustomEvent('choreo-agent-status-refresh', { detail:{ graphId:this.graphId }, bubbles:true, composed:true }))}>Refresh status</button></header>
+    return html`<section class="pane" aria-label=${t('Agent situational awareness')}>
+      <header><div class="heading"><h2>${t('Agents')}</h2><p class="scope muted">Workspace: ${this.graphId || 'not bound'} · not a global roster</p>${this.observedAtMs ? html`<p class="scope muted">Read ${new Date(this.observedAtMs).toLocaleString(localeSource.get())} from ${this.source}</p>` : nothing}</div><button ?disabled=${this.status==='loading'} @click=${()=>this.dispatchEvent(new CustomEvent('choreo-agent-status-refresh', { detail:{ graphId:this.graphId }, bubbles:true, composed:true }))}>${t('Refresh status')}</button></header>
       ${this.renderBody()}
     </section>`
   }

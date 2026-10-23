@@ -7,6 +7,7 @@
  * web/YouTube auto-detect interaction.
  */
 
+import { LocaleController, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, unsafeCSS } from 'lit'
 import { customElement, property, state } from 'lit/decorators.js'
 import { SkinAware } from './skin-aware.js'
@@ -33,6 +34,8 @@ function clipKind(rawUrl: string): MnQuickClipKind {
 
 @customElement('mn-quick-clip')
 export class MnQuickClip extends SkinAware(LitElement) {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     ${unsafeCSS(iconStyles)}
 
@@ -298,7 +301,7 @@ export class MnQuickClip extends SkinAware(LitElement) {
       <button
         class="trigger"
         type="button"
-        aria-label="Quick clip"
+        aria-label=${t('Quick clip')}
         aria-haspopup="dialog"
         aria-expanded=${this.panelOpen ? 'true' : 'false'}
         aria-controls="quick-clip-panel"
@@ -310,27 +313,27 @@ export class MnQuickClip extends SkinAware(LitElement) {
         id="quick-clip-panel"
         class="panel"
         role="dialog"
-        aria-label="Quick clip"
+        aria-label=${t('Quick clip')}
         ?hidden=${!this.panelOpen}
         aria-hidden=${this.panelOpen ? 'false' : 'true'}
         @keydown=${this.onKeyDown}
       >
           <div class="header">
-            <span>Quick Clip</span>
-            <button class="close" type="button" aria-label="Close quick clip" @click=${this.closePanel}>
+            <span>${t('Quick Clip')}</span>
+            <button class="close" type="button" aria-label=${t('Close quick clip')} @click=${this.closePanel}>
               ${icon('x', { size: 15 })}
             </button>
           </div>
 
           <form @submit=${this.submit} novalidate ?hidden=${!editable} aria-hidden=${editable ? 'false' : 'true'}>
             <label>
-              <span class="mn-sr-only">Web page or YouTube URL</span>
+              <span class="mn-sr-only">${t('Web page or YouTube URL')}</span>
               <input
                 type="url"
                 inputmode="url"
                 autocomplete="url"
                 placeholder="https://…"
-                aria-label="Web page or YouTube URL"
+                aria-label=${t('Web page or YouTube URL')}
                 aria-invalid=${message ? 'true' : 'false'}
                 .value=${this.url}
                 @input=${(event: Event) => {
@@ -339,7 +342,7 @@ export class MnQuickClip extends SkinAware(LitElement) {
                 }}
               />
             </label>
-            <button class="submit" type="submit" ?disabled=${!this.url.trim()}>Clip</button>
+            <button class="submit" type="submit" ?disabled=${!this.url.trim()}>${t('Clip')}</button>
           </form>
           <div class="error" role="alert" ?hidden=${!message}>${message}</div>
           <div class="disclosure" ?hidden=${Boolean(message) || !editable}>

@@ -1,4 +1,5 @@
 /** Read-only notebook cell body for the graph-native `compute.cell` Face. */
+import { LocaleController, t } from '@shrubbery/nucleus'
 import { sanitizeHtml } from '@shrubbery/chat-kernel'
 import { css, html, LitElement, nothing, type TemplateResult } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
@@ -62,6 +63,8 @@ export function preferredComputeMime(data: unknown): { readonly mediaType: strin
 
 @customElement('sh-compute-cell-view')
 export class ShComputeCellView extends LitElement {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     :host {
       display: flex;
@@ -175,7 +178,7 @@ export class ShComputeCellView extends LitElement {
 
   private renderMime(data: unknown): TemplateResult {
     const selected = preferredComputeMime(data)
-    if (!selected) return html`<span>No display data.</span>`
+    if (!selected) return html`<span>${t('No display data.')}</span>`
     const { mediaType, value } = selected
     let rendered: TemplateResult
     if (mediaType === 'text/html') {
@@ -183,15 +186,15 @@ export class ShComputeCellView extends LitElement {
     } else if ((IMAGE_MEDIA_TYPES as readonly string[]).includes(mediaType)) {
       const encoded = typeof value === 'string' ? value.replace(/\s+/g, '') : ''
       rendered = validBase64(encoded)
-        ? html`<img src=${`data:${mediaType};base64,${encoded}`} alt="Jupyter cell output" />`
-        : html`<pre>Invalid or oversized ${mediaType} payload.</pre>`
+        ? html`<img src=${`data:${mediaType};base64,${encoded}`} alt=${t('Jupyter cell output')} />`
+        : html`<pre>${t('compute.invalidPayload', { type: mediaType })}</pre>`
     } else if (mediaType === 'application/json') {
       rendered = html`<pre>${printable(value)}</pre>`
     } else {
       rendered = html`<pre>${printable(value)}</pre>`
     }
     const bundle = isRecord(data) ? data : { [mediaType]: value }
-    return html`${rendered}<details><summary>Representations (${Object.keys(bundle).join(', ')})</summary><pre>${printable(bundle)}</pre></details>`
+    return html`${rendered}<details><summary>${t('compute.representations', { types: Object.keys(bundle).join(', ') })}</summary><pre>${printable(bundle)}</pre></details>`
   }
 
   private renderOutput(output: ComputeCellOutputView, index: number): TemplateResult {
@@ -200,7 +203,7 @@ export class ShComputeCellView extends LitElement {
     if (output.kind === 'error') {
       const error = output.error
       body = html`
-        <div class="error-name">${error ? `${error.ename}: ${error.evalue}` : 'Execution error'}</div>
+        <div class="error-name">${error ? `${error.ename}: ${error.evalue}` : t('Execution error')}</div>
         ${error?.traceback?.length ? html`<pre class="traceback">${error.traceback.join('\n')}</pre>` : nothing}
       `
     } else if (output.kind === 'stream') {
@@ -213,33 +216,33 @@ export class ShComputeCellView extends LitElement {
         <div class="gutter">${label}</div>
         <div class="content">
           ${body}
-          ${output.metadata === undefined ? nothing : html`<details><summary>Metadata</summary><pre>${printable(output.metadata)}</pre></details>`}
+          ${output.metadata === undefined ? nothing : html`<details><summary>${t('Metadata')}</summary><pre>${printable(output.metadata)}</pre></details>`}
         </div>
       </section>
     `
   }
 
   render(): TemplateResult {
-    if (this.status === 'loading') return html`<article class="cell">${this.state('Loading notebook cell…')}</article>`
+    if (this.status === 'loading') return html`<article class="cell">${this.state(t('Loading notebook cell…'))}</article>`
     if (this.status === 'error' || !this.cell) {
-      return html`<article class="cell">${this.state(this.error || 'This notebook cell could not be loaded.', 'danger')}</article>`
+      return html`<article class="cell">${this.state(this.error || t('This notebook cell could not be loaded.'), 'danger')}</article>`
     }
     const cell = this.cell
     const prompt = cell.executionCount ?? cell.ordinal + 1
     return html`
-      <article class="cell" aria-label=${`Notebook cell ${cell.ordinal + 1}`}>
+      <article class="cell" aria-label=${t('compute.cell', { count: cell.ordinal + 1 })}>
         <header class="header">
           <span class="prompt">In [${prompt}]</span>
-          <span class="status" data-status=${cell.status}>${cell.status}</span>
-          <span>generation ${cell.generation}</span>
+          <span class="status" data-status=${cell.status}>${cell.status === 'ok' ? t('Complete') : cell.status === 'aborted' ? t('Cancelled') : t('Failed')}</span>
+          <span>${t('compute.generation', { count: cell.generation })}</span>
           <span class="meta-end">${cell.durationMs} ms</span>
         </header>
         <section class="source">
-          <div class="gutter">code</div>
+          <div class="gutter">${t('code')}</div>
           <div class="content"><pre><code>${cell.source}</code></pre></div>
         </section>
         ${cell.outputs.length === 0
-          ? html`<section class="output"><div class="gutter">out</div><div class="content">No output.</div></section>`
+          ? html`<section class="output"><div class="gutter">${t('out')}</div><div class="content">${t('No output.')}</div></section>`
           : cell.outputs.map((output, index) => this.renderOutput(output, index))}
       </article>
     `

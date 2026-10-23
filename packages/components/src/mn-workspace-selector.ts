@@ -13,6 +13,7 @@
  * catalog projection/rendering logic itself.
  */
 
+import { LocaleController, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, unsafeCSS, type PropertyValues } from 'lit'
 import { customElement, property, state } from 'lit/decorators.js'
 import { SkinAware } from './skin-aware.js'
@@ -73,9 +74,9 @@ function roleLabel(role: MnWorkspaceRole): string {
 
 function actionLabel(action: MnWorkspaceManagementAction): string {
   switch (action) {
-    case 'rename': return 'Rename'
-    case 'delete': return 'Delete'
-    case 'leave': return 'Leave workspace'
+    case 'rename': return t('Rename')
+    case 'delete': return t('Delete')
+    case 'leave': return t('Leave workspace')
   }
 }
 
@@ -89,6 +90,8 @@ function actionIcon(action: MnWorkspaceManagementAction): string {
 
 @customElement('mn-workspace-selector')
 export class MnWorkspaceSelector extends SkinAware(LitElement) {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     ${unsafeCSS(iconStyles)}
 
@@ -723,7 +726,7 @@ export class MnWorkspaceSelector extends SkinAware(LitElement) {
   private renderMetadata(workspace: MnWorkspaceSummary) {
     if (workspace.localCreation) return html`<span class="metadata">
       <span class="lifecycle" title=${workspace.localCreation.error ?? ''}>
-        ${workspace.localCreation.status === 'conflict' ? 'Saved locally · cloud refused' : 'Saved locally · cloud unconfirmed'}
+        ${workspace.localCreation.status === 'conflict' ? t('Saved locally · cloud refused') : t('Saved locally · cloud unconfirmed')}
       </span>
     </span>`
     const lifecycle = workspaceLifecycleLabel(workspace.cellState)
@@ -768,7 +771,7 @@ export class MnWorkspaceSelector extends SkinAware(LitElement) {
         aria-selected=${active ? 'true' : 'false'}
         aria-label=${ariaParts.join(', ')}
         aria-describedby=${reasonId || nothing}
-        title=${workspace.disabled || workspace.localCreation ? disabledReason || 'This workspace is unavailable' : ''}
+        title=${workspace.disabled || workspace.localCreation ? disabledReason || t('This workspace is unavailable') : ''}
         ?disabled=${disabled}
         @click=${() => this.select(workspace)}
       >
@@ -815,7 +818,7 @@ export class MnWorkspaceSelector extends SkinAware(LitElement) {
       return html`<div class="progress" role="status" aria-live="polite">${icon('loader-circle', { size: 13, class: 'spin' })}<span>Switching to ${target ? titleFor(target) : this.pendingGraphId}…</span></div>`
     }
     if (this.busyGraphId === '__create__') {
-      return html`<div class="progress" role="status" aria-live="polite">${icon('loader-circle', { size: 13, class: 'spin' })}<span>Creating workspace…</span></div>`
+      return html`<div class="progress" role="status" aria-live="polite">${icon('loader-circle', { size: 13, class: 'spin' })}<span>${t('Creating workspace…')}</span></div>`
     }
     if (this.busyGraphId) {
       const target = this.workspaces.find(workspace => workspace.graphId === this.busyGraphId)
@@ -825,10 +828,10 @@ export class MnWorkspaceSelector extends SkinAware(LitElement) {
   }
 
   private renderReadyCatalog() {
-    if (this.workspaces.length === 0) return html`<div class="state">No workspaces found</div>`
+    if (this.workspaces.length === 0) return html`<div class="state">${t('No workspaces found')}</div>`
     const catalog = projectWorkspaceCatalog(this.workspaces)
     let disabledIndex = 0
-    return html`<div role="listbox" aria-label="Available workspaces" aria-busy=${this.busyGraphId || this.pendingGraphId ? 'true' : 'false'}>
+    return html`<div role="listbox" aria-label=${t('Available workspaces')} aria-busy=${this.busyGraphId || this.pendingGraphId ? 'true' : 'false'}>
       ${this.renderProgress()}
       ${catalog.groups.map(group => {
         const headingId = `workspace-group-${group.kind}`
@@ -856,9 +859,9 @@ export class MnWorkspaceSelector extends SkinAware(LitElement) {
   private renderMenuBody() {
     return html`<div class="menu-body">
       ${this.status === 'loading' || this.status === 'idle'
-        ? html`<div class="state" role="status" aria-busy="true">Loading workspaces…</div>`
+        ? html`<div class="state" role="status" aria-busy="true">${t('Loading workspaces…')}</div>`
         : this.status === 'error'
-          ? html`<div class="state error" role="alert">${this.error || 'Workspaces are unavailable.'}<br><button class="retry" type="button" @click=${() => this.emit('mn-workspace-refresh', {})}>Retry</button></div>`
+          ? html`<div class="state error" role="alert">${this.error || t('Workspaces are unavailable.')}<br><button class="retry" type="button" @click=${() => this.emit('mn-workspace-refresh', {})}>${t('Retry')}</button></div>`
           : this.renderReadyCatalog()}
       ${this.createCapability.available ? html`<div class="footer"><button
         class="create"
@@ -874,7 +877,7 @@ export class MnWorkspaceSelector extends SkinAware(LitElement) {
     return html`<div
       class="embedded-menu"
       role="listbox-group"
-      aria-label="Workspaces"
+      aria-label=${t('Workspaces')}
       aria-busy=${this.status === 'loading' || this.status === 'idle' || Boolean(this.busyGraphId) ? 'true' : 'false'}
       @keydown=${this.menuKeydown}
     >${this.renderMenuBody()}</div>`
@@ -905,11 +908,11 @@ export class MnWorkspaceSelector extends SkinAware(LitElement) {
           class="menu"
           popover="manual"
           role="dialog"
-          aria-label="Switch workspace"
+          aria-label=${t('Switch workspace')}
           aria-busy=${this.status === 'loading' || this.status === 'idle' || Boolean(this.busyGraphId) ? 'true' : 'false'}
           @keydown=${this.menuKeydown}
         >
-          <div class="sheet-header"><span class="sheet-title">Choose a workspace</span><button class="close" type="button" aria-label="Close workspace selector" @click=${this.closeAndRestoreFocus}>${icon('x', { size: 17 })}</button></div>
+          <div class="sheet-header"><span class="sheet-title">${t('Choose a workspace')}</span><button class="close" type="button" aria-label=${t('Close workspace selector')} @click=${this.closeAndRestoreFocus}>${icon('x', { size: 17 })}</button></div>
           ${this.renderMenuBody()}
         </div>
       ` : nothing}</span>

@@ -6,6 +6,7 @@
  * surface while making the component controlled and backend/store-free.
  */
 
+import { LocaleController, localeSource, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, type TemplateResult } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 import { repeat } from 'lit/directives/repeat.js'
@@ -52,7 +53,7 @@ function formatAnnotationTime(value: string | number | Date | null | undefined):
   if (value == null) return ''
   const date = value instanceof Date ? value : new Date(value)
   if (!Number.isFinite(date.getTime())) return ''
-  return date.toLocaleString(undefined, {
+  return date.toLocaleString(localeSource.get(), {
     month: 'short',
     day: 'numeric',
     hour: 'numeric',
@@ -62,6 +63,8 @@ function formatAnnotationTime(value: string | number | Date | null | undefined):
 
 @customElement('mn-snapshot-diff')
 export class MnSnapshotDiff extends SkinAware(LitElement) {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     :host {
       display: block;
@@ -329,7 +332,7 @@ export class MnSnapshotDiff extends SkinAware(LitElement) {
     if (!changed) {
       return html`
         <div class="shell">
-          <div class="status">No changes between these two versions.</div>
+          <div class="status">${t('No changes between these two versions.')}</div>
         </div>
       `
     }

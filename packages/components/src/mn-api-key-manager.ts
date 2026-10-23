@@ -6,6 +6,7 @@
  * the store owns the ephemeral one-time secret lifecycle.
  */
 
+import { LocaleController, localeSource, t } from '@shrubbery/nucleus'
 import { css, html, LitElement, nothing, type PropertyValues } from 'lit'
 import { customElement, property, state } from 'lit/decorators.js'
 import { SkinAware } from './skin-aware.js'
@@ -101,28 +102,30 @@ function isBusy(status: string): boolean {
 function dateLabel(value: number | null): string {
   if (!value) return 'Never'
   const date = new Date(value * 1_000)
-  return Number.isNaN(date.getTime()) ? 'Unknown' : date.toLocaleString()
+  return Number.isNaN(date.getTime()) ? 'Unknown' : date.toLocaleString(localeSource.get())
 }
 
 function errorText(code: string): string {
   switch (code) {
-    case 'idempotency_key_reused': return 'This create request conflicts with an earlier request. Change the fields and try again.'
-    case 'api_key_quota_exceeded': return 'You have reached the API-key limit for this account.'
-    case 'api_keys_erased': return 'API keys are unavailable because this account has been erased.'
-    case 'cognito_human_required': return 'A current human hosted session is required to manage API keys.'
-    case 'api_key_authority_unavailable': return 'API-key management is temporarily unavailable. Try again later.'
-    case 'one_time_secret_unavailable': return 'The key was created earlier, but its secret cannot be shown again. Revoke it and create a replacement if needed.'
-    case 'authentication': return 'Sign in again to manage API keys.'
-    case 'authorization': return 'This session cannot manage API keys.'
-    case 'invalid_scope': return 'Choose at least one permitted scope.'
-    case 'invalid_graph_allowlist': return 'Each allowlist row needs an exact owner and graph ID.'
-    case 'duplicate_graph': return 'Each graph can appear only once in the allowlist.'
+    case 'idempotency_key_reused': return t('This create request conflicts with an earlier request. Change the fields and try again.')
+    case 'api_key_quota_exceeded': return t('You have reached the API-key limit for this account.')
+    case 'api_keys_erased': return t('API keys are unavailable because this account has been erased.')
+    case 'cognito_human_required': return t('A current human hosted session is required to manage API keys.')
+    case 'api_key_authority_unavailable': return t('API-key management is temporarily unavailable. Try again later.')
+    case 'one_time_secret_unavailable': return t('The key was created earlier, but its secret cannot be shown again. Revoke it and create a replacement if needed.')
+    case 'authentication': return t('Sign in again to manage API keys.')
+    case 'authorization': return t('This session cannot manage API keys.')
+    case 'invalid_scope': return t('Choose at least one permitted scope.')
+    case 'invalid_graph_allowlist': return t('Each allowlist row needs an exact owner and graph ID.')
+    case 'duplicate_graph': return t('Each graph can appear only once in the allowlist.')
     default: return code ? 'The API-key request could not be completed.' : ''
   }
 }
 
 @customElement('mn-api-key-manager')
 export class MnApiKeyManager extends SkinAware(LitElement) {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     :host { display:block; color:var(--mn-color-text-primary,#111827); font-family:var(--mn-font-chrome,system-ui,sans-serif); }
     .panel { display:grid; gap:18px; padding:20px; border:1px solid var(--mn-color-border-subtle,#e5e7eb); border-radius:10px; background:var(--mn-color-surface-raised,#fffefa); }
@@ -376,10 +379,10 @@ export class MnApiKeyManager extends SkinAware(LitElement) {
     const code = String(this.snapshot.code ?? '').toLowerCase()
     const text = this.operationError || errorText(code)
     if (text) return html`<div class="status" data-tone=${code === 'one_time_secret_unavailable' ? 'warning' : 'danger'} role="alert" aria-live="polite">${text}</div>`
-    if (status === 'loading') return html`<div class="status" role="status" aria-live="polite">Loading API keys…</div>`
-    if (status === 'creating') return html`<div class="status" role="status" aria-live="polite">Creating API key…</div>`
-    if (status === 'deleting') return html`<div class="status" role="status" aria-live="polite">Revoking API key…</div>`
-    if (this.snapshot.deleteResult) return html`<div class="status" role="status" aria-live="polite">API key revoked. Future requests using it are denied.</div>`
+    if (status === 'loading') return html`<div class="status" role="status" aria-live="polite">${t('Loading API keys…')}</div>`
+    if (status === 'creating') return html`<div class="status" role="status" aria-live="polite">${t('Creating API key…')}</div>`
+    if (status === 'deleting') return html`<div class="status" role="status" aria-live="polite">${t('Revoking API key…')}</div>`
+    if (this.snapshot.deleteResult) return html`<div class="status" role="status" aria-live="polite">${t('API key revoked. Future requests using it are denied.')}</div>`
     return nothing
   }
 
@@ -387,13 +390,13 @@ export class MnApiKeyManager extends SkinAware(LitElement) {
     const secret = this.snapshot.oneTimeSecret
     if (!secret) return nothing
     return html`
-      <section class="secret" aria-label="Copy your API key once">
-        <h4>Copy this secret now</h4>
-        <p class="hint">It is shown only once and is not saved in this browser. Do not share it or put it in client-side code.</p>
-        <input aria-label="One-time API key secret" type="text" readonly .value=${secret.reveal()} autocomplete="off" spellcheck="false" />
-        <div class="actions"><button type="button" class="primary" @click=${() => { void this.copySecret() }}>Copy secret</button>${this.snapshot.secretCopied ? html`<span class="meta">Copied to clipboard.</span>` : nothing}</div>
-        <label class="ack"><input type="checkbox" .checked=${this.acknowledged} @change=${(event: Event) => { this.acknowledged = (event.target as HTMLInputElement).checked }} /> <span>I have copied and stored this secret. I understand it cannot be shown again.</span></label>
-        <div class="actions"><button type="button" ?disabled=${!this.acknowledged} @click=${() => this.store?.acknowledgeSecret()}>I’ve saved it</button></div>
+      <section class="secret" aria-label=${t('Copy your API key once')}>
+        <h4>${t('Copy this secret now')}</h4>
+        <p class="hint">${t('It is shown only once and is not saved in this browser. Do not share it or put it in client-side code.')}</p>
+        <input aria-label=${t('One-time API key secret')} type="text" readonly .value=${secret.reveal()} autocomplete="off" spellcheck="false" />
+        <div class="actions"><button type="button" class="primary" @click=${() => { void this.copySecret() }}>${t('Copy secret')}</button>${this.snapshot.secretCopied ? html`<span class="meta">${t('Copied to clipboard.')}</span>` : nothing}</div>
+        <label class="ack"><input type="checkbox" .checked=${this.acknowledged} @change=${(event: Event) => { this.acknowledged = (event.target as HTMLInputElement).checked }} /> <span>${t('I have copied and stored this secret. I understand it cannot be shown again.')}</span></label>
+        <div class="actions"><button type="button" ?disabled=${!this.acknowledged} @click=${() => this.store?.acknowledgeSecret()}>${t('I’ve saved it')}</button></div>
       </section>
     `
   }
@@ -413,19 +416,19 @@ export class MnApiKeyManager extends SkinAware(LitElement) {
 
   private renderConnection(key: MnApiKeyMetadata): unknown {
     if (key.status !== 'active' || !key.scopes.includes('mcp.read') || !this.gatewayUrl) return nothing
-    return html`<details><summary>Connect an MCP client</summary>
+    return html`<details><summary>${t('Connect an MCP client')}</summary>
       <div class="fields">
-        <p class="hint">Transport: Streamable HTTP. Add the authorization header below using the secret you saved when creating this key.</p>
+        <p class="hint">${t('Transport: Streamable HTTP. Add the authorization header below using the secret you saved when creating this key.')}</p>
         <code>Authorization: Bearer &lt;your API key&gt;</code>
-        ${key.graphAccess === 'all_accessible' ? html`<p class="hint">This global key works with all workspaces you can access, including future and shared workspaces. Choose a workspace URL below.</p>` : nothing}
+        ${key.graphAccess === 'all_accessible' ? html`<p class="hint">${t('This global key works with all workspaces you can access, including future and shared workspaces. Choose a workspace URL below.')}</p>` : nothing}
         ${(key.graphAccess === 'all_accessible' ? this.graphChoices : key.graphAllowlist).map(graph => {
           const url = this.mcpUrl(graph)
           return url ? html`<div class="field"><label>${graph.graphId} · ${graph.owner}</label>
             <input readonly aria-label=${`MCP URL for ${graph.graphId}`} .value=${url} />
-            <button type="button" @click=${() => { void this.copyUrl(url) }}>${this.copiedUrl === url ? 'Copied URL' : 'Copy MCP URL'}</button></div>` : nothing
+            <button type="button" @click=${() => { void this.copyUrl(url) }}>${this.copiedUrl === url ? t('Copied URL') : t('Copy MCP URL')}</button></div>` : nothing
         })}
-        <p class="hint">Each URL connects to one workspace. A sleeping workspace may need a moment to start; reconnect if your client reports it is activating.</p>
-        <p class="hint">With sophia-mcp: set SOPHIA_MCP_BACKEND to the workspace URL and SOPHIA_MCP_TOKEN to your key. Requires sophia-mcp 0.2.2 or later.</p>
+        <p class="hint">${t('Each URL connects to one workspace. A sleeping workspace may need a moment to start; reconnect if your client reports it is activating.')}</p>
+        <p class="hint">${t('With sophia-mcp: set SOPHIA_MCP_BACKEND to the workspace URL and SOPHIA_MCP_TOKEN to your key. Requires sophia-mcp 0.2.2 or later.')}</p>
       </div></details>`
   }
 
@@ -436,9 +439,9 @@ export class MnApiKeyManager extends SkinAware(LitElement) {
         <div class="key-header"><span class="key-label">${key.displayLabel}</span><span class="tag" data-status=${key.status}>${key.status}</span></div>
         <div class="meta">ID: ${key.keyId} · Expires: ${dateLabel(key.expiresAtUnixSeconds)} · Last used: ${dateLabel(key.lastUsedAtUnixSeconds)}</div>
         <div class="meta">Scopes: ${key.scopes.join(', ')} · Workspaces: ${key.graphAccess === 'all_accessible' ? 'All my workspaces (including future and shared)' : key.graphAllowlist.map(graph => `${graph.owner}/${graph.graphId}`).join(', ')}</div>
-        ${key.status === 'active' && !confirming ? html`<div class="actions"><button type="button" class="danger" data-revoke-key-id=${key.keyId} @click=${(event: Event) => this.openConfirmation(key.keyId, event.currentTarget as HTMLElement)}>Revoke key…</button></div>` : nothing}
+        ${key.status === 'active' && !confirming ? html`<div class="actions"><button type="button" class="danger" data-revoke-key-id=${key.keyId} @click=${(event: Event) => this.openConfirmation(key.keyId, event.currentTarget as HTMLElement)}>${t('Revoke key…')}</button></div>` : nothing}
         ${this.renderConnection(key)}
-        ${confirming ? html`<div class="confirm" role="alertdialog" aria-modal="true" aria-label=${`Confirm revocation of ${key.displayLabel}`} data-confirm-key-id=${key.keyId} @keydown=${(event: KeyboardEvent) => this.confirmationKeydown(event, key.keyId)}><strong>Revoke this API key?</strong><p class="hint">This cannot be undone. The next request using this key will be denied.</p><div class="actions"><button type="button" data-confirm-cancel @click=${() => this.closeConfirmation(key.keyId)}>Cancel</button><button type="button" class="danger" @click=${() => { void this.revoke(key.keyId) }}>Revoke key</button></div></div>` : nothing}
+        ${confirming ? html`<div class="confirm" role="alertdialog" aria-modal="true" aria-label=${`Confirm revocation of ${key.displayLabel}`} data-confirm-key-id=${key.keyId} @keydown=${(event: KeyboardEvent) => this.confirmationKeydown(event, key.keyId)}><strong>${t('Revoke this API key?')}</strong><p class="hint">${t('This cannot be undone. The next request using this key will be denied.')}</p><div class="actions"><button type="button" data-confirm-cancel @click=${() => this.closeConfirmation(key.keyId)}>${t('Cancel')}</button><button type="button" class="danger" @click=${() => { void this.revoke(key.keyId) }}>${t('Revoke key')}</button></div></div>` : nothing}
       </article>
     `
   }
@@ -448,23 +451,23 @@ export class MnApiKeyManager extends SkinAware(LitElement) {
     const disabled = !this.store || isBusy(status) || status === 'unavailable' || status === 'unauthenticated'
     const canRetryCreate = Boolean(this.snapshot.operationId) && (status === 'error' || status === 'unavailable' || status === 'unauthenticated')
     return html`
-      <section class="panel" aria-label="API keys">
-        <div><h3>API keys</h3><p class="intro">Create keys for scripts and integrations. Choose an expiry and the workspaces each key can access.</p></div>
-        <p class="hint">Enable MCP Read to connect an agent. Add MCP Write to let it edit. Existing workspace permissions still apply.</p>
+      <section class="panel" aria-label=${t('API keys')}>
+        <div><h3>${t('API keys')}</h3><p class="intro">${t('Create keys for scripts and integrations. Choose an expiry and the workspaces each key can access.')}</p></div>
+        <p class="hint">${t('Enable MCP Read to connect an agent. Add MCP Write to let it edit. Existing workspace permissions still apply.')}</p>
         ${this.status()}
         ${this.renderSecret()}
         <form class="form" @submit=${(event: SubmitEvent) => { void this.create(event) }}>
-          <h4>Create an API key</h4>
-          <div class="field"><label for="api-key-label">Private label</label><input id="api-key-label" type="text" maxlength="200" .value=${this.displayLabel} .disabled=${disabled} @input=${(event: Event) => { this.displayLabel = (event.target as HTMLInputElement).value; this.validation = '' }} /><p class="hint">For example, “Local automation”. This is visible only in your account settings.</p></div>
-          <div class="field"><label for="api-key-expiry">Expires</label><input id="api-key-expiry" type="datetime-local" .value=${this.expiresAt} .disabled=${disabled} @input=${(event: Event) => { this.expiresAt = (event.target as HTMLInputElement).value; this.validation = '' }} /></div>
-          <fieldset .disabled=${disabled}><legend>Permissions</legend><div class="scope-options">${SCOPES.map(scope => html`<label><input type="checkbox" .checked=${this.scopes.has(scope)} @change=${(event: Event) => this.toggleScope(scope, (event.target as HTMLInputElement).checked)} /> ${{ 'graphs.read': 'HTTP Read', 'graphs.write': 'HTTP Write', 'mcp.read': 'MCP Read', 'mcp.write': 'MCP Write' }[scope]}</label>`)}</div></fieldset>
-          <fieldset .disabled=${disabled}><legend>Workspace access</legend><div class="workspace-access-options">
+          <h4>${t('Create an API key')}</h4>
+          <div class="field"><label for="api-key-label">${t('Private label')}</label><input id="api-key-label" type="text" maxlength="200" .value=${this.displayLabel} .disabled=${disabled} @input=${(event: Event) => { this.displayLabel = (event.target as HTMLInputElement).value; this.validation = '' }} /><p class="hint">${t('For example, “Local automation”. This is visible only in your account settings.')}</p></div>
+          <div class="field"><label for="api-key-expiry">${t('Expires')}</label><input id="api-key-expiry" type="datetime-local" .value=${this.expiresAt} .disabled=${disabled} @input=${(event: Event) => { this.expiresAt = (event.target as HTMLInputElement).value; this.validation = '' }} /></div>
+          <fieldset .disabled=${disabled}><legend>${t('Permissions')}</legend><div class="scope-options">${SCOPES.map(scope => html`<label><input type="checkbox" .checked=${this.scopes.has(scope)} @change=${(event: Event) => this.toggleScope(scope, (event.target as HTMLInputElement).checked)} /> ${{ 'graphs.read': 'HTTP Read', 'graphs.write': 'HTTP Write', 'mcp.read': 'MCP Read', 'mcp.write': 'MCP Write' }[scope]}</label>`)}</div></fieldset>
+          <fieldset .disabled=${disabled}><legend>${t('Workspace access')}</legend><div class="workspace-access-options">
             <label><input type="radio" name="api-key-graph-access" value="selected" .checked=${this.graphAccess === 'selected'} @change=${() => { this.graphAccess = 'selected'; this.validation = '' }} /> Selected workspaces</label>
             <label><input type="radio" name="api-key-graph-access" value="all_accessible" .checked=${this.graphAccess === 'all_accessible'} @change=${() => { this.graphAccess = 'all_accessible'; this.validation = '' }} /> All my workspaces</label>
-          </div><p class="hint">Global keys include current, future and shared workspaces. Your permissions still apply to every request.</p></fieldset>
-          ${this.graphAccess === 'all_accessible' ? nothing : this.listGraphs ? html`<fieldset .disabled=${disabled}><legend>Workspaces</legend>
-            <p class="hint">Choose the workspaces this key can access. Your existing permissions still apply.</p>
-            ${this.graphsLoading ? html`<p role="status">Loading workspaces…</p>` : nothing}
+          </div><p class="hint">${t('Global keys include current, future and shared workspaces. Your permissions still apply to every request.')}</p></fieldset>
+          ${this.graphAccess === 'all_accessible' ? nothing : this.listGraphs ? html`<fieldset .disabled=${disabled}><legend>${t('Workspaces')}</legend>
+            <p class="hint">${t('Choose the workspaces this key can access. Your existing permissions still apply.')}</p>
+            ${this.graphsLoading ? html`<p role="status">${t('Loading workspaces…')}</p>` : nothing}
             ${this.graphsError ? html`<p role="alert">${this.graphsError}</p>` : nothing}
             ${this.graphChoices.map(graph => html`<label class="ack"><input type="checkbox"
               .checked=${this.graphs.some(row => row.owner === graph.owner && row.graphId === graph.graphId)}
@@ -473,13 +476,13 @@ export class MnApiKeyManager extends SkinAware(LitElement) {
                 if ((event.target as HTMLInputElement).checked) this.graphs = [...this.graphs, { owner: graph.owner, graphId: graph.graphId }]
                 this.validation = ''
               }} /> <span>${graph.title || graph.graphId}<small class="meta"> · ${graph.graphId}</small></span></label>`)}
-          </fieldset>` : html`<fieldset .disabled=${disabled}><legend>Exact graph allowlist</legend><p class="hint">Each entry is an exact GraphKey. Collaborator graphs may be listed only by their exact owner and graph ID.</p><div class="graphs">${this.graphs.map((graph, index) => html`<div class="row"><div class="field"><label for=${`api-key-owner-${index}`}>Owner</label><input id=${`api-key-owner-${index}`} type="text" placeholder="user:alice" .value=${graph.owner} @input=${(event: Event) => this.setGraph(index, 'owner', (event.target as HTMLInputElement).value)} /></div><div class="field"><label for=${`api-key-graph-${index}`}>Graph ID</label><input id=${`api-key-graph-${index}`} type="text" placeholder="research" .value=${graph.graphId} @input=${(event: Event) => this.setGraph(index, 'graphId', (event.target as HTMLInputElement).value)} /></div><button type="button" ?disabled=${disabled} @click=${() => this.removeGraph(index)}>Remove</button></div>`)}</div><div class="actions"><button type="button" ?disabled=${disabled || this.graphs.length >= 128} @click=${() => this.addGraph()}>Add graph</button></div></fieldset>`}
+          </fieldset>` : html`<fieldset .disabled=${disabled}><legend>${t('Exact graph allowlist')}</legend><p class="hint">${t('Each entry is an exact GraphKey. Collaborator graphs may be listed only by their exact owner and graph ID.')}</p><div class="graphs">${this.graphs.map((graph, index) => html`<div class="row"><div class="field"><label for=${`api-key-owner-${index}`}>${t('Owner')}</label><input id=${`api-key-owner-${index}`} type="text" placeholder="user:alice" .value=${graph.owner} @input=${(event: Event) => this.setGraph(index, 'owner', (event.target as HTMLInputElement).value)} /></div><div class="field"><label for=${`api-key-graph-${index}`}>${t('Graph ID')}</label><input id=${`api-key-graph-${index}`} type="text" placeholder="research" .value=${graph.graphId} @input=${(event: Event) => this.setGraph(index, 'graphId', (event.target as HTMLInputElement).value)} /></div><button type="button" ?disabled=${disabled} @click=${() => this.removeGraph(index)}>${t('Remove')}</button></div>`)}</div><div class="actions"><button type="button" ?disabled=${disabled || this.graphs.length >= 128} @click=${() => this.addGraph()}>${t('Add graph')}</button></div></fieldset>`}
 
           ${this.validation ? html`<div class="status" data-tone="danger" role="alert">${this.validation}</div>` : nothing}
-          <div class="actions"><button type="submit" class="primary" ?disabled=${disabled || (this.graphAccess === 'selected' && (this.graphsLoading || Boolean(this.graphsError)))}>${status === 'creating' ? 'Creating…' : 'Create API key'}</button>${canRetryCreate ? html`<button type="button" @click=${() => { void this.retryCreate() }}>Retry exact create</button>` : nothing}${status === 'error' ? html`<button type="button" @click=${() => { void this.retryDelete() }}>Retry revocation</button>` : nothing}</div>
+          <div class="actions"><button type="submit" class="primary" ?disabled=${disabled || (this.graphAccess === 'selected' && (this.graphsLoading || Boolean(this.graphsError)))}>${status === 'creating' ? 'Creating…' : t('Create API key')}</button>${canRetryCreate ? html`<button type="button" @click=${() => { void this.retryCreate() }}>${t('Retry exact create')}</button>` : nothing}${status === 'error' ? html`<button type="button" @click=${() => { void this.retryDelete() }}>${t('Retry revocation')}</button>` : nothing}</div>
         </form>
-        <div class="key-list" aria-label="Existing API keys"><h4>Existing API keys</h4>${this.snapshot.apiKeys?.length ? this.snapshot.apiKeys.map(key => this.renderKey(key)) : html`<p class="hint">No API keys have been created.</p>`}</div>
-        <p class="hint">Migrating from Cloud-1? Existing <code>mnemo_</code> keys cannot be imported. Reissue a new scoped API key here and update the client.</p>
+        <div class="key-list" aria-label=${t('Existing API keys')}><h4>${t('Existing API keys')}</h4>${this.snapshot.apiKeys?.length ? this.snapshot.apiKeys.map(key => this.renderKey(key)) : html`<p class="hint">${t('No API keys have been created.')}</p>`}</div>
+        <p class="hint">${t('Migrating from Cloud-1? Existing')} <code>mnemo_</code> keys cannot be imported. Reissue a new scoped API key here and update the client.</p>
       </section>
     `
   }

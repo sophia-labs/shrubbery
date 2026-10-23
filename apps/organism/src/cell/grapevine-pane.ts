@@ -1,3 +1,4 @@
+import { LocaleController, localeSource, t } from '@shrubbery/nucleus'
 import '@shrubbery/hoja'
 import { LitElement, css, html, nothing } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
@@ -22,6 +23,8 @@ export const emptyGrapevineSnapshot = (): GrapevineSnapshot => ({
 /** Controlled, graph-scoped view. Reading it never sends or acknowledges mail. */
 @customElement('mn-grapevine-pane')
 export class MnGrapevinePane extends LitElement {
+  protected readonly _locale = new LocaleController(this)
+
   @property({ attribute: false }) snapshot = emptyGrapevineSnapshot()
   @property({ attribute: false }) onRefresh?: () => void
   @property({ attribute: false }) onTarget?: (id: string) => void
@@ -35,36 +38,36 @@ export class MnGrapevinePane extends LitElement {
     const target = state.targets.find(item => item.id === state.targetId)
     return html`
       <header><div><h1>Grapevine</h1><p>Conversation · ${state.graphId || 'no workspace'}</p></div>
-        <button aria-label="Refresh conversation" ?disabled=${state.busy || state.status === 'unavailable'} @click=${() => this.onRefresh?.()}>Refresh</button></header>
-      <section class="context" aria-label="Conversation context">
+        <button aria-label=${t('Refresh conversation')} ?disabled=${state.busy || state.status === 'unavailable'} @click=${() => this.onRefresh?.()}>${t('Refresh')}</button></header>
+      <section class="context" aria-label=${t('Conversation context')}>
         ${state.identity ? html`<p>Signed in as ${state.identity}</p>` : nothing}
         ${state.targets.length ? html`<label>Channel / topic
-          <select aria-label="Conversation target" .value=${state.targetId} ?disabled=${state.mutating || state.uncertain} @change=${(event: Event) => this.onTarget?.((event.target as HTMLSelectElement).value)}>
+          <select aria-label=${t('Conversation target')} .value=${state.targetId} ?disabled=${state.mutating || state.uncertain} @change=${(event: Event) => this.onTarget?.((event.target as HTMLSelectElement).value)}>
             ${state.targets.map(item => html`<option value=${item.id}>${item.label} · #${item.channel} / ${item.topic}</option>`)}
           </select></label>` : nothing}
         ${target?.agentRef ? html`<p class="qualification">Configured Agent association: ${target.agentRef} · not a presence report</p>` : nothing}
-        <p class="qualification">Zulip conversation. Viewing does not acknowledge Demi mail or launch an agent. Garden retention is not confirmed by this pane.</p>
+        <p class="qualification">${t('Zulip conversation. Viewing does not acknowledge Demi mail or launch an agent. Garden retention is not confirmed by this pane.')}</p>
       </section>
-      <section class="thread" aria-label=${target ? `Messages in ${target.channel} / ${target.topic}` : 'Conversation messages'} tabindex="0" aria-busy=${state.busy}>
-        ${state.status === 'loading' ? html`<p role="status">Opening the conversation…</p>` : nothing}
+      <section class="thread" aria-label=${target ? `Messages in ${target.channel} / ${target.topic}` : t('Conversation messages')} tabindex="0" aria-busy=${state.busy}>
+        ${state.status === 'loading' ? html`<p role="status">${t('Opening the conversation…')}</p>` : nothing}
         ${state.error ? html`<p role="alert">${state.error}</p>` : nothing}
-        ${state.status === 'ready' && !state.linked ? html`<div><h2>Link your Zulip voice</h2><p>Your verified Sophia email must match a Zulip account. Linking is an explicit account action.</p><button ?disabled=${state.busy} @click=${() => this.onLink?.()}>Link account</button></div>` : nothing}
-        ${state.status === 'ready' && state.linked && !state.targets.length ? html`<p>No conversation targets are configured for this workspace.</p>` : nothing}
-        ${state.status === 'ready' && state.linked && target && !state.busy && !state.messages.length ? html`<p>No messages returned for this channel and topic.</p>` : nothing}
+        ${state.status === 'ready' && !state.linked ? html`<div><h2>${t('Link your Zulip voice')}</h2><p>${t('Your verified Sophia email must match a Zulip account. Linking is an explicit account action.')}</p><button ?disabled=${state.busy} @click=${() => this.onLink?.()}>${t('Link account')}</button></div>` : nothing}
+        ${state.status === 'ready' && state.linked && !state.targets.length ? html`<p>${t('No conversation targets are configured for this workspace.')}</p>` : nothing}
+        ${state.status === 'ready' && state.linked && target && !state.busy && !state.messages.length ? html`<p>${t('No messages returned for this channel and topic.')}</p>` : nothing}
         ${state.messages.map(message => html`<article data-message-id=${message.id}>
-          <div class="byline"><strong>${message.sender_full_name || 'Zulip sender'}</strong><span>sender ${message.sender_id ?? 'unknown'} · message ${message.id}</span>
-            ${message.timestamp ? html`<time datetime=${new Date(message.timestamp * 1000).toISOString()}>${new Date(message.timestamp * 1000).toLocaleString()}</time>` : nothing}</div>
+          <div class="byline"><strong>${message.sender_full_name || t('Zulip sender')}</strong><span>sender ${message.sender_id ?? 'unknown'} · message ${message.id}</span>
+            ${message.timestamp ? html`<time datetime=${new Date(message.timestamp * 1000).toISOString()}>${new Date(message.timestamp * 1000).toLocaleString(localeSource.get())}</time>` : nothing}</div>
           <pre>${message.content ?? ''}</pre>
         </article>`)}
       </section>
       <footer>
         ${state.delivery ? html`<p role="status">${state.delivery}</p>` : nothing}
-        <div class="composer"><hoja-editor posture="composer" label="Message" placeholder="Write to this conversation…"
+        <div class="composer"><hoja-editor posture="composer" label=${t('Message')} placeholder=${t('Write to this conversation…')}
           .value=${state.draft} .valueKey=${`${state.graphId}:${state.targetId}:${state.identity}`}
           .disabled=${state.busy || state.uncertain || !state.linked || !target || state.status !== 'ready'}
           .onChange=${(detail: HojaComposerDetail) => this.onDraft?.(detail.value)}
           .onSubmit=${() => this.onSend?.()}></hoja-editor></div>
-        <button class="send" ?disabled=${state.busy || state.uncertain || !state.linked || !target || !state.draft.trim() || state.status !== 'ready'} @click=${() => this.onSend?.()}>Send to Zulip</button>
+        <button class="send" ?disabled=${state.busy || state.uncertain || !state.linked || !target || !state.draft.trim() || state.status !== 'ready'} @click=${() => this.onSend?.()}>${t('Send to Zulip')}</button>
       </footer>`
   }
 

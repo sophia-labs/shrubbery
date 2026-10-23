@@ -21,6 +21,7 @@
  * shown as a name, a workspace or a search key.
  */
 
+import { localeSource, t } from '@shrubbery/nucleus'
 import { css, html, nothing, type TemplateResult } from 'lit'
 import type { ChatMessage, CodeCopyIntent, MessageActionKind, MessageActionResult } from '@shrubbery/chat-kernel'
 import type { ProjectedTranscript } from '../chat-services/archive-projection.js'
@@ -99,7 +100,7 @@ function renderLiveRow(ctx: HomeRenderContext, row: ConversationRow): TemplateRe
           <input
             class="history-input"
             data-chat-history-rename-input
-            placeholder="Untitled chat"
+            placeholder=${t('Untitled chat')}
             .value=${ctx.editingTitle}
             @input=${(event: Event) => ctx.actions.editTitle((event.target as HTMLInputElement).value)}
             @keydown=${(event: KeyboardEvent) => {
@@ -113,10 +114,10 @@ function renderLiveRow(ctx: HomeRenderContext, row: ConversationRow): TemplateRe
                 ctx.actions.cancelRename()
               }
             }}
-            aria-label="Session title"
+            aria-label=${t('Session title')}
           />
-          <button type="button" class="history-button" data-chat-history-rename-save @click=${() => ctx.actions.commitRename(row.id)}>Save</button>
-          <button type="button" class="history-button" data-chat-history-rename-cancel @click=${() => ctx.actions.cancelRename()}>Cancel</button>
+          <button type="button" class="history-button" data-chat-history-rename-save @click=${() => ctx.actions.commitRename(row.id)}>${t('Save')}</button>
+          <button type="button" class="history-button" data-chat-history-rename-cancel @click=${() => ctx.actions.cancelRename()}>${t('Cancel')}</button>
         </div>
       </div>
     `
@@ -137,27 +138,27 @@ function renderLiveRow(ctx: HomeRenderContext, row: ConversationRow): TemplateRe
             type="button"
             class="history-button"
             data-chat-history-duplicate=${row.id}
-            title="Duplicate chat"
+            title=${t('Duplicate chat')}
             aria-label="Duplicate ${row.title}"
             @click=${() => duplicate(row.id)}
-          >Duplicate</button>`
+          >${t('Duplicate')}</button>`
         : nothing}
       <button
         type="button"
         class="history-button"
         data-chat-history-rename=${row.id}
-        title="Rename chat"
+        title=${t('Rename chat')}
         aria-label="Rename ${row.title}"
         @click=${() => ctx.actions.startRename(row.id, row.live?.title ?? null)}
-      >Rename</button>
+      >${t('Rename')}</button>
       <button
         type="button"
         class="history-button"
         data-chat-history-delete=${row.id}
-        title="Delete chat"
+        title=${t('Delete chat')}
         aria-label="Delete ${row.title}"
         @click=${() => ctx.actions.deleteLive(row.id)}
-      >Delete</button>
+      >${t('Delete')}</button>
     </div>
   `
 }
@@ -204,14 +205,14 @@ function renderTools(ctx: HomeRenderContext): TemplateResult | typeof nothing {
         class="history-input history-search"
         type="search"
         data-chat-history-search
-        aria-label="Search chat titles"
-        placeholder="Search titles"
+        aria-label=${t('Search chat titles')}
+        placeholder=${t('Search titles')}
         autocomplete="off"
         .value=${ctx.query}
         @input=${(event: Event) => ctx.actions.search((event.target as HTMLInputElement).value)}
       />
       ${view.showFilter
-        ? html`<div class="history-filter" role="group" aria-label="Show" data-chat-history-filter>
+        ? html`<div class="history-filter" role="group" aria-label=${t('Show')} data-chat-history-filter>
             ${FILTERS.map(([value, label]) => html`<button
               type="button"
               class="history-chip"
@@ -234,8 +235,8 @@ function renderNotice(ctx: HomeRenderContext): TemplateResult | typeof nothing {
       <span class="history-notice-detail">${notice.detail}</span>
       <span class="history-notice-actions">
         ${notice.retryable
-          ? html`<button type="button" class="history-button" data-chat-history-notice-retry @click=${() => ctx.actions.retryImported()}>Try again</button>`
-          : html`<button type="button" class="history-button" data-chat-history-notice-dismiss @click=${() => ctx.actions.dismissNotice()}>Dismiss</button>`}
+          ? html`<button type="button" class="history-button" data-chat-history-notice-retry @click=${() => ctx.actions.retryImported()}>${t('Try again')}</button>`
+          : html`<button type="button" class="history-button" data-chat-history-notice-dismiss @click=${() => ctx.actions.dismissNotice()}>${t('Dismiss')}</button>`}
       </span>
     </div>
   `
@@ -243,8 +244,8 @@ function renderNotice(ctx: HomeRenderContext): TemplateResult | typeof nothing {
 
 function renderListBody(ctx: HomeRenderContext): TemplateResult | typeof nothing {
   const { view } = ctx
-  if (view.loadingFirst) return html`<div class="history-status" role="status">Loading your chats…</div>`
-  if (view.empty) return html`<p class="history-status" data-chat-history-empty>No chats yet. Choose New to start one.</p>`
+  if (view.loadingFirst) return html`<div class="history-status" role="status">${t('Loading your chats…')}</div>`
+  if (view.empty) return html`<p class="history-status" data-chat-history-empty>${t('No chats yet. Choose New to start one.')}</p>`
   const query = ctx.query.trim()
   if (view.list.rows.length === 0) {
     return query ? html`<p class="history-status" data-chat-history-empty>No chats match “${query}”.</p>` : nothing
@@ -257,8 +258,9 @@ function renderListBody(ctx: HomeRenderContext): TemplateResult | typeof nothing
       </div>
       ${view.canLoadMore
         ? html`<div class="history-more-row">
-            <button type="button" class="history-button history-more" data-chat-history-more ?disabled=${view.loadingMore} @click=${() => ctx.actions.loadMore()}>
-              ${view.loadingMore ? 'Loading…' : 'Load older chats'}
+            <!-- Only mark a ready action: a cursor restart keeps the previous rows while loading. -->
+            <button type="button" class="history-button history-more" ?data-chat-history-more=${!view.loadingMore} ?disabled=${view.loadingMore} @click=${() => ctx.actions.loadMore()}>
+              ${view.loadingMore ? t('Loading…') : t('Load older chats')}
             </button>
           </div>`
         : nothing}
@@ -275,7 +277,7 @@ export function renderConversationHome(ctx: HomeRenderContext): TemplateResult {
       ${view.liveError
         ? html`<div class="history-status error" role="alert" data-chat-history-live-error>
             Your chats could not be listed: ${view.liveError}
-            <button type="button" class="history-button" data-chat-history-live-retry @click=${() => ctx.actions.retryLive()}>Try again</button>
+            <button type="button" class="history-button" data-chat-history-live-retry @click=${() => ctx.actions.retryLive()}>${t('Try again')}</button>
           </div>`
         : nothing}
       ${renderNotice(ctx)}
@@ -333,7 +335,7 @@ function renderFamily(ctx: ReaderRenderContext): TemplateResult | typeof nothing
           </button>
         </p>`
       : ctx.startedByUnloaded
-        ? html`<p class="history-reader-family">Started by another conversation that is not loaded here.</p>`
+        ? html`<p class="history-reader-family">${t('Started by another conversation that is not loaded here.')}</p>`
         : nothing}
     ${family.children.length > 0
       ? html`<div class="history-reader-family" data-chat-reader-children>
@@ -342,7 +344,7 @@ function renderFamily(ctx: ReaderRenderContext): TemplateResult | typeof nothing
             ${family.children.map(child => html`<li>
               <button type="button" class="history-link" data-chat-reader-child=${child.conversationId} @click=${() => ctx.actions.open(child.conversationId)}>
                 ${familyTitle(child)}
-                <span class="history-meta">${formatRelativeDate(child.lastOccurredAt ?? child.firstOccurredAt ?? null, ctx.now) ?? 'No date recorded'}</span>
+                <span class="history-meta">${formatRelativeDate(child.lastOccurredAt ?? child.firstOccurredAt ?? null, ctx.now) ?? t('No date recorded')}</span>
               </button>
             </li>`)}
           </ul>
@@ -354,13 +356,13 @@ function renderFamily(ctx: ReaderRenderContext): TemplateResult | typeof nothing
 
 function renderReaderStatus(ctx: ReaderRenderContext): TemplateResult | typeof nothing {
   const { state } = ctx
-  if (state.status === 'loading') return html`<div class="history-status" role="status" data-chat-reader-loading>Loading this conversation…</div>`
+  if (state.status === 'loading') return html`<div class="history-status" role="status" data-chat-reader-loading>${t('Loading this conversation…')}</div>`
   if (state.status === 'error' && state.failure) {
     return html`
       <div class="history-status error" role="alert" data-chat-reader-error>
         <strong>${state.failure.title}.</strong> ${state.failure.detail}
         ${state.failure.retryable
-          ? html`<button type="button" class="history-button" data-chat-reader-retry @click=${() => ctx.actions.retry()}>Try again</button>`
+          ? html`<button type="button" class="history-button" data-chat-reader-retry @click=${() => ctx.actions.retry()}>${t('Try again')}</button>`
           : nothing}
       </div>
     `
@@ -379,10 +381,10 @@ export function renderImportedReader(ctx: ReaderRenderContext): TemplateResult {
         <button type="button" class="history-button" data-chat-reader-back @click=${() => ctx.actions.back()}>← Chats</button>
         <div class="history-reader-actions">
           ${ctx.continueAvailable
-            ? html`<button type="button" class="history-button history-primary" data-chat-reader-continue @click=${() => ctx.actions.continueConversation()}>Continue with…</button>`
+            ? html`<button type="button" class="history-button history-primary" data-chat-reader-continue @click=${() => ctx.actions.continueConversation()}>${t('Continue with…')}</button>`
             : nothing}
-          <button type="button" class="history-button" data-chat-reader-save @click=${(event: Event) => ctx.actions.save(event.currentTarget as HTMLElement)}>Save to Garden</button>
-          <button type="button" class="history-button" data-chat-reader-download @click=${() => ctx.actions.download()}>Download as Markdown</button>
+          <button type="button" class="history-button" data-chat-reader-save @click=${(event: Event) => ctx.actions.save(event.currentTarget as HTMLElement)}>${t('Save to Garden')}</button>
+          <button type="button" class="history-button" data-chat-reader-download @click=${() => ctx.actions.download()}>${t('Download as Markdown')}</button>
         </div>
       </div>
       <div class="history-reader-head">
@@ -395,11 +397,11 @@ export function renderImportedReader(ctx: ReaderRenderContext): TemplateResult {
         </p>
         ${state.revisions.length > 1
           ? html`<label class="history-reader-revision">
-              <span>Version</span>
+              <span>${t('Version')}</span>
               <select
                 class="history-input"
                 data-chat-reader-revision
-                aria-label="Imported revision"
+                aria-label=${t('Imported revision')}
                 .value=${state.revisionId}
                 ?disabled=${state.status === 'loading'}
                 @change=${(event: Event) => ctx.actions.switchRevision((event.target as HTMLSelectElement).value)}
@@ -423,7 +425,7 @@ export function renderImportedReader(ctx: ReaderRenderContext): TemplateResult {
               <sh-chat-panel
                 class="history-reader-panel"
                 role="region"
-                aria-label="Imported conversation"
+                aria-label=${t('Imported conversation')}
                 .assistantLabel=${'Assistant'}
                 .transcriptOnly=${true}
                 .readOnly=${true}
@@ -437,13 +439,13 @@ export function renderImportedReader(ctx: ReaderRenderContext): TemplateResult {
             ${state.moreFailure
               ? html`<div class="history-status error" role="alert" data-chat-reader-more-error>
                   <strong>${state.moreFailure.title}.</strong> The rest of this conversation is not loaded.
-                  <button type="button" class="history-button" data-chat-reader-more-retry @click=${() => ctx.actions.loadMore()}>Try again</button>
+                  <button type="button" class="history-button" data-chat-reader-more-retry @click=${() => ctx.actions.loadMore()}>${t('Try again')}</button>
                 </div>`
               : nothing}
             ${state.nextCursor !== null
               ? html`<div class="history-more-row">
                   <button type="button" class="history-button history-reader-more" data-chat-reader-more ?disabled=${state.loadingMore} @click=${() => ctx.actions.loadMore()}>
-                    ${state.loadingMore ? 'Loading…' : 'Load more messages'}
+                    ${state.loadingMore ? t('Loading…') : t('Load more messages')}
                   </button>
                 </div>`
               : nothing}
@@ -477,22 +479,22 @@ export interface SaveDialogContext {
 }
 
 const progressWords = (state: SaveFlowState): string =>
-  state.progress ? ` ${state.progress.loaded.toLocaleString('en-US')} of ${state.progress.total.toLocaleString('en-US')} messages.` : ''
+  state.progress ? ` ${state.progress.loaded.toLocaleString(localeSource.get())} of ${state.progress.total.toLocaleString(localeSource.get())} messages.` : ''
 
 function renderChoices(ctx: SaveDialogContext): TemplateResult {
   const { state } = ctx
   if (!ctx.hasPort) {
-    return html`<p class="save-none" data-chat-save-none>Saving into a workspace is not available here.</p>`
+    return html`<p class="save-none" data-chat-save-none>${t('Saving into a workspace is not available here.')}</p>`
   }
   if (state.targetsError) {
     return html`<p class="save-status error" role="alert" data-chat-save-status>
       Your workspaces could not be listed: ${state.targetsError}
-      <button type="button" class="history-button" data-chat-save-targets-retry @click=${() => ctx.actions.retryTargets()}>Try again</button>
+      <button type="button" class="history-button" data-chat-save-targets-retry @click=${() => ctx.actions.retryTargets()}>${t('Try again')}</button>
     </p>`
   }
-  if (state.targets === null) return html`<p class="save-status" role="status" data-chat-save-loading>Looking for your workspaces…</p>`
+  if (state.targets === null) return html`<p class="save-status" role="status" data-chat-save-loading>${t('Looking for your workspaces…')}</p>`
   if (state.targets.length === 0) {
-    return html`<p class="save-none" data-chat-save-none>You do not have a workspace you can write to yet.</p>`
+    return html`<p class="save-none" data-chat-save-none>${t('You do not have a workspace you can write to yet.')}</p>`
   }
   const chosen = state.targets.find(target => target.graphId === state.selected) ?? null
   return html`
@@ -531,7 +533,7 @@ export function renderSaveDialog(ctx: SaveDialogContext): TemplateResult {
         @keydown=${(event: KeyboardEvent) => ctx.actions.keydown(event)}
         @click=${(event: Event) => event.stopPropagation()}
       >
-        <h2 class="save-title" id="chat-save-title">Save to Garden</h2>
+        <h2 class="save-title" id="chat-save-title">${t('Save to Garden')}</h2>
         ${result
           ? html`
               <div class="home-slot">
@@ -539,8 +541,8 @@ export function renderSaveDialog(ctx: SaveDialogContext): TemplateResult {
                 Saved to ${result.workspaceTitle}${result.documentIds.length > 1 ? ` as ${result.documentIds.length} documents` : ''}.
               </p>
               <div class="save-actions">
-                ${ctx.canOpen ? html`<button type="button" class="history-button history-primary" data-chat-save-open @click=${() => ctx.actions.open()}>Open</button>` : nothing}
-                <button type="button" class="history-button" data-chat-save-close @click=${() => ctx.actions.close()}>Done</button>
+                ${ctx.canOpen ? html`<button type="button" class="history-button history-primary" data-chat-save-open @click=${() => ctx.actions.open()}>${t('Open')}</button>` : nothing}
+                <button type="button" class="history-button" data-chat-save-close @click=${() => ctx.actions.close()}>${t('Done')}</button>
               </div>
               </div>
             `
@@ -550,10 +552,10 @@ export function renderSaveDialog(ctx: SaveDialogContext): TemplateResult {
               ${state.phase === 'preparing'
                 ? html`<p class="save-status" role="status" data-chat-save-status>
                     Reading the conversation…${progressWords(state)}
-                    <button type="button" class="history-button" data-chat-save-cancel @click=${() => ctx.actions.cancelReading()}>Stop</button>
+                    <button type="button" class="history-button" data-chat-save-cancel @click=${() => ctx.actions.cancelReading()}>${t('Stop')}</button>
                   </p>`
                 : nothing}
-              ${state.phase === 'saving' ? html`<p class="save-status" role="status" data-chat-save-status>Saving…</p>` : nothing}
+              ${state.phase === 'saving' ? html`<p class="save-status" role="status" data-chat-save-status>${t('Saving…')}</p>` : nothing}
               ${state.error && !busy ? html`<p class="save-status error" role="alert" data-chat-save-status>${state.error}</p>` : nothing}
               ${state.downloaded ? html`<p class="save-status" role="status" data-chat-save-downloaded>Downloaded ${state.downloaded}.</p>` : nothing}
               <div class="save-actions">
@@ -564,10 +566,10 @@ export function renderSaveDialog(ctx: SaveDialogContext): TemplateResult {
                       data-chat-save-confirm
                       ?disabled=${busy || state.selected === null}
                       @click=${() => ctx.actions.confirm()}
-                    >Save copy</button>`
+                    >${t('Save copy')}</button>`
                   : nothing}
-                <button type="button" class="history-button" data-chat-save-download ?disabled=${busy} @click=${() => ctx.actions.download()}>Download as Markdown</button>
-                <button type="button" class="history-button" data-chat-save-close @click=${() => ctx.actions.close()}>Close</button>
+                <button type="button" class="history-button" data-chat-save-download ?disabled=${busy} @click=${() => ctx.actions.download()}>${t('Download as Markdown')}</button>
+                <button type="button" class="history-button" data-chat-save-close @click=${() => ctx.actions.close()}>${t('Close')}</button>
               </div>
               </div>
             `}

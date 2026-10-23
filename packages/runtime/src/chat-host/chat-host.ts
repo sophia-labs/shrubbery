@@ -45,6 +45,7 @@
  * SEMANTICS are all provable structurally in happy-dom over the real organism.
  */
 
+import { LocaleController, t } from '@shrubbery/nucleus'
 // Importing the kernel registers <sh-chat-panel> (the upgrade seam). This
 // side-effect import is in the RUNTIME subdir, NOT the kernel, so the kernel
 // purity gate is unaffected (the kernel never imports the host/store).
@@ -276,6 +277,8 @@ export type {
  */
 @customElement('sh-chat-host')
 export class ShChatHost extends LitElement {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     :host {
       position: relative;
@@ -1787,7 +1790,7 @@ export class ShChatHost extends LitElement {
     const active = this.renderRoot instanceof ShadowRoot ? this.renderRoot.activeElement : null
     const invoker = active instanceof HTMLElement
       ? active
-      : this._panel?.querySelector<HTMLElement>('.icon-button[aria-label="Save chat to Garden"]') ?? null
+      : this._panel?.querySelector<HTMLElement>('.icon-button[data-header-action="save-garden"]') ?? null
     this._openSaveDialog(
       liveExportSource({ title: state.sessionTitle, messages: state.messages, continues: state.seam?.originalTitle ?? null }),
       invoker,
@@ -1886,7 +1889,7 @@ export class ShChatHost extends LitElement {
   private _renderHome(): TemplateResult {
     const home = this._home
     if (!home) {
-      return html`<div class="history-status error" role="alert">${this.historyError ?? 'No chat service bound.'}</div>`
+      return html`<div class="history-status error" role="alert">${this.historyError ?? t('No chat service bound.')}</div>`
     }
     const state = home.getState()
     return renderConversationHome({
@@ -1974,17 +1977,17 @@ export class ShChatHost extends LitElement {
           @click=${(event: Event) => event.stopPropagation()}
         >
           <header class="history-header">
-            <h2 class="history-title" id="chat-history-title">Chat history</h2>
+            <h2 class="history-title" id="chat-history-title">${t('Chat history')}</h2>
             <div class="history-actions">
               <button
                 class="history-button"
                 data-chat-history-new
                 @click=${() => void this._createHistorySession()}
-              >New</button>
+              >${t('New')}</button>
               <button
                 class="history-button icon"
                 data-chat-history-close
-                aria-label="Close chat history"
+                aria-label=${t('Close chat history')}
                 @click=${() => this._closeHistoryDrawer()}
               >×</button>
             </div>

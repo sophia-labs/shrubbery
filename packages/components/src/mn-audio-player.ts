@@ -38,6 +38,7 @@
  * previous, next and seek from the OS and the lock screen.
  */
 
+import { LocaleController, localeSource, t, translate } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, unsafeCSS, type PropertyValues, type TemplateResult } from 'lit'
 import { customElement, property, state } from 'lit/decorators.js'
 import { unsafeHTML } from 'lit/directives/unsafe-html.js'
@@ -213,6 +214,8 @@ interface Palette {
 
 @customElement('mn-audio-player')
 export class MnAudioPlayer extends SkinAware(LitElement) {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = [
     unsafeCSS(iconStyles),
     css`
@@ -1711,7 +1714,7 @@ export class MnAudioPlayer extends SkinAware(LitElement) {
           : 'live waveform'
     return html`<div class="screen" data-mode=${mode}
       @click=${(e: Event) => { if (!(e.target as HTMLElement).closest('.modes')) this.cycleVisualizer() }}>
-      <div class="modes" role="group" aria-label="Visualizer">
+      <div class="modes" role="group" aria-label=${t('Visualizer')}>
         ${MN_VISUALIZER_MODES.map((m) => html`<button type="button" aria-pressed=${String(m === mode)}
           ?disabled=${!modes.includes(m)} data-mode=${m}
           @click=${(e: Event) => { e.stopPropagation(); this.setVisualizer(m) }}>${m === 'energy' ? 'Energy' : m === 'spectrum' ? 'Spectrum' : 'Scope'}</button>`)}
@@ -1737,7 +1740,7 @@ export class MnAudioPlayer extends SkinAware(LitElement) {
     const peaks = track ? this.peaksFor(track) : null
     const d = this.duration
     const energy = track ? this.energyFor(track) : null
-    return html`<div class="scrub" role="slider" tabindex="0" aria-label="Seek"
+    return html`<div class="scrub" role="slider" tabindex="0" aria-label=${t('Seek')}
         aria-valuemin="0" aria-valuemax=${String(Math.round(d ?? 0))} aria-valuenow="0"
         data-has-peaks=${peaks ? 'true' : 'false'}
         @pointerdown=${this.onScrubDown} @pointermove=${this.onScrubMove} @pointerup=${this.onScrubUp}
@@ -1760,17 +1763,17 @@ export class MnAudioPlayer extends SkinAware(LitElement) {
     const d = this.duration
     const statusText = status === 'playing' ? 'Now playing' : status === 'loading' ? 'Loading' : status === 'paused' ? 'Paused' : status === 'error' ? 'Could not play' : 'Ready'
     const error = this.live ? this.playback.error : null
-    return html`<section class="deck" aria-label="Player">
+    return html`<section class="deck" aria-label=${t('Player')}>
       <div class="now">
         <div class="eyebrow">
           <span class="status" data-status=${status}>${statusText}</span>
           ${this.tracks.length > 1 ? html`<span class="position">${String(this.currentIndex + 1).padStart(2, '0')} / ${String(this.tracks.length).padStart(2, '0')}</span>` : nothing}
         </div>
-        ${this.bare ? nothing : html`<h2 class="title">${track?.title ?? 'Nothing to play'}</h2>`}
+        ${this.bare ? nothing : html`<h2 class="title">${track?.title ?? t('Nothing to play')}</h2>`}
         ${track?.subtitle && !this.bare ? html`<p class="subtitle">${track.subtitle}</p>` : nothing}
         ${track?.tags?.length && !this.bare ? html`<div class="tags">${track.tags.map((tag) => html`<span class="tag">${tag}</span>`)}</div>` : nothing}
-        <button class="clock" type="button" title="Elapsed / remaining"
-          aria-label=${this.showRemaining ? 'Showing time remaining; show time elapsed' : 'Showing time elapsed; show time remaining'}
+        <button class="clock" type="button" title=${t('Elapsed / remaining')}
+          aria-label=${this.showRemaining ? t('Showing time remaining; show time elapsed') : t('Showing time elapsed; show time remaining')}
           @click=${() => { this.showRemaining = !this.showRemaining }}>
           <span class="elapsed">0:00</span><span class="total">${formatClock(d)}</span>
         </button>
@@ -1779,18 +1782,18 @@ export class MnAudioPlayer extends SkinAware(LitElement) {
       ${this.renderScreen(track)}
       ${this.renderScrubber(track)}
       <div class="transport">
-        <button class="btn" type="button" aria-label="Previous" title="Previous (P)" ?disabled=${this.tracks.length === 0}
+        <button class="btn" type="button" aria-label=${t('Previous')} title=${t('Previous (P)')} ?disabled=${this.tracks.length === 0}
           @click=${() => this.previous()}>${icon('skip-back', { size: 18 })}</button>
         <button class="btn play" type="button" data-action="toggle" ?disabled=${!track}
           aria-label=${playing ? `Pause ${track?.title ?? ''}` : `Play ${track?.title ?? ''}`}
           @click=${() => this.toggle()}>${icon(playing ? 'pause' : 'play', { size: 22 })}</button>
-        <button class="btn" type="button" aria-label="Next" title="Next (N)" ?disabled=${this.tracks.length === 0}
+        <button class="btn" type="button" aria-label=${t('Next')} title=${t('Next (N)')} ?disabled=${this.tracks.length === 0}
           @click=${() => this.next()}>${icon('skip-forward', { size: 18 })}</button>
         <span class="spacer"></span>
         ${this.variant === 'full'
-          ? html`<button class="btn" type="button" aria-label="Shuffle" title="Shuffle (S)" aria-pressed=${String(this.shuffle)}
+          ? html`<button class="btn" type="button" aria-label=${t('Shuffle')} title=${t('Shuffle (S)')} aria-pressed=${String(this.shuffle)}
                 @click=${() => this.toggleShuffle()}>${icon('shuffle', { size: 17 })}</button>
-              <button class="btn" type="button" aria-label=${`Repeat: ${this.repeat}`} title="Repeat (R)" aria-pressed=${String(this.repeat !== 'off')}
+              <button class="btn" type="button" aria-label=${`Repeat: ${this.repeat}`} title=${t('Repeat (R)')} aria-pressed=${String(this.repeat !== 'off')}
                 data-repeat=${this.repeat} @click=${() => this.cycleRepeat()}>${icon(this.repeat === 'one' ? 'repeat-1' : 'repeat', { size: 17 })}</button>`
           : nothing}
       </div>
@@ -1808,7 +1811,7 @@ export class MnAudioPlayer extends SkinAware(LitElement) {
         <span class="sum">${this.tracks.length} ${this.tracks.length === 1 ? 'piece' : 'pieces'} · ${allKnown ? formatClock(total) : '—'}</span>
       </div>
       ${this.tracks.length === 0
-        ? html`<div class="empty">No pieces.</div>`
+        ? html`<div class="empty">${t('No pieces.')}</div>`
         : html`<ol role="listbox" aria-label=${this.label}>
             ${this.tracks.map((t, i) => html`<li class="row" role="option" tabindex=${i === current ? '0' : '-1'}
                 aria-selected=${String(i === current)} data-id=${t.id} data-index=${i}
@@ -1820,7 +1823,7 @@ export class MnAudioPlayer extends SkinAware(LitElement) {
               <span class="t"><b>${t.title}</b>${t.subtitle || t.tags?.length ? html`<span>${[t.tags?.join(' · '), t.subtitle].filter(Boolean).join(' — ')}</span>` : nothing}</span>
               <span class="d">${formatClock(t.duration)}</span>
               ${t.href
-                ? html`<button class="open" type="button" aria-label=${`Open ${t.title}`} title="Open the piece"
+                ? html`<button class="open" type="button" aria-label=${`Open ${t.title}`} title=${translate(localeSource.get(), 'Open the piece')}
                     @click=${(e: Event) => { e.stopPropagation(); this.open(t) }}>${icon('arrow-up-right', { size: 15 })}</button>`
                 : html`<span></span>`}
             </li>`)}

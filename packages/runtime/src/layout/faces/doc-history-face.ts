@@ -69,6 +69,7 @@
  * (`document-snapshot-service.ts`) is unchanged; only the missing safety
  * rail is added.
  */
+import { t } from '@shrubbery/nucleus'
 import type { ResourceLocator, ViewDescriptor } from '@shrubbery/nucleus/layout'
 import type { ReactiveSource } from '@shrubbery/nucleus'
 import {
@@ -413,8 +414,8 @@ export function createDocHistoryFace(
         // copy (title/message/confirmLabel/variant) of `apps/organism/src/
         // main.ts`'s own `confirmAction` call.
         void confirmDialog({
-          title: 'Delete Saved Version',
-          message: 'Delete this saved version? This cannot be undone.',
+          get title() { return t('Delete Saved Version') },
+          get message() { return t('Delete this saved version? This cannot be undone.') },
           confirmLabel: 'Delete',
           cancelLabel: 'Cancel',
           variant: 'danger',
@@ -431,7 +432,7 @@ export function createDocHistoryFace(
         // ALWAYS confirms before overwriting the live document's contents —
         // this is the single most destructive action this face exposes.
         void confirmDialog({
-          title: 'Restore Version',
+          get title() { return t('Restore Version') },
           message: `Restore "${documentId}" to "${label}"? This replaces the current document contents.`,
           confirmLabel: 'Restore',
           cancelLabel: 'Cancel',

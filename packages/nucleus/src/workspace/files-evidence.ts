@@ -7,6 +7,7 @@
  * surface then renders exactly as it did before. The kinds live in the shell (`apps/organism/src/cell/files-kinds`).
  */
 
+import { localizeLabel, t } from '../i18n/index.js'
 /**
  * How well a value is corroborated. `high` ●●● independent statements agree · `medium` ●●○ one clean source · `low` ●○○ low or
  * repaired · `contested` ⚠ the readers disagree · `checked` ✓ a person checked it. Shape, never hue, carries the difference.
@@ -113,9 +114,9 @@ export function localName(iri: string): string {
 /** The annunciator: one short word for where the file stands. */
 export function evidenceBadge(e: FileEvidence): string {
   switch (e.state) {
-    case 'failed': return 'Couldn’t read'
-    case 'queued': return 'Queued'
-    case 'reading': return e.progress ? `Reading ${e.progress.page}/${e.progress.pages}` : 'Reading'
+    case 'failed': return t('Couldn’t read')
+    case 'queued': return t('Queued')
+    case 'reading': return e.progress ? `Reading ${e.progress.page}/${e.progress.pages}` : t('Reading')
     case 'read': return e.doneBadge
   }
 }
@@ -137,7 +138,7 @@ export function hasFace(e: FileEvidence | undefined): e is FileEvidence {
 
 /** What the card says to a screen reader. */
 export function evidenceWords(e: FileEvidence): string {
-  const values = e.values.map(v => `${v.label} ${v.text}${quietMark(v.mark) ? `, ${CORROBORATION_WORDS[v.mark]}` : ''}`)
+  const values = e.values.map(v => `${v.label} ${v.text}${quietMark(v.mark) ? `, ${localizeLabel(CORROBORATION_WORDS[v.mark])}` : ''}`)
   return [e.title, e.subtitle.map(s => s.text).join(' ').replace(/\s*·\s*/g, ' ').trim(), ...values, evidenceBadge(e)].filter(Boolean).join(', ')
 }
 

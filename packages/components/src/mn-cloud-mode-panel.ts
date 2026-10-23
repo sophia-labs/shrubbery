@@ -6,6 +6,7 @@
  * in as props, and connect/local/sign-out/close leave as intent events.
  */
 
+import { LocaleController, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, unsafeCSS, type TemplateResult } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 import { SkinAware } from './skin-aware.js'
@@ -31,6 +32,8 @@ function osLabel(os: MnCloudOs): string {
 
 @customElement('mn-cloud-mode-panel')
 export class MnCloudModePanel extends SkinAware(LitElement) {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     ${unsafeCSS(iconStyles)}
 
@@ -406,21 +409,21 @@ export class MnCloudModePanel extends SkinAware(LitElement) {
 
   private modeMeta(): string {
     if (this.mode !== 'hosted') return `Running locally on ${osLabel(this.os)}`
-    if (this.signInState === 'connected') return 'Synced with Sophia Cloud'
-    if (this.signInState === 'stale') return 'Connection stale - credentials need refresh'
-    return 'Sophia Cloud enabled, signed out'
+    if (this.signInState === 'connected') return t('Synced with Sophia Cloud')
+    if (this.signInState === 'stale') return t('Connection stale - credentials need refresh')
+    return t('Sophia Cloud enabled, signed out')
   }
 
   private accountStatusLabel(): string {
     if (this.signInState === 'connected') return 'Connected'
     if (this.signInState === 'stale') return 'Reconnecting'
-    return 'Signed out'
+    return t('Signed out')
   }
 
   private accountMeta(): string {
-    if (this.signInState === 'connected') return 'Signed in to Sophia Cloud'
-    if (this.signInState === 'stale') return 'Token expired - sign in to resume Sophia Cloud sync'
-    return 'No active credentials on this device'
+    if (this.signInState === 'connected') return t('Signed in to Sophia Cloud')
+    if (this.signInState === 'stale') return t('Token expired - sign in to resume Sophia Cloud sync')
+    return t('No active credentials on this device')
   }
 
   private formatExpiry(expiresAt: number): string {
@@ -444,7 +447,7 @@ export class MnCloudModePanel extends SkinAware(LitElement) {
     }
     return html`
       <button type="button" class="action primary" ?disabled=${this.busy} @click=${this.connect}>
-        ${this.busy ? 'Signing in...' : 'Connect to Sophia Cloud'}
+        ${this.busy ? t('Signing in...') : t('Connect to Sophia Cloud')}
       </button>
     `
   }
@@ -453,7 +456,7 @@ export class MnCloudModePanel extends SkinAware(LitElement) {
     if (this.mode !== 'hosted') return nothing
     return html`
       <section class="section">
-        <div class="section-label">Account</div>
+        <div class="section-label">${t('Account')}</div>
         <div class="row">
           <div class="row-text">
             <div class="row-primary">
@@ -464,8 +467,8 @@ export class MnCloudModePanel extends SkinAware(LitElement) {
             <div class="row-meta">${this.accountMeta()}</div>
           </div>
           ${this.signInState === 'signed-out' || this.signInState === 'stale'
-            ? html`<button type="button" class="action primary" ?disabled=${this.busy} @click=${this.connect}>Sign in</button>`
-            : html`<button type="button" class="action ghost" ?disabled=${this.busy} @click=${this.signOut}>Sign out</button>`}
+            ? html`<button type="button" class="action primary" ?disabled=${this.busy} @click=${this.connect}>${t('Sign in')}</button>`
+            : html`<button type="button" class="action ghost" ?disabled=${this.busy} @click=${this.signOut}>${t('Sign out')}</button>`}
         </div>
       </section>
     `
@@ -478,7 +481,7 @@ export class MnCloudModePanel extends SkinAware(LitElement) {
         <div class="card" role="dialog" aria-modal="true" aria-labelledby="cloud-mode-title" @click=${(event: Event) => event.stopPropagation()}>
           <header class="title-bar">
             <h2 id="cloud-mode-title" class="title">Sophia Cloud</h2>
-            <button type="button" class="close" aria-label="Close" ?disabled=${this.busy} @click=${this.requestClose}>
+            <button type="button" class="close" aria-label=${t('Close')} ?disabled=${this.busy} @click=${this.requestClose}>
               ${icon('x', { size: 14 })}
             </button>
           </header>
@@ -490,7 +493,7 @@ export class MnCloudModePanel extends SkinAware(LitElement) {
           </p>
 
           <section class="section">
-            <div class="section-label">Mode</div>
+            <div class="section-label">${t('Mode')}</div>
             <div class="row">
               <div class="row-text">
                 <div class="row-primary">

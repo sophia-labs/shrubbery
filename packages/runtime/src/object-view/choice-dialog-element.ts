@@ -5,6 +5,7 @@
  * Enter to choose, Esc to cancel. `chooseFrom()` mounts one and resolves to the chosen id, or null.
  */
 
+import { LocaleController, localeSource, localizeLabel, t } from '@shrubbery/nucleus'
 import { css, html, LitElement, nothing } from 'lit'
 
 export interface ChoiceItem {
@@ -29,6 +30,8 @@ export function filterChoices(items: readonly ChoiceItem[], query: string): read
 }
 
 export class ShChoiceDialog extends LitElement {
+  protected readonly _locale = new LocaleController(this)
+
   static override properties = {
     heading: { type: String },
     placeholder: { type: String },
@@ -124,13 +127,13 @@ export class ShChoiceDialog extends LitElement {
 
   override render() {
     const visible = this.visible()
-    return html`<div class="dialog" role="dialog" aria-modal="true" aria-label=${this.heading} @keydown=${this.onKey}
+    return html`<div class="dialog" role="dialog" aria-modal="true" aria-label=${localizeLabel(this.heading)} @keydown=${this.onKey}
       @click=${(e: Event) => e.stopPropagation()}>
-      <h2>${this.heading}</h2>
-      <input type="search" .value=${this.query} placeholder=${this.placeholder} aria-label=${this.placeholder}
+      <h2>${localizeLabel(this.heading)}</h2>
+      <input type="search" .value=${this.query} placeholder=${localizeLabel(this.placeholder)} aria-label=${localizeLabel(this.placeholder)}
         @input=${(e: Event) => { this.query = (e.target as HTMLInputElement).value; this.active = 0 }}>
-      ${this.loading ? html`<p class="empty">Looking…</p>`
-        : visible.length === 0 ? html`<p class="empty">${this.items.length === 0 ? this.emptyText : 'Nothing matches.'}</p>`
+      ${this.loading ? html`<p class="empty">${t('Looking…')}</p>`
+        : visible.length === 0 ? html`<p class="empty">${this.items.length === 0 ? localizeLabel(this.emptyText) : t('Nothing matches.')}</p>`
           : html`<ul role="listbox">${visible.slice(0, 200).map((item, i) => html`<li><button role="option" aria-selected=${i === this.active ? 'true' : 'false'}
             @click=${() => this.choose(item)}>${item.tag ? html`<span class="tag">${item.tag}</span>` : html`<span></span>`}<span class="label">${item.label}</span>
             ${item.sub ? html`<span class="sub">${item.sub}</span>` : nothing}</button></li>`)}</ul>`}
@@ -163,7 +166,13 @@ export function chooseFrom(
     )
   }
   return new Promise((resolve) => {
+    const unsubscribeLocale = localeSource.subscribe(() => {
+      el.heading = options.heading
+      if (options.placeholder) el.placeholder = options.placeholder
+      if (options.emptyText) el.emptyText = options.emptyText
+    })
     const done = (id: string | null): void => {
+      unsubscribeLocale()
       el.remove()
       resolve(id)
     }

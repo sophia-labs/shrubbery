@@ -18,6 +18,7 @@
  * as one designed system, not two. Color tokens carry no raw-hex fallbacks —
  * tokens.css is always loaded in-product (harness pages import it too).
  */
+import { LocaleController, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, type TemplateResult } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 
@@ -35,6 +36,8 @@ export interface SubjectCardField {
 
 @customElement('sh-subject-card-view')
 export class ShSubjectCardView extends LitElement {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     :host {
       display: flex;
@@ -128,7 +131,7 @@ export class ShSubjectCardView extends LitElement {
   }
 
   private _body(): TemplateResult {
-    if (this.status === 'loading') return this._state('Loading…')
+    if (this.status === 'loading') return this._state(t('Loading…'))
     if (this.status === 'error') return this._state(this.error || 'This subject could not be loaded.', 'danger')
     // The conditional (fields vs. empty-state) content is wrapped in its own
     // `display:contents` element rather than left as a bare sibling part
@@ -154,7 +157,7 @@ export class ShSubjectCardView extends LitElement {
   }
 
   render(): TemplateResult {
-    return html`<div class="stage" role="region" aria-label=${this.title || this.subjectIri || 'Subject card'}>${this._body()}</div>`
+    return html`<div class="stage" role="region" aria-label=${this.title || this.subjectIri || t('Subject card')}>${this._body()}</div>`
   }
 }
 

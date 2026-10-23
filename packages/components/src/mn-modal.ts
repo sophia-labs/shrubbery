@@ -5,6 +5,7 @@
  * controlled and backend-free: hosts own `open`, content, and persistence.
  */
 
+import { LocaleController, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, unsafeCSS, type PropertyValues } from 'lit'
 import { customElement, property, query } from 'lit/decorators.js'
 import { classMap } from 'lit/directives/class-map.js'
@@ -15,6 +16,8 @@ export type MnModalSize = 'sm' | 'md' | 'lg' | 'xl' | 'full'
 
 @customElement('mn-modal')
 export class MnModal extends SkinAware(LitElement) {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     ${unsafeCSS(iconStyles)}
 
@@ -293,7 +296,7 @@ export class MnModal extends SkinAware(LitElement) {
               <div class="header-content"><slot name="header"></slot></div>
               ${this.closable
                 ? html`
-                    <button class="close-button" type="button" aria-label="Close" @click=${() => this.close()}>
+                    <button class="close-button" type="button" aria-label=${t('Close')} @click=${() => this.close()}>
                       ${icon('x', { size: 20 })}
                     </button>
                   `

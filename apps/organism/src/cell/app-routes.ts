@@ -7,6 +7,7 @@
  * Choreograph (modes).
  */
 
+import { t } from '@shrubbery/nucleus'
 import { html, noChange, nothing, render as litRender } from 'lit'
 import type {
   MnAuthPage,
@@ -1118,7 +1119,7 @@ export function mountOrganismAppRoute(
       return
     }
     if (route.kind === 'chat' || route.kind === 'chat-debug') {
-      litRender(routeFrame(route, html`<mn-loading size="md" text="Starting chat"></mn-loading>`, options), host)
+      litRender(routeFrame(route, html`<mn-loading size="md" text=${t('Starting chat')}></mn-loading>`, options), host)
       await renderChatRoute(host, route, options, () => !destroyed)
       return
     }

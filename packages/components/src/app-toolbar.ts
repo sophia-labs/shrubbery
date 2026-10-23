@@ -13,6 +13,7 @@
  * Backend-free: pure data + a lookup. No lit, no stores.
  */
 
+import { t } from '@shrubbery/nucleus'
 /** One icon-only toolbar button. */
 export interface AppToolbarAction {
   /** Stable id; rendered as `data-app-action` for tests and harnesses. */
@@ -32,7 +33,7 @@ export interface AppToolbarAction {
 /** The Garden home: the same navigation the masthead has always emitted. */
 export const HOME_ACTION: AppToolbarAction = {
   id: 'home',
-  label: 'Home',
+  get label() { return t('Home') },
   icon: 'home',
   event: 'mn-navigate-home',
 }
@@ -40,7 +41,7 @@ export const HOME_ACTION: AppToolbarAction = {
 /** Choreograph's home: the modes surface's Overview screen. */
 export const CHOREOGRAPH_OVERVIEW_ACTION: AppToolbarAction = {
   id: 'overview',
-  label: 'Choreograph overview',
+  get label() { return t('Choreograph overview') },
   icon: 'home',
   event: 'mn-choreograph-overview',
 }
@@ -48,7 +49,7 @@ export const CHOREOGRAPH_OVERVIEW_ACTION: AppToolbarAction = {
 /** Start a new mode in the Choreograph modes editor. */
 export const CHOREOGRAPH_NEW_MODE_ACTION: AppToolbarAction = {
   id: 'new-mode',
-  label: 'New mode',
+  get label() { return t('New mode') },
   icon: 'plus',
   event: 'mn-choreograph-new-mode',
 }
@@ -56,7 +57,7 @@ export const CHOREOGRAPH_NEW_MODE_ACTION: AppToolbarAction = {
 /** Hoja: start a new note — a "leaf", in Hoja's own words — in the open workspace. */
 export const HOJA_NEW_NOTE_ACTION: AppToolbarAction = {
   id: 'new-note',
-  label: 'New leaf',
+  get label() { return t('New leaf') },
   icon: 'plus',
   event: 'mn-hoja-new-note',
 }

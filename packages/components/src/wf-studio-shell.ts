@@ -7,6 +7,7 @@
  * importing any Garden runtime effects.
  */
 
+import { LocaleController, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, unsafeCSS, type PropertyValues, type TemplateResult } from 'lit'
 import { customElement, property, state } from 'lit/decorators.js'
 import { SkinAware } from './skin-aware.js'
@@ -134,13 +135,13 @@ export interface WfRunComparison {
 
 const NAV: ReadonlyArray<{ screen: WfStudioScreen; label: string; iconName: string }> = [
   { screen: 'development', label: 'Development', iconName: 'code' },
-  { screen: 'home', label: 'Agents', iconName: 'bot' },
-  { screen: 'runs', label: 'Runs', iconName: 'database' },
-  { screen: 'run', label: 'Monitor', iconName: 'graph' },
-  { screen: 'launch', label: 'Launch', iconName: 'zap' },
-  { screen: 'anatomy', label: 'Anatomy', iconName: 'layers' },
-  { screen: 'gates', label: 'Gates', iconName: 'filter' },
-  { screen: 'compare', label: 'Compare', iconName: 'git-branch' },
+  { screen: 'home', get label() { return t('Agents') }, iconName: 'bot' },
+  { screen: 'runs', get label() { return t('Runs') }, iconName: 'database' },
+  { screen: 'run', get label() { return t('Monitor') }, iconName: 'graph' },
+  { screen: 'launch', get label() { return t('Launch') }, iconName: 'zap' },
+  { screen: 'anatomy', get label() { return t('Anatomy') }, iconName: 'layers' },
+  { screen: 'gates', get label() { return t('Gates') }, iconName: 'filter' },
+  { screen: 'compare', get label() { return t('Compare') }, iconName: 'git-branch' },
 ]
 
 function trimmed(value: string | null | undefined): string {
@@ -154,6 +155,8 @@ function displayValue(value: string | number | null | undefined): string {
 
 @customElement('wf-studio-shell')
 export class WfStudioShell extends SkinAware(LitElement) {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     ${unsafeCSS(iconStyles)}
 
@@ -953,11 +956,11 @@ export class WfStudioShell extends SkinAware(LitElement) {
       content = this._empty('package', title, 'Refresh the registry after the Choreograph host is connected.')
     } else {
       content = html`<div class="page-stack">
-        <form class="panel" aria-label="Launch workflow" data-workflow-name=${workflowName} @submit=${this._submitLaunch}>
+        <form class="panel" aria-label=${t('Launch workflow')} data-workflow-name=${workflowName} @submit=${this._submitLaunch}>
           <div class="panel-head">${icon('zap', { size: 14 })} Run request</div>
           <div class="panel-body field-grid">
             <label class="field">
-              <span class="field-label">Workflow</span>
+              <span class="field-label">${t('Workflow')}</span>
               <select
                 name="workflow"
                 .value=${workflowName}
@@ -969,7 +972,7 @@ export class WfStudioShell extends SkinAware(LitElement) {
               >${this._workflowOptions(workflowName)}</select>
             </label>
             <label class="field">
-              <span class="field-label">Target graph</span>
+              <span class="field-label">${t('Target graph')}</span>
               <input
                 name="graph"
                 autocomplete="off"
@@ -982,7 +985,7 @@ export class WfStudioShell extends SkinAware(LitElement) {
               >
             </label>
             <label class="field field-wide">
-              <span class="field-label">Run inputs (JSON)</span>
+              <span class="field-label">${t('Run inputs (JSON)')}</span>
               <textarea
                 name="inputs"
                 spellcheck="false"
@@ -993,26 +996,26 @@ export class WfStudioShell extends SkinAware(LitElement) {
                   this._launchValidation = ''
                 }}
               ></textarea>
-              <span class="field-hint">These fields are sent with the run. For survey-synthesize, use question, doc_ids, doc_query, and k.</span>
+              <span class="field-hint">${t('These fields are sent with the run. For survey-synthesize, use question, doc_ids, doc_query, and k.')}</span>
             </label>
             ${this._launchValidation ? html`<div class="validation" role="alert">${this._launchValidation}</div>` : nothing}
             ${this.launchError ? html`<div class="validation" role="alert">${this.launchError}</div>` : nothing}
             ${this.launchedRunId ? html`<div class="notice" data-tone="success" role="status">
-              Run <span class="mono">${this.launchedRunId}</span> accepted. Open Monitor to follow telemetry.
+              ${t('Run')} <span class="mono">${this.launchedRunId}</span> accepted. Open Monitor to follow telemetry.
             </div>` : nothing}
             <div class="form-actions">
               <button class="primary" type="submit" ?disabled=${this.launchPending}>
                 ${icon(this.launchPending ? 'clock' : 'play', { size: 13 })}
-                ${this.launchPending ? 'Launching…' : 'Launch workflow'}
+                ${this.launchPending ? 'Launching…' : t('Launch workflow')}
               </button>
             </div>
           </div>
         </form>
         ${selected ? html`<div class="panel"><div class="panel-body workflow-copy">
           <strong>${selected.name}</strong>
-          ${selected.description || 'No description supplied.'}
-          ${selected.whenToUse ? html`<br><span><b>When to use:</b> ${selected.whenToUse}</span>` : nothing}
-          ${selected.phases?.length ? html`<br><span><b>Phases:</b> ${selected.phases.map((phase) => phase.title).join(' → ')}</span>` : nothing}
+          ${selected.description || t('No description supplied.')}
+          ${selected.whenToUse ? html`<br><span><b>${t('When to use:')}</b> ${selected.whenToUse}</span>` : nothing}
+          ${selected.phases?.length ? html`<br><span><b>${t('Phases:')}</b> ${selected.phases.map((phase) => phase.title).join(' → ')}</span>` : nothing}
         </div></div>` : nothing}
       </div>`
     }
@@ -1040,7 +1043,7 @@ export class WfStudioShell extends SkinAware(LitElement) {
         <div class="panel-head">${icon('network', { size: 14 })} ${this.anatomy.name}</div>
         ${this.anatomy.description ? html`<div class="panel-body workflow-copy">${this.anatomy.description}</div>` : nothing}
       </div>
-      <div class="phase-list" role="list" aria-label="Workflow phases">
+      <div class="phase-list" role="list" aria-label=${t('Workflow phases')}>
         ${this.anatomy.phases.map((phase) => html`
           <section class="phase-card" role="listitem" data-phase-index=${phase.index}>
             <header class="phase-head">
@@ -1051,7 +1054,7 @@ export class WfStudioShell extends SkinAware(LitElement) {
             ${phase.detail ? html`<div class="panel-body node-copy">${phase.detail}</div>` : nothing}
             ${phase.nodes?.length ? html`
               <table class="node-table" aria-label=${`${phase.title} nodes`}>
-                <thead><tr><th>Node</th><th>Archetype</th><th>Model</th><th>Tools</th><th>Budget</th><th>Gates</th></tr></thead>
+                <thead><tr><th>${t('Node')}</th><th>${t('Archetype')}</th><th>${t('Model')}</th><th>${t('Tools')}</th><th>${t('Budget')}</th><th>${t('Gates')}</th></tr></thead>
                 <tbody>${phase.nodes.map((node) => html`
                   <tr data-node-id=${node.id}>
                     <td><span class="mono">${node.label || node.id}</span></td>
@@ -1063,7 +1066,7 @@ export class WfStudioShell extends SkinAware(LitElement) {
                   </tr>
                 `)}</tbody>
               </table>
-            ` : html`<div class="panel-body node-copy">This phase is declared, but there is no agent-node detail to show for it.</div>`}
+            ` : html`<div class="panel-body node-copy">${t('This phase is declared, but there is no agent-node detail to show for it.')}</div>`}
           </section>
         `)}
       </div>
@@ -1074,7 +1077,7 @@ export class WfStudioShell extends SkinAware(LitElement) {
     const workflowName = this._workflowName(this._anatomyWorkflowName)
     const actions = html`<span class="toolbar">
       <select
-        aria-label="Workflow anatomy"
+        aria-label=${t('Workflow anatomy')}
         .value=${workflowName}
         @change=${(event: Event) => {
           const name = (event.currentTarget as HTMLSelectElement).value
@@ -1122,8 +1125,8 @@ export class WfStudioShell extends SkinAware(LitElement) {
     }
     return html`
       <div class="panel">
-        <table class="gate-table" aria-label="Workflow gates">
-          <thead><tr><th>Enabled</th><th>Name</th><th>Kind</th><th>Binding</th><th>Access</th><th>Status</th></tr></thead>
+        <table class="gate-table" aria-label=${t('Workflow gates')}>
+          <thead><tr><th>${t('Enabled')}</th><th>${t('Name')}</th><th>${t('Kind')}</th><th>${t('Binding')}</th><th>${t('Access')}</th><th>${t('Status')}</th></tr></thead>
           <tbody>${visible.map((gate) => html`
             <tr data-gate-id=${gate.id}>
               <td><input
@@ -1138,7 +1141,7 @@ export class WfStudioShell extends SkinAware(LitElement) {
               <td><span class="pill">${gate.kind}</span></td>
               <td class="mono">${gate.binding || '-'}</td>
               <td>${gate.access || '-'}</td>
-              <td>${gate.required ? html`<span class="pill">required</span>` : gate.status || (gate.enabled ? 'bound' : 'off')}</td>
+              <td>${gate.required ? html`<span class="pill">${t('required')}</span>` : gate.status || (gate.enabled ? 'bound' : 'off')}</td>
             </tr>
           `)}</tbody>
         </table>
@@ -1150,7 +1153,7 @@ export class WfStudioShell extends SkinAware(LitElement) {
     const workflowName = this._workflowName(this._gatesWorkflowName)
     const actions = html`<span class="toolbar">
       <select
-        aria-label="Workflow gates"
+        aria-label=${t('Workflow gates')}
         .value=${workflowName}
         @change=${(event: Event) => {
           const name = (event.currentTarget as HTMLSelectElement).value
@@ -1158,13 +1161,13 @@ export class WfStudioShell extends SkinAware(LitElement) {
           this._requestGates(name)
         }}
       >${this._workflowOptions(workflowName)}</select>
-      <select aria-label="Gate kind" .value=${this._gateFilter} @change=${(event: Event) => {
+      <select aria-label=${t('Gate kind')} .value=${this._gateFilter} @change=${(event: Event) => {
         this._gateFilter = (event.currentTarget as HTMLSelectElement).value
       }}>
-        <option value="all">All gates</option>
-        <option value="capability">Capabilities</option>
-        <option value="tool">Tools</option>
-        <option value="ward">Wards</option>
+        <option value="all">${t('All gates')}</option>
+        <option value="capability">${t('Capabilities')}</option>
+        <option value="tool">${t('Tools')}</option>
+        <option value="ward">${t('Wards')}</option>
       </select>
       <button type="button" ?disabled=${!workflowName || this.gatesStatus === 'loading'} @click=${() => this._requestGates()}>
         ${icon('refresh', { size: 13 })} Refresh
@@ -1220,8 +1223,8 @@ export class WfStudioShell extends SkinAware(LitElement) {
           ${icon('arrow-right', { size: 13 })}
           <span class="mono">${this.comparison.rightRunId}</span>
         </div>
-        <table class="compare-table" aria-label="Run comparison">
-          <thead><tr><th>Field</th><th>Left run</th><th>Right run</th><th>Delta</th></tr></thead>
+        <table class="compare-table" aria-label=${t('Run comparison')}>
+          <thead><tr><th>${t('Field')}</th><th>${t('Left run')}</th><th>${t('Right run')}</th><th>${t('Delta')}</th></tr></thead>
           <tbody>${this.comparison.fields.map((field) => html`
             <tr data-field=${field.label}>
               <td><strong>${field.label}</strong></td>
@@ -1239,39 +1242,39 @@ export class WfStudioShell extends SkinAware(LitElement) {
     const leftRunId = this._leftRunId()
     const rightRunId = this._rightRunId()
     const content = html`<div class="page-stack">
-      <form class="panel" aria-label="Compare workflow runs" @submit=${this._submitComparison}>
+      <form class="panel" aria-label=${t('Compare workflow runs')} @submit=${this._submitComparison}>
         <div class="panel-head">${icon('git-branch', { size: 14 })} Run pair</div>
         <div class="panel-body field-grid">
           <label class="field">
-            <span class="field-label">Left run</span>
+            <span class="field-label">${t('Left run')}</span>
             <select name="left-run" .value=${leftRunId} ?disabled=${this.comparePending} @change=${(event: Event) => {
               this._compareLeftRunId = (event.currentTarget as HTMLSelectElement).value
               this._compareValidation = ''
             }}>
-              <option value="">Choose a run</option>
+              <option value="">${t('Choose a run')}</option>
               ${this.historyRuns.map((run) => html`<option value=${run.runId}>${run.runId} · ${run.workflowName || 'workflow'}</option>`)}
             </select>
           </label>
           <label class="field">
-            <span class="field-label">Right run</span>
+            <span class="field-label">${t('Right run')}</span>
             <select name="right-run" .value=${rightRunId} ?disabled=${this.comparePending} @change=${(event: Event) => {
               this._compareRightRunId = (event.currentTarget as HTMLSelectElement).value
               this._compareValidation = ''
             }}>
-              <option value="">Choose a run</option>
+              <option value="">${t('Choose a run')}</option>
               ${this.historyRuns.map((run) => html`<option value=${run.runId}>${run.runId} · ${run.workflowName || 'workflow'}</option>`)}
             </select>
           </label>
           ${this._compareValidation ? html`<div class="validation" role="alert">${this._compareValidation}</div>` : nothing}
           <div class="form-actions">
             <button class="primary" type="submit" ?disabled=${this.comparePending || this.historyRuns.length < 2}>
-              ${icon('scale', { size: 13 })} ${this.comparePending ? 'Comparing…' : 'Compare runs'}
+              ${icon('scale', { size: 13 })} ${this.comparePending ? 'Comparing…' : t('Compare runs')}
             </button>
           </div>
         </div>
       </form>
       ${this.historyStatus === 'loading' && !this.historyRuns.length
-        ? this._renderLoading('Loading workflow runs')
+        ? this._renderLoading(t('Loading workflow runs'))
         : this._renderComparisonResult()}
     </div>`
     return this._page('git-branch', 'Compare runs', 'Contrast two journal-backed runs field by field.', content)
@@ -1309,9 +1312,9 @@ export class WfStudioShell extends SkinAware(LitElement) {
           <span class="brand">${icon('zap', { size: 17 })}</span>
           <span class="title-wrap">
             <span class="title">Choreograph Studio</span>
-            <span class="subtitle">${this._activeRunId() || this._graphId() || 'Workflow runs'}</span>
+            <span class="subtitle">${this._activeRunId() || this._graphId() || t('Workflow runs')}</span>
           </span>
-          <nav class="nav" aria-label="Choreograph Studio screens">
+          <nav class="nav" aria-label=${t('Choreograph Studio screens')}>
             ${NAV.map((item) => this._navButton(item, screen))}
           </nav>
         </header>

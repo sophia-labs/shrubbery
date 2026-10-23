@@ -18,6 +18,7 @@
  * Other events (bubble, composed), shared with the original viewer so the shell needs nothing new:
  * `mn-editor-original-view-toggle` (the Text side of Original / Text) and `mn-original-viewer-download`.
  */
+import { LocaleController, t as msg } from '@shrubbery/nucleus'
 import { LitElement, html, nothing, type PropertyValues, type TemplateResult } from 'lit'
 import { customElement, property, state } from 'lit/decorators.js'
 import { unsafeHTML } from 'lit/directives/unsafe-html.js'
@@ -90,6 +91,8 @@ interface Composer extends Pop {
 
 @customElement('mn-reader')
 export class MnReader extends LitElement {
+  protected readonly _locale = new LocaleController(this)
+
   static override styles = [PDF_VIEWER_STYLES, READER_TOKENS, READER_BAR_STYLES, READER_SIDE_STYLES, READER_STYLES]
 
   @property({ attribute: false }) source: ReaderSource | null = null
@@ -747,21 +750,21 @@ export class MnReader extends LitElement {
     const off = !this.canAnnotate
     if (sel) {
       return [
-        { id: 'copy', label: 'Copy', icon: 'copy' },
+        { id: 'copy', get label() { return msg('Copy') }, icon: 'copy' },
         { type: 'divider' },
         ...READER_COLORS.map(color => ({ id: `highlight-${color}`, label: `Highlight ${color}`, icon: 'highlighter', disabled: off })),
-        { id: 'note', label: 'Add note', icon: 'message-square', disabled: off },
+        { id: 'note', get label() { return msg('Add note') }, icon: 'message-square', disabled: off },
         { type: 'divider' },
-        { id: 'ask', label: 'Ask Sophia about this passage', icon: 'bot' },
-        { id: 'find', label: 'Find in this document', icon: 'search' },
+        { id: 'ask', get label() { return msg('Ask Sophia about this passage') }, icon: 'bot' },
+        { id: 'find', get label() { return msg('Find in this document') }, icon: 'search' },
       ]
     }
     return [
       { id: 'ask', label: `Ask Sophia about this ${this.hereLabel}`, icon: 'bot' },
-      { id: 'find', label: 'Find…', icon: 'search', shortcut: '⌘F' },
-      { id: 'contents', label: 'Contents', icon: 'list' },
+      { id: 'find', get label() { return msg('Find…') }, icon: 'search', shortcut: '⌘F' },
+      { id: 'contents', get label() { return msg('Contents') }, icon: 'list' },
       { type: 'divider' },
-      { id: 'download', label: 'Download original', icon: 'download', disabled: !this.downloadable },
+      { id: 'download', get label() { return msg('Download original') }, icon: 'download', disabled: !this.downloadable },
     ]
   }
 
@@ -998,8 +1001,8 @@ export class MnReader extends LitElement {
     const book = source?.kind === 'epub' ? source.book : null
     const notes = this.shown.length
     const more: MenuEntry[] = [
-      { id: 'download', label: 'Download original', icon: 'download', disabled: !this.downloadable },
-      ...(this.textView ? [{ id: 'text', label: 'Show the text', icon: 'file-text' }] : []),
+      { id: 'download', get label() { return msg('Download original') }, icon: 'download', disabled: !this.downloadable },
+      ...(this.textView ? [{ id: 'text', get label() { return msg('Show the text') }, icon: 'file-text' }] : []),
     ]
     return html`<mn-reader-bar view="original" title=${this.displayTitle(book)} author=${this.displayAuthor(book)}
         ?view-toggle=${this.textView} ?sidebar-pressed=${this.sidebarShown} ?sidebar-disabled=${!source}
@@ -1009,11 +1012,11 @@ export class MnReader extends LitElement {
         @rd-bar-menu=${(e: CustomEvent<{ id: string }>) => this.onBarMenu(e.detail.id)}>
       <div slot="location" class="loc-slot">${pdf ? this.pdfLocation(pdf) : book ? this.bookLocation(book) : nothing}</div>
       ${pdf ? html`<span slot="tools" class="tools">
-          <button type="button" class="btn" aria-label="Zoom out" title="Zoom out (⌘−)" ?disabled=${!pdf.ready} @click=${() => this.surface?.zoomBy(1 / 1.15)}>${icon('minus')}</button>
-          <button type="button" class="btn zoom" aria-label="Fit" title="Fit and zoom" aria-haspopup="menu" ?disabled=${!pdf.ready} @click=${() => { this.menu = this.menu === 'fit' ? null : 'fit' }}>${Math.round(pdf.scale * 100)}%</button>
-          <button type="button" class="btn" aria-label="Zoom in" title="Zoom in (⌘+)" ?disabled=${!pdf.ready} @click=${() => this.surface?.zoomBy(1.15)}>${icon('plus')}</button></span>` : nothing}
-      ${book ? html`<button slot="tools" type="button" class="btn" aria-label="Type" title="Type size, face and width" aria-pressed=${this.menu === 'type' ? 'true' : 'false'} @click=${() => { this.menu = this.menu === 'type' ? null : 'type' }}>${icon('type')}</button>` : nothing}
-      <button slot="tools-end" type="button" class="btn" aria-label="Notes and highlights" title="Notes and highlights, in the comments sidebar" aria-pressed=${this.notesOpen ? 'true' : 'false'} ?disabled=${!source}
+          <button type="button" class="btn" aria-label=${msg('Zoom out')} title=${msg('Zoom out (⌘−)')} ?disabled=${!pdf.ready} @click=${() => this.surface?.zoomBy(1 / 1.15)}>${icon('minus')}</button>
+          <button type="button" class="btn zoom" aria-label=${msg('Fit')} title=${msg('Fit and zoom')} aria-haspopup="menu" ?disabled=${!pdf.ready} @click=${() => { this.menu = this.menu === 'fit' ? null : 'fit' }}>${Math.round(pdf.scale * 100)}%</button>
+          <button type="button" class="btn" aria-label=${msg('Zoom in')} title=${msg('Zoom in (⌘+)')} ?disabled=${!pdf.ready} @click=${() => this.surface?.zoomBy(1.15)}>${icon('plus')}</button></span>` : nothing}
+      ${book ? html`<button slot="tools" type="button" class="btn" aria-label=${msg('Type')} title=${msg('Type size, face and width')} aria-pressed=${this.menu === 'type' ? 'true' : 'false'} @click=${() => { this.menu = this.menu === 'type' ? null : 'type' }}>${icon('type')}</button>` : nothing}
+      <button slot="tools-end" type="button" class="btn" aria-label=${msg('Notes and highlights')} title=${msg('Notes and highlights, in the comments sidebar')} aria-pressed=${this.notesOpen ? 'true' : 'false'} ?disabled=${!source}
         @click=${() => this.say('reader-notes-toggle', {})}>${icon('margin')}${notes ? html`<span class="count">${notes}</span>` : nothing}</button>
     </mn-reader-bar>`
   }
@@ -1026,8 +1029,8 @@ export class MnReader extends LitElement {
   private pdfLocation(pdf: PdfSurfaceState): TemplateResult {
     const label = pdf.pageLabel
     return html`
-      <button type="button" class="btn" aria-label="Previous page" title="Previous page (←)" ?disabled=${!pdf.ready || pdf.page <= 1} @click=${() => this.surface?.goToPage(pdf.page - 1)}>${icon('left')}</button>
-      <input type="text" inputmode="numeric" aria-label="Page" .value=${label ?? String(pdf.page)} ?disabled=${!pdf.ready}
+      <button type="button" class="btn" aria-label=${msg('Previous page')} title=${msg('Previous page (←)')} ?disabled=${!pdf.ready || pdf.page <= 1} @click=${() => this.surface?.goToPage(pdf.page - 1)}>${icon('left')}</button>
+      <input type="text" inputmode="numeric" aria-label=${msg('Page')} .value=${label ?? String(pdf.page)} ?disabled=${!pdf.ready}
         @focus=${(e: FocusEvent) => (e.target as HTMLInputElement).select()}
         @keydown=${(e: KeyboardEvent) => {
           const input = e.target as HTMLInputElement
@@ -1036,16 +1039,16 @@ export class MnReader extends LitElement {
         }}
         @blur=${(e: FocusEvent) => { (e.target as HTMLInputElement).value = label ?? String(pdf.page) }} />
       <span class="of">${label ? `(${pdf.page} of ${pdf.pageCount || '–'})` : `of ${pdf.pageCount || '–'}`}</span>
-      <button type="button" class="btn" aria-label="Next page" title="Next page (→)" ?disabled=${!pdf.ready || pdf.page >= pdf.pageCount} @click=${() => this.surface?.goToPage(pdf.page + 1)}>${icon('right')}</button>`
+      <button type="button" class="btn" aria-label=${msg('Next page')} title=${msg('Next page (→)')} ?disabled=${!pdf.ready || pdf.page >= pdf.pageCount} @click=${() => this.surface?.goToPage(pdf.page + 1)}>${icon('right')}</button>`
   }
 
   private bookLocation(book: ReaderBook): TemplateResult {
     const chapter = book.chapters[this.chapter]
     return html`
-      <button type="button" class="btn" aria-label="Previous chapter" title="Previous chapter (←)" ?disabled=${this.chapter <= 0} @click=${() => this.goChapter(this.chapter - 1)}>${icon('left')}</button>
+      <button type="button" class="btn" aria-label=${msg('Previous chapter')} title=${msg('Previous chapter (←)')} ?disabled=${this.chapter <= 0} @click=${() => this.goChapter(this.chapter - 1)}>${icon('left')}</button>
       <span class="where" title=${chapter?.title ?? ''}>${chapter?.title ?? ''}</span>
       <span class="pct">${Math.round(this.progress * 100)}%</span>
-      <button type="button" class="btn" aria-label="Next chapter" title="Next chapter (→)" ?disabled=${this.chapter >= book.chapters.length - 1} @click=${() => this.goChapter(this.chapter + 1)}>${icon('right')}</button>`
+      <button type="button" class="btn" aria-label=${msg('Next chapter')} title=${msg('Next chapter (→)')} ?disabled=${this.chapter >= book.chapters.length - 1} @click=${() => this.goChapter(this.chapter + 1)}>${icon('right')}</button>`
   }
 
   private menus(): TemplateResult | typeof nothing {
@@ -1055,22 +1058,22 @@ export class MnReader extends LitElement {
       const zoomItem = (value: PdfZoom, label: string) => html`<button type="button" role="menuitemradio" aria-checked=${zoom === value ? 'true' : 'false'}
         @click=${() => { this.menu = null; this.surface?.setZoom(value) }}>${zoom === value ? '✓ ' : ''}${label}</button>`
       return html`<div class="menu" role="menu" style="top:6px;right:120px">
-        ${zoomItem('auto', 'Automatic')}${zoomItem('page-width', 'Fit width')}${zoomItem('page-fit', 'Fit page')}${zoomItem(1, 'Actual size')}${zoomItem(1.5, '150%')}${zoomItem(2, '200%')}
+        ${zoomItem('auto', 'Automatic')}${zoomItem('page-width', msg('Fit width'))}${zoomItem('page-fit', msg('Fit page'))}${zoomItem(1, msg('Actual size'))}${zoomItem(1.5, '150%')}${zoomItem(2, '200%')}
       </div>`
     }
     const t = this.type
     const choice = <K extends keyof TypeSettings>(key: K, value: TypeSettings[K], label: string) => html`<button type="button" aria-pressed=${t[key] === value ? 'true' : 'false'}
       @click=${() => this.setType({ [key]: value } as Partial<TypeSettings>)}>${label}</button>`
-    return html`<div class="menu" role="dialog" aria-label="Type" style="top:6px;right:140px">
-      <div class="label">Size</div>
-      <div class="choices"><button type="button" aria-label="Smaller" @click=${() => this.bigger(-1)}>A−</button><button type="button" aria-label="Larger" @click=${() => this.bigger(1)}>A+</button></div>
-      <div class="label">Face</div>
+    return html`<div class="menu" role="dialog" aria-label=${msg('Type')} style="top:6px;right:140px">
+      <div class="label">${msg('Size')}</div>
+      <div class="choices"><button type="button" aria-label=${msg('Smaller')} @click=${() => this.bigger(-1)}>A−</button><button type="button" aria-label=${msg('Larger')} @click=${() => this.bigger(1)}>A+</button></div>
+      <div class="label">${msg('Face')}</div>
       <div class="choices">${choice('face', 'serif', 'Serif')}${choice('face', 'sans', 'Sans')}</div>
-      <div class="label">Line length</div>
-      <div class="choices">${choice('measure', 'narrow', 'Narrow')}${choice('measure', 'medium', 'Medium')}${choice('measure', 'wide', 'Wide')}</div>
-      <div class="label">Layout</div>
-      <div class="choices">${choice('layout', 'continuous', 'Continuous')}${choice('layout', 'chapter', 'By chapter')}</div>
-      <div class="label">Alignment</div>
+      <div class="label">${msg('Line length')}</div>
+      <div class="choices">${choice('measure', 'narrow', msg('Narrow'))}${choice('measure', 'medium', msg('Medium'))}${choice('measure', 'wide', msg('Wide'))}</div>
+      <div class="label">${msg('Layout')}</div>
+      <div class="choices">${choice('layout', 'continuous', 'Continuous')}${choice('layout', 'chapter', msg('By chapter'))}</div>
+      <div class="label">${msg('Alignment')}</div>
       <div class="choices">${choice('justify', true, 'Justified')}${choice('justify', false, 'Ragged')}</div>
     </div>`
   }
@@ -1079,10 +1082,10 @@ export class MnReader extends LitElement {
     if (!this.sidebarShown || !this.source) return nothing
     const pdf = this.source.kind === 'pdf'
     const tabs: { id: 'contents' | 'pages'; label: string }[] = [
-      { id: 'contents', label: 'Contents' }, ...(pdf ? [{ id: 'pages' as const, label: 'Pages' }] : []),
+      { id: 'contents', get label() { return msg('Contents') } }, ...(pdf ? [{ id: 'pages' as const, get label() { return msg('Pages') } }] : []),
     ]
     const tab = tabs.some(t => t.id === this.tab) ? this.tab : 'contents'
-    return html`<aside class="side" aria-label="Contents">
+    return html`<aside class="side" aria-label=${msg('Contents')}>
       <div class="tabs" role="tablist">${tabs.map(t => html`<button type="button" role="tab" aria-selected=${tab === t.id ? 'true' : 'false'} @click=${() => { this.tab = t.id }}>${t.label}</button>`)}</div>
       <div class="side-scroll">${tab === 'contents' ? this.contents() : this.thumbs()}</div>
     </aside>`
@@ -1095,7 +1098,7 @@ export class MnReader extends LitElement {
       const list = (items: readonly PdfOutlineItem[]): TemplateResult => html`<ul>${items.map(item => html`<li>
         <button type="button" @click=${() => this.surface?.goToDestination(item.dest)}>${item.title || '(untitled)'}</button>
         ${item.items.length ? list(item.items) : nothing}</li>`)}</ul>`
-      return outline.length ? html`<nav class="toc">${list(outline)}</nav>` : html`<p class="empty">This PDF has no table of contents. Pages are in the next tab.</p>`
+      return outline.length ? html`<nav class="toc">${list(outline)}</nav>` : html`<p class="empty">${msg('This PDF has no table of contents. Pages are in the next tab.')}</p>`
     }
     const current = this.chapter
     const list = (items: readonly ReaderTocEntry[]): TemplateResult => html`<ul>${items.map(item => html`<li>
@@ -1142,9 +1145,9 @@ export class MnReader extends LitElement {
         ${this.gap(book, 'before')}
         ${repeat(book.chapters.slice(this.win.first, this.win.last + 1), c => c.index, c => html`<article class="chapter" id=${`rd-c${c.index}`} data-chapter=${c.index} lang=${book.language || nothing}>${unsafeHTML(c.html)}</article>`)}
         ${this.gap(book, 'after')}
-        ${this.continuous ? nothing : html`<nav class="chapter-nav" aria-label="Chapters">
-          ${this.chapter > 0 ? html`<button type="button" @click=${() => this.goChapter(this.chapter - 1)}><small>Previous</small>${book.chapters[this.chapter - 1]?.title}</button>` : nothing}
-          ${this.chapter < book.chapters.length - 1 ? html`<button type="button" data-next @click=${() => this.goChapter(this.chapter + 1)}><small>Next</small>${book.chapters[this.chapter + 1]?.title}</button>` : nothing}
+        ${this.continuous ? nothing : html`<nav class="chapter-nav" aria-label=${msg('Chapters')}>
+          ${this.chapter > 0 ? html`<button type="button" @click=${() => this.goChapter(this.chapter - 1)}><small>${msg('Previous')}</small>${book.chapters[this.chapter - 1]?.title}</button>` : nothing}
+          ${this.chapter < book.chapters.length - 1 ? html`<button type="button" data-next @click=${() => this.goChapter(this.chapter + 1)}><small>${msg('Next')}</small>${book.chapters[this.chapter + 1]?.title}</button>` : nothing}
         </nav>`}
       </div>` : nothing}
       ${pdf?.ready && !pdf.hasText ? this.scanBanner() : nothing}
@@ -1174,7 +1177,7 @@ export class MnReader extends LitElement {
     const failed = scan?.state === 'failed'
     return html`<div class="banner" role="note" data-scan=${failed ? 'failed' : 'idle'}>
       ${failed ? `Reading the scan failed${scan?.message ? `: ${scan.message}` : '.'}` : 'This PDF is a scan: its pages are pictures, with no text to search, select or highlight.'}
-      <button type="button" class="banner-act" @click=${() => this.say('reader-read-scan', {})}>${failed ? 'Try again' : 'Read its text'}</button>
+      <button type="button" class="banner-act" @click=${() => this.say('reader-read-scan', {})}>${failed ? msg('Try again') : msg('Read its text')}</button>
     </div>`
   }
 
@@ -1187,13 +1190,13 @@ export class MnReader extends LitElement {
       : book ? (book.results.length ? `${book.current + 1} of ${book.results.length}${book.results.length >= 2000 ? '+' : ''}` : 'No matches') : ''
     let timer = 0
     return html`<div class="find" role="search">
-      <input type="text" aria-label="Find" placeholder="Find" .value=${this.findQuery} spellcheck="false"
+      <input type="text" aria-label=${msg('Find')} placeholder=${msg('Find')} .value=${this.findQuery} spellcheck="false"
         @input=${(e: Event) => { this.findQuery = (e.target as HTMLInputElement).value; window.clearTimeout(timer); timer = window.setTimeout(() => this.runFind(false), 160) }}
         @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter') { e.preventDefault(); this.runFind(true, e.shiftKey) } }} />
       <span class="count" aria-live="polite">${count}</span>
-      <button type="button" class="btn" aria-label="Previous match" @click=${() => this.runFind(true, true)}>${icon('up')}</button>
-      <button type="button" class="btn" aria-label="Next match" @click=${() => this.runFind(true, false)}>${icon('down')}</button>
-      <button type="button" class="btn" aria-label="Close find" @click=${() => this.closeFind()}>${icon('x')}</button>
+      <button type="button" class="btn" aria-label=${msg('Previous match')} @click=${() => this.runFind(true, true)}>${icon('up')}</button>
+      <button type="button" class="btn" aria-label=${msg('Next match')} @click=${() => this.runFind(true, false)}>${icon('down')}</button>
+      <button type="button" class="btn" aria-label=${msg('Close find')} @click=${() => this.closeFind()}>${icon('x')}</button>
     </div>`
   }
 
@@ -1201,13 +1204,13 @@ export class MnReader extends LitElement {
     const pop = this.pop
     if (!pop) return nothing
     const off = !this.canAnnotate
-    return html`<div class="pop" role="toolbar" aria-label="Selection" style=${`left:${pop.x}px;top:${pop.y}px`} ?data-below=${pop.below}
+    return html`<div class="pop" role="toolbar" aria-label=${msg('Selection')} style=${`left:${pop.x}px;top:${pop.y}px`} ?data-below=${pop.below}
         @pointerdown=${(e: Event) => e.preventDefault()}>
-      ${READER_COLORS.map(color => html`<button type="button" class="swatch" data-color=${color} aria-label=${`Highlight ${color}`} title=${off ? this.annotateNote || 'Highlighting is not available here' : `Highlight (${color})`}
+      ${READER_COLORS.map(color => html`<button type="button" class="swatch" data-color=${color} aria-label=${`Highlight ${color}`} title=${off ? this.annotateNote || msg('Highlighting is not available here') : `Highlight (${color})`}
         ?disabled=${off} @click=${() => this.highlight(color)}><i></i></button>`)}
       <span class="vsep"></span>
-      <button type="button" class="act" ?disabled=${off} title=${off ? this.annotateNote : 'Write a note on this passage'} @click=${() => this.openComposer(pop, 'yellow', null, '')}>Note</button>
-      <button type="button" class="act" @click=${() => { void navigator.clipboard?.writeText(pop.quote); this.pop = null }}>Copy</button>
+      <button type="button" class="act" ?disabled=${off} title=${off ? this.annotateNote : msg('Write a note on this passage')} @click=${() => this.openComposer(pop, 'yellow', null, '')}>${msg('Note')}</button>
+      <button type="button" class="act" @click=${() => { void navigator.clipboard?.writeText(pop.quote); this.pop = null }}>${msg('Copy')}</button>
     </div>`
   }
 
@@ -1217,16 +1220,16 @@ export class MnReader extends LitElement {
     if (!pop || !annotation) return nothing
     const pending = annotation.id.startsWith('pending-')
     const mine = annotation.mine !== false && this.canAnnotate && !pending
-    return html`<div class="pop" role="toolbar" aria-label="Highlight" style=${`left:${pop.x}px;top:${pop.y}px`} ?data-below=${pop.below}
+    return html`<div class="pop" role="toolbar" aria-label=${msg('Highlight')} style=${`left:${pop.x}px;top:${pop.y}px`} ?data-below=${pop.below}
         @pointerdown=${(e: Event) => e.preventDefault()}>
       ${mine ? READER_COLORS.map(color => html`<button type="button" class="swatch" data-color=${color} aria-label=${`Make it ${color}`} aria-pressed=${annotation.color === color ? 'true' : 'false'}
         @click=${() => this.change({ id: annotation.id, action: 'recolor', color })}><i></i></button>`) : nothing}
       ${mine ? html`<span class="vsep"></span>` : nothing}
-      ${mine ? html`<button type="button" class="act" @click=${() => this.openComposer({ ...pop, quote: annotation.quote, prefix: annotation.prefix ?? '', suffix: annotation.suffix ?? '', place: annotation.place ?? { kind: 'page', page: 1 } }, annotation.color, annotation.kind === 'comment' ? annotation.id : null, annotation.text ?? '')}>${annotation.kind === 'comment' ? 'Edit note' : 'Note'}</button>` : nothing}
-      <button type="button" class="act" @click=${() => { void navigator.clipboard?.writeText(annotation.quote); this.activePop = null }}>Copy</button>
-      ${this.textView && !pending ? html`<button type="button" class="act" title="Show this passage in the text made from the original"
-        @click=${() => { this.activePop = null; this.say('reader-show-in-text', { id: annotation.id }) }}>Show in text</button>` : nothing}
-      ${mine ? html`<button type="button" class="act" @click=${() => this.change({ id: annotation.id, action: 'delete' })}>Delete</button>` : nothing}
+      ${mine ? html`<button type="button" class="act" @click=${() => this.openComposer({ ...pop, quote: annotation.quote, prefix: annotation.prefix ?? '', suffix: annotation.suffix ?? '', place: annotation.place ?? { kind: 'page', page: 1 } }, annotation.color, annotation.kind === 'comment' ? annotation.id : null, annotation.text ?? '')}>${annotation.kind === 'comment' ? msg('Edit note') : msg('Note')}</button>` : nothing}
+      <button type="button" class="act" @click=${() => { void navigator.clipboard?.writeText(annotation.quote); this.activePop = null }}>${msg('Copy')}</button>
+      ${this.textView && !pending ? html`<button type="button" class="act" title=${msg('Show this passage in the text made from the original')}
+        @click=${() => { this.activePop = null; this.say('reader-show-in-text', { id: annotation.id }) }}>${msg('Show in text')}</button>` : nothing}
+      ${mine ? html`<button type="button" class="act" @click=${() => this.change({ id: annotation.id, action: 'delete' })}>${msg('Delete')}</button>` : nothing}
     </div>`
   }
 
@@ -1237,14 +1240,14 @@ export class MnReader extends LitElement {
     const width = 300
     const left = Math.max(8, Math.min((stage?.clientWidth ?? 800) - width - 8, c.x - width / 2))
     const top = c.below ? c.y + 12 : Math.max(8, c.y - 190)
-    return html`<div class="composer" role="dialog" aria-label=${c.editing ? 'Edit note' : 'New note'} style=${`left:${left}px;top:${top}px`}>
+    return html`<div class="composer" role="dialog" aria-label=${c.editing ? msg('Edit note') : msg('New note')} style=${`left:${left}px;top:${top}px`}>
       <q>${c.quote}</q>
-      <textarea aria-label="Note" placeholder="Write a note…" .value=${c.draft}
+      <textarea aria-label=${msg('Note')} placeholder=${msg('Write a note…')} .value=${c.draft}
         @input=${(e: Event) => { this.composer = { ...c, draft: (e.target as HTMLTextAreaElement).value } }}
         @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); this.saveComposer() } }}></textarea>
       <div class="row"><span class="grow">⌘↩ to save</span>
-        <button type="button" class="btn" @click=${() => { this.composer = null }}>Cancel</button>
-        <button type="button" class="primary" ?disabled=${!c.draft.trim()} @click=${() => this.saveComposer()}>${c.editing ? 'Save' : 'Add note'}</button></div>
+        <button type="button" class="btn" @click=${() => { this.composer = null }}>${msg('Cancel')}</button>
+        <button type="button" class="primary" ?disabled=${!c.draft.trim()} @click=${() => this.saveComposer()}>${c.editing ? msg('Save') : msg('Add note')}</button></div>
     </div>`
   }
 
@@ -1254,7 +1257,7 @@ export class MnReader extends LitElement {
     if (this.status === 'loading' || (this.source?.kind === 'pdf' && !this.pdfState?.ready)) {
       return html`<div class="veil" role="status"><p>Opening ${this.title || 'the original'}…</p></div>`
     }
-    if (!this.source && this.status !== 'idle') return html`<div class="veil"><p>This original cannot be shown in the Reader.</p></div>`
+    if (!this.source && this.status !== 'idle') return html`<div class="veil"><p>${msg('This original cannot be shown in the Reader.')}</p></div>`
     return nothing
   }
 

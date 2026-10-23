@@ -6,6 +6,7 @@
  * stay independently reusable and backend-free.
  */
 
+import { LocaleController, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, unsafeCSS } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 import { classMap } from 'lit/directives/class-map.js'
@@ -20,6 +21,8 @@ export interface MnResearchWorkspaceModeDetail {
 
 @customElement('mn-research-workspace')
 export class MnResearchWorkspace extends SkinAware(LitElement) {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     ${unsafeCSS(iconStyles)}
 
@@ -325,7 +328,7 @@ export class MnResearchWorkspace extends SkinAware(LitElement) {
           </div>
           <div class="header-actions">
             <slot name="header-actions"></slot>
-            <div class="mode-switcher" role="group" aria-label="Research pane">
+            <div class="mode-switcher" role="group" aria-label=${t('Research pane')}>
               ${this.modeButton('source', this.sourceLabel, 'file-text')}
               ${this.modeButton('workflow', this.workflowLabel, 'network')}
             </div>

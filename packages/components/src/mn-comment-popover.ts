@@ -6,6 +6,7 @@
  * dragging stay transient, and save/resolve/delete/move/close leave as events.
  */
 
+import { LocaleController, localeSource, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, unsafeCSS, type PropertyValues, type TemplateResult } from 'lit'
 import { customElement, property, query, state } from 'lit/decorators.js'
 import { SkinAware } from './skin-aware.js'
@@ -52,15 +53,17 @@ function formatDate(value: number | Date | null | undefined): string {
   const hours = Math.floor(diff / 3600000)
   const days = Math.floor(diff / 86400000)
 
-  if (minutes < 1) return 'Just now'
+  if (minutes < 1) return t('Just now')
   if (minutes < 60) return `${minutes}m ago`
   if (hours < 24) return `${hours}h ago`
   if (days < 7) return `${days}d ago`
-  return date.toLocaleDateString()
+  return date.toLocaleDateString(localeSource.get())
 }
 
 @customElement('mn-comment-popover')
 export class MnCommentPopover extends SkinAware(LitElement) {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     ${unsafeCSS(iconStyles)}
 
@@ -459,7 +462,7 @@ export class MnCommentPopover extends SkinAware(LitElement) {
         </div>
         ${this.mode === 'pinned'
           ? html`
-              <button type="button" class="close" aria-label="Close comment" @click=${this.close} @mousedown=${(event: Event) => event.stopPropagation()}>
+              <button type="button" class="close" aria-label=${t('Close comment')} @click=${this.close} @mousedown=${(event: Event) => event.stopPropagation()}>
                 ${icon('x', { size: 14 })}
               </button>
             `
@@ -474,7 +477,7 @@ export class MnCommentPopover extends SkinAware(LitElement) {
         <textarea
           class="textarea"
           .value=${this.editText}
-          placeholder="Add your comment..."
+          placeholder=${t('Add your comment...')}
           @input=${(event: Event) => {
             this.editText = (event.target as HTMLTextAreaElement).value
             this.hasUserInteracted = true
@@ -482,7 +485,7 @@ export class MnCommentPopover extends SkinAware(LitElement) {
           @keydown=${this.handleKeydown}
           @blur=${this.save}
         ></textarea>
-        <div class="hint">Cmd/Ctrl+Enter to save, Esc to cancel</div>
+        <div class="hint">${t('Cmd/Ctrl+Enter to save, Esc to cancel')}</div>
       `
     }
     const text = this.comment?.text ?? ''
@@ -490,14 +493,14 @@ export class MnCommentPopover extends SkinAware(LitElement) {
     if (this.isResolved) {
       return html`
         <p class=${paragraphClass} @click=${() => this.beginEditing()}>
-          ${text || 'Add a comment...'}
+          ${text || t('Add a comment...')}
         </p>
-        <div class="resolved" aria-label="Resolved">${icon('check', { size: 13 })}<span>Resolved</span></div>
+        <div class="resolved" aria-label=${t('Resolved')}>${icon('check', { size: 13 })}<span>${t('Resolved')}</span></div>
       `
     }
     return html`
       <p class=${paragraphClass} @click=${() => this.beginEditing()}>
-        ${text || 'Add a comment...'}
+        ${text || t('Add a comment...')}
       </p>
     `
   }

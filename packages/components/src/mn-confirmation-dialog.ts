@@ -5,6 +5,7 @@
  * and confirm/cancel events. Callers own any destructive work and loading state.
  */
 
+import { LocaleController, localizeLabel } from '@shrubbery/nucleus'
 import { LitElement, css, html, unsafeCSS } from 'lit'
 import { customElement, property, query } from 'lit/decorators.js'
 import { SkinAware } from './skin-aware.js'
@@ -37,6 +38,8 @@ function iconForVariant(variant: MnConfirmationVariant): string {
 
 @customElement('mn-confirmation-dialog')
 export class MnConfirmationDialog extends SkinAware(LitElement) {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     ${unsafeCSS(iconStyles)}
 
@@ -445,14 +448,14 @@ export class MnConfirmationDialog extends SkinAware(LitElement) {
               ${icon(iconForVariant(this.variant), { size: 22 })}
             </span>
             <div class="header-content">
-              <h2 class="title" id=${`${this.overlayId}-title`}>${this.title}</h2>
-              <p class="message" id=${`${this.overlayId}-message`}>${this.message}</p>
+              <h2 class="title" id=${`${this.overlayId}-title`}>${localizeLabel(this.title)}</h2>
+              <p class="message" id=${`${this.overlayId}-message`}>${localizeLabel(this.message)}</p>
               <div class="rich-content"><slot></slot></div>
             </div>
           </header>
           <footer class="footer">
             <button class="cancel-button" type="button" ?disabled=${this.loading} @click=${() => this.cancel()}>
-              ${this.cancelText}
+              ${localizeLabel(this.cancelText)}
             </button>
             ${this.secondaryConfirmText
               ? html`
@@ -462,12 +465,12 @@ export class MnConfirmationDialog extends SkinAware(LitElement) {
                     ?disabled=${this.loading}
                     @click=${() => this.secondaryConfirm()}
                   >
-                    ${this.secondaryConfirmText}
+                    ${localizeLabel(this.secondaryConfirmText)}
                   </button>
                 `
               : ''}
             <button class="confirm-button" type="button" ?disabled=${this.loading} @click=${() => this.confirm()}>
-              ${this.confirmText}
+              ${localizeLabel(this.confirmText)}
             </button>
           </footer>
         </section>

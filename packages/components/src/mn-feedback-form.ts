@@ -6,6 +6,7 @@
  * leave as typed events for the host to handle.
  */
 
+import { LocaleController, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, unsafeCSS, type TemplateResult } from 'lit'
 import { customElement, property, state } from 'lit/decorators.js'
 import { SkinAware } from './skin-aware.js'
@@ -32,10 +33,10 @@ interface FeedbackTypeOption {
 }
 
 const TYPE_OPTIONS: readonly FeedbackTypeOption[] = [
-  { type: 'general', label: 'General', icon: 'message-circle' },
-  { type: 'bug', label: 'Bug Report', icon: 'bug' },
-  { type: 'feature', label: 'Feature Request', icon: 'lightbulb' },
-  { type: 'question', label: 'Question', icon: 'help-circle' },
+  { type: 'general', get label() { return t('General') }, icon: 'message-circle' },
+  { type: 'bug', get label() { return t('Bug Report') }, icon: 'bug' },
+  { type: 'feature', get label() { return t('Feature Request') }, icon: 'lightbulb' },
+  { type: 'question', get label() { return t('Question') }, icon: 'help-circle' },
 ]
 
 function clampContent(value: string, maxLength: number): string {
@@ -44,6 +45,8 @@ function clampContent(value: string, maxLength: number): string {
 
 @customElement('mn-feedback-form')
 export class MnFeedbackForm extends SkinAware(LitElement) {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     ${unsafeCSS(iconStyles)}
 
@@ -316,18 +319,18 @@ export class MnFeedbackForm extends SkinAware(LitElement) {
         style="position:var(--mn-feedback-form-modal-position,fixed);inset:var(--mn-feedback-form-modal-inset,0);z-index:var(--mn-feedback-form-modal-z-index,var(--mn-z-modal,1400));"
         @mn-close=${(event: Event) => this.cancel('modal', event)}
       >
-        <span slot="header">Send Feedback</span>
+        <span slot="header">${t('Send Feedback')}</span>
 
         <div class="form">
           <div class="field">
-            <label class="field-label">What type of feedback?</label>
+            <label class="field-label">${t('What type of feedback?')}</label>
             <div class="type-chips">
               ${TYPE_OPTIONS.map(option => this.renderTypeChip(option))}
             </div>
           </div>
 
           <div class="field">
-            <label class="field-label">Your feedback</label>
+            <label class="field-label">${t('Your feedback')}</label>
             <textarea
               class="textarea"
               placeholder=${`Tell us what you think... (minimum ${this.minLength} characters)`}
@@ -340,7 +343,7 @@ export class MnFeedbackForm extends SkinAware(LitElement) {
           </div>
 
           <div class="field">
-            <label class="field-label">Rate your experience <span class="optional">(optional)</span></label>
+            <label class="field-label">${t('Rate your experience')} <span class="optional">(optional)</span></label>
             <div class="rating">
               ${[1, 2, 3, 4, 5].map(value => this.renderStar(value))}
             </div>
@@ -350,13 +353,13 @@ export class MnFeedbackForm extends SkinAware(LitElement) {
         <div slot="footer" class="footer-buttons">
           <mn-button
             variant="secondary"
-            label="Cancel"
+            label=${t('Cancel')}
             ?disabled=${this.submitting}
             @click=${(event: Event) => this.cancel('cancel', event)}
           ></mn-button>
           <mn-button
             variant="primary"
-            label=${this.submitting ? 'Submitting...' : 'Send Feedback'}
+            label=${this.submitting ? 'Submitting...' : t('Send Feedback')}
             ?disabled=${!this.isValid || this.submitting}
             @click=${this.submit}
           ></mn-button>

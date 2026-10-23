@@ -26,6 +26,7 @@
  * token or port — the Vite proxy injects them server-side (see vite.config.ts).
  */
 
+import { localeSource, t as msg } from '@shrubbery/nucleus'
 // 0) The REAL design tokens — the layered reference → semantic → component →
 //    theme → skin CSS. One import gives the chrome its --mn-* values + the
 //    [data-skin]/[data-theme] skin/theme blocks. Backend-free.
@@ -1004,8 +1005,16 @@ function promptForText(opts: PromptDialogOptions): Promise<string | null> {
   inputDialogEl.cancelText = 'Cancel'
   inputDialogEl.loading = false
 
+  const unsubscribeLocale = localeSource.subscribe(() => {
+    inputDialogEl.title = opts.title
+    inputDialogEl.message = opts.message ?? ''
+    inputDialogEl.placeholder = opts.placeholder ?? ''
+    inputDialogEl.confirmText = opts.confirmText ?? 'OK'
+  })
+
   return new Promise((resolve) => {
     function cleanup(): void {
+      unsubscribeLocale()
       inputDialogEl.removeEventListener('mn-confirm', onConfirm)
       inputDialogEl.removeEventListener('mn-cancel', onCancel)
     }
@@ -1040,8 +1049,15 @@ function confirmAction(opts: ConfirmDialogOptions): Promise<boolean> {
   confirmationDialogEl.variant = opts.variant ?? 'default'
   confirmationDialogEl.loading = false
 
+  const unsubscribeLocale = localeSource.subscribe(() => {
+    confirmationDialogEl.title = opts.title
+    confirmationDialogEl.message = opts.message
+    confirmationDialogEl.confirmText = opts.confirmText ?? 'Confirm'
+  })
+
   return new Promise((resolve) => {
     function cleanup(): void {
+      unsubscribeLocale()
       confirmationDialogEl.removeEventListener('mn-confirm', onConfirm)
       confirmationDialogEl.removeEventListener('mn-cancel', onCancel)
     }
@@ -1276,7 +1292,7 @@ const mobileFileMutationFlow = new MobileFileMutationFlow<OrganismMobileFileMuta
     if (!stillCurrent) {
       return {
         state: 'indeterminate',
-        message: 'The workspace changed before Garden could check the current files.',
+        get message() { return msg('The workspace changed before Garden could check the current files.') },
       }
     }
     return intent.isReflected()
@@ -1642,7 +1658,7 @@ async function pickWhiteboardLink(request: WbPickLinkRequest): Promise<WbTarget 
   const picked = await chooseFrom(document, {
     heading: request.heading,
     placeholder: request.accept === 'object' ? 'Find by class or title' : request.accept === 'document' ? 'Find a document' : 'Find a document or an object',
-    emptyText: 'Nothing to link to yet.',
+    get emptyText() { return msg('Nothing to link to yet.') },
     items: hits.then(list => [
       ...documents,
       ...list.map(hit => ({ id: `object:${hit.iri}`, label: hit.title, tag: hit.classLabel, sub: hit.iri.slice(hit.iri.lastIndexOf('#') + 1) })),
@@ -1671,9 +1687,9 @@ async function wirePredicateGroupsFor(graphId: string): Promise<NonNullable<MnAd
       .map(row => ({ uri: row.name as string, label: typeof row.label === 'string' && row.label ? row.label : (row.name as string) }))
     if (custom.length === 0) return undefined
     return [
-      { name: 'Default', description: 'General association', predicates: [{ uri: normalizeWirePredicateUri('relatedTo'), label: 'is related to', description: 'General association' }] },
+      { name: 'Default', get description() { return msg('General association') }, predicates: [{ uri: normalizeWirePredicateUri('relatedTo'), get label() { return msg('is related to') }, get description() { return msg('General association') } }] },
       ...Object.entries(PREDICATE_GROUPS).map(([name, group]) => ({ name, icon: group.icon, description: group.description, predicates: group.predicates })),
-      { name: 'This graph', description: 'Predicates this graph has used', predicates: custom },
+      { name: 'This graph', get description() { return msg('Predicates this graph has used') }, predicates: custom },
     ]
   } catch {
     return undefined
@@ -2114,8 +2130,8 @@ function runLine(state: CurrentWorkflowPlan): { id: string; status: string; mess
 /** Who changed a workflow, as the sidebar names them: Sophia when a service acted for the person. */
 function workflowActorName(event: GraphPlanAuthoringEvent): string {
   if (event.via) return 'Sophia'
-  if (!event.actor || event.actor === 'owner' || event.actor === 'user:default') return 'You'
-  if (event.actor.startsWith('token:')) return 'An agent'
+  if (!event.actor || event.actor === 'owner' || event.actor === 'user:default') return msg('You')
+  if (event.actor.startsWith('token:')) return msg('An agent')
   if (event.actor.startsWith('service:')) return 'Sophia'
   return event.actor
 }
@@ -2230,7 +2246,7 @@ function workflowPlanView(state: CurrentWorkflowPlan, now: number): WorkflowPlan
     problems: unclaimed,
     problemCount: state.problems.length,
     digest: state.digest,
-    updatedAt: new Date(now).toLocaleTimeString(),
+    updatedAt: new Date(now).toLocaleTimeString(localeSource.get()),
     run: state.runRefusal ? { id: '-', status: 'refused', message: state.runRefusal } : state.runId ? runLine(state) : null,
     refused: (results?.refused ?? []).map((r) => ({ step: local(r.step), item: r.item, why: reason(r.verdict) })),
     publish: results ? { count: state.findings.length, destination: state.findingsDestination, ...workflowPublishState(state) } : null,
@@ -2272,7 +2288,7 @@ function workflowPublishState(state: CurrentWorkflowPlan): CurrentWorkflowPlan['
   const at = published.at ? new Date(published.at) : null
   return {
     status: 'done',
-    message: `Published ${published.placed ?? 0} to the margin${at && !Number.isNaN(at.getTime()) ? ` on ${at.toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}` : ''}${published.notFound ? `; ${published.notFound} quote${published.notFound === 1 ? '' : 's'} not found in the text` : ''}.`,
+    message: `Published ${published.placed ?? 0} to the margin${at && !Number.isNaN(at.getTime()) ? ` on ${at.toLocaleString(localeSource.get(), { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}` : ''}${published.notFound ? `; ${published.notFound} quote${published.notFound === 1 ? '' : 's'} not found in the text` : ''}.`,
   }
 }
 
@@ -2649,8 +2665,8 @@ async function embedObjectInDocument(target: { readonly iri: string; readonly gr
   const graphId = target.graphId ?? currentGraphId
   const documentId = await chooseFrom(document, {
     heading: `Embed “${target.label}” in a document`,
-    placeholder: 'Find a document',
-    emptyText: 'This workspace has no documents yet.',
+    get placeholder() { return msg('Find a document') },
+    get emptyText() { return msg('This workspace has no documents yet.') },
     items: documentChoices(),
   })
   if (!documentId) return
@@ -2675,9 +2691,9 @@ async function pickTypedObject(graphId: string): Promise<{ iri: string; graphId:
   if (!reader) return null
   const hits = reader.search(graphId)
   const iri = await chooseFrom(document, {
-    heading: 'Embed an object',
-    placeholder: 'Find by class or title',
-    emptyText: 'This graph holds no typed objects yet.',
+    get heading() { return msg('Embed an object') },
+    get placeholder() { return msg('Find by class or title') },
+    get emptyText() { return msg('This graph holds no typed objects yet.') },
     // The same report can be testified twice (a candidate and its verified copy): the run and the item tell them apart.
     items: hits.then((list) => list.map((hit) => {
       const run = runOfIri(hit.iri)
@@ -3208,7 +3224,7 @@ function currentGraphPanelOptions(): RenderWorkspaceOptions['graphPanel'] {
 
   if (!live) {
     return {
-      title: 'Workspace Graph',
+      get title() { return msg('Workspace Graph') },
       subtitle: 'Open a live cell source to inspect the workspace graph',
       status: 'ready',
       nodes: [],
@@ -3297,7 +3313,7 @@ function currentGraphPanelOptions(): RenderWorkspaceOptions['graphPanel'] {
 
   const documentProjection = currentDocumentGraphProjection()
   return {
-    title: 'Knowledge Space',
+    get title() { return msg('Knowledge Space') },
     subtitle: surfaceDocId ? `${currentGraphId} / ${surfaceDocId}` : currentGraphId,
     status: 'ready',
     nodes: [...nodes.values()],
@@ -4313,9 +4329,9 @@ async function handleArtifactHistoryRestore(detail: ArtifactHistoryRevisionDetai
   const revision = surface.historyRevisions.find((item) => item.revisionId === detail.revisionId)
   const label = revision?.label || revision?.filename || detail.revisionId
   const confirmed = await confirmAction({
-    title: 'Restore artifact revision?',
-    message: `Restore "${surface.title || surface.artifactId}" to ${label}? This replaces the current artifact bytes.`,
-    confirmText: 'Restore',
+    get title() { return msg('Restore artifact revision?') },
+    get message() { return msg('confirm.restoreArtifact', { name: surface.title || surface.artifactId, version: label }) },
+    get confirmText() { return msg('Restore') },
     variant: 'danger',
   })
   if (!confirmed) return
@@ -4636,9 +4652,9 @@ function handleDocHistoryDelete(detail: DocHistorySnapshotDetail): void {
   const surface = currentDocHistorySurface
   if (!surface || !store || sourceSelect.value !== 'CELL_LIVE') return
   void confirmAction({
-    title: 'Delete Saved Version',
-    message: 'Delete this saved version? This cannot be undone.',
-    confirmText: 'Delete',
+    get title() { return msg('Delete Saved Version') },
+    get message() { return msg('Delete this saved version? This cannot be undone.') },
+    get confirmText() { return msg('Delete') },
     variant: 'danger',
   }).then((confirmed) => {
     if (!confirmed || !store) return
@@ -4664,9 +4680,9 @@ function handleDocHistoryRestore(detail: DocHistoryRestoreDetail): void {
   const snapshot = surface.snapshots.find((item) => item.id === detail.snapshotId)
   const label = snapshot?.label || detail.snapshotId
   void confirmAction({
-    title: 'Restore Version',
-    message: `Restore "${surface.documentId}" to "${label}"? This replaces the current document contents.`,
-    confirmText: 'Restore',
+    get title() { return msg('Restore Version') },
+    get message() { return msg('confirm.restoreDocument', { name: surface.documentId, version: label }) },
+    get confirmText() { return msg('Restore') },
     variant: 'warning',
   }).then((confirmed) => {
     if (!confirmed || !store) return
@@ -5403,7 +5419,7 @@ async function createDocumentImportFolders(
   // dated folder, while a single file remains at the graph root.
   if (!directoryMode && files.length > 1) {
     const now = new Date()
-    const name = `Imports ${now.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`
+    const name = `Imports ${now.toLocaleDateString(localeSource.get(), { month: 'short', day: 'numeric', year: 'numeric' })}`
     const { folderId } = await createSidebarFolder(activeStore.contract.mcp, {
       graphId,
       name,
@@ -6243,10 +6259,10 @@ function handleSidebarAction(detail: SidebarActionDetail): void {
     if (detail.action === 'new-document' && visitor.fence) {
       const folderId = visitor.fence.folderId
       void promptForText({
-        title: 'New note',
-        message: `Your note goes in ${visitorFolderLabel(visitor)}. Everyone can read it; only you can change it.`,
-        placeholder: 'Untitled note',
-        confirmText: 'Create',
+        get title() { return msg('New note') },
+        get message() { return msg('dialog.visitorNote', { name: visitorFolderLabel(visitor) }) },
+        get placeholder() { return msg('Untitled note') },
+        get confirmText() { return msg('Create') },
       }).then((name) => {
         if (!name) return
         void createDocumentFromSidebar(name, folderId, { serverNamed: true })
@@ -6322,10 +6338,10 @@ function handleSidebarAction(detail: SidebarActionDetail): void {
     }
     case 'new-document':
       void promptForText({
-        title: 'New Document',
-        message: 'Name the document to create in this graph.',
-        placeholder: 'Untitled document',
-        confirmText: 'Create',
+        get title() { return msg('New Document') },
+        get message() { return msg('Name the document to create in this graph.') },
+        get placeholder() { return msg('Untitled document') },
+        get confirmText() { return msg('Create') },
       }).then((name) => {
         if (!name) return
         void createDocumentFromSidebar(name)
@@ -6333,10 +6349,10 @@ function handleSidebarAction(detail: SidebarActionDetail): void {
       return
     case 'new-workflow':
       void promptForText({
-        title: 'New Workflow',
-        message: 'Name the workflow. You and Sophia write its plan together.',
-        placeholder: 'Untitled workflow',
-        confirmText: 'Create',
+        get title() { return msg('New Workflow') },
+        get message() { return msg('Name the workflow. You and Sophia write its plan together.') },
+        get placeholder() { return msg('Untitled workflow') },
+        get confirmText() { return msg('Create') },
       }).then((name) => {
         if (!name) return
         void createWorkflowFromSidebar(name)
@@ -6344,10 +6360,10 @@ function handleSidebarAction(detail: SidebarActionDetail): void {
       return
     case 'new-whiteboard':
       void promptForText({
-        title: 'New Whiteboard',
-        message: 'Name the whiteboard. You and Sophia draw on it together.',
-        placeholder: 'Untitled whiteboard',
-        confirmText: 'Create',
+        get title() { return msg('New Whiteboard') },
+        get message() { return msg('Name the whiteboard. You and Sophia draw on it together.') },
+        get placeholder() { return msg('Untitled whiteboard') },
+        get confirmText() { return msg('Create') },
       }).then((name) => {
         if (!name) return
         void createWhiteboardFromSidebar(name)
@@ -6355,10 +6371,10 @@ function handleSidebarAction(detail: SidebarActionDetail): void {
       return
     case 'new-folder':
       void promptForText({
-        title: 'New Folder',
-        message: 'Name the folder to create in this graph.',
-        placeholder: 'Folder name',
-        confirmText: 'Create',
+        get title() { return msg('New Folder') },
+        get message() { return msg('Name the folder to create in this graph.') },
+        get placeholder() { return msg('Folder name') },
+        get confirmText() { return msg('Create') },
       }).then((name) => {
         if (!name) return
         void createFolderFromSidebar(name)
@@ -6506,35 +6522,35 @@ const shellCommandRegistry = new CommandRegistryImpl()
 const RIGHT_PANEL_COMMAND_SPECS = [
   {
     panel: 'chat',
-    label: 'Toggle Chat Panel',
+    get label() { return msg('Toggle Chat Panel') },
     icon: 'message-circle',
     shortcut: 'Mod+Shift+C',
     keywords: ['chat', 'assistant', 'ai', 'panel', 'sidebar'],
   },
   {
     panel: 'wires',
-    label: 'Toggle Wires Panel',
+    get label() { return msg('Toggle Wires Panel') },
     icon: 'git-branch',
     shortcut: 'Mod+Shift+W',
     keywords: ['wires', 'connections', 'graph', 'links', 'panel'],
   },
   {
     panel: 'graph',
-    label: 'Toggle Graph Panel',
+    get label() { return msg('Toggle Graph Panel') },
     icon: 'network',
     shortcut: 'Mod+Shift+G',
     keywords: ['graph', 'map', 'workspace', 'connections', 'panel'],
   },
   {
     panel: 'comments',
-    label: 'Toggle Comments Panel',
+    get label() { return msg('Toggle Comments Panel') },
     icon: 'message-square',
     shortcut: 'Mod+Shift+.',
     keywords: ['comments', 'annotations', 'notes', 'panel'],
   },
   {
     panel: 'inspector',
-    label: 'Toggle Inspector Panel',
+    get label() { return msg('Toggle Inspector Panel') },
     icon: 'panel-right',
     shortcut: 'Mod+Shift+I',
     keywords: ['inspector', 'properties', 'details', 'panel'],
@@ -6570,7 +6586,7 @@ shellCommandRegistry.register(
 shellCommandRegistry.register([
   {
     id: 'files.open',
-    label: 'Open Files',
+    get label() { return msg('Open Files') },
     category: 'View',
     icon: 'folder',
     keywords: ['files', 'upload', 'pdf', 'images', 'folder', 'attachments'],
@@ -6580,7 +6596,7 @@ shellCommandRegistry.register([
   },
   {
     id: 'files.open-folder',
-    label: 'Open in Files',
+    get label() { return msg('Open in Files') },
     category: 'View',
     icon: 'folder',
     keywords: ['files', 'folder'],
@@ -6594,7 +6610,7 @@ shellCommandRegistry.register([
   },
   {
     id: 'files.open-trash',
-    label: 'Open Trash',
+    get label() { return msg('Open Trash') },
     category: 'View',
     icon: 'trash',
     keywords: ['trash', 'restore', 'deleted', 'bin'],
@@ -6610,7 +6626,7 @@ shellCommandRegistry.register([
 shellCommandRegistry.register([
   {
     id: 'view.zen',
-    label: 'Zen Mode',
+    get label() { return msg('Zen Mode') },
     category: 'View',
     icon: 'maximize-2',
     shortcut: 'Mod+\\',
@@ -6620,7 +6636,7 @@ shellCommandRegistry.register([
   },
   {
     id: 'view.shortcuts',
-    label: 'Show Keyboard Shortcuts',
+    get label() { return msg('Show Keyboard Shortcuts') },
     category: 'View',
     icon: 'help-circle',
     shortcut: 'Mod+/',
@@ -6632,7 +6648,7 @@ shellCommandRegistry.register([
   },
   {
     id: 'document.new',
-    label: 'New Document',
+    get label() { return msg('New Document') },
     category: 'Document',
     icon: 'file-text',
     shortcut: 'Mod+Alt+N',
@@ -6641,10 +6657,10 @@ shellCommandRegistry.register([
     when: () => sourceSelect.value === 'CELL_LIVE' && store !== null,
     run: () => {
       void promptForText({
-        title: 'New Document',
-        message: 'Name the document to create in this graph.',
-        placeholder: 'Untitled document',
-        confirmText: 'Create',
+        get title() { return msg('New Document') },
+        get message() { return msg('Name the document to create in this graph.') },
+        get placeholder() { return msg('Untitled document') },
+        get confirmText() { return msg('Create') },
       }).then((name) => {
         if (!name) return
         void createDocumentFromSidebar(name)
@@ -6653,7 +6669,7 @@ shellCommandRegistry.register([
   },
   {
     id: 'document.open',
-    label: 'Open Document',
+    get label() { return msg('Open Document') },
     category: 'Document',
     icon: 'file-text',
     shortcut: 'Enter',
@@ -6668,7 +6684,7 @@ shellCommandRegistry.register([
   },
   {
     id: 'document.inspect',
-    label: 'Inspect Document',
+    get label() { return msg('Inspect Document') },
     category: 'Document',
     icon: 'panel-right',
     keywords: ['inspect', 'details', 'document'],
@@ -6689,7 +6705,7 @@ shellCommandRegistry.register([
   },
   {
     id: 'document.history',
-    label: 'Open Version History',
+    get label() { return msg('Open Version History') },
     category: 'Document',
     icon: 'clock',
     shortcut: 'Mod+Shift+H',
@@ -6705,7 +6721,7 @@ shellCommandRegistry.register([
   },
   {
     id: 'document.rename',
-    label: 'Rename Document',
+    get label() { return msg('Rename Document') },
     category: 'Document',
     icon: 'file-text',
     shortcut: 'F2',
@@ -6717,11 +6733,11 @@ shellCommandRegistry.register([
       if (!documentId) return
       const currentTitle = selectedDocumentTitle(ctx.selection, documentId)
       void promptForText({
-        title: 'Rename Document',
-        message: `Enter a new name for "${currentTitle}".`,
+        get title() { return msg('Rename Document') },
+        get message() { return msg('dialog.rename', { name: currentTitle }) },
         value: currentTitle,
-        placeholder: 'Document name',
-        confirmText: 'Rename',
+        get placeholder() { return msg('Document name') },
+        get confirmText() { return msg('Rename') },
       }).then((name) => {
         if (!name || name === currentTitle) return
         void renameDocumentFromSidebar(documentId, name)
@@ -6730,7 +6746,7 @@ shellCommandRegistry.register([
   },
   {
     id: 'document.move',
-    label: 'Move to Folder...',
+    get label() { return msg('Move to Folder...') },
     category: 'Document',
     icon: 'folder',
     keywords: ['move', 'folder', 'document'],
@@ -6753,7 +6769,7 @@ shellCommandRegistry.register([
   },
   {
     id: 'document.export',
-    label: 'Export Document…',
+    get label() { return msg('Export Document…') },
     category: 'Document',
     icon: 'download',
     keywords: ['export', 'download', 'markdown', 'html', 'document'],
@@ -6769,7 +6785,7 @@ shellCommandRegistry.register([
   },
   {
     id: 'document.delete',
-    label: 'Delete Document',
+    get label() { return msg('Delete Document') },
     category: 'Document',
     icon: 'trash',
     keywords: ['delete', 'remove', 'document'],
@@ -6781,9 +6797,9 @@ shellCommandRegistry.register([
       if (!documentId) return
       const title = selectedDocumentTitle(ctx.selection, documentId)
       void confirmAction({
-        title: 'Delete Document',
-        message: `Delete "${title}" from this graph? This cannot be undone here.`,
-        confirmText: 'Delete',
+        get title() { return msg('Delete Document') },
+        get message() { return msg('dialog.deleteDocument', { name: title }) },
+        get confirmText() { return msg('Delete') },
         variant: 'danger',
       }).then((confirmed) => {
         if (!confirmed) return
@@ -6793,7 +6809,7 @@ shellCommandRegistry.register([
   },
   {
     id: 'folder.open',
-    label: 'Open Folder',
+    get label() { return msg('Open Folder') },
     category: 'Folder',
     icon: 'folder',
     keywords: ['open', 'folder', 'place'],
@@ -6818,7 +6834,7 @@ shellCommandRegistry.register([
   },
   {
     id: 'folder.expand',
-    label: 'Expand',
+    get label() { return msg('Expand') },
     category: 'Folder',
     icon: 'chevron-down',
     keywords: ['expand', 'folder', 'tree'],
@@ -6836,7 +6852,7 @@ shellCommandRegistry.register([
   },
   {
     id: 'folder.new-document',
-    label: 'New Document',
+    get label() { return msg('New Document') },
     category: 'Folder',
     icon: 'file-text',
     keywords: ['new', 'document', 'folder'],
@@ -6847,10 +6863,10 @@ shellCommandRegistry.register([
       if (!folderId) return
       const folderTitle = selectedFolderTitle(ctx.selection, folderId)
       void promptForText({
-        title: 'New Document',
-        message: `Name the document to create in "${folderTitle}".`,
-        placeholder: 'Untitled document',
-        confirmText: 'Create',
+        get title() { return msg('New Document') },
+        get message() { return msg('dialog.documentInFolder', { name: folderTitle }) },
+        get placeholder() { return msg('Untitled document') },
+        get confirmText() { return msg('Create') },
       }).then((name) => {
         if (!name) return
         void createDocumentFromSidebar(name, folderId)
@@ -6859,7 +6875,7 @@ shellCommandRegistry.register([
   },
   {
     id: 'folder.new-folder',
-    label: 'New Folder',
+    get label() { return msg('New Folder') },
     category: 'Folder',
     icon: 'folder',
     keywords: ['new', 'folder'],
@@ -6871,10 +6887,10 @@ shellCommandRegistry.register([
       const folderTitle = selectedFolderTitle(ctx.selection, folderId)
       const section = selectedSection(ctx.selection)
       void promptForText({
-        title: 'New Folder',
-        message: `Name the folder to create in "${folderTitle}".`,
-        placeholder: 'Folder name',
-        confirmText: 'Create',
+        get title() { return msg('New Folder') },
+        get message() { return msg('dialog.folderInFolder', { name: folderTitle }) },
+        get placeholder() { return msg('Folder name') },
+        get confirmText() { return msg('Create') },
       }).then((name) => {
         if (!name) return
         void createFolderFromSidebar(name, folderId, section)
@@ -6883,7 +6899,7 @@ shellCommandRegistry.register([
   },
   {
     id: 'folder.rename',
-    label: 'Rename Folder',
+    get label() { return msg('Rename Folder') },
     category: 'Folder',
     icon: 'folder',
     keywords: ['rename', 'folder'],
@@ -6894,11 +6910,11 @@ shellCommandRegistry.register([
       if (!folderId) return
       const currentTitle = selectedFolderTitle(ctx.selection, folderId)
       void promptForText({
-        title: 'Rename Folder',
-        message: `Enter a new name for "${currentTitle}".`,
+        get title() { return msg('Rename Folder') },
+        get message() { return msg('dialog.rename', { name: currentTitle }) },
         value: currentTitle,
-        placeholder: 'Folder name',
-        confirmText: 'Rename',
+        get placeholder() { return msg('Folder name') },
+        get confirmText() { return msg('Rename') },
       }).then((name) => {
         if (!name || name === currentTitle) return
         void renameFolderFromSidebar(folderId, name)
@@ -6907,7 +6923,7 @@ shellCommandRegistry.register([
   },
   {
     id: 'folder.move',
-    label: 'Move to Folder...',
+    get label() { return msg('Move to Folder...') },
     category: 'Folder',
     icon: 'folder',
     keywords: ['move', 'folder'],
@@ -6932,7 +6948,7 @@ shellCommandRegistry.register([
   },
   {
     id: 'folder.delete',
-    label: 'Delete Folder',
+    get label() { return msg('Delete Folder') },
     category: 'Folder',
     icon: 'trash',
     keywords: ['delete', 'remove', 'folder'],
@@ -6944,9 +6960,9 @@ shellCommandRegistry.register([
       if (!folderId) return
       const title = selectedFolderTitle(ctx.selection, folderId)
       void confirmAction({
-        title: 'Delete Folder',
-        message: `Delete "${title}" from this graph? Items inside are not deleted.`,
-        confirmText: 'Delete',
+        get title() { return msg('Delete Folder') },
+        get message() { return msg('dialog.deleteFolder', { name: title }) },
+        get confirmText() { return msg('Delete') },
         variant: 'danger',
       }).then((confirmed) => {
         if (!confirmed) return
@@ -6956,7 +6972,7 @@ shellCommandRegistry.register([
   },
   {
     id: 'artifact.open',
-    label: 'Open Artifact',
+    get label() { return msg('Open Artifact') },
     category: 'Artifact',
     icon: 'diamond',
     shortcut: 'Enter',
@@ -6978,7 +6994,7 @@ shellCommandRegistry.register([
   },
   {
     id: 'artifact.import-document',
-    label: 'Import as Editable Document',
+    get label() { return msg('Import as Editable Document') },
     category: 'Artifact',
     icon: 'file-text',
     keywords: ['import', 'convert', 'editable', 'document', 'artifact'],
@@ -6996,7 +7012,7 @@ shellCommandRegistry.register([
   },
   {
     id: 'files.show-info',
-    label: 'Show info',
+    get label() { return msg('Show info') },
     category: 'Files',
     icon: 'info',
     shortcut: INFO_SHORTCUT,
@@ -7014,7 +7030,7 @@ shellCommandRegistry.register([
   },
   {
     id: 'artifact.inspect',
-    label: 'Inspect Artifact',
+    get label() { return msg('Inspect Artifact') },
     category: 'Artifact',
     icon: 'panel-right',
     keywords: ['inspect', 'details', 'artifact'],
@@ -7073,7 +7089,7 @@ const DOCUMENT_SWITCHER_BLOCKS_DEBOUNCE_MS = 300
 
 function documentSwitcherStatusText(scope: MnDocumentSwitcherScope): string {
   if (scope === 'actions') return ''
-  if (sourceSelect.value !== 'CELL_LIVE') return 'Open a cell graph to search documents'
+  if (sourceSelect.value !== 'CELL_LIVE') return msg('Open a cell graph to search documents')
   return ''
 }
 
@@ -7366,11 +7382,11 @@ document.addEventListener('keydown', (event) => {
  * cell/ (the palette's scope key, landmark focus, read-aloud).
  */
 const APP_KEY_SHORTCUTS: readonly MnShortcutCommand[] = [
-  { id: 'keys.palette', label: 'Command palette', category: 'Go', shortcut: 'Mod+K' },
-  { id: 'keys.landmarks', label: 'Move focus between areas', category: 'Go', shortcut: 'F6' },
-  { id: 'keys.tts-toggle', label: 'Read aloud: play or pause', category: 'Read aloud', shortcut: 'Mod+L' },
-  { id: 'keys.tts-start', label: 'Read aloud from the beginning', category: 'Read aloud', shortcut: 'Mod+Shift+L' },
-  { id: 'keys.tts-stop', label: 'Stop reading aloud', category: 'Read aloud', shortcut: 'Mod+Alt+L' },
+  { id: 'keys.palette', get label() { return msg('Command palette') }, category: 'Go', shortcut: 'Mod+K' },
+  { id: 'keys.landmarks', get label() { return msg('Move focus between areas') }, category: 'Go', shortcut: 'F6' },
+  { id: 'keys.tts-toggle', get label() { return msg('Read aloud: play or pause') }, category: 'Read aloud', shortcut: 'Mod+L' },
+  { id: 'keys.tts-start', get label() { return msg('Read aloud from the beginning') }, category: 'Read aloud', shortcut: 'Mod+Shift+L' },
+  { id: 'keys.tts-stop', get label() { return msg('Stop reading aloud') }, category: 'Read aloud', shortcut: 'Mod+Alt+L' },
 ]
 
 /**
@@ -8355,7 +8371,7 @@ async function loadPinnedWireBlockContext(detail: WirePinnedBlockContextRequestD
   const existing = currentPinnedWireBlockContexts.get(id)
   if (existing?.status === 'loading' || existing?.status === 'ready') return
   if (!store) {
-    setPinnedWireBlockContextState(id, { status: 'error', message: 'Open a cell document to load context' })
+    setPinnedWireBlockContextState(id, { status: 'error', get message() { return msg('Open a cell document to load context') } })
     return
   }
 
@@ -8394,7 +8410,7 @@ async function loadPinnedWireNodeContext(detail: WirePinnedWireContextRequestDet
   const existing = currentPinnedWireNodeContexts.get(id)
   if (existing?.status === 'loading' || existing?.status === 'ready') return
   if (!store) {
-    setPinnedWireNodeContextState(id, { status: 'error', message: 'Open a cell document to load context' })
+    setPinnedWireNodeContextState(id, { status: 'error', get message() { return msg('Open a cell document to load context') } })
     return
   }
 
@@ -8460,7 +8476,7 @@ async function loadWireContextFromPanel(detail: WireContextRequestDetail | undef
   const wireId = detail.wireId.trim()
   if (!wireId) return
   if (!store) {
-    setWireContextState(wireId, { status: 'error', message: 'Open a cell document to load context' })
+    setWireContextState(wireId, { status: 'error', get message() { return msg('Open a cell document to load context') } })
     return
   }
 
@@ -8501,7 +8517,7 @@ async function loadWireRadialContext(detail: WireRadialContextRequestDetail | un
   const existing = currentWireRadialContexts.get(nodeId)
   if (existing?.status === 'loading' || existing?.status === 'ready') return
   if (!store) {
-    setWireRadialContextState(nodeId, { status: 'error', message: 'Open a cell document to load context' })
+    setWireRadialContextState(nodeId, { status: 'error', get message() { return msg('Open a cell document to load context') } })
     return
   }
 
@@ -9875,7 +9891,7 @@ function renderConfig(config: WorkspaceConfig, app: string | undefined): string 
     ...(docHistorySurface
       ? {
           docHistory: {
-            title: 'Version History',
+            get title() { return msg('Version History') },
             subtitle: docHistorySurface.totalCount === null
               ? `${docHistorySurface.graphId} / ${docHistorySurface.documentId}`
               : `${docHistorySurface.totalCount} captured snapshots for ${docHistorySurface.documentId}`,
@@ -10178,6 +10194,8 @@ function rerenderCurrentSource(): void {
     renderFromEditor()
   }
 }
+
+localeSource.subscribe(() => rerenderCurrentSource())
 
 // ── Mode B: gardend cell (live) — read :ux:config through the contract ─────────
 //
@@ -11083,7 +11101,7 @@ function renderCellState(
     const app = currentApp
     try {
       const summary = renderConfig(configState.read, app)
-      const when = new Date(read.readAt).toLocaleTimeString()
+      const when = new Date(read.readAt).toLocaleTimeString(localeSource.get())
       const authority = read.activationSource === 'indexeddb'
         ? `OFFLINE cached workspace @ ${when}\ntransport: ${read.offlineError ?? 'unavailable'}`
         : `LIVE cell read @ ${when} · ${read.tripleCount} triples`
@@ -11885,7 +11903,7 @@ function renderEmporiumState(state: EmporiumStoreState): void {
       emporiumBackBtn.hidden = true
       summary = `${read.vocabs.length} vocabularies: ${read.vocabs.map((v) => v.name).join(', ')}`
     }
-    const when = new Date(read.readAt).toLocaleTimeString()
+    const when = new Date(read.readAt).toLocaleTimeString(localeSource.get())
     ok(`LIVE /emporium read @ ${when}\n${summary}`)
   }
 }
@@ -12526,7 +12544,7 @@ function markGardenGraphOpened(graphId: string): void {
 
 function gardenHomeDisplayName(identity: string, userId: string): string {
   const source = identity.trim() || userId.trim()
-  if (!source || source === 'local-organism') return 'Local Garden'
+  if (!source || source === 'local-organism') return msg('Local Garden')
   const local = source.includes('@') ? source.split('@')[0]! : source
   const words = local.replace(/[._-]+/g, ' ').trim()
   if (!words) return source
@@ -12644,9 +12662,9 @@ async function startHostedGardenTour(): Promise<void> {
   // The tutorial text and seeder are fetched only for an explicit tour request.
   const { GARDEN_ONBOARDING_EDITION, GARDEN_ONBOARDING_TITLE, seedGardenOnboarding } = await import('./cell/garden-onboarding.js')
   const confirmed = await confirmAction({
-    title: 'Start the Garden tour',
+    get title() { return msg('Start the Garden tour') },
     message: `Create a separate, editable tour workspace (edition ${GARDEN_ONBOARDING_EDITION})? This uses one workspace slot. Your existing graphs and pages will not be changed.`,
-    confirmText: 'Create tour',
+    get confirmText() { return msg('Create tour') },
   })
   if (!confirmed) return
   ensureCurrent()
@@ -12728,10 +12746,10 @@ function createGardenHomeService(contract: OrganismCellContract): OrganismGarden
     },
     async create() {
       const title = await promptForText({
-        title: 'New graph',
-        message: 'Name the new graph.',
-        placeholder: 'Graph name',
-        confirmText: 'Create',
+        get title() { return msg('New graph') },
+        get message() { return msg('Name the new graph.') },
+        get placeholder() { return msg('Graph name') },
+        get confirmText() { return msg('Create') },
       })
       if (!title) return
       const graphId = localGraphId(title)
@@ -13082,10 +13100,10 @@ async function switchHostedWorkspace(graphId: string): Promise<void> {
 async function createHostedWorkspace(): Promise<void> {
   if (!hostedGatewayContract) return
   const title = await promptForText({
-    title: 'New Workspace',
-    message: 'Name the new workspace.',
-    placeholder: 'Workspace name',
-    confirmText: 'Create',
+    get title() { return msg('New Workspace') },
+    get message() { return msg('Name the new workspace.') },
+    get placeholder() { return msg('Workspace name') },
+    get confirmText() { return msg('Create') },
   })
   if (!title) return
   hostedWorkspaceBusyId = '__create__'
@@ -13125,9 +13143,9 @@ async function deleteHostedWorkspace(workspace: WorkspaceSummary): Promise<void>
     return
   }
   const confirmed = await confirmAction({
-    title: 'Delete Workspace',
-    message: `Delete "${workspace.title || workspace.graphId}"? This permanently deletes its documents and artifacts.`,
-    confirmText: 'Delete',
+    get title() { return msg('Delete Workspace') },
+    get message() { return msg('dialog.deleteWorkspace', { name: workspace.title || workspace.graphId }) },
+    get confirmText() { return msg('Delete') },
     variant: 'danger',
   })
   if (!confirmed) return
@@ -13240,10 +13258,10 @@ async function createSelfHostWorkspace(): Promise<void> {
   const contract = selfHostContract
   if (!contract) return
   const title = await promptForText({
-    title: 'New Workspace',
-    message: 'Name the new workspace.',
-    placeholder: 'Workspace name',
-    confirmText: 'Create',
+    get title() { return msg('New Workspace') },
+    get message() { return msg('Name the new workspace.') },
+    get placeholder() { return msg('Workspace name') },
+    get confirmText() { return msg('Create') },
   })
   if (!title) return
   selfHostWorkspaceBusyId = '__create__'
@@ -13258,9 +13276,9 @@ async function createSelfHostWorkspace(): Promise<void> {
       // A member: say so once, and stop offering it.
       selfHostMayCreateGraphs = false
       void confirmAction({
-        title: 'Only the owner can make workspaces',
-        message: 'You can read and write in the workspaces of this Sophia. A new workspace is made by its owner.',
-        confirmText: 'OK',
+        get title() { return msg('Only the owner can make workspaces') },
+        get message() { return msg('You can read and write in the workspaces of this Sophia. A new workspace is made by its owner.') },
+        get confirmText() { return msg('OK') },
       })
       return
     }

@@ -8,6 +8,7 @@
  *
  * Owned by S4. The signatures below are FINAL; S4 replaces the bodies (and may add private helpers and exports).
  */
+import { t } from '@shrubbery/nucleus'
 import type { WhiteboardPageOptions } from './sh-whiteboard.js'
 import {
   WB_WIRE_EVENT,
@@ -117,19 +118,19 @@ export async function promoteSelectedArrow(deps: WbArrowWireDeps, arrowId: strin
   const page = deps.page()
   const api = deps.api()
   if (!page) return null
-  if (page.readOnly) { deps.notify('This board is read-only.'); return null }
-  if (!api || !page.pickPredicate || !page.promoteArrow) { deps.notify('Wires are not available on this board.'); return null }
+  if (page.readOnly) { deps.notify(t('This board is read-only.')); return null }
+  if (!api || !page.pickPredicate || !page.promoteArrow) { deps.notify(t('Wires are not available on this board.')); return null }
   const elements = api.getSceneElementsIncludingDeleted() as readonly WbElement[]
   const arrow = elements.find((e) => e.id === arrowId)
-  if (arrow && wireMarkOf(arrow)) { deps.notify('This arrow is already a wire.'); return null }
+  if (arrow && wireMarkOf(arrow)) { deps.notify(t('This arrow is already a wire.')); return null }
   const ends = arrowEndsOf(elements, arrowId)
-  if (!ends) { deps.notify('Connect both ends of the arrow to shapes before making it a wire.'); return null }
+  if (!ends) { deps.notify(t('Connect both ends of the arrow to shapes before making it a wire.')); return null }
 
   let predicate: string | null
   try {
     predicate = await page.pickPredicate({ graphId: page.graphId, ends, suggestion: ends.label })
   } catch (error) {
-    deps.notify(messageOf(error, 'Could not choose a predicate.'))
+    deps.notify(messageOf(error, t('Could not choose a predicate.')))
     return null
   }
   const chosen = predicate?.trim() ?? ''
@@ -138,14 +139,14 @@ export async function promoteSelectedArrow(deps: WbArrowWireDeps, arrowId: strin
   // The page may have been replaced while the person chose: ask the current one, never a cached function.
   const current = deps.page()
   if (!current?.promoteArrow) return null
-  if (current.readOnly) { deps.notify('This board is read-only.'); return null }
+  if (current.readOnly) { deps.notify(t('This board is read-only.')); return null }
   try {
     const result = await current.promoteArrow({ graphId: current.graphId, documentId: current.documentId, arrowId, predicate: chosen })
     const mark: WbWireMark = { wireId: result.wireId, predicate: result.predicate }
     dispatchWire(deps.eventTarget, { arrowId, wire: mark })
     return mark
   } catch (error) {
-    deps.notify(messageOf(error, 'Could not make this arrow a wire.'))
+    deps.notify(messageOf(error, t('Could not make this arrow a wire.')))
     return null
   }
 }
@@ -165,12 +166,12 @@ export async function unwireArrow(deps: WbArrowWireDeps, arrowId: string): Promi
   const before = (api.getSceneElementsIncludingDeleted() as readonly WbElement[]).find((e) => e.id === arrowId)
   const mark = before ? wireMarkOf(before) : null
   if (!before || !mark) return false
-  if (page.readOnly) { deps.notify('This board is read-only.'); return false }
-  if (!page.demoteArrow) { deps.notify('Wires are not available on this board.'); return false }
+  if (page.readOnly) { deps.notify(t('This board is read-only.')); return false }
+  if (!page.demoteArrow) { deps.notify(t('Wires are not available on this board.')); return false }
   try {
     await page.demoteArrow({ graphId: page.graphId, documentId: page.documentId, arrowId, wireId: mark.wireId })
   } catch (error) {
-    deps.notify(messageOf(error, 'Could not remove this wire.'))
+    deps.notify(messageOf(error, t('Could not remove this wire.')))
     return false
   }
 

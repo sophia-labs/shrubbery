@@ -11,6 +11,7 @@
  * Backend-free: pure data + pure functions. No lit, no stores, no features.
  */
 
+import { t } from '@shrubbery/nucleus'
 /**
  * Release stage shown beside an app's name in the launcher. Absent = a
  * released app with no tag. Data, not a special case: any catalogue entry (or
@@ -44,12 +45,12 @@ export const SOPHIA_APP_ORDER: readonly string[] = Object.freeze([
 ])
 
 export const SOPHIA_APPS: Readonly<Record<string, SophiaAppIdentity>> = Object.freeze({
-  garden: { id: 'garden', label: 'Garden', icon: 'sprout', description: 'Notes, documents and the knowledge graph' },
-  choreograph: { id: 'choreograph', label: 'Choreograph', icon: 'workflow', description: 'Agents, runs and workflows' },
-  grapevine: { id: 'grapevine', label: 'Grapevine', icon: 'message-circle', description: 'Conversations with your agents' },
-  flow: { id: 'flow', label: 'Flow', icon: 'network', description: 'Mithras Flow: systems, requirements and trades on one board' },
-  hoja: { id: 'hoja', label: 'Hoja', icon: 'leaf', description: 'A quiet place for your notes', stage: 'experimental' },
-  ovillo: { id: 'ovillo', label: 'Ovillo', icon: 'ovillo', description: 'Pieces played by Ariadne Worlds, and their energy', stage: 'experimental' },
+  garden: { id: 'garden', label: 'Garden', icon: 'sprout', get description() { return t('Notes, documents and the knowledge graph') } },
+  choreograph: { id: 'choreograph', label: 'Choreograph', icon: 'workflow', get description() { return t('Agents, runs and workflows') } },
+  grapevine: { id: 'grapevine', label: 'Grapevine', icon: 'message-circle', get description() { return t('Conversations with your agents') } },
+  flow: { id: 'flow', label: 'Flow', icon: 'network', get description() { return t('Mithras Flow: systems, requirements and trades on one board') } },
+  hoja: { id: 'hoja', label: 'Hoja', icon: 'leaf', get description() { return t('A quiet place for your notes') }, stage: 'experimental' },
+  ovillo: { id: 'ovillo', label: 'Ovillo', icon: 'ovillo', get description() { return t('Pieces played by Ariadne Worlds, and their energy') }, stage: 'experimental' },
 })
 
 /** The catalogue identity for an id; an unknown id gets a title-cased label and a generic tile. */

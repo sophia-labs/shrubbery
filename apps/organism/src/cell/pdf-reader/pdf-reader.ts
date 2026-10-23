@@ -35,6 +35,7 @@
  *
  * Light DOM, one stylesheet injected once, house tokens only.
  */
+import { LocaleController, t } from '@shrubbery/nucleus'
 import { LitElement, html, nothing, type PropertyValues, type TemplateResult } from 'lit'
 import { customElement, property, state } from 'lit/decorators.js'
 import { ref } from 'lit/directives/ref.js'
@@ -91,6 +92,8 @@ async function loadViewer(): Promise<{ pdfjs: Loose; viewer: Loose }> {
 
 @customElement('mn-pdf-reader')
 export class MnPdfReader extends LitElement {
+  protected readonly _locale = new LocaleController(this)
+
   @property({ attribute: false }) data: Uint8Array | null = null
   @property({ type: String, attribute: 'file-key' }) fileKey = ''
   @property({ type: String }) name = ''
@@ -734,7 +737,7 @@ export class MnPdfReader extends LitElement {
     const message = this.error || this.parseError
     if (message) {
       return html`<div class="pr-veil" data-error role="alert"><p>${message}</p>
-        <button type="button" class="pr-btn" data-action="retry" @click=${() => this.say('pdf-retry', {})}>Try again</button></div>`
+        <button type="button" class="pr-btn" data-action="retry" @click=${() => this.say('pdf-retry', {})}>${t('Try again')}</button></div>`
     }
     if (!this.data) {
       const l = this.loading
@@ -744,7 +747,7 @@ export class MnPdfReader extends LitElement {
         <div class="pr-progress ${known ? '' : 'indeterminate'}"><i style=${known ? `width:${Math.min(100, Math.round((100 * l!.loaded) / l!.total))}%` : ''}></i></div></div>`
     }
     if (this.parsing) {
-      return html`<div class="pr-veil" data-loading role="status"><p>Laying out the pages…</p><div class="pr-progress indeterminate"><i></i></div></div>`
+      return html`<div class="pr-veil" data-loading role="status"><p>${t('Laying out the pages…')}</p><div class="pr-progress indeterminate"><i></i></div></div>`
     }
     return nothing
   }
@@ -752,35 +755,35 @@ export class MnPdfReader extends LitElement {
   private toolbar(): TemplateResult {
     const has = this.assertions.length > 0 || (this.info !== null)
     const ready = this.pageCount > 0
-    return html`<div class="pr-bar" role="toolbar" aria-label="PDF viewer">
-      <button type="button" class="pr-btn" data-action="sidebar" aria-label="Pages and outline" title="Pages and outline" aria-pressed=${this.sidebar ? 'true' : 'false'}
+    return html`<div class="pr-bar" role="toolbar" aria-label=${t('PDF viewer')}>
+      <button type="button" class="pr-btn" data-action="sidebar" aria-label=${t('Pages and outline')} title=${t('Pages and outline')} aria-pressed=${this.sidebar ? 'true' : 'false'}
         ?disabled=${!ready} @click=${() => { this.sidebar = !this.sidebar }}>${ic('sidebar')}</button>
       <span class="pr-sep"></span>
       <span class="pr-page">
-        <input type="text" inputmode="numeric" aria-label="Page number" .value=${String(this.pageNo)} ?disabled=${!ready}
+        <input type="text" inputmode="numeric" aria-label=${t('Page number')} .value=${String(this.pageNo)} ?disabled=${!ready}
           @focus=${(e: FocusEvent) => (e.target as HTMLInputElement).select()}
           @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter') { this.goToPage(Number((e.target as HTMLInputElement).value)); (e.target as HTMLInputElement).blur() } else if (e.key === 'Escape') { (e.target as HTMLInputElement).value = String(this.pageNo); (e.target as HTMLInputElement).blur() } }}
           @blur=${(e: FocusEvent) => { (e.target as HTMLInputElement).value = String(this.pageNo) }} />
         <span aria-hidden="true">/</span><span data-page-count>${this.pageCount || '–'}</span></span>
-      <button type="button" class="pr-btn" data-action="prev" aria-label="Previous page" title="Previous page" ?disabled=${!ready || this.pageNo <= 1} @click=${() => this.goToPage(this.pageNo - 1)}>${ic('up')}</button>
-      <button type="button" class="pr-btn" data-action="next" aria-label="Next page" title="Next page" ?disabled=${!ready || this.pageNo >= this.pageCount} @click=${() => this.goToPage(this.pageNo + 1)}>${ic('down')}</button>
+      <button type="button" class="pr-btn" data-action="prev" aria-label=${t('Previous page')} title=${t('Previous page')} ?disabled=${!ready || this.pageNo <= 1} @click=${() => this.goToPage(this.pageNo - 1)}>${ic('up')}</button>
+      <button type="button" class="pr-btn" data-action="next" aria-label=${t('Next page')} title=${t('Next page')} ?disabled=${!ready || this.pageNo >= this.pageCount} @click=${() => this.goToPage(this.pageNo + 1)}>${ic('down')}</button>
       <span class="pr-sep"></span>
-      <button type="button" class="pr-btn" data-action="zoom-out" aria-label="Zoom out" title="Zoom out (⌘−)" ?disabled=${!ready} @click=${() => this.zoomBy(1 / 1.2)}>${ic('minus')}</button>
+      <button type="button" class="pr-btn" data-action="zoom-out" aria-label=${t('Zoom out')} title=${t('Zoom out (⌘−)')} ?disabled=${!ready} @click=${() => this.zoomBy(1 / 1.2)}>${ic('minus')}</button>
       <span class="pr-zoom pr-page" data-zoom aria-live="off">${this.scalePct}%</span>
-      <button type="button" class="pr-btn" data-action="zoom-in" aria-label="Zoom in" title="Zoom in (⌘+)" ?disabled=${!ready} @click=${() => this.zoomBy(1.2)}>${ic('plus')}</button>
-      <select class="pr-fit" aria-label="Fit" data-fit ?disabled=${!ready}
+      <button type="button" class="pr-btn" data-action="zoom-in" aria-label=${t('Zoom in')} title=${t('Zoom in (⌘+)')} ?disabled=${!ready} @click=${() => this.zoomBy(1.2)}>${ic('plus')}</button>
+      <select class="pr-fit" aria-label=${t('Fit')} data-fit ?disabled=${!ready}
         @change=${(e: Event) => { const v = (e.target as HTMLSelectElement).value; if (v === 'page-width' || v === 'page-fit') this.setZoom(v) }}>
-        <option value="page-width" ?selected=${this.zoomMode === 'page-width'}>Fit width</option>
-        <option value="page-fit" ?selected=${this.zoomMode === 'page-fit'}>Fit page</option>
+        <option value="page-width" ?selected=${this.zoomMode === 'page-width'}>${t('Fit width')}</option>
+        <option value="page-fit" ?selected=${this.zoomMode === 'page-fit'}>${t('Fit page')}</option>
         <option value="custom" ?selected=${typeof this.zoomMode === 'number'} disabled>${this.scalePct}%</option>
       </select>
       <span class="pr-grow"></span>
-      <button type="button" class="pr-btn" data-action="find" aria-label="Find in document" title="Find (⌘F)" aria-pressed=${this.findOpen ? 'true' : 'false'} ?disabled=${!ready}
-        @click=${() => { if (this.findOpen) this.closeFind(); else this.openFind() }}>${ic('search')}<span class="pr-lbl">Find</span></button>
+      <button type="button" class="pr-btn" data-action="find" aria-label=${t('Find in document')} title=${t('Find (⌘F)')} aria-pressed=${this.findOpen ? 'true' : 'false'} ?disabled=${!ready}
+        @click=${() => { if (this.findOpen) this.closeFind(); else this.openFind() }}>${ic('search')}<span class="pr-lbl">${t('Find')}</span></button>
       ${has ? html`<span class="pr-sep"></span>
         <button type="button" class="pr-btn" data-action="overlay" aria-pressed=${this.overlay ? 'true' : 'false'} title=${`${this.overlayLabel}: box each value where the page prints it`}
           @click=${() => { this.setOverlay(!this.overlay) }}>${ic('scan')}<span class="pr-lbl">${this.overlayLabel}</span></button>
-        ${this.overlay ? html`<button type="button" class="pr-btn" data-action="list" aria-label="List" title="Show or hide the list" aria-pressed=${this.listOpen ? 'true' : 'false'}
+        ${this.overlay ? html`<button type="button" class="pr-btn" data-action="list" aria-label=${t('List')} title=${t('Show or hide the list')} aria-pressed=${this.listOpen ? 'true' : 'false'}
           @click=${() => { this.listOpen = !this.listOpen }}>${ic('list')}</button>` : nothing}` : nothing}
     </div>`
   }
@@ -791,15 +794,15 @@ export class MnPdfReader extends LitElement {
       <button type="button" @click=${() => { if (i.dest) this.links?.goToDestination(i.dest) }}>${i.title || '(untitled)'}</button>
       ${i.items.length ? outlineList(i.items) : nothing}</li>`)}</ul>`
     const pages = Array.from({ length: this.pageCount }, (_, i) => i + 1)
-    return html`<aside class="pr-side" aria-label="Pages and outline">
+    return html`<aside class="pr-side" aria-label=${t('Pages and outline')}>
       <div class="pr-tabs" role="tablist">
-        <button type="button" class="pr-tab" role="tab" aria-selected=${this.tab === 'thumbs' ? 'true' : 'false'} @click=${() => { this.tab = 'thumbs' }}>Pages</button>
-        <button type="button" class="pr-tab" role="tab" aria-selected=${this.tab === 'outline' ? 'true' : 'false'} @click=${() => { this.tab = 'outline' }}>Outline</button>
+        <button type="button" class="pr-tab" role="tab" aria-selected=${this.tab === 'thumbs' ? 'true' : 'false'} @click=${() => { this.tab = 'thumbs' }}>${t('Pages')}</button>
+        <button type="button" class="pr-tab" role="tab" aria-selected=${this.tab === 'outline' ? 'true' : 'false'} @click=${() => { this.tab = 'outline' }}>${t('Outline')}</button>
       </div>
       <div class="pr-scroll">${this.tab === 'thumbs'
         ? repeat(pages, n => n, n => html`<button type="button" class="pr-thumb" data-page=${n} aria-label=${`Page ${n}`} aria-current=${n === this.pageNo ? 'page' : 'false'}
             @click=${() => this.goToPage(n)} ${ref(this.onThumbVisible)}><canvas data-thumb=${n}></canvas><span>${n}</span></button>`)
-        : this.outline.length ? html`<div class="pr-outline">${outlineList(this.outline)}</div>` : html`<p class="pr-note">This PDF has no outline.</p>`}</div>
+        : this.outline.length ? html`<div class="pr-outline">${outlineList(this.outline)}</div>` : html`<p class="pr-note">${t('This PDF has no outline.')}</p>`}</div>
     </aside>`
   }
 
@@ -807,13 +810,13 @@ export class MnPdfReader extends LitElement {
     if (!this.findOpen) return nothing
     const c = this.findCount
     return html`<div class="pr-find" role="search">
-      <input type="text" aria-label="Find in document" placeholder="Find" .value=${this.findQuery} spellcheck="false"
+      <input type="text" aria-label=${t('Find in document')} placeholder=${t('Find')} .value=${this.findQuery} spellcheck="false"
         @input=${(e: Event) => { this.findQuery = (e.target as HTMLInputElement).value; window.clearTimeout(this.findTimer); this.findTimer = window.setTimeout(() => this.runFind(''), 140) }}
         @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter') { e.preventDefault(); this.runFind('again', e.shiftKey) } }} />
-      <span class="pr-count" data-find-count aria-live="polite">${!this.findQuery ? '' : this.noText ? 'No text layer' : c && c.total ? `${c.current} of ${c.total}` : this.findNone ? 'No matches' : '…'}</span>
-      <button type="button" class="pr-btn" data-action="find-prev" aria-label="Previous match" @click=${() => this.runFind('again', true)}>${ic('up')}</button>
-      <button type="button" class="pr-btn" data-action="find-next" aria-label="Next match" @click=${() => this.runFind('again', false)}>${ic('down')}</button>
-      <button type="button" class="pr-btn" data-action="find-close" aria-label="Close find" @click=${() => this.closeFind()}>${ic('x')}</button>
+      <span class="pr-count" data-find-count aria-live="polite">${!this.findQuery ? '' : this.noText ? 'No text layer' : c && c.total ? `${c.current} of ${c.total}` : this.findNone ? t('No matches') : '…'}</span>
+      <button type="button" class="pr-btn" data-action="find-prev" aria-label=${t('Previous match')} @click=${() => this.runFind('again', true)}>${ic('up')}</button>
+      <button type="button" class="pr-btn" data-action="find-next" aria-label=${t('Next match')} @click=${() => this.runFind('again', false)}>${ic('down')}</button>
+      <button type="button" class="pr-btn" data-action="find-close" aria-label=${t('Close find')} @click=${() => this.closeFind()}>${ic('x')}</button>
     </div>`
   }
 
@@ -824,14 +827,14 @@ export class MnPdfReader extends LitElement {
     const at = this.placed.get(a.id)
     return html`<div class="pr-card" style=${`left:${c.x}px;top:${c.y}px`} role="tooltip" data-card>
       <h4>${a.label}${a.symbol ? html` <small>(${a.symbol})</small>` : nothing}</h4>
-      <div class="pr-val">${a.value || html`<span class="pr-note">no value read</span>`}</div>
+      <div class="pr-val">${a.value || html`<span class="pr-note">${t('no value read')}</span>`}</div>
       <dl>
-        <dt>Status</dt><dd>${STATUS_WORDS[a.status]} · ${a.mark} ${a.agreement}</dd>
-        ${a.group ? html`<dt>Where</dt><dd>${a.group}</dd>` : nothing}
-        ${a.conditions.length ? html`<dt>Conditions</dt><dd>${a.conditions.join('; ')}</dd>` : nothing}
-        ${a.readings.length ? html`<dt>Readings</dt><dd>${a.readings.map(r => html`<div>${r.text}${r.page ? ` · p. ${r.page}` : ''}</div>`)}</dd>` : nothing}
-        <dt>Page</dt><dd>${at?.page ?? a.page ?? '–'}${at ? at.source === 'text' ? ' · found in the page text (approximate)' : ` · box from the import${a.precision ? `: ${a.precision}` : ''}${a.method ? ` (${a.method})` : ''}` : ''}</dd>
-        ${a.notes.length ? html`<dt>Notes</dt><dd>${a.notes.map(n => html`<div>${n}</div>`)}</dd>` : nothing}
+        <dt>${t('Status')}</dt><dd>${STATUS_WORDS[a.status]} · ${a.mark} ${a.agreement}</dd>
+        ${a.group ? html`<dt>${t('Where')}</dt><dd>${a.group}</dd>` : nothing}
+        ${a.conditions.length ? html`<dt>${t('Conditions')}</dt><dd>${a.conditions.join('; ')}</dd>` : nothing}
+        ${a.readings.length ? html`<dt>${t('Readings')}</dt><dd>${a.readings.map(r => html`<div>${r.text}${r.page ? ` · p. ${r.page}` : ''}</div>`)}</dd>` : nothing}
+        <dt>${t('Page')}</dt><dd>${at?.page ?? a.page ?? '–'}${at ? at.source === 'text' ? ' · found in the page text (approximate)' : ` · box from the import${a.precision ? `: ${a.precision}` : ''}${a.method ? ` (${a.method})` : ''}` : ''}</dd>
+        ${a.notes.length ? html`<dt>${t('Notes')}</dt><dd>${a.notes.map(n => html`<div>${n}</div>`)}</dd>` : nothing}
       </dl></div>`
   }
 
@@ -854,20 +857,20 @@ export class MnPdfReader extends LitElement {
     })
     return html`<aside class="pr-claims" aria-label=${this.overlayLabel}>
       <header><h3>${this.overlayLabel}</h3>
-        <button type="button" class="pr-btn" data-action="close-list" aria-label="Close list" @click=${() => { this.listOpen = false }}>${ic('x')}</button></header>
+        <button type="button" class="pr-btn" data-action="close-list" aria-label=${t('Close list')} @click=${() => { this.listOpen = false }}>${ic('x')}</button></header>
       ${info ? html`<details class="pr-about" open><summary>${info.title || info.heading}</summary>
         <dl>${info.facts.map(f => html`<dt>${f.label}</dt><dd>${f.text}${f.hint ? html`<small>${f.hint}</small>` : nothing}</dd>`)}</dl>
         ${info.notes.length ? html`<ul>${info.notes.map(n => html`<li>${n}</li>`)}</ul>` : nothing}</details>` : nothing}
       ${all.length ? html`<div class="pr-tools">
-        <input type="search" aria-label="Filter assertions" placeholder="Filter by name, symbol or value" .value=${this.filter} @input=${(e: Event) => { this.filter = (e.target as HTMLInputElement).value }} />
-        <button type="button" class="pr-btn" data-action="scope" aria-pressed=${this.scope === 'all' ? 'true' : 'false'} title="Show assertions of the pages in view, or of every page"
-          @click=${() => { this.scope = this.scope === 'all' ? 'visible' : 'all' }}>${this.scope === 'all' ? 'All pages' : 'Pages in view'}</button></div>
-        <div class="pr-legend" aria-label="Legend">
+        <input type="search" aria-label=${t('Filter assertions')} placeholder=${t('Filter by name, symbol or value')} .value=${this.filter} @input=${(e: Event) => { this.filter = (e.target as HTMLInputElement).value }} />
+        <button type="button" class="pr-btn" data-action="scope" aria-pressed=${this.scope === 'all' ? 'true' : 'false'} title=${t('Show assertions of the pages in view, or of every page')}
+          @click=${() => { this.scope = this.scope === 'all' ? 'visible' : 'all' }}>${this.scope === 'all' ? t('All pages') : t('Pages in view')}</button></div>
+        <div class="pr-legend" aria-label=${t('Legend')}>
           ${(['read', 'check', 'checked', 'corrected', 'contested'] as const).map(s => html`<span><i class="pr-dot" data-s=${s}></i>${STATUS_WORDS[s]}</span>`)}
-          <span><i class="pr-dot" data-dashed></i>found in the page text</span></div>` : nothing}
+          <span><i class="pr-dot" data-dashed></i>${t('found in the page text')}</span></div>` : nothing}
       <div class="pr-list" data-list>
-        ${all.length === 0 ? html`<p class="pr-note" data-empty>${info?.empty ?? 'Nothing was read from this file.'}</p>`
-          : shown.length === 0 ? html`<p class="pr-note" data-empty>${q ? 'No assertion matches.' : this.scope === 'visible' ? 'No assertions on the pages in view. Show all pages to see every one.' : 'Nothing to show.'}</p>`
+        ${all.length === 0 ? html`<p class="pr-note" data-empty>${info?.empty ?? t('Nothing was read from this file.')}</p>`
+          : shown.length === 0 ? html`<p class="pr-note" data-empty>${q ? t('No assertion matches.') : this.scope === 'visible' ? t('No assertions on the pages in view. Show all pages to see every one.') : t('Nothing to show.')}</p>`
           : items}
         ${info?.truncated ? html`<p class="pr-note" data-truncated>${info.truncated}</p>` : nothing}
         ${all.length ? html`<p class="pr-note" data-located>${this.locating ? 'Finding where each is printed…' : `${located} of ${all.length} located in the page text.`}</p>` : nothing}
@@ -881,17 +884,17 @@ export class MnPdfReader extends LitElement {
     return html`<button type="button" class="pr-item" data-id=${a.id} data-status=${a.status} aria-current=${current ? 'true' : 'false'} @click=${() => this.choose(a)}>
       <span class="pr-row1"><span class="pr-name">${a.label}${a.symbol ? html`<small>${a.symbol}</small>` : nothing}</span>
         <span class="pr-pg">${a.page ? `p. ${at?.page ?? a.page}` : ''}</span></span>
-      <span class="pr-row2"><span class="pr-v">${a.value || html`<span class="pr-note" style="padding:0">no value</span>`}</span>
+      <span class="pr-row2"><span class="pr-v">${a.value || html`<span class="pr-note" style="padding:0">${t('no value')}</span>`}</span>
         <span class="pr-mark" title=${a.agreement}>${a.mark}</span>
         ${a.status !== 'read' ? html`<span class="pr-chip">${STATUS_WORDS[a.status]}</span>` : nothing}
-        ${unplaced ? html`<span class="pr-chip" data-not-located title="The page text did not show where it is printed">not located</span>` : nothing}</span>
+        ${unplaced ? html`<span class="pr-chip" data-not-located title=${t('The page text did not show where it is printed')}>${t('not located')}</span>` : nothing}</span>
       ${current ? html`<span class="pr-detail" data-detail>
-        ${a.group ? html`<h5>Where</h5><div>${a.group}</div>` : nothing}
-        ${a.conditions.length ? html`<h5>Conditions</h5><ul>${a.conditions.map(c => html`<li>${c}</li>`)}</ul>` : nothing}
-        ${a.readings.length ? html`<h5>Readings</h5><ul>${a.readings.map(r => html`<li>${r.text}${r.page ? html` · <span role="link" tabindex="0" style="color:var(--pr-accent);cursor:pointer"
+        ${a.group ? html`<h5>${t('Where')}</h5><div>${a.group}</div>` : nothing}
+        ${a.conditions.length ? html`<h5>${t('Conditions')}</h5><ul>${a.conditions.map(c => html`<li>${c}</li>`)}</ul>` : nothing}
+        ${a.readings.length ? html`<h5>${t('Readings')}</h5><ul>${a.readings.map(r => html`<li>${r.text}${r.page ? html` · <span role="link" tabindex="0" style="color:var(--pr-accent);cursor:pointer"
           @click=${(e: Event) => { e.stopPropagation(); this.goToPage(r.page!) }}>p. ${r.page}</span>` : nothing}</li>`)}</ul>` : nothing}
-        ${a.notes.length ? html`<h5>Notes</h5><ul>${a.notes.map(n => html`<li>${n}</li>`)}</ul>` : nothing}
-        ${unplaced ? html`<h5>Location</h5><div>Page ${a.page ?? '–'}, not located: the page text did not show where it is printed.</div>` : nothing}
+        ${a.notes.length ? html`<h5>${t('Notes')}</h5><ul>${a.notes.map(n => html`<li>${n}</li>`)}</ul>` : nothing}
+        ${unplaced ? html`<h5>${t('Location')}</h5><div>Page ${a.page ?? '–'}, not located: the page text did not show where it is printed.</div>` : nothing}
         ${a.actions?.length ? html`<span class="pr-seam" data-seam="assertion-actions">${a.actions.map(x => html`<button type="button" class="pr-btn"
           @click=${(e: Event) => { e.stopPropagation(); this.say('assertion-action', { action: x.id, id: a.id }) }}>${x.label}</button>`)}</span>` : nothing}
       </span>` : nothing}
@@ -905,7 +908,7 @@ export class MnPdfReader extends LitElement {
         ${this.sidePanel()}
         <div class="pr-stage" data-stage>
           <div class="pr-container" tabindex="0" role="document" aria-label=${this.name ? `PDF: ${this.name}` : 'PDF'}><div class="pdfViewer"></div></div>
-          ${this.noText && this.pageCount ? html`<div class="pr-banner" role="note" data-no-text>No text layer: this PDF looks like a scan, so text cannot be searched or selected.</div>` : nothing}
+          ${this.noText && this.pageCount ? html`<div class="pr-banner" role="note" data-no-text>${t('No text layer: this PDF looks like a scan, so text cannot be searched or selected.')}</div>` : nothing}
           ${this.findBar()}
           ${this.cardView()}
           ${this.veil()}

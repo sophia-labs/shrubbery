@@ -18,6 +18,7 @@
  * on the card (drag it to another card, or "Connect..." from the menu for the keyboard), then the relation picker at the
  * drop point. `openBeside` is still forced off in this release.
  */
+import { LocaleController, localeSource, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, svg, unsafeCSS, type PropertyValues, type TemplateResult } from 'lit'
 import { repeat } from 'lit/directives/repeat.js'
 import { FILES_EMPTY_STYLE, renderFilesEmpty } from './files-empty.js'
@@ -96,6 +97,8 @@ function glyphSize(iconSize: 'small' | 'medium' | 'large'): 32 | 64 | 96 {
 }
 
 export class MnFilesCanvas extends LitElement {
+  protected readonly _locale = new LocaleController(this)
+
   static override properties = { input: { attribute: false } }
 
   declare input: FilesCanvasHostInput | null
@@ -844,7 +847,7 @@ export class MnFilesCanvas extends LitElement {
         ${richSheet ? this.renderSheet(richSheet) : html`<mn-file-glyph kind=${card.kind === 'folder' ? 'folder' : card.ref?.kind === 'document' ? 'document' : 'file'} type=${type} size=${glyphSize(iconSize)}
           ?selected=${card.role === 'real' && selected.has(card.key)}></mn-file-glyph>`}
         ${isNaming ? html`
-          <input class="name" aria-label="Name" .value=${naming!.text} aria-invalid=${naming!.error ? 'true' : 'false'}
+          <input class="name" aria-label=${t('Name')} .value=${naming!.text} aria-invalid=${naming!.error ? 'true' : 'false'}
             @input=${this.onNameInput} @keydown=${this.onNameKey} @blur=${this.onNameBlur}
             @pointerdown=${(e: Event) => e.stopPropagation()} />
           ${naming!.error ? html`<span class="name-error" role="alert">${naming!.error}</span>` : nothing}`
@@ -880,7 +883,7 @@ export class MnFilesCanvas extends LitElement {
       return html`<span class="conn-label" data-connector-id=${c.id} data-connection-id=${c.id} ?data-selected=${selected}
         title=${meta?.attribution ? `${c.label} · ${meta.state} by ${meta.attribution}` : c.label}
         style="left:${route.labelAnchor.x}px;top:${route.labelAnchor.y}px">${c.label}${selected && caps.connect
-          ? html`<button type="button" aria-label=${`Disconnect ${c.label}`} @click=${(e: Event) => { e.stopPropagation(); this.disconnect(c.id) }}
+          ? html`<button type="button" aria-label=${t('files.disconnect', { name: c.label })} @click=${(e: Event) => { e.stopPropagation(); this.disconnect(c.id) }}
             @pointerdown=${(e: Event) => e.stopPropagation()}>×</button>` : nothing}</span>`
     })}</div>` : nothing
     const rubber = mode.kind === 'connecting' && mode.via === 'pointer' && mode.current ? (() => {
@@ -896,15 +899,15 @@ export class MnFilesCanvas extends LitElement {
       const from = scene.byKey.get(this.picker.source)?.label ?? ''
       const left = Math.max(4, Math.min(this.picker.at.x, Math.max(4, box.width - 180)))
       const top = Math.max(4, Math.min(this.picker.at.y, Math.max(4, box.height - 40 - relations.length * 28)))
-      return html`<div class="picker" role="menu" aria-label=${`How is ${from} related to ${to}?`} style="left:${left}px;top:${top}px"
+      return html`<div class="picker" role="menu" aria-label=${t('files.relation', { from, to })} style="left:${left}px;top:${top}px"
         @keydown=${this.onPickerKey} @pointerdown=${(e: Event) => e.stopPropagation()}>
         <div class="picker-title">${from} → ${to}</div>
         ${relations.map(r => html`<button type="button" role="menuitem" data-relation=${r.uri}
           @click=${() => this.dispatch({ type: 'relation-picked', relation: r.uri, label: r.label })}>${r.label}</button>`)}
         ${this.pickerOther
-          ? html`<input class="other" aria-label="Other relation" placeholder="Name the relation" maxlength="48"
+          ? html`<input class="other" aria-label=${t('Other relation')} placeholder=${t('Name the relation')} maxlength="48"
               @keydown=${this.onOtherKey} />`
-          : html`<button type="button" role="menuitem" data-relation="other" @click=${() => { this.pickerOther = true; this.requestUpdate(); void this.updateComplete.then(() => this.renderRoot.querySelector<HTMLElement>('input.other')?.focus()) }}>Other…</button>`}
+          : html`<button type="button" role="menuitem" data-relation="other" @click=${() => { this.pickerOther = true; this.requestUpdate(); void this.updateComplete.then(() => this.renderRoot.querySelector<HTMLElement>('input.other')?.focus()) }}>${t('Other…')}</button>`}
       </div>`
     })() : nothing
 
@@ -920,10 +923,10 @@ export class MnFilesCanvas extends LitElement {
     const target = dropTarget ? scene.byKey.get(dropTarget) : null
     const ext = mode.kind === 'dragging' ? mode.external : null
     const connectHint = mode.kind === 'connecting' && mode.via === 'keyboard'
-      ? html`<div class="hint">Connect ${scene.byKey.get(mode.source)?.label ?? ''}: arrows choose the target, Enter picks, Esc cancels</div>`
-      : mode.kind === 'connecting' && target ? html`<div class="hint">Connect to ${target.label}</div>` : nothing
-    const hint = connectHint !== nothing ? connectHint : ext ? html`<div class="hint">Move into ${this.externalLabel}</div>` : target ? html`<div class="hint">${mode.kind === 'osdrag' ? 'Upload into' : 'Move into'} ${target.label}</div>`
-      : mode.kind === 'osdrag' ? html`<div class="hint">Upload here</div>` : nothing
+      ? html`<div class="hint">${t('files.connectHint', { name: scene.byKey.get(mode.source)?.label ?? '' })}</div>`
+      : mode.kind === 'connecting' && target ? html`<div class="hint">${t('files.connectTo', { name: target.label })}</div>` : nothing
+    const hint = connectHint !== nothing ? connectHint : ext ? html`<div class="hint">${t('files.moveInto', { name: this.externalLabel })}</div>` : target ? html`<div class="hint">${mode.kind === 'osdrag' ? t('Upload into') : t('Move into')} ${target.label}</div>`
+      : mode.kind === 'osdrag' ? html`<div class="hint">${t('Upload here')}</div>` : nothing
 
     return html`<div
       class="plane"
@@ -943,7 +946,7 @@ export class MnFilesCanvas extends LitElement {
       <div class="scene" ?data-gesture=${gesture}
         style="transform: translate(${camera.x * camera.zoom}px, ${camera.y * camera.zoom}px) scale(${camera.zoom})">
         ${connectorSvg}
-        <div role="listbox" aria-multiselectable="true" aria-label=${`Folder canvas, ${realCount} ${realCount === 1 ? 'item' : 'items'}`}
+        <div role="listbox" aria-multiselectable="true" aria-label=${t('files.canvas', { count: realCount, noun: localeSource.get() === 'ja' ? '件' : realCount === 1 ? 'item' : 'items' })}
           tabindex=${focus ? '-1' : '0'}>
           ${repeat(cardsInOrder, card => card.key, renderCard)}
         </div>
@@ -952,14 +955,14 @@ export class MnFilesCanvas extends LitElement {
       ${realCount === 0 && !scene.cards.length ? html`<div class="empty">${renderFilesEmpty(caps.add)}</div>` : nothing}
       <div class="overlay">${marquee}${guides}${rubber}${hint}</div>
       ${picker}
-      <div class="controls" role="group" aria-label="View">
-        ${caps.place ? html`<button type="button" class="word" aria-label="Tidy up" title="Tidy up: lay the cards out in a grid" @click=${() => this.command('tidy')}>Tidy</button>` : nothing}
-        ${(input.connections?.length ?? 0) > 0 || caps.connect ? html`<button type="button" class="word" aria-label="Connections" aria-pressed=${this.connectionsHidden ? 'false' : 'true'}
-          title=${this.connectionsHidden ? 'Show connections' : 'Hide connections'}
-          @click=${() => { this.connectionsHidden = !this.connectionsHidden; this.selectedConnector = null; this.requestUpdate() }}>Links</button>` : nothing}
-        <button type="button" aria-label="Zoom out" title="Zoom out" @click=${() => this.command('zoom-out')}>−</button>
-        <button type="button" aria-label="Reset view" title="Reset view (fit the folder)" @click=${() => this.command('reset-view')}>${Math.round(camera.zoom * 100)}%</button>
-        <button type="button" aria-label="Zoom in" title="Zoom in" @click=${() => this.command('zoom-in')}>+</button>
+      <div class="controls" role="group" aria-label=${t('View')}>
+        ${caps.place ? html`<button type="button" class="word" aria-label=${t('Tidy up')} title=${t('Tidy up: lay the cards out in a grid')} @click=${() => this.command('tidy')}>${t('Tidy')}</button>` : nothing}
+        ${(input.connections?.length ?? 0) > 0 || caps.connect ? html`<button type="button" class="word" aria-label=${t('Connections')} aria-pressed=${this.connectionsHidden ? 'false' : 'true'}
+          title=${this.connectionsHidden ? t('Show connections') : t('Hide connections')}
+          @click=${() => { this.connectionsHidden = !this.connectionsHidden; this.selectedConnector = null; this.requestUpdate() }}>${t('Links')}</button>` : nothing}
+        <button type="button" aria-label=${t('Zoom out')} title=${t('Zoom out')} @click=${() => this.command('zoom-out')}>−</button>
+        <button type="button" aria-label=${t('Reset view')} title=${t('Reset view (fit the folder)')} @click=${() => this.command('reset-view')}>${Math.round(camera.zoom * 100)}%</button>
+        <button type="button" aria-label=${t('Zoom in')} title=${t('Zoom in')} @click=${() => this.command('zoom-in')}>+</button>
       </div>
     </div>`
   }

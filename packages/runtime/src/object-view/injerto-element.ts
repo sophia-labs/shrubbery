@@ -15,6 +15,7 @@
  * nothing; "Open" is the same `sh-object-view-intent` the view emits.
  */
 
+import { LocaleController, localizeLabel, t } from '@shrubbery/nucleus'
 import { type ObjectModel, registerWords } from '@shrubbery/nucleus/object-faces'
 import { css, html, LitElement, nothing, type TemplateResult } from 'lit'
 import { OBJECT_VIEW_INTENT_EVENT, type ObjectViewIntent, testimonyLine } from './object-view-element.js'
@@ -25,6 +26,8 @@ export type InjertoStatus = 'loading' | 'ready' | 'absent' | 'error'
 const STANCE_WORDS: Readonly<Record<string, string>> = { unfit: 'unfit', retracted: 'retracted', contested: 'contested' }
 
 export class ShInjerto extends LitElement {
+  protected readonly _locale = new LocaleController(this)
+
   static override properties = {
     model: { attribute: false },
     status: { type: String, reflect: true },
@@ -110,7 +113,7 @@ export class ShInjerto extends LitElement {
   private flag(): string {
     const model = this.status === 'ready' ? this.model : null
     const cls = model?.classLabel ?? this.classLabel ?? ''
-    const register = model ? registerWords(model.register) : this.status === 'absent' ? 'not resolved' : ''
+    const register = model ? localizeLabel(registerWords(model.register)) : this.status === 'absent' ? t('not resolved') : ''
     return [cls || 'Object', register].filter(Boolean).join(' · ')
   }
 
@@ -121,7 +124,7 @@ export class ShInjerto extends LitElement {
       aria-label=${`${this.flag()}: ${model?.title ?? this.label}`}>
       <figcaption class="head">
         <span class="flag" title=${this.iri}>${this.flag()}</span>
-        ${this.status === 'absent' ? nothing : html`<button class="door" title="Open it full size" @click=${() => this.open()}>Open</button>`}
+        ${this.status === 'absent' ? nothing : html`<button class="door" title=${t('Open it full size')} @click=${() => this.open()}>${t('Open')}</button>`}
       </figcaption>
       ${this.body(model)}
       ${model ? this.foot(model) : nothing}
@@ -131,13 +134,13 @@ export class ShInjerto extends LitElement {
   private body(model: ObjectModel | null): TemplateResult {
     if (this.status === 'absent') {
       return html`<div class="absent" role="note">
-        <span class="what">Not in this graph</span>
-        <span class="snapshot">${this.label || 'This object'}${this.classLabel ? `, a ${this.classLabel.toLowerCase()}` : ''}, as it was when it was embedded.</span>
+        <span class="what">${t('Not in this graph')}</span>
+        <span class="snapshot">${this.label || t('This object')}${this.classLabel ? `, a ${this.classLabel.toLowerCase()}` : ''}, as it was when it was embedded.</span>
         <code>${this.iri}</code>
       </div>`
     }
     if (this.status === 'error') {
-      return html`<div class="absent" role="note"><span class="what">Could not read it</span>
+      return html`<div class="absent" role="note"><span class="what">${t('Could not read it')}</span>
         <span class="snapshot">${this.label || this.iri}${this.error ? `: ${this.error}` : ''}</span></div>`
     }
     if (!model) return html`<div class="waiting">Reading ${this.label || 'the object'}…</div>`
@@ -148,8 +151,8 @@ export class ShInjerto extends LitElement {
     const line = testimonyLine(model)
     const stance = STANCE_WORDS[model.stance]
     return html`<footer class="foot">
-      ${stance ? html`<span class="stance" data-stance=${model.stance}>${stance}</span>` : nothing}
-      <span class="line">${line || 'No testimony recorded'}</span>
+      ${stance ? html`<span class="stance" data-stance=${model.stance}>${localizeLabel(stance)}</span>` : nothing}
+      <span class="line">${line || t('No testimony recorded')}</span>
     </footer>`
   }
 }

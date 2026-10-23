@@ -15,6 +15,7 @@
  * reproduced here against the same `--mn-kind-*` tokens because `kind.css`
  * does not light inside a shadow root (object-card-view-element.ts's header).
  */
+import { LocaleController, localeSource, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, type TemplateResult } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 import type { SeatReading } from '../../despacho/seat-reading.js'
@@ -26,7 +27,7 @@ function formatWhen(iso: string | null): string {
   if (!iso) return ''
   const date = new Date(iso)
   if (Number.isNaN(date.getTime())) return iso
-  return new Intl.DateTimeFormat('en', { dateStyle: 'medium', timeStyle: 'short' }).format(date)
+  return new Intl.DateTimeFormat(localeSource.get(), { dateStyle: 'medium', timeStyle: 'short' }).format(date)
 }
 
 /** Relative time in plain words (Intl, no invented calendar math); exported for tests. */
@@ -49,6 +50,8 @@ export function formatAgo(iso: string | null, now: Date = new Date()): string {
 
 @customElement('sh-seat-character-view')
 export class ShSeatCharacterView extends LitElement {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     :host {
       display: flex;
@@ -328,7 +331,7 @@ export class ShSeatCharacterView extends LitElement {
           <span class="detail">as its source claimed at fold time · ${formatWhen(reading.lastRunAt)}; no run recorded in the register</span>
         </div>`
       }
-      return html`<div class="heartbeat mn-kind" data-kind="state"><span class="pulse" data-state="none"></span><span class="muted">no run recorded for this seat</span></div>`
+      return html`<div class="heartbeat mn-kind" data-kind="state"><span class="pulse" data-state="none"></span><span class="muted">${t('no run recorded for this seat')}</span></div>`
     }
     return html`<div class="heartbeat mn-kind" data-kind="state" data-last-run=${last.iri}>
       <span class="pulse" data-state=${last.state}></span>
@@ -339,9 +342,9 @@ export class ShSeatCharacterView extends LitElement {
 
   private _counts(reading: SeatReading): TemplateResult {
     return html`<div class="counts mn-kind" data-kind="metric">
-      <span><span class="n">${reading.lettersIn}</span><span class="label">letters in</span></span>
-      <span><span class="n">${reading.lettersOut}</span><span class="label">letters out</span></span>
-      <span class="waiting"><span class="n">${reading.unacknowledged}</span><span class="label">awaiting its acknowledgement</span></span>
+      <span><span class="n">${reading.lettersIn}</span><span class="label">${t('letters in')}</span></span>
+      <span><span class="n">${reading.lettersOut}</span><span class="label">${t('letters out')}</span></span>
+      <span class="waiting"><span class="n">${reading.unacknowledged}</span><span class="label">${t('awaiting its acknowledgement')}</span></span>
     </div>`
   }
 
@@ -377,7 +380,7 @@ export class ShSeatCharacterView extends LitElement {
       ${reading.scope ? html`<p class="scope mn-kind" data-kind="prose">${reading.scope}</p>` : nothing}
       ${reading.card
         ? html`<section class="card mn-kind" data-kind="prose" aria-labelledby="card-heading">
-            <h2 id="card-heading">The card, verbatim</h2>
+            <h2 id="card-heading">${t('The card, verbatim')}</h2>
             <blockquote class="verbatim">${reading.card}</blockquote>
           </section>`
         : nothing}
@@ -389,7 +392,7 @@ export class ShSeatCharacterView extends LitElement {
                 (move) => html`<li data-capability=${move.iri}>
                   <div class="move-head"><strong>${move.name}</strong>${move.confidence ? html`<span class="muted">confidence ${move.confidence}</span>` : nothing}${move.mergeVerdict ? html`<span class="pill">${move.mergeVerdict}</span>` : nothing}</div>
                   ${move.definition ? html`<div class="move-text">${move.definition}</div>` : nothing}
-                  ${move.contract ? html`<div class="move-text muted"><em>Contract:</em> ${move.contract}</div>` : nothing}
+                  ${move.contract ? html`<div class="move-text muted"><em>${t('Contract:')}</em> ${move.contract}</div>` : nothing}
                   ${move.attestation ? html`<div class="attestation">${move.attestation}</div>` : nothing}
                 </li>`,
               )}
@@ -398,8 +401,8 @@ export class ShSeatCharacterView extends LitElement {
         : nothing}
       ${reading.jail || reading.seals.length > 0
         ? html`<section class="rules mn-kind" data-kind="prose" aria-labelledby="rules-heading">
-            <h2 id="rules-heading">Its rules</h2>
-            ${reading.jail ? html`<p class="jail" data-jail><strong>Never:</strong> ${reading.jail}</p>` : nothing}
+            <h2 id="rules-heading">${t('Its rules')}</h2>
+            ${reading.jail ? html`<p class="jail" data-jail><strong>${t('Never:')}</strong> ${reading.jail}</p>` : nothing}
             ${reading.seals.length > 0
               ? html`<ul class="seals">
                   ${reading.seals.map((seal) => html`<li data-seal>${seal}</li>`)}
@@ -415,13 +418,13 @@ export class ShSeatCharacterView extends LitElement {
             ${reading.trigger ? html`<div>trigger: ${reading.trigger}</div>` : nothing}
             ${reading.definitions.length > 0 ? html`<div>defined in: ${reading.definitions.join(' · ')}</div>` : nothing}
             ${reading.confidence ? html`<div>source confidence: ${reading.confidence}</div>` : nothing}
-            ${reading.supersedes ? html`<div>supersedes: <a href=${this.focusHref(reading.supersedes)}>${reading.supersedes}</a></div>` : nothing}
+            ${reading.supersedes ? html`<div>${t('supersedes:')} <a href=${this.focusHref(reading.supersedes)}>${reading.supersedes}</a></div>` : nothing}
             ${reading.foldedFrom.length > 0 ? html`<div>folded from: ${reading.foldedFrom.join(' · ')}</div>` : nothing}
           </div>`
         : nothing}
       ${reading.correspondents.length > 0
         ? html`<section class="peers mn-kind" data-kind="reference" aria-labelledby="peers-heading">
-            <h2 id="peers-heading">Corresponds most with</h2>
+            <h2 id="peers-heading">${t('Corresponds most with')}</h2>
             <ul>
               ${reading.correspondents.map(
                 (peer) => html`<li><a href=${this.focusHref(peer.iri)} data-peer=${peer.iri}>${peer.title ?? peer.iri}</a><span class="muted">${peer.letters} letters</span></li>`,
@@ -431,7 +434,7 @@ export class ShSeatCharacterView extends LitElement {
         : nothing}
       ${reading.recentRuns.length > 1
         ? html`<section class="runs mn-kind" data-kind="state" aria-labelledby="runs-heading">
-            <h2 id="runs-heading">Recent runs</h2>
+            <h2 id="runs-heading">${t('Recent runs')}</h2>
             <ul>
               ${reading.recentRuns.map(
                 (run) => html`<li data-run=${run.iri}><span class="pulse" data-state=${run.state}></span><span>${run.state}</span><span class="muted">${run.runtime} · ${formatWhen(run.at)}</span></li>`,
@@ -440,7 +443,7 @@ export class ShSeatCharacterView extends LitElement {
           </section>`
         : nothing}
       <section class="beads mn-kind" data-kind="reference" aria-labelledby="beads-heading">
-        <h2 id="beads-heading">Beads it holds</h2>
+        <h2 id="beads-heading">${t('Beads it holds')}</h2>
         ${reading.heldBeads.length > 0
           ? html`<ul>
               ${reading.heldBeads.map(
@@ -456,10 +459,10 @@ export class ShSeatCharacterView extends LitElement {
   }
 
   private _body(): TemplateResult {
-    if (this.status === 'loading') return this._state('Finding the seat…')
+    if (this.status === 'loading') return this._state(t('Finding the seat…'))
     if (this.status === 'error') return this._state(this.error || 'This seat could not be opened.', 'danger')
     const reading = this.reading
-    if (!reading) return this._state('Nothing to show.')
+    if (!reading) return this._state(t('Nothing to show.'))
     if (!reading.found) return this._state(`No record in this graph for ${reading.subject}.`, 'danger')
     if (!reading.isSeat) return this._state(`${reading.subject} is not a seat of the Demi register.`, 'danger')
     return this.mode === 'entry' ? this._entry(reading) : this._chapter(reading)

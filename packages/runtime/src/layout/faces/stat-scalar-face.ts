@@ -16,6 +16,7 @@
  * raw SPARQL text for v1, exactly as `sparql.bindings-table` documents (no
  * named/persisted query registry exists yet).
  */
+import { localeSource } from '@shrubbery/nucleus'
 import type { ViewDescriptor } from '@shrubbery/nucleus/layout'
 import type { StoreState } from '@shrubbery/nucleus'
 import { plainQueryBlockTermValue, type QueryBlockResult, type QueryBlockService } from '../../editor-services/query-block-service.js'
@@ -77,7 +78,7 @@ export function createStatScalarResourceAdapter(service: QueryBlockService, reso
 
 /** Relative-time formatting (Intl-based, no invented calendar math) for `format: 'dateTimeRelative'`. */
 function formatRelativeTime(date: Date, now: Date): string {
-  const rtf = new Intl.RelativeTimeFormat('en', { numeric: 'auto' })
+  const rtf = new Intl.RelativeTimeFormat(localeSource.get(), { numeric: 'auto' })
   const diffSeconds = Math.round((date.getTime() - now.getTime()) / 1000)
   const abs = Math.abs(diffSeconds)
   if (abs < 60) return rtf.format(diffSeconds, 'second')
@@ -101,15 +102,15 @@ function formatRelativeTime(date: Date, now: Date): string {
 export function formatStatScalarValue(raw: string, format: StatScalarFormat | undefined, now: Date = new Date()): string {
   if (format === 'usd') {
     const n = Number(raw)
-    return Number.isFinite(n) ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n) : raw
+    return Number.isFinite(n) ? new Intl.NumberFormat(localeSource.get(), { style: 'currency', currency: 'USD' }).format(n) : raw
   }
   if (format === 'number') {
     const n = Number(raw)
-    return Number.isFinite(n) ? new Intl.NumberFormat('en-US').format(n) : raw
+    return Number.isFinite(n) ? new Intl.NumberFormat(localeSource.get()).format(n) : raw
   }
   if (format === 'ms') {
     const n = Number(raw)
-    return Number.isFinite(n) ? `${new Intl.NumberFormat('en-US').format(n)} ms` : raw
+    return Number.isFinite(n) ? `${new Intl.NumberFormat(localeSource.get()).format(n)} ms` : raw
   }
   if (format === 'dateTimeRelative') {
     const date = new Date(raw)
@@ -127,7 +128,7 @@ export function formatStatScalarValue(raw: string, format: StatScalarFormat | un
 export function formatStatDeltaValue(raw: string, format: StatScalarDeltaFormat | undefined): string {
   const n = Number(raw)
   if (!Number.isFinite(n)) return raw
-  const magnitude = new Intl.NumberFormat('en-US', { maximumFractionDigits: format === 'percent' ? 1 : 2 }).format(
+  const magnitude = new Intl.NumberFormat(localeSource.get(), { maximumFractionDigits: format === 'percent' ? 1 : 2 }).format(
     Math.abs(n),
   )
   const suffix = format === 'percent' ? '%' : ''

@@ -8,6 +8,7 @@
  * host work.
  */
 
+import { LocaleController, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, unsafeCSS, type TemplateResult } from 'lit'
 import { customElement, property, state } from 'lit/decorators.js'
 import { SkinAware } from './skin-aware.js'
@@ -126,6 +127,8 @@ function diagnosticSeverity(item: MnSceneDiagnostic): MnSceneDiagnosticSeverity 
 
 @customElement('mn-excalidraw-canvas')
 export class MnExcalidrawCanvas extends SkinAware(LitElement) {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     ${unsafeCSS(iconStyles)}
 
@@ -626,11 +629,11 @@ export class MnExcalidrawCanvas extends SkinAware(LitElement) {
 
   private get liveText(): string {
     if (trimmed(this.liveMessage)) return this.liveMessage
-    if (this.status === 'loading') return 'Scene canvas loading'
+    if (this.status === 'loading') return t('Scene canvas loading')
     if (this.status === 'error') return `Scene canvas failed${this.error ? `: ${this.error}` : ''}`
-    if (this.syncStatus === 'running') return 'Syncing scene wires'
-    if (this.hydrateStatus === 'running') return 'Hydrating scene wires'
-    if (this.saveStatus === 'saving') return 'Saving scene version'
+    if (this.syncStatus === 'running') return t('Syncing scene wires')
+    if (this.hydrateStatus === 'running') return t('Hydrating scene wires')
+    if (this.saveStatus === 'saving') return t('Saving scene version')
     return this.ready ? 'Scene canvas ready' : 'Scene canvas idle'
   }
 
@@ -645,15 +648,15 @@ export class MnExcalidrawCanvas extends SkinAware(LitElement) {
 
   private renderStage(): TemplateResult {
     if (this.status === 'loading') {
-      return html`<div class="state-wrap"><mn-loading size="sm" text="Loading scene canvas"></mn-loading></div>`
+      return html`<div class="state-wrap"><mn-loading size="sm" text=${t('Loading scene canvas')}></mn-loading></div>`
     }
     if (this.status === 'error') {
       return html`
         <div class="state-wrap">
           <mn-empty-state
             icon="alert-circle"
-            title="Scene canvas failed"
-            description=${this.error || 'The drawing surface could not be prepared.'}
+            title=${t('Scene canvas failed')}
+            description=${this.error || t('The drawing surface could not be prepared.')}
             mood="danger"
           ></mn-empty-state>
         </div>
@@ -671,7 +674,7 @@ export class MnExcalidrawCanvas extends SkinAware(LitElement) {
         <div class="state-wrap">
           <div class="placeholder">
             <span class="placeholder-icon" aria-hidden="true">${icon('graph', { size: 20 })}</span>
-            <p class="placeholder-title">Scene host slot</p>
+            <p class="placeholder-title">${t('Scene host slot')}</p>
             <p class="placeholder-text">
               The host owns the interactive drawing runtime. Slot it with name "canvas" to fill this workbench.
             </p>
@@ -685,16 +688,16 @@ export class MnExcalidrawCanvas extends SkinAware(LitElement) {
   private renderProjection(): TemplateResult {
     const projection = this.projection
     return html`
-      <section class="panel" aria-label="Scene projection">
+      <section class="panel" aria-label=${t('Scene projection')}>
         <h3 class="panel-title">${icon('graph', { size: 15 })} Projection</h3>
         <div class="metric-grid">
-          <span class="metric"><span class="metric-value">${count(projection?.anchors)}</span><span class="metric-label">anchors</span></span>
-          <span class="metric"><span class="metric-value">${count(projection?.arrows)}</span><span class="metric-label">arrows</span></span>
-          <span class="metric"><span class="metric-value">${count(projection?.wireCandidates)}</span><span class="metric-label">wire candidates</span></span>
-          <span class="metric"><span class="metric-value">${count(projection?.diagnostics ?? this.diagnostics.length)}</span><span class="metric-label">diagnostics</span></span>
+          <span class="metric"><span class="metric-value">${count(projection?.anchors)}</span><span class="metric-label">${t('anchors')}</span></span>
+          <span class="metric"><span class="metric-value">${count(projection?.arrows)}</span><span class="metric-label">${t('arrows')}</span></span>
+          <span class="metric"><span class="metric-value">${count(projection?.wireCandidates)}</span><span class="metric-label">${t('wire candidates')}</span></span>
+          <span class="metric"><span class="metric-value">${count(projection?.diagnostics ?? this.diagnostics.length)}</span><span class="metric-label">${t('diagnostics')}</span></span>
         </div>
         ${trimmed(projection?.searchText)
-          ? html`<div class="row"><span>Search text</span><strong title=${projection!.searchText!}>${projection!.searchText}</strong></div>`
+          ? html`<div class="row"><span>${t('Search text')}</span><strong title=${projection!.searchText!}>${projection!.searchText}</strong></div>`
           : nothing}
       </section>
     `
@@ -703,14 +706,14 @@ export class MnExcalidrawCanvas extends SkinAware(LitElement) {
   private renderWireSummary(): TemplateResult {
     const wires = this.wireSummary
     return html`
-      <section class="panel" aria-label="Scene wires">
+      <section class="panel" aria-label=${t('Scene wires')}>
         <h3 class="panel-title">${icon('git-branch', { size: 15 })} Wires</h3>
-        <div class="row"><span>Unsynced candidates</span><strong>${count(wires?.missing)}</strong></div>
-        <div class="row"><span>Hydratable wires</span><strong>${count(wires?.hydratable)}</strong></div>
-        <div class="row"><span>Created</span><strong>${count(wires?.created)}</strong></div>
-        <div class="row"><span>Hydrated</span><strong>${count(wires?.hydrated)}</strong></div>
+        <div class="row"><span>${t('Unsynced candidates')}</span><strong>${count(wires?.missing)}</strong></div>
+        <div class="row"><span>${t('Hydratable wires')}</span><strong>${count(wires?.hydratable)}</strong></div>
+        <div class="row"><span>${t('Created')}</span><strong>${count(wires?.created)}</strong></div>
+        <div class="row"><span>${t('Hydrated')}</span><strong>${count(wires?.hydrated)}</strong></div>
         ${trimmed(wires?.lastMessage)
-          ? html`<div class="row"><span>Last result</span><strong title=${wires!.lastMessage!}>${wires!.lastMessage}</strong></div>`
+          ? html`<div class="row"><span>${t('Last result')}</span><strong title=${wires!.lastMessage!}>${wires!.lastMessage}</strong></div>`
           : nothing}
       </section>
     `
@@ -720,9 +723,9 @@ export class MnExcalidrawCanvas extends SkinAware(LitElement) {
     const selected = this.selectedElement
     if (!selected) {
       return html`
-        <section class="panel" aria-label="Selected scene element">
+        <section class="panel" aria-label=${t('Selected scene element')}>
           <h3 class="panel-title">${icon('panel-left', { size: 15 })} Selection</h3>
-          <p class="empty-note">Select one scene element to link it, inspect its target, or edit its wire predicate.</p>
+          <p class="empty-note">${t('Select one scene element to link it, inspect its target, or edit its wire predicate.')}</p>
         </section>
       `
     }
@@ -733,20 +736,20 @@ export class MnExcalidrawCanvas extends SkinAware(LitElement) {
     const currentPredicate = trimmed(selected.predicate)
     const hasPredicate = currentPredicate && !this.predicateOptions.some(option => option.value === currentPredicate)
     return html`
-      <section class="panel" aria-label="Selected scene element" data-selected-element-id=${selected.id}>
+      <section class="panel" aria-label=${t('Selected scene element')} data-selected-element-id=${selected.id}>
         <h3 class="panel-title">${icon('panel-left', { size: 15 })} Selection</h3>
-        <div class="row"><span>Element</span><strong title=${selected.id}>${selected.label || selected.id}</strong></div>
-        ${trimmed(selected.type) ? html`<div class="row"><span>Type</span><strong>${selected.type}</strong></div>` : nothing}
+        <div class="row"><span>${t('Element')}</span><strong title=${selected.id}>${selected.label || selected.id}</strong></div>
+        ${trimmed(selected.type) ? html`<div class="row"><span>${t('Type')}</span><strong>${selected.type}</strong></div>` : nothing}
         ${trimmed(selected.linkTargetId)
           ? html`
               <div class="row"><span>Linked ${selected.linkKind ?? 'node'}</span><strong title=${selected.linkTargetId!}>${selected.linkTitle || selected.linkTargetId}</strong></div>
             `
-          : html`<div class="row"><span>Linked node</span><strong>none</strong></div>`}
+          : html`<div class="row"><span>${t('Linked node')}</span><strong>${t('none')}</strong></div>`}
         ${this.predicateOptions.length || currentPredicate
           ? html`
               <select
                 class="predicate"
-                aria-label="Wire predicate"
+                aria-label=${t('Wire predicate')}
                 .value=${currentPredicate}
                 @change=${(event: Event) => this.changePredicate((event.currentTarget as HTMLSelectElement).value)}
               >
@@ -757,7 +760,7 @@ export class MnExcalidrawCanvas extends SkinAware(LitElement) {
           : nothing}
         <div class="inline-actions">
           <button type="button" class="action" data-action="link-selected" ?disabled=${!this.ready || !canLink} @click=${() => this.emitElement('mn-excalidraw-link-selected')}>
-            ${icon('link', { size: 14 })} ${selected.linkTargetId ? 'Relink' : 'Link'}
+            ${icon('link', { size: 14 })} ${selected.linkTargetId ? 'Relink' : t('Link')}
           </button>
           <button type="button" class="action" data-action="open-selected-link" ?disabled=${!canOpen} @click=${() => this.emitElement('mn-excalidraw-open-selected-link')}>
             ${icon('external-link', { size: 14 })} Open
@@ -776,10 +779,10 @@ export class MnExcalidrawCanvas extends SkinAware(LitElement) {
   private renderDiagnostics(): TemplateResult {
     const items = this.diagnostics.slice(0, 6)
     return html`
-      <section class="panel" aria-label="Scene diagnostics">
+      <section class="panel" aria-label=${t('Scene diagnostics')}>
         <h3 class="panel-title">${icon('alert-triangle', { size: 15 })} Diagnostics</h3>
         ${items.length === 0
-          ? html`<p class="empty-note">No scene diagnostics.</p>`
+          ? html`<p class="empty-note">${t('No scene diagnostics.')}</p>`
           : html`
               <div class="diagnostics">
                 ${items.map(item => {
@@ -815,31 +818,31 @@ export class MnExcalidrawCanvas extends SkinAware(LitElement) {
               ${this.renderStatus('canvas', this.status)}
             </div>
             <div class="meta-row">
-              <span class="meta">${trimmed(this.graphId) || 'No graph'} / ${trimmed(this.artifactId) || 'No artifact'}</span>
+              <span class="meta">${trimmed(this.graphId) || t('No graph')} / ${trimmed(this.artifactId) || t('No artifact')}</span>
             </div>
           </div>
           <div class="actions">
             ${this.renderStatus('save', this.saveStatus)}
-            <button type="button" class="action" data-action="reload" ?disabled=${!trimmed(this.artifactId)} @click=${() => this.emitCanvas('mn-excalidraw-reload')} title="Reload scene">
+            <button type="button" class="action" data-action="reload" ?disabled=${!trimmed(this.artifactId)} @click=${() => this.emitCanvas('mn-excalidraw-reload')} title=${t('Reload scene')}>
               ${icon('refresh', { size: 14 })} Reload
             </button>
-            <button type="button" class="action" data-action="refresh-projection" ?disabled=${!canOperate} @click=${() => this.emitCanvas('mn-excalidraw-refresh-projection')} title="Refresh scene projection">
+            <button type="button" class="action" data-action="refresh-projection" ?disabled=${!canOperate} @click=${() => this.emitCanvas('mn-excalidraw-refresh-projection')} title=${t('Refresh scene projection')}>
               ${icon('graph', { size: 14 })} Project
             </button>
-            <button type="button" class="action" data-action="refresh-link-titles" ?disabled=${!canOperate} @click=${() => this.emitCanvas('mn-excalidraw-refresh-link-titles')} title="Refresh linked node titles">
+            <button type="button" class="action" data-action="refresh-link-titles" ?disabled=${!canOperate} @click=${() => this.emitCanvas('mn-excalidraw-refresh-link-titles')} title=${t('Refresh linked node titles')}>
               ${icon('refresh-cw', { size: 14 })} Links
             </button>
-            <button type="button" class="action" data-action="sync-wires" ?disabled=${!canSync || this.syncStatus === 'running'} @click=${() => this.emitCanvas('mn-excalidraw-sync-wires')} title="Create graph wires from scene arrows">
+            <button type="button" class="action" data-action="sync-wires" ?disabled=${!canSync || this.syncStatus === 'running'} @click=${() => this.emitCanvas('mn-excalidraw-sync-wires')} title=${t('Create graph wires from scene arrows')}>
               ${icon('git-branch', { size: 14 })} ${this.syncStatus === 'running' ? 'Syncing' : 'Sync'}
             </button>
-            <button type="button" class="action" data-action="hydrate-wires" ?disabled=${!canHydrate || this.hydrateStatus === 'running'} @click=${() => this.emitCanvas('mn-excalidraw-hydrate-wires')} title="Add graph wires to the scene">
+            <button type="button" class="action" data-action="hydrate-wires" ?disabled=${!canHydrate || this.hydrateStatus === 'running'} @click=${() => this.emitCanvas('mn-excalidraw-hydrate-wires')} title=${t('Add graph wires to the scene')}>
               ${icon('download', { size: 14 })} ${this.hydrateStatus === 'running' ? 'Hydrating' : 'Hydrate'}
             </button>
-            <button type="button" class="action" data-action="link-selected-toolbar" ?disabled=${!canLinkSelected} @click=${() => this.emitElement('mn-excalidraw-link-selected')} title="Link selected element">
+            <button type="button" class="action" data-action="link-selected-toolbar" ?disabled=${!canLinkSelected} @click=${() => this.emitElement('mn-excalidraw-link-selected')} title=${t('Link selected element')}>
               ${icon('link', { size: 14 })} Link
             </button>
-            <button type="button" class="action primary" data-action="save" ?disabled=${!canOperate || this.saveStatus === 'saving'} @click=${() => this.emitCanvas('mn-excalidraw-save')} title="Save scene version">
-              ${icon('save', { size: 14 })} ${this.saveStatus === 'saving' ? 'Saving' : 'Save'}
+            <button type="button" class="action primary" data-action="save" ?disabled=${!canOperate || this.saveStatus === 'saving'} @click=${() => this.emitCanvas('mn-excalidraw-save')} title=${t('Save scene version')}>
+              ${icon('save', { size: 14 })} ${this.saveStatus === 'saving' ? 'Saving' : t('Save')}
             </button>
           </div>
         </div>
@@ -851,7 +854,7 @@ export class MnExcalidrawCanvas extends SkinAware(LitElement) {
               ${this.renderStage()}
             </div>
           </div>
-          <aside class="side" aria-label="Scene details">
+          <aside class="side" aria-label=${t('Scene details')}>
             ${this.renderProjection()}
             ${this.renderWireSummary()}
             ${this.renderSelectedElement()}

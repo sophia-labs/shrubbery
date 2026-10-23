@@ -7,6 +7,7 @@
  * focus; counts as one honest line; no tiles. Read-only this wave (claim
  * and close are S6).
  */
+import { LocaleController, localeSource, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, type TemplateResult } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 import type { MyWorkBead, MyWorkGatedBead, MyWorkReading } from '../../despacho/mywork-reading.js'
@@ -26,11 +27,13 @@ function formatWhen(iso: string | null): string {
   if (!iso) return ''
   const date = new Date(iso)
   if (Number.isNaN(date.getTime())) return iso
-  return new Intl.DateTimeFormat('en', { dateStyle: 'medium' }).format(date)
+  return new Intl.DateTimeFormat(localeSource.get(), { dateStyle: 'medium' }).format(date)
 }
 
 @customElement('sh-my-work-view')
 export class ShMyWorkView extends LitElement {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     :host {
       display: flex;
@@ -170,7 +173,7 @@ export class ShMyWorkView extends LitElement {
       <a href=${this.focusHref(bead.iri)}>${bead.title}</a>
       <div class="meta">
         ${bead.priority !== null ? html`<span>priority ${bead.priority}</span>` : nothing}
-        ${bead.partTitle ? html`<span>in <a href=${this.focusHref(bead.partOf ?? '')}>${bead.partTitle}</a></span>` : nothing}
+        ${bead.partTitle ? html`<span>${t('in')} <a href=${this.focusHref(bead.partOf ?? '')}>${bead.partTitle}</a></span>` : nothing}
         ${bead.createdAt ? html`<span>strung ${formatWhen(bead.createdAt)}</span>` : nothing}
       </div>
     </li>`
@@ -182,7 +185,7 @@ export class ShMyWorkView extends LitElement {
       <a href=${this.focusHref(bead.iri)}>${bead.title}</a>
       <div class="meta">
         <span>${bead.status.replace('_', ' ')}</span>
-        <span>waits on <a href=${this.focusHref(bead.gate)}>${bead.gateTitle}</a></span>
+        <span>${t('waits on')} <a href=${this.focusHref(bead.gate)}>${bead.gateTitle}</a></span>
       </div>
     </li>`
   }
@@ -199,7 +202,7 @@ export class ShMyWorkView extends LitElement {
   private _room(reading: MyWorkReading): TemplateResult {
     return html`<div class="room">
       <div class="eyebrow mn-kind" data-kind="identity">
-        <span class="kind">my work</span>
+        <span class="kind">${t('my work')}</span>
         <span>held by ${reading.owner}</span>
       </div>
       <h1 class="title mn-kind" data-kind="identity">Held by ${reading.owner}</h1>
@@ -220,14 +223,14 @@ export class ShMyWorkView extends LitElement {
   }
 
   private _body(): TemplateResult {
-    if (this.status === 'loading') return this._state('Gathering the work…')
+    if (this.status === 'loading') return this._state(t('Gathering the work…'))
     if (this.status === 'error') return this._state(this.error || 'The work could not be gathered.', 'danger')
-    if (!this.reading) return this._state('Nothing to show.')
+    if (!this.reading) return this._state(t('Nothing to show.'))
     return this._room(this.reading)
   }
 
   render(): TemplateResult {
-    return html`<div class="stage" role="region" data-stance="dispatch" aria-label=${this.reading ? `Work held by ${this.reading.owner}` : 'My work'}>
+    return html`<div class="stage" role="region" data-stance="dispatch" aria-label=${this.reading ? `Work held by ${this.reading.owner}` : t('My work')}>
       ${this._body()}
     </div>`
   }

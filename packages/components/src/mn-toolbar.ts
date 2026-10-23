@@ -7,6 +7,7 @@
  * editor state.
  */
 
+import { LocaleController, localizeLabel } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, unsafeCSS } from 'lit'
 import { customElement, property, query, state } from 'lit/decorators.js'
 import { SkinAware } from './skin-aware.js'
@@ -23,6 +24,8 @@ export interface MnToolbarOverflowSelectDetail {
 
 @customElement('mn-toolbar')
 export class MnToolbar extends SkinAware(LitElement) {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     :host {
       display: flex;
@@ -77,6 +80,8 @@ export class MnToolbar extends SkinAware(LitElement) {
 
 @customElement('mn-toolbar-group')
 export class MnToolbarGroup extends SkinAware(LitElement) {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     :host {
       display: inline-flex;
@@ -130,7 +135,7 @@ export class MnToolbarGroup extends SkinAware(LitElement) {
   override render() {
     return html`
       <span class="group" role="group" aria-label=${this.label || nothing}>
-        ${this.label ? html`<span class="label" aria-hidden="true">${this.label}</span>` : nothing}
+        ${this.label ? html`<span class="label" aria-hidden="true">${localizeLabel(this.label)}</span>` : nothing}
         <slot></slot>
       </span>
     `
@@ -139,6 +144,8 @@ export class MnToolbarGroup extends SkinAware(LitElement) {
 
 @customElement('mn-toolbar-overflow')
 export class MnToolbarOverflow extends SkinAware(LitElement) {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     ${unsafeCSS(iconStyles)}
 

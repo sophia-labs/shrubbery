@@ -7,6 +7,7 @@
  * intents for the shell to handle.
  */
 
+import { LocaleController, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, unsafeCSS, type TemplateResult } from 'lit'
 import { customElement, property, state } from 'lit/decorators.js'
 import { SkinAware } from './skin-aware.js'
@@ -265,6 +266,8 @@ const authStyles = css`
 `
 
 class AuthBase extends SkinAware(LitElement) {
+  protected readonly _locale = new LocaleController(this)
+
   protected fieldChange(field: string, value: string | boolean): void {
     emit<MnAuthFieldChangeDetail>(this, 'mn-auth-field-change', { field, value })
   }
@@ -321,10 +324,10 @@ export class MnSignInForm extends AuthBase {
     const loading = this.status === 'loading'
     return html`
       <form novalidate @submit=${this.submit}>
-        <h2 class="title">Sign in to your account</h2>
+        <h2 class="title">${t('Sign in to your account')}</h2>
         ${this.renderBanner('error', this.error)}
         <div class="field">
-          <label for="signin-identity">Username or email</label>
+          <label for="signin-identity">${t('Username or email')}</label>
           <input
             id="signin-identity"
             data-auth-field="identity"
@@ -336,7 +339,7 @@ export class MnSignInForm extends AuthBase {
           />
         </div>
         <div class="field">
-          <label for="signin-password">Password</label>
+          <label for="signin-password">${t('Password')}</label>
           <input
             id="signin-password"
             data-auth-field="password"
@@ -348,13 +351,13 @@ export class MnSignInForm extends AuthBase {
           />
         </div>
         <button class="submit" type="submit" ?disabled=${loading || !trimmed(this.identity) || !this.password}>
-          ${loading ? 'Signing in...' : 'Sign in'}
+          ${loading ? t('Signing in...') : t('Sign in')}
         </button>
         ${this.allowSignup
           ? html`
               <p class="switch">
                 Don't have an account?
-                <button class="link-button" type="button" @click=${() => this.switchTo('signup')}>Sign up</button>
+                <button class="link-button" type="button" @click=${() => this.switchTo('signup')}>${t('Sign up')}</button>
               </p>
             `
           : nothing}
@@ -425,10 +428,10 @@ export class MnSignUpForm extends AuthBase {
     const loading = this.status === 'loading'
     return html`
       <form novalidate @submit=${this.submit}>
-        <h2 class="title">Sign up for a Sophia Labs account</h2>
+        <h2 class="title">${t('Sign up for a Sophia Labs account')}</h2>
         ${this.renderBanner('error', this.error)}
         <div class="field">
-          <label for="signup-username">Username</label>
+          <label for="signup-username">${t('Username')}</label>
           <input
             id="signup-username"
             data-auth-field="username"
@@ -442,7 +445,7 @@ export class MnSignUpForm extends AuthBase {
           ${this.renderError('username')}
         </div>
         <div class="field">
-          <label for="signup-email">Email</label>
+          <label for="signup-email">${t('Email')}</label>
           <input
             id="signup-email"
             data-auth-field="email"
@@ -456,7 +459,7 @@ export class MnSignUpForm extends AuthBase {
           ${this.renderError('email')}
         </div>
         <div class="field">
-          <label for="signup-name">Name <span class="optional">(optional)</span></label>
+          <label for="signup-name">${t('Name')} <span class="optional">(optional)</span></label>
           <input
             id="signup-name"
             data-auth-field="name"
@@ -467,7 +470,7 @@ export class MnSignUpForm extends AuthBase {
           />
         </div>
         <div class="field">
-          <label for="signup-password">Password</label>
+          <label for="signup-password">${t('Password')}</label>
           <input
             id="signup-password"
             data-auth-field="password"
@@ -480,10 +483,10 @@ export class MnSignUpForm extends AuthBase {
           />
           ${this.fieldErrors.password
             ? this.renderError('password')
-            : html`<div class="helper">At least 8 characters with uppercase, lowercase, and numbers.</div>`}
+            : html`<div class="helper">${t('At least 8 characters with uppercase, lowercase, and numbers.')}</div>`}
         </div>
         <div class="field">
-          <label for="signup-confirm">Confirm password</label>
+          <label for="signup-confirm">${t('Confirm password')}</label>
           <input
             id="signup-confirm"
             data-auth-field="confirmPassword"
@@ -506,7 +509,7 @@ export class MnSignUpForm extends AuthBase {
                     .checked=${this.acceptedPrivacy}
                     @change=${(event: Event) => this.setBool('acceptedPrivacy', (event.target as HTMLInputElement).checked)}
                   />
-                  <span>I agree to the <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a></span>
+                  <span>${t('I agree to the')} <a href="/privacy" target="_blank" rel="noopener">${t('Privacy Policy')}</a></span>
                 </label>
                 ${this.renderError('acceptedPrivacy')}
               </div>
@@ -518,18 +521,18 @@ export class MnSignUpForm extends AuthBase {
                     .checked=${this.acceptedTerms}
                     @change=${(event: Event) => this.setBool('acceptedTerms', (event.target as HTMLInputElement).checked)}
                   />
-                  <span>I agree to the <a href="/terms" target="_blank" rel="noopener">Terms and Conditions</a></span>
+                  <span>${t('I agree to the')} <a href="/terms" target="_blank" rel="noopener">${t('Terms and Conditions')}</a></span>
                 </label>
                 ${this.renderError('acceptedTerms')}
               </div>
             `
           : nothing}
         <button class="submit" type="submit" ?disabled=${loading}>
-          ${loading ? 'Creating account...' : 'Sign up'}
+          ${loading ? t('Creating account...') : t('Sign up')}
         </button>
         <p class="switch">
           Already have an account?
-          <button class="link-button" type="button" @click=${() => this.switchTo('signin')}>Sign in</button>
+          <button class="link-button" type="button" @click=${() => this.switchTo('signin')}>${t('Sign in')}</button>
         </p>
       </form>
     `
@@ -568,7 +571,7 @@ export class MnVerifyEmailForm extends AuthBase {
     const destination = maskDestination(this.deliveryDestination)
     return html`
       <form novalidate @submit=${this.submit}>
-        <h2 class="title">Verify your email</h2>
+        <h2 class="title">${t('Verify your email')}</h2>
         <p class="subtitle">
           ${destination
             ? html`We sent a verification code to <strong>${destination}</strong>.`
@@ -577,7 +580,7 @@ export class MnVerifyEmailForm extends AuthBase {
         ${this.renderBanner('success', this.success)}
         ${this.renderBanner('error', this.error)}
         <div class="field">
-          <label for="verify-identity">Username or email</label>
+          <label for="verify-identity">${t('Username or email')}</label>
           <input
             id="verify-identity"
             data-auth-field="identity"
@@ -589,7 +592,7 @@ export class MnVerifyEmailForm extends AuthBase {
           />
         </div>
         <div class="field">
-          <label for="verify-code">Verification code</label>
+          <label for="verify-code">${t('Verification code')}</label>
           <input
             id="verify-code"
             data-auth-field="code"
@@ -605,7 +608,7 @@ export class MnVerifyEmailForm extends AuthBase {
           />
         </div>
         <button class="submit" type="submit" ?disabled=${loading || trimmed(this.code).length < 6 || !trimmed(this.identity)}>
-          ${loading ? 'Verifying...' : 'Verify email'}
+          ${loading ? 'Verifying...' : t('Verify email')}
         </button>
         <button
           class="secondary-action"
@@ -616,7 +619,7 @@ export class MnVerifyEmailForm extends AuthBase {
           ${this.resendCooldown > 0 ? `Resend available in ${this.resendCooldown}s` : 'Resend verification code'}
         </button>
         <p class="switch">
-          <button class="link-button" type="button" @click=${() => this.switchTo('signin')}>Back to sign in</button>
+          <button class="link-button" type="button" @click=${() => this.switchTo('signin')}>${t('Back to sign in')}</button>
         </p>
       </form>
     `

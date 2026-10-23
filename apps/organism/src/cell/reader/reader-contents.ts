@@ -5,6 +5,7 @@
  * Controlled: the editor host passes the headings and the one in view, and scrolls the editor when one is chosen.
  * Events (bubble, composed): `rd-contents-navigate` { id }
  */
+import { LocaleController, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, type TemplateResult } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 import { READER_SIDE_STYLES, READER_TOKENS } from './reader-styles.js'
@@ -13,6 +14,8 @@ export interface ReaderContentsHeading { readonly id: string; readonly level: nu
 
 @customElement('mn-reader-contents')
 export class MnReaderContents extends LitElement {
+  protected readonly _locale = new LocaleController(this)
+
   static override styles = [READER_TOKENS, READER_SIDE_STYLES, css`
     :host { display: block; }
     .side { height: 100%; box-sizing: border-box; }
@@ -28,13 +31,13 @@ export class MnReaderContents extends LitElement {
 
   protected override render(): TemplateResult {
     const top = this.headings.reduce((least, h) => Math.min(least, h.level), 6)
-    return html`<aside class="side" aria-label="Contents">
-      <div class="tabs" role="tablist"><button type="button" role="tab" aria-selected="true">Contents</button></div>
+    return html`<aside class="side" aria-label=${t('Contents')}>
+      <div class="tabs" role="tablist"><button type="button" role="tab" aria-selected="true">${t('Contents')}</button></div>
       <div class="side-scroll">${this.headings.length
         ? html`<nav class="toc"><ul>${this.headings.map(h => html`<li style=${`padding-left:${Math.max(0, h.level - top) * 12}px`}>
             <button type="button" aria-current=${h.id === this.activeId ? 'true' : 'false'}
               @click=${() => this.dispatchEvent(new CustomEvent('rd-contents-navigate', { bubbles: true, composed: true, detail: { id: h.id } }))}>${h.text || '(untitled)'}</button></li>`)}</ul></nav>`
-        : html`<p class="empty">This document has no headings.</p>`}</div>
+        : html`<p class="empty">${t('This document has no headings.')}</p>`}</div>
     </aside>`
   }
 }

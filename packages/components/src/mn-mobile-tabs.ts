@@ -10,6 +10,7 @@
  * The historical `MnMobileTab` name remains exported because it is part of the
  * public component package.  Its values are primary roots, not ARIA tabs.
  */
+import { LocaleController, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, unsafeCSS } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 import { icon, iconStyles } from './icons.js'
@@ -23,6 +24,8 @@ export interface MnMobileTabDetail {
 
 @customElement('mn-mobile-tabs')
 export class MnMobileTabs extends LitElement {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     ${unsafeCSS(iconStyles)}
 
@@ -196,8 +199,8 @@ export class MnMobileTabs extends LitElement {
 
   render() {
     return html`
-      <nav class="navigation-bar" aria-label="Primary">
-        ${this.renderDestination('home', 'Home', 'sprout')}
+      <nav class="navigation-bar" aria-label=${t('Primary')}>
+        ${this.renderDestination('home', t('Home'), 'sprout')}
         ${this.renderDestination('browse', 'Browse', 'folder')}
         ${this.renderDestination('sophia', 'Sophia', 'message-circle')}
       </nav>

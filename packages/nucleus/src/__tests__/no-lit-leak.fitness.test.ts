@@ -32,6 +32,9 @@ import { fileURLToPath } from 'node:url'
 // whose membership is a reviewed decision. interpreter.ts is intentionally ABSENT
 // — it is the renderer-coupled stamp layer and is allowed to import lit.
 const PURE_PIPELINE_FILES = [
+  '../i18n/index.ts',
+  '../i18n/en.ts',
+  '../i18n/ja.ts',
   // RDF codec: term/triple model + N-Triples parse/serialize. Zero imports today.
   '../workspace/rdf-model.ts',
   // sux: <-> WorkspaceConfig projection. Imports only ./types + ./rdf-model.

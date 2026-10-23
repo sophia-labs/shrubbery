@@ -9,6 +9,7 @@
  * document, Zotero-open, reload, and promotion intents outside this component.
  */
 
+import { LocaleController, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, unsafeCSS, type TemplateResult } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 import { styleMap } from 'lit/directives/style-map.js'
@@ -84,6 +85,8 @@ function yearOf(item: MnZoteroSourceItem | null): string {
 
 @customElement('mn-zotero-source-workbench')
 export class MnZoteroSourceWorkbench extends SkinAware(LitElement) {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     ${unsafeCSS(iconStyles)}
 
@@ -471,7 +474,7 @@ export class MnZoteroSourceWorkbench extends SkinAware(LitElement) {
                   type="button"
                   class="promote"
                   data-zotero-promote
-                  title="Promote into today's daily note as a quote"
+                  title=${t('Promote into today\'s daily note as a quote')}
                   @click=${() => this.promote(annotation)}
                 >
                   ${icon('corner-up-right', { size: 13 })}Promote
@@ -494,7 +497,7 @@ export class MnZoteroSourceWorkbench extends SkinAware(LitElement) {
         @click=${() => this.openDocument(wire)}
       >
         <div class="rel">${clean(wire.predicateLabel) || 'cites'}</div>
-        <div class="snip">${clean(wire.otherSnippet) || clean(wire.otherTitle) || clean(wire.otherDocumentId) || 'Untitled document'}</div>
+        <div class="snip">${clean(wire.otherSnippet) || clean(wire.otherTitle) || clean(wire.otherDocumentId) || t('Untitled document')}</div>
       </button>
     `
   }
@@ -513,11 +516,11 @@ export class MnZoteroSourceWorkbench extends SkinAware(LitElement) {
               </button>
             `
           : nothing}
-        ${abstract ? html`<div class="label">Abstract</div><div class="abstract">${abstract}</div>` : nothing}
-        ${type ? html`<div class="label">Type</div><div data-zotero-type>${type}</div>` : nothing}
+        ${abstract ? html`<div class="label">${t('Abstract')}</div><div class="abstract">${abstract}</div>` : nothing}
+        ${type ? html`<div class="label">${t('Type')}</div><div data-zotero-type>${type}</div>` : nothing}
         ${tags.length
           ? html`
-              <div class="label">Tags</div>
+              <div class="label">${t('Tags')}</div>
               <div class="tags">
                 ${tags.map(tag => html`
                   <button
@@ -532,7 +535,7 @@ export class MnZoteroSourceWorkbench extends SkinAware(LitElement) {
               </div>
             `
           : nothing}
-        ${this.loading ? html`<div class="label muted" data-zotero-loading>Resolving from Zotero...</div>` : nothing}
+        ${this.loading ? html`<div class="label muted" data-zotero-loading>${t('Resolving from Zotero...')}</div>` : nothing}
       </div>
     `
   }
@@ -546,7 +549,7 @@ export class MnZoteroSourceWorkbench extends SkinAware(LitElement) {
     return html`
       <div class="wrap" data-zotero-source-workbench>
         <header>
-          <div class="kicker">Source - Zotero</div>
+          <div class="kicker">${t('Source - Zotero')}</div>
           <h1>${title}</h1>
           <div class="byline">${bylineText}</div>
           <div class="actions">
@@ -563,14 +566,14 @@ export class MnZoteroSourceWorkbench extends SkinAware(LitElement) {
           <h2>From your reading${this.annotations.length ? ` - ${this.annotations.length}` : ''}</h2>
           ${this.annotations.length
             ? this.annotations.map(annotation => this.renderAnnotation(annotation))
-            : html`<div class="empty">No notes or highlights on this source in Zotero.</div>`}
+            : html`<div class="empty">${t('No notes or highlights on this source in Zotero.')}</div>`}
         </section>
 
         <section>
-          <h2>In your graph</h2>
+          <h2>${t('In your graph')}</h2>
           ${this.incomingWires.length
             ? this.incomingWires.map(wire => this.renderIncoming(wire))
-            : html`<div class="empty">Nothing cites this source yet. Use /cite in a document to ground a claim here.</div>`}
+            : html`<div class="empty">${t('Nothing cites this source yet. Use /cite in a document to ground a claim here.')}</div>`}
         </section>
 
         ${this.renderRail()}

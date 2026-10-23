@@ -7,6 +7,7 @@
  * UI and user intents, but all IO and restore work are shell-owned props/events.
  */
 
+import { LocaleController, localeSource, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, unsafeCSS, type TemplateResult } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 import { repeat } from 'lit/directives/repeat.js'
@@ -93,8 +94,8 @@ function relativeTime(value: string | number | Date): string {
 
 function absoluteTime(value: string | number | Date): string {
   const date = new Date(timestamp(value))
-  if (!Number.isFinite(date.getTime())) return 'Unknown date'
-  return date.toLocaleString(undefined, {
+  if (!Number.isFinite(date.getTime())) return t('Unknown date')
+  return date.toLocaleString(localeSource.get(), {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
@@ -140,6 +141,8 @@ export function diffHistoryLines(olderText: string, newerText: string): MnDocHis
 
 @customElement('mn-doc-history-panel')
 export class MnDocHistoryPanel extends SkinAware(LitElement) {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     ${unsafeCSS(iconStyles)}
 
@@ -593,7 +596,7 @@ export class MnDocHistoryPanel extends SkinAware(LitElement) {
 
   private _rows(): Row[] {
     return [
-      { id: 'live', kind: 'live', label: 'Live (now)', sublabel: 'unsaved working copy' },
+      { id: 'live', kind: 'live', get label() { return t('Live (now)') }, sublabel: 'unsaved working copy' },
       ...this.snapshots.map((snapshot) => ({
         id: snapshot.id,
         kind: snapshot.isManual ? 'manual' as const : 'auto' as const,
@@ -605,7 +608,7 @@ export class MnDocHistoryPanel extends SkinAware(LitElement) {
   }
 
   private _rowLabel(id: MnDocHistoryCursorId): string {
-    if (id === 'live') return 'Live (now)'
+    if (id === 'live') return t('Live (now)')
     return this._rows().find((row) => row.id === id)?.label ?? id
   }
 
@@ -711,8 +714,8 @@ export class MnDocHistoryPanel extends SkinAware(LitElement) {
             <button
               type="button"
               class="icon-button"
-              title="Bookmark snapshot"
-              aria-label="Bookmark snapshot"
+              title=${t('Bookmark snapshot')}
+              aria-label=${t('Bookmark snapshot')}
               @click=${(event: Event) => this._bookmark(row.snapshot!.id, event)}
               @keydown=${(event: KeyboardEvent) => {
                 if (event.key === 'Enter' || event.key === ' ') this._bookmark(row.snapshot!.id, event)
@@ -721,8 +724,8 @@ export class MnDocHistoryPanel extends SkinAware(LitElement) {
             <button
               type="button"
               class="icon-button"
-              title="Delete snapshot"
-              aria-label="Delete snapshot"
+              title=${t('Delete snapshot')}
+              aria-label=${t('Delete snapshot')}
               @click=${(event: Event) => this._delete(row.snapshot!.id, event)}
               @keydown=${(event: KeyboardEvent) => {
                 if (event.key === 'Enter' || event.key === ' ') this._delete(row.snapshot!.id, event)
@@ -739,10 +742,10 @@ export class MnDocHistoryPanel extends SkinAware(LitElement) {
     return html`
       <aside class="rail">
         <div class="rail-header">
-          <span class="rail-title">Snapshots</span>
+          <span class="rail-title">${t('Snapshots')}</span>
           <span class="cursor-summary">
-            <b>Older:</b> ${this._rowLabel(this.olderId) || 'Select a snapshot'}<br>
-            <b>Newer:</b> ${this._rowLabel(this.newerId) || 'Select a snapshot'}
+            <b>${t('Older:')}</b> ${this._rowLabel(this.olderId) || t('Select a snapshot')}<br>
+            <b>${t('Newer:')}</b> ${this._rowLabel(this.newerId) || t('Select a snapshot')}
           </span>
           <span>
             <button type="button" class="ghost-button" @click=${() => this._focusSide(this.focusedSide === 'older' ? 'newer' : 'older')}>
@@ -753,9 +756,9 @@ export class MnDocHistoryPanel extends SkinAware(LitElement) {
             </button>
           </span>
         </div>
-        <div class="rail-list" role="listbox" aria-label="Document snapshots">
+        <div class="rail-list" role="listbox" aria-label=${t('Document snapshots')}>
           ${this.status === 'loading'
-            ? html`<div class="status"><mn-loading size="sm" text="Loading history"></mn-loading></div>`
+            ? html`<div class="status"><mn-loading size="sm" text=${t('Loading history')}></mn-loading></div>`
             : repeat(rows, (row) => row.id, (row) => this._renderRow(row))}
         </div>
       </aside>
@@ -765,7 +768,7 @@ export class MnDocHistoryPanel extends SkinAware(LitElement) {
   private _renderSplitDiff(lines: readonly MnDocHistoryDiffLine[]): TemplateResult {
     return html`
       <div class="diff-table">
-        <div class="diff-side" aria-label="Older snapshot text">
+        <div class="diff-side" aria-label=${t('Older snapshot text')}>
           ${lines.map((line) => html`
             <div class="diff-line" data-kind=${line.kind === 'added' ? 'same' : line.kind}>
               <span class="line-no">${line.older === undefined ? '' : line.index}</span>
@@ -773,7 +776,7 @@ export class MnDocHistoryPanel extends SkinAware(LitElement) {
             </div>
           `)}
         </div>
-        <div class="diff-side" aria-label="Newer snapshot text">
+        <div class="diff-side" aria-label=${t('Newer snapshot text')}>
           ${lines.map((line) => html`
             <div class="diff-line" data-kind=${line.kind === 'removed' ? 'same' : line.kind}>
               <span class="line-no">${line.newer === undefined ? '' : line.index}</span>
@@ -787,7 +790,7 @@ export class MnDocHistoryPanel extends SkinAware(LitElement) {
 
   private _renderUnifiedDiff(lines: readonly MnDocHistoryDiffLine[]): TemplateResult {
     return html`
-      <div class="diff-unified" aria-label="Unified snapshot diff">
+      <div class="diff-unified" aria-label=${t('Unified snapshot diff')}>
         ${lines.map((line) => {
           if (line.kind === 'same') {
             return html`<div class="diff-line" data-kind="same"><span class="line-no">${line.index}</span><span class="line-text"> ${line.older ?? ''}</span></div>`
@@ -813,22 +816,22 @@ export class MnDocHistoryPanel extends SkinAware(LitElement) {
         <div class="status">
           <mn-empty-state
             icon="clock"
-            title="Select a snapshot"
-            description="Choose an older snapshot to compare against the live document."
+            title=${t('Select a snapshot')}
+            description=${t('Choose an older snapshot to compare against the live document.')}
           ></mn-empty-state>
         </div>
       `
     }
     if (this.diffStatus === 'loading') {
-      return html`<div class="status"><mn-loading text="Loading diff"></mn-loading></div>`
+      return html`<div class="status"><mn-loading text=${t('Loading diff')}></mn-loading></div>`
     }
     if (this.diffStatus === 'error') {
       return html`
         <div class="status">
           <mn-empty-state
             icon="alert-circle"
-            title="Could not load diff"
-            description=${this.diffError || 'The selected versions could not be read.'}
+            title=${t('Could not load diff')}
+            description=${this.diffError || t('The selected versions could not be read.')}
             mood="danger"
           ></mn-empty-state>
         </div>
@@ -840,8 +843,8 @@ export class MnDocHistoryPanel extends SkinAware(LitElement) {
         <div class="status">
           <mn-empty-state
             icon="file-text"
-            title="No changes"
-            description="These two versions have the same markdown text."
+            title=${t('No changes')}
+            description=${t('These two versions have the same markdown text.')}
           ></mn-empty-state>
         </div>
       `
@@ -857,8 +860,8 @@ export class MnDocHistoryPanel extends SkinAware(LitElement) {
           <div class="status">
             <mn-empty-state
               icon="alert-circle"
-              title="Could not load history"
-              description=${this.error || 'The snapshot list could not be read.'}
+              title=${t('Could not load history')}
+              description=${this.error || t('The snapshot list could not be read.')}
               mood="danger"
             ></mn-empty-state>
           </div>
@@ -868,11 +871,11 @@ export class MnDocHistoryPanel extends SkinAware(LitElement) {
     return html`
       <div class="body">
         ${this._renderRail()}
-        <section class="diff-pane" aria-label="Snapshot comparison">
+        <section class="diff-pane" aria-label=${t('Snapshot comparison')}>
           <div class="diff-toolbar">
             <span class="pair-label">
               <span class="side-pill" data-side="older">${this._rowLabel(this.olderId) || 'Older'}</span>
-              <span>vs</span>
+              <span>${t('vs')}</span>
               <span class="side-pill" data-side="newer">${this._rowLabel(this.newerId) || 'Newer'}</span>
             </span>
             <span class="spacer"></span>
@@ -881,13 +884,13 @@ export class MnDocHistoryPanel extends SkinAware(LitElement) {
               class="toggle-button"
               data-active=${this.diffStyle === 'split' ? 'true' : 'false'}
               @click=${() => this._setDiffStyle('split')}
-            >Split</button>
+            >${t('Split')}</button>
             <button
               type="button"
               class="toggle-button"
               data-active=${this.diffStyle === 'unified' ? 'true' : 'false'}
               @click=${() => this._setDiffStyle('unified')}
-            >Unified</button>
+            >${t('Unified')}</button>
           </div>
           <div class="diff-host">${this._renderDiff()}</div>
         </section>
@@ -901,19 +904,19 @@ export class MnDocHistoryPanel extends SkinAware(LitElement) {
       <header class="header">
         <span class="title-wrap">
           <h2 class="title">${icon('clock', { size: 17 })}${this.title}</h2>
-          <span class="subtitle">${this.subtitle || 'Compare snapshots against the live document'}</span>
+          <span class="subtitle">${this.subtitle || t('Compare snapshots against the live document')}</span>
         </span>
         <span class="spacer"></span>
         <button type="button" class="ghost-button" @click=${() => this._refresh()}>
           ${icon('refresh', { size: 14 })} Refresh
         </button>
         ${this.showClose
-          ? html`<button type="button" class="icon-button" aria-label="Close history" @click=${() => this._close()}>${icon('x', { size: 16 })}</button>`
+          ? html`<button type="button" class="icon-button" aria-label=${t('Close history')} @click=${() => this._close()}>${icon('x', { size: 16 })}</button>`
           : nothing}
       </header>
       <div class="body-host">${this._renderBody()}</div>
       <footer class="footer">
-        <span class="hint">Restoring replaces the current document with this older snapshot.</span>
+        <span class="hint">${t('Restoring replaces the current document with this older snapshot.')}</span>
         <span class="footer-action">${this._renderRestoreButton(restoreDisabled)}</span>
       </footer>
     `

@@ -16,6 +16,7 @@
  * the words for why).
  */
 
+import { LocaleController, localeSource, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, type TemplateResult } from 'lit'
 import { customElement, property, state } from 'lit/decorators.js'
 import {
@@ -56,6 +57,8 @@ function detailLine(model: ChatModelOption, extra?: string): string {
 
 @customElement('sh-continue-chooser')
 export class ShContinueChooser extends LitElement {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     :host {
       position: absolute;
@@ -196,7 +199,7 @@ export class ShContinueChooser extends LitElement {
       named.push({
         key: 'same',
         model: match.model,
-        label: 'Same voice as before (source-recorded)',
+        get label() { return t('Same voice as before (source-recorded)') },
         detail: detailLine(match.model, match.model.house ? 'also the House default' : undefined),
       })
     } else if (match.kind === 'closest') {
@@ -294,9 +297,9 @@ export class ShContinueChooser extends LitElement {
     const window = this.plan?.window
     if (!window) return ''
     const carried = window.messages.length
-    if (window.omitted === 0) return `All ${window.total.toLocaleString('en-US')} messages will be carried over.`
-    const said = window.omitted === 1 ? '1 earlier message is' : `${window.omitted.toLocaleString('en-US')} earlier messages are`
-    return `${carried.toLocaleString('en-US')} of ${window.total.toLocaleString('en-US')} messages will be carried over: the first, and the most recent. ${said} not included.`
+    if (window.omitted === 0) return `All ${window.total.toLocaleString(localeSource.get())} messages will be carried over.`
+    const said = window.omitted === 1 ? '1 earlier message is' : `${window.omitted.toLocaleString(localeSource.get())} earlier messages are`
+    return `${carried.toLocaleString(localeSource.get())} of ${window.total.toLocaleString(localeSource.get())} messages will be carried over: the first, and the most recent. ${said} not included.`
   }
 
   private renderOption(choice: Choice, selected: ChoiceKey | null, busy: boolean): TemplateResult {
@@ -325,7 +328,7 @@ export class ShContinueChooser extends LitElement {
     const groups = groupVoices(others)
     return html`
       <fieldset data-continue-voices ?disabled=${busy}>
-        <legend>Who picks this up?</legend>
+        <legend>${t('Who picks this up?')}</legend>
         ${named.map(choice => this.renderOption(choice, selected, busy))}
         <label class="option" data-voice-option="other">
           <input
@@ -337,9 +340,9 @@ export class ShContinueChooser extends LitElement {
             @change=${() => { this.choice = 'other' }}
             @click=${() => { this.choice = 'other' }}
           />
-          <span class="option-name">Another voice…</span>
+          <span class="option-name">${t('Another voice…')}</span>
           <select
-            aria-label="Another voice"
+            aria-label=${t('Another voice')}
             ?disabled=${busy}
             .value=${this.otherModelId()}
             @change=${(event: Event) => {
@@ -363,14 +366,14 @@ export class ShContinueChooser extends LitElement {
   private renderBody(): TemplateResult {
     if (this.phase === 'reading') {
       return html`
-        <p class="status" role="status">Reading the conversation…</p>
-        <div class="actions"><button type="button" data-continue-cancel @click=${() => this.cancel()}>Cancel</button></div>
+        <p class="status" role="status">${t('Reading the conversation…')}</p>
+        <div class="actions"><button type="button" data-continue-cancel @click=${() => this.cancel()}>${t('Cancel')}</button></div>
       `
     }
     if (this.phase === 'refused') {
       return html`
         <p class="error" role="alert" data-continue-error>${this.message}</p>
-        <div class="actions"><button type="button" data-continue-cancel @click=${() => this.cancel()}>Close</button></div>
+        <div class="actions"><button type="button" data-continue-cancel @click=${() => this.cancel()}>${t('Close')}</button></div>
       `
     }
     const busy = this.phase === 'starting'
@@ -384,14 +387,14 @@ export class ShContinueChooser extends LitElement {
       <div class="choices">
         ${this.renderVoices(busy)}
         ${this.others().length === 0
-          ? html`<p class="window" data-continue-default>This workspace’s own voice will pick it up.</p>`
+          ? html`<p class="window" data-continue-default>${t('This workspace’s own voice will pick it up.')}</p>`
           : nothing}
       </div>
       <p class="notice" role="note" data-continue-notice>${noticeText}</p>
       <div class="actions">
-        <button type="button" data-continue-cancel ?disabled=${busy} @click=${() => this.cancel()}>Cancel</button>
+        <button type="button" data-continue-cancel ?disabled=${busy} @click=${() => this.cancel()}>${t('Cancel')}</button>
         <button type="button" class="primary" data-continue-confirm ?disabled=${busy} @click=${() => this.confirm()}>
-          ${busy ? 'Starting…' : 'Continue'}
+          ${busy ? 'Starting…' : t('Continue')}
         </button>
       </div>
     `

@@ -23,6 +23,7 @@
  * global `--mn-font-numeral` + the Observatory numeral-ink hook (with the
  * skin-neutral title ink as its cascade fallback).
  */
+import { LocaleController, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, type TemplateResult } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 
@@ -78,6 +79,8 @@ export function computeSparklineGeometry(series: readonly number[]): SparklineGe
 
 @customElement('sh-stat-scalar-view')
 export class ShStatScalarView extends LitElement {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     :host {
       display: flex;
@@ -300,7 +303,7 @@ export class ShStatScalarView extends LitElement {
   }
 
   private _body(): TemplateResult {
-    if (this.status === 'loading') return this._state('Loading…')
+    if (this.status === 'loading') return this._state(t('Loading…'))
     if (this.status === 'error') return this._state(this.error || 'This stat could not be loaded.', 'danger')
     if (this.status === 'no-data') {
       // Absence keeps the CARD (so the label survives) — never the _state
@@ -309,7 +312,7 @@ export class ShStatScalarView extends LitElement {
       return html`
         <div class="card">
           <div class="label">${this.label}</div>
-          <div class="value-row"><span class="value" data-absent="true">No data</span></div>
+          <div class="value-row"><span class="value" data-absent="true">${t('No data')}</span></div>
         </div>
       `
     }

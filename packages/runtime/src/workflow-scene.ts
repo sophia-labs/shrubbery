@@ -19,6 +19,7 @@
  * it leaves the layout again. Drag the canvas to pan; pinch or Ctrl-scroll to zoom.
  */
 
+import { LocaleController, t } from '@shrubbery/nucleus'
 import {
   type Camera, type CanvasEngine, type ConnectorPath, houseEngine, loadDefaultEngine, moveCards, type Pt, rectUnion,
   type SceneCard, type SceneConnector, type SceneSnapshot, type SnapGuide,
@@ -281,9 +282,9 @@ function writeLayout(key: string, layout: WorkflowLayout): void {
 
 /** How a step works, in words: once, once per item of a stack, or checking each item of one. */
 export function stepModeWords(step: WorkflowPlanStepView): string {
-  if (step.checks) return `checks each of ${humanName(step.checks)}`
-  if (step.mode === 'perItem') return `once for each of ${humanName(step.over ?? '')}`
-  return 'once'
+  if (step.checks) return t('workflow.checksEach', { name: humanName(step.checks) })
+  if (step.mode === 'perItem') return t('workflow.onceEach', { name: humanName(step.over ?? '') })
+  return t('once')
 }
 
 /** A collection or node id as a person reads it: `verified_entries` → "verified entries". */
@@ -294,31 +295,31 @@ export function humanName(id: string): string {
 function tallyWords(step: WorkflowPlanStepView): string {
   const p = step.progress
   if (step.checks && step.verdicts && (!p || p.started === p.done + p.failed)) {
-    return `${step.verdicts.passed} passed${step.verdicts.refused ? ` · ${step.verdicts.refused} refused` : ''}`
+    return `${t('workflow.passed', { count: step.verdicts.passed })}${step.verdicts.refused ? ` · ${t('workflow.refused', { count: step.verdicts.refused })}` : ''}`
   }
   if (!p) return ''
   const running = p.started - p.done - p.failed
-  if (step.mode === 'perItem' && running > 0) return `${p.done + p.failed} of ${p.started}${p.failed ? ` · ${p.failed} failed` : ''}`
-  if (running > 0) return 'working…'
-  return [`${p.done} done`, p.failed ? `${p.failed} failed` : ''].filter(Boolean).join(' · ')
+  if (step.mode === 'perItem' && running > 0) return `${t('workflow.progress', { done: p.done + p.failed, total: p.started })}${p.failed ? ` · ${t('workflow.failed', { count: p.failed })}` : ''}`
+  if (running > 0) return t('working…')
+  return [t('workflow.done', { count: p.done }), p.failed ? t('workflow.failed', { count: p.failed }) : ''].filter(Boolean).join(' · ')
 }
 
 /** A stack's count, in words: what it held after the run, or how its maker is getting on during it. */
 function stackWords(stack: WorkflowStackView, maker: WorkflowPlanStepView | undefined): { count: string; note: string } {
   if (stack.items) {
     const unfit = (stack.objects ?? []).filter((o) => o?.stance === 'unfit').length
-    const note = stack.itemClass ? (stack.items.length === 1 ? stack.itemClass.label : stack.itemClass.plural).toLowerCase() : stack.items.length === 1 ? 'item' : 'items'
-    return { count: String(stack.items.length), note: unfit ? `${note} · ${unfit} unfit` : note }
+    const note = stack.itemClass ? (stack.items.length === 1 ? stack.itemClass.label : stack.itemClass.plural).toLowerCase() : t('items')
+    return { count: String(stack.items.length), note: unfit ? `${note} · ${t('workflow.unfit', { count: unfit })}` : note }
   }
   const p = maker?.progress
-  if (p && p.started > p.done + p.failed) return { count: '…', note: 'filling' }
+  if (p && p.started > p.done + p.failed) return { count: '…', note: t('filling') }
   const fields = stack.itemClass ? stack.itemClass.columns.map((c) => c.label) : stack.fields
   return { count: '', note: fields.length ? fields.slice(0, 3).join(' · ') : '' }
 }
 
 function sourceWhere(source: WorkflowSourceView): string {
-  const doc = source.documentTitle ?? source.documentId ?? 'no document yet'
-  return source.fromBlock || source.toBlock ? `${doc} · a section` : doc
+  const doc = source.documentTitle ?? source.documentId ?? t('no document yet')
+  return source.fromBlock || source.toBlock ? t('workflow.section', { name: doc }) : doc
 }
 
 // Small line glyphs (Lucide's shapes, drawn here so the scene needs no icon package), each a whole <svg>.
@@ -360,6 +361,8 @@ interface Pan {
 const DOUBLE_CLICK_MS = 400
 
 export class ShWorkflowScene extends LitElement {
+  protected readonly _locale = new LocaleController(this)
+
   static override properties = { plan: { attribute: false } }
   declare plan: WorkflowPlanOptions | null
 
@@ -596,6 +599,10 @@ export class ShWorkflowScene extends LitElement {
     const plan = this.plan
     if (!plan) return nothing
     const model = this.model(plan)
+    if (model.snapshot.cards.length === 0) {
+      // Keep the empty copy inside an element, rather than a root child binding after the scene.
+      return html`<div class="empty">${plan.status === 'loading' ? t('Reading the workflow…') : t('Nothing here yet. Tell Sophia what this workflow should do, and it is drawn here as she writes it.')}</div>`
+    }
     const structure = `${this.modelCache?.wrap ?? ''}|${model.snapshot.cards.map((card) => card.key).join(',')}`
     if (this.fittedFor !== structure && this.clientWidth > 0) {
       this.fitView(model)
@@ -611,7 +618,6 @@ export class ShWorkflowScene extends LitElement {
     const selected = plan.selected ?? null
     const lit = (c: SceneConnector) => selected !== null && (c.from === selected || c.to === selected)
     const { x, y, zoom } = this.camera
-    const empty = scene.cards.length === 0
     return html`<div class="scene" style="transform: scale(${zoom}) translate(${x}px, ${y}px)">
       <svg class="wires" aria-hidden="true">
         ${scene.connectors.map((c) => {
@@ -632,14 +638,13 @@ export class ShWorkflowScene extends LitElement {
       </svg>
       ${scene.connectors.map((c) => {
         const route = routes.get(c.id)
-        return route && c.label ? html`<span class="wire-label" style="left:${route.labelAnchor.x}px;top:${route.labelAnchor.y}px">${c.label}</span>` : nothing
+        return route && c.label ? html`<span class="wire-label" style="left:${route.labelAnchor.x}px;top:${route.labelAnchor.y}px">${c.label === 'each' ? t('each') : c.label}</span>` : nothing
       })}
       ${repeat(scene.cards, (card) => card.key, (card) => {
         const node = model.nodes.get(card.key)
         return node ? this.renderNode(node, card, plan, model, selected === card.key, drag?.key === card.key) : nothing
       })}
-    </div>
-    ${empty ? html`<div class="empty">${plan.status === 'loading' ? 'Reading the workflow…' : 'Nothing here yet. Tell Sophia what this workflow should do, and it is drawn here as she writes it.'}</div>` : nothing}`
+    </div>`
   }
 
   private renderNode(node: WorkflowCanvasNode, card: SceneCard, plan: WorkflowPlanOptions, model: WorkflowCanvasModel, selected: boolean, dragging: boolean): TemplateResult {
@@ -667,12 +672,12 @@ export class ShWorkflowScene extends LitElement {
       const being = plan.cast?.find((face) => face.stepId === step.id)
       return common([step.label, step.job, stepModeWords(step), tally].filter(Boolean).join(', '), html`
         <div class="head">${being ? html`<sh-being-mark agent-id=${being.agentId} name=${being.name} .size=${18}></sh-being-mark>` : glyph(step.checks ? 'check' : 'step')}<div class="label" title=${step.label}>${step.label}</div></div>
-        <div class="sub">${step.job} · ${step.checks ? 'checks each' : step.mode === 'perItem' ? '× each' : 'once'}</div>
+        <div class="sub">${step.job} · ${step.checks ? t('checks each') : step.mode === 'perItem' ? t('× each') : t('once')}</div>
         ${tally ? html`<div class="tally">${tally}</div>` : nothing}`, { run, changed: step.changed })
     }
     if (node.source) {
       const source = node.source
-      return common(`Source: ${source.label}, ${sourceWhere(source)}`, html`
+      return common(t('workflow.source', { name: source.label, where: sourceWhere(source) }), html`
         <div class="head">${glyph('source')}<div class="label" title=${source.label}>${source.label}</div></div>
         <div class="sub" title=${sourceWhere(source)}>${sourceWhere(source)}</div>`, { changed: source.changed })
     }
@@ -682,7 +687,7 @@ export class ShWorkflowScene extends LitElement {
       const words = stackWords(stack, maker)
       // A typed stack is called by its class (typed objects D8.1): "Dream reports".
       const name = stack.itemClass?.plural ?? humanName(stack.id)
-      return common(`Stack: ${name}${words.count ? `, ${words.count} ${words.note}` : ''}`, html`
+      return common(`${t('workflow.stack', { name })}${words.count ? `, ${words.count} ${words.note}` : ''}`, html`
         <div class="label" title=${stack.itemClass ? `${name} (${humanName(stack.id)})` : name}>${name}</div>
         <div class="count">${words.count}</div>
         ${words.note ? html`<div class="sub" title=${words.note}>${words.note}</div>` : nothing}`)
@@ -692,15 +697,15 @@ export class ShWorkflowScene extends LitElement {
       const ready = plan.publish && plan.publish.destination === destination.id ? plan.publish : null
       const where = destination.documentTitle ?? destination.documentId ?? (destination.kind === 'margin' ? "the margins of what it quotes" : destination.kind ?? '')
       const note = ready ? (ready.status === 'done' ? 'published' : ready.status === 'publishing' ? 'publishing…' : `${ready.count} ready`) : ''
-      return common(`Destination: ${destination.label}${note ? `, ${note}` : ''}`, html`
+      return common(`${t('workflow.destination', { name: destination.label })}${note ? `, ${note}` : ''}`, html`
         <div class="head">${glyph('destination')}<div class="label" title=${destination.label}>${destination.label}</div></div>
         <div class="sub" title=${where}>${where}</div>
         ${note ? html`<div class="tally">${note}</div>` : nothing}`, { changed: destination.changed })
     }
     if (node.refused) {
       const { count } = node.refused
-      return common(`${count} refused by ${node.refused.check.label}`, html`
-        <div class="head">${glyph('refused')}<div class="label">${count} refused</div></div>`)
+      return common(t('workflow.refusedBy', { count, name: node.refused.check.label }), html`
+        <div class="head">${glyph('refused')}<div class="label">${t('workflow.refused', { count })}</div></div>`)
     }
     void model
     return html``

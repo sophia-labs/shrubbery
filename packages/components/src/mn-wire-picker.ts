@@ -7,6 +7,7 @@
  * context, and receive composed intents for every host-owned effect.
  */
 
+import { LocaleController, localizeLabel, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, unsafeCSS, type PropertyValues, type TemplateResult } from 'lit'
 import { customElement, property, query } from 'lit/decorators.js'
 import { SkinAware } from './skin-aware.js'
@@ -90,11 +91,13 @@ function trimmed(value: string | null | undefined): string {
 }
 
 function defaultPredicate(): MnWirePickerPredicateItem {
-  return { uri: 'http://mnemosyne.ai/vocab#relatedTo', label: 'is related to', category: 'Default', icon: 'wire' }
+  return { uri: 'http://mnemosyne.ai/vocab#relatedTo', get label() { return t('is related to') }, category: 'Default', icon: 'wire' }
 }
 
 @customElement('mn-wire-picker')
 export class MnWirePicker extends SkinAware(LitElement) {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     ${unsafeCSS(iconStyles)}
 
@@ -511,21 +514,21 @@ export class MnWirePicker extends SkinAware(LitElement) {
 
   private get phaseLabel(): string {
     if (this.phase === 'predicate') return 'Predicate'
-    if (this.phase === 'document') return 'Wire to'
-    if (this.phase === 'block') return 'Block'
-    return 'Options'
+    if (this.phase === 'document') return t('Wire to')
+    if (this.phase === 'block') return t('Block')
+    return t('Options')
   }
 
   private get placeholder(): string {
-    if (this.phase === 'predicate') return 'Search predicates...'
-    if (this.phase === 'block') return 'Search blocks...'
-    return 'Search documents...'
+    if (this.phase === 'predicate') return t('Search predicates...')
+    if (this.phase === 'block') return t('Search blocks...')
+    return t('Search documents...')
   }
 
   private get emptyLabel(): string {
-    if (this.phase === 'predicate') return 'No predicates found'
+    if (this.phase === 'predicate') return t('No predicates found')
     if (this.phase === 'block') return this.blocks.length === 0 ? 'No blocks in document. Press Enter to link the document.' : 'No matching blocks'
-    return 'No documents found'
+    return t('No documents found')
   }
 
   private clampSelectedIndex(): void {
@@ -737,7 +740,7 @@ export class MnWirePicker extends SkinAware(LitElement) {
     if (!text) return nothing
     return html`
       <div class="source">
-        <span class="source-label">Source</span>
+        <span class="source-label">${t('Source')}</span>
         <span class="source-text">${text}</span>
       </div>
     `
@@ -771,9 +774,9 @@ export class MnWirePicker extends SkinAware(LitElement) {
   private renderOptionRows(): TemplateResult {
     return html`
       <div class="options" data-wire-picker-options>
-        ${this.renderOption('predicate', 'Predicate', this.predicate.label, 'Space')}
-        ${this.renderOption('direction', 'Direction', DIRECTION_LABELS[this.direction], 'Space')}
-        ${this.source?.blockId ? this.renderOption('from', 'From', this.granularity === 'block' ? 'Selected block' : 'Whole document', 'Space') : nothing}
+        ${this.renderOption('predicate', 'Predicate', this.predicate.label, t('Space'))}
+        ${this.renderOption('direction', t('Direction'), DIRECTION_LABELS[this.direction], t('Space'))}
+        ${this.source?.blockId ? this.renderOption('from', 'From', this.granularity === 'block' ? t('Selected block') : t('Whole document'), t('Space')) : nothing}
       </div>
     `
   }
@@ -802,7 +805,7 @@ export class MnWirePicker extends SkinAware(LitElement) {
         <div class="context">
           ${icon('file-text', { size: 14 })}
           <span class="context-label">${this.selectedDocument.label}</span>
-          <button type="button" class="back" title="Back to documents" @click=${() => this.requestPhase('document')}>
+          <button type="button" class="back" title=${t('Back to documents')} @click=${() => this.requestPhase('document')}>
             ${icon('x', { size: 14 })}
           </button>
         </div>
@@ -879,7 +882,7 @@ export class MnWirePicker extends SkinAware(LitElement) {
         out.push(html`
           <div class="group-label">
             ${icon(predicate.icon || 'zap', { size: 12 })}
-            ${category}
+            ${localizeLabel(category)}
           </div>
         `)
       }
@@ -909,7 +912,7 @@ export class MnWirePicker extends SkinAware(LitElement) {
   }
 
   private renderResults(): TemplateResult | TemplateResult[] {
-    if (this.loading) return html`<div class="loading"><span class="spinner" aria-hidden="true"></span>Loading...</div>`
+    if (this.loading) return html`<div class="loading"><span class="spinner" aria-hidden="true"></span>${t('Loading...')}</div>`
     if (this.items.length === 0) return html`<div class="empty">${this.emptyLabel}</div>`
     if (this.phase === 'block') return this.blocks.map((block, index) => this.renderBlock(block, index))
     if (this.phase === 'predicate') return this.renderPredicateGroups()
@@ -918,13 +921,13 @@ export class MnWirePicker extends SkinAware(LitElement) {
 
   private renderFooter(): TemplateResult {
     if (this.phase === 'options') {
-      return html`<div class="footer"><span><kbd>Tab</kbd> move</span><span><kbd>Space</kbd> change</span><span><kbd>Enter</kbd> search</span></div>`
+      return html`<div class="footer"><span><kbd>Tab</kbd> move</span><span><kbd>${t('Space')}</kbd> change</span><span><kbd>Enter</kbd> search</span></div>`
     }
     if (this.phase === 'document') {
       return html`<div class="footer"><span><kbd>Enter</kbd> link document</span><span><kbd>Tab</kbd> blocks</span><span><kbd>Esc</kbd> close</span></div>`
     }
     if (this.phase === 'block') {
-      return html`<div class="footer"><span><kbd>Enter</kbd> link block</span><span><kbd>Left</kbd> documents</span></div>`
+      return html`<div class="footer"><span><kbd>Enter</kbd> link block</span><span><kbd>${t('Left')}</kbd> documents</span></div>`
     }
     return html`<div class="footer"><span><kbd>Enter</kbd> choose predicate</span><span><kbd>Esc</kbd> back</span></div>`
   }
@@ -933,7 +936,7 @@ export class MnWirePicker extends SkinAware(LitElement) {
     if (!this.open) return nothing
     return html`
       <div class="overlay" data-wire-picker-overlay @mousedown=${() => this.close()}></div>
-      <section class="container" data-wire-picker role="dialog" aria-label="Create wire">
+      <section class="container" data-wire-picker role="dialog" aria-label=${t('Create wire')}>
         ${this.renderSource()}
         ${this.renderHeader()}
         ${this.renderContext()}

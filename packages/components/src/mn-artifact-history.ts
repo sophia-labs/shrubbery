@@ -7,6 +7,7 @@
  * restore side effects.
  */
 
+import { LocaleController, localeSource, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, unsafeCSS, type TemplateResult } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 import { repeat } from 'lit/directives/repeat.js'
@@ -65,8 +66,8 @@ function relativeTime(value: number | string | Date): string {
 
 function absoluteTime(value: number | string | Date): string {
   const date = new Date(timestamp(value))
-  if (!Number.isFinite(date.getTime())) return 'Unknown date'
-  return date.toLocaleString(undefined, {
+  if (!Number.isFinite(date.getTime())) return t('Unknown date')
+  return date.toLocaleString(localeSource.get(), {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
@@ -92,6 +93,8 @@ function revisionLabel(revision: MnArtifactRevision): string {
 
 @customElement('mn-artifact-history')
 export class MnArtifactHistory extends SkinAware(LitElement) {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     ${unsafeCSS(iconStyles)}
 
@@ -305,15 +308,15 @@ export class MnArtifactHistory extends SkinAware(LitElement) {
 
   private _renderState(): TemplateResult | typeof nothing {
     if (this.status === 'loading' || this.status === 'idle') {
-      return html`<div class="state"><mn-loading size="sm" text="Loading artifact history"></mn-loading></div>`
+      return html`<div class="state"><mn-loading size="sm" text=${t('Loading artifact history')}></mn-loading></div>`
     }
     if (this.status === 'error') {
       return html`
         <div class="state">
           <mn-empty-state
             icon="alert-circle"
-            title="Could not load history"
-            description=${this.error || 'The artifact revision list could not be loaded.'}
+            title=${t('Could not load history')}
+            description=${this.error || t('The artifact revision list could not be loaded.')}
             mood="danger"
           ></mn-empty-state>
         </div>
@@ -324,8 +327,8 @@ export class MnArtifactHistory extends SkinAware(LitElement) {
         <div class="state">
           <mn-empty-state
             icon="clock"
-            title="No versions yet"
-            description="Edits and generated artifact revisions will appear here."
+            title=${t('No versions yet')}
+            description=${t('Edits and generated artifact revisions will appear here.')}
           ></mn-empty-state>
         </div>
       `
@@ -348,7 +351,7 @@ export class MnArtifactHistory extends SkinAware(LitElement) {
         <span class="meta">
           <span class="label">
             <span class="label-text">${label}</span>
-            ${isCurrent ? html`<span class="badge">current</span>` : nothing}
+            ${isCurrent ? html`<span class="badge">${t('current')}</span>` : nothing}
           </span>
           <span class="sub" title=${absoluteTime(revision.createdAt)}>${sub}</span>
           ${filename ? html`<span class="file">${filename}</span>` : nothing}
@@ -363,7 +366,7 @@ export class MnArtifactHistory extends SkinAware(LitElement) {
               aria-label=${`Restore ${label}`}
               @click=${() => this._restore(revision.revisionId)}
             >
-              ${icon('undo', { size: 13 })} ${restoring ? 'Restoring' : 'Restore'}
+              ${icon('undo', { size: 13 })} ${restoring ? 'Restoring' : t('Restore')}
             </button>
           `}
       </article>
@@ -376,10 +379,10 @@ export class MnArtifactHistory extends SkinAware(LitElement) {
       <header class="head">
         ${icon('clock', { size: 15 })} Version history
         <span class="spacer"></span>
-        <button type="button" class="icon-button" title="Refresh history" aria-label="Refresh history" @click=${() => this._refresh()}>
+        <button type="button" class="icon-button" title=${t('Refresh history')} aria-label=${t('Refresh history')} @click=${() => this._refresh()}>
           ${icon('refresh', { size: 15 })}
         </button>
-        <button type="button" class="icon-button" title="Close history" aria-label="Close history" @click=${() => this._close()}>
+        <button type="button" class="icon-button" title=${t('Close history')} aria-label=${t('Close history')} @click=${() => this._close()}>
           ${icon('x', { size: 16 })}
         </button>
       </header>

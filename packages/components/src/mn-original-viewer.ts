@@ -9,6 +9,7 @@
  * selection.
  */
 
+import { LocaleController, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, unsafeCSS, type PropertyValues, type TemplateResult } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 import { repeat } from 'lit/directives/repeat.js'
@@ -105,6 +106,8 @@ function inferKind(kind: MnOriginalViewerKind, mimeType: string, fileType: strin
 
 @customElement('mn-original-viewer')
 export class MnOriginalViewer extends SkinAware(LitElement) {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     ${unsafeCSS(iconStyles)}
 
@@ -817,7 +820,7 @@ export class MnOriginalViewer extends SkinAware(LitElement) {
     if (!chapter) return this._renderFileFallback()
     return html`
       <div class="epub-reader">
-        <aside class="epub-nav" aria-label="EPUB chapters">
+        <aside class="epub-nav" aria-label=${t('EPUB chapters')}>
           <p class="epub-title">${this._heading()}</p>
           <p class="epub-meta">${this.chapters.length} chapter${this.chapters.length === 1 ? '' : 's'}</p>
           <div class="chapter-list">
@@ -847,7 +850,7 @@ export class MnOriginalViewer extends SkinAware(LitElement) {
       <div class="file-fallback">
         <div class="file-panel">
           <h3 class="file-title">${this._heading()}</h3>
-          <p class="file-meta">${this._meta() || 'This original file is available, but it cannot be previewed inline.'}</p>
+          <p class="file-meta">${this._meta() || t('This original file is available, but it cannot be previewed inline.')}</p>
           <span class="actions">
             <button type="button" ?disabled=${!this.downloadable} @click=${() => this._download()}>
               ${icon('download', { size: 13 })} Download
@@ -863,7 +866,7 @@ export class MnOriginalViewer extends SkinAware(LitElement) {
 
   private _renderBody(): TemplateResult | typeof nothing {
     if (this.status === 'loading' || this.status === 'idle') {
-      return html`<div class="state"><mn-loading size="sm" text="Loading original file"></mn-loading></div>`
+      return html`<div class="state"><mn-loading size="sm" text=${t('Loading original file')}></mn-loading></div>`
     }
     if (this.status === 'error') {
       return this._state('alert-circle', 'Original file failed', this.error || 'The original file could not be loaded.', 'danger')
@@ -892,9 +895,9 @@ export class MnOriginalViewer extends SkinAware(LitElement) {
       <span class="annotation-item" data-kind=${kind}>
         ${trimmed(annotation.quote)
           ? html`<span class="annotation-passage">${shownQuote(annotation.quote)}</span>`
-          : html`<span class="annotation-quote">No quoted passage</span>`}
+          : html`<span class="annotation-quote">${t('No quoted passage')}</span>`}
         ${kind === 'comment' && body ? html`<span class="annotation-body">${body}</span>` : nothing}
-        <span class="annotation-author">${kind === 'highlight' ? 'Highlight' : author || 'Comment'}</span>
+        <span class="annotation-author">${kind === 'highlight' ? t('Highlight') : author || 'Comment'}</span>
       </span>
     `
   }
@@ -912,9 +915,9 @@ export class MnOriginalViewer extends SkinAware(LitElement) {
     }
     const missing = this.annotations.filter((annotation) => annotation.anchor === 'not-found')
     return html`
-      <aside class="annotation-rail" aria-label="Comments on the original" data-annotation-rail="epub">
+      <aside class="annotation-rail" aria-label=${t('Comments on the original')} data-annotation-rail="epub">
         <div class="annotation-head">In this chapter (${here.length})</div>
-        ${here.length === 0 ? html`<p class="annotation-note annotation-note-first">None in this chapter.</p>` : nothing}
+        ${here.length === 0 ? html`<p class="annotation-note annotation-note-first">${t('None in this chapter.')}</p>` : nothing}
         ${repeat(here, (annotation) => annotation.id, (annotation) => html`
           <button
             type="button"
@@ -923,8 +926,8 @@ export class MnOriginalViewer extends SkinAware(LitElement) {
             @click=${() => this._selectAnnotation(annotation)}
           >${this._annotationItem(annotation)}</button>
         `)}
-        ${elsewhere.size > 0 ? html`<section class="annotation-group" aria-label="Comments in other chapters">
-          <div class="annotation-section">In other chapters</div>
+        ${elsewhere.size > 0 ? html`<section class="annotation-group" aria-label=${t('Comments in other chapters')}>
+          <div class="annotation-section">${t('In other chapters')}</div>
           ${[...elsewhere].map(([chapterId, entry]) => html`
             <button
               type="button"
@@ -937,9 +940,9 @@ export class MnOriginalViewer extends SkinAware(LitElement) {
             ><span>${entry.count} in ${entry.title}</span></button>
           `)}
         </section>` : nothing}
-        ${missing.length > 0 ? html`<section class="annotation-group" aria-label="Comments not found in the original">
+        ${missing.length > 0 ? html`<section class="annotation-group" aria-label=${t('Comments not found in the original')}>
           <div class="annotation-section" data-annotation-missing-head>Not found in the original (${missing.length})</div>
-          <p class="annotation-note">The quoted passage is not in the book's text, so it is not marked.</p>
+          <p class="annotation-note">${t('The quoted passage is not in the book\'s text, so it is not marked.')}</p>
           ${repeat(missing, (annotation) => annotation.id, (annotation) => html`
             <div class="annotation-missing" data-annotation-id=${annotation.id} data-annotation-missing>
               ${this._annotationItem(annotation)}
@@ -956,8 +959,8 @@ export class MnOriginalViewer extends SkinAware(LitElement) {
       return this._renderEpubAnnotations()
     }
     return html`
-      <aside class="annotation-rail" aria-label="Source annotations">
-        <div class="annotation-head">Source annotations</div>
+      <aside class="annotation-rail" aria-label=${t('Source annotations')}>
+        <div class="annotation-head">${t('Source annotations')}</div>
         ${repeat(this.annotations, (annotation) => annotation.id, (annotation) => html`
           <button
             type="button"
@@ -978,7 +981,7 @@ export class MnOriginalViewer extends SkinAware(LitElement) {
 
   render(): TemplateResult {
     return html`
-      <section class="root" role="region" aria-label="Original file viewer">
+      <section class="root" role="region" aria-label=${t('Original file viewer')}>
         <header class="toolbar" ?hidden=${this.bare}>
           ${icon('file-text', { size: 18 })}
           <span class="title-wrap">
@@ -986,28 +989,28 @@ export class MnOriginalViewer extends SkinAware(LitElement) {
             <span class="meta">${this._meta()}</span>
           </span>
           <span class="actions">
-            <button type="button" @click=${() => this._reload()} aria-label="Reload original file">
+            <button type="button" @click=${() => this._reload()} aria-label=${t('Reload original file')}>
               ${icon('refresh', { size: 13 })} Reload
             </button>
-            <button type="button" ?disabled=${!this.downloadable} @click=${() => this._download()} aria-label="Download original file">
+            <button type="button" ?disabled=${!this.downloadable} @click=${() => this._download()} aria-label=${t('Download original file')}>
               ${icon('download', { size: 13 })} Download
             </button>
           </span>
         </header>
         ${this.pageCount > 0 ? html`
-          <nav class="pdf-navigation" aria-label="Original PDF pages">
-            <button type="button" aria-label="Previous PDF page" ?disabled=${this.selectedPageNumber <= 1 || this.status === 'loading'} @click=${() => this._selectPage(this.selectedPageNumber - 1)}>Previous</button>
-            <label>Page <input type="number" min="1" max=${this.pageCount} .value=${String(this.selectedPageNumber)} aria-label="PDF page number"
+          <nav class="pdf-navigation" aria-label=${t('Original PDF pages')}>
+            <button type="button" aria-label=${t('Previous PDF page')} ?disabled=${this.selectedPageNumber <= 1 || this.status === 'loading'} @click=${() => this._selectPage(this.selectedPageNumber - 1)}>${t('Previous')}</button>
+            <label>${t('Page')} <input type="number" min="1" max=${this.pageCount} .value=${String(this.selectedPageNumber)} aria-label=${t('PDF page number')}
               @change=${(event: Event) => this._selectPage(Number((event.target as HTMLInputElement).value))} /> of ${this.pageCount}</label>
-            <button type="button" aria-label="Next PDF page" ?disabled=${this.selectedPageNumber >= this.pageCount || this.status === 'loading'} @click=${() => this._selectPage(this.selectedPageNumber + 1)}>Next</button>
+            <button type="button" aria-label=${t('Next PDF page')} ?disabled=${this.selectedPageNumber >= this.pageCount || this.status === 'loading'} @click=${() => this._selectPage(this.selectedPageNumber + 1)}>${t('Next')}</button>
           </nav>` : nothing}
         ${this.sourceMapping ? html`
           <div class="source-mapping" data-mapping-status=${this.sourceMapping.status} role="status">
             <span>${this.sourceMapping.message}</span>
             ${this.sourceMapping.pages.length > 0 ? html`
-              <select aria-label="Go to source region page" .value=${this.sourceMapping.pages.includes(this.selectedPageNumber) ? String(this.selectedPageNumber) : ''}
+              <select aria-label=${t('Go to source region page')} .value=${this.sourceMapping.pages.includes(this.selectedPageNumber) ? String(this.selectedPageNumber) : ''}
                 @change=${(event: Event) => this._selectPage(Number((event.target as HTMLSelectElement).value))}>
-                <option value="" disabled>Go to source region</option>
+                <option value="" disabled>${t('Go to source region')}</option>
                 ${this.sourceMapping.pages.map(page => html`<option value=${page}>Source page ${page}</option>`)}
               </select>` : nothing}
           </div>` : nothing}

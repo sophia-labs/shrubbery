@@ -6,6 +6,7 @@
  *
  * Controlled and stateless, like the rest of the pane: the shell hands the page in and hears every press back.
  */
+import { localizeLabel, t } from '@shrubbery/nucleus'
 import { html, nothing, type TemplateResult } from 'lit'
 import { live } from 'lit/directives/live.js'
 import { repeat } from 'lit/directives/repeat.js'
@@ -266,7 +267,7 @@ function pageLink(h: FilesPageHandlers, id: string, page: number | null, label: 
 }
 
 function disputedMark(why: string | null | undefined): TemplateResult | typeof nothing {
-  return why ? html`<span class="fp-disputed" data-disputed title=${why}>disputed</span>` : nothing
+  return why ? html`<span class="fp-disputed" data-disputed title=${why}>${t('disputed')}</span>` : nothing
 }
 
 function renderFacts(rows: readonly FilesPageFact[], h: FilesPageHandlers): TemplateResult {
@@ -290,18 +291,18 @@ function renderTable(body: Extract<FilesPageBody, { face: 'table' }>, h: FilesPa
     return html`<div class="r" role="row" data-row=${r.id} ?data-empty=${empty}><span role="cell" class="l">${r.label} ${disputedMark(r.disputed)}</span><span role="cell" class="sym">${r.symbol}</span><span role="cell" class="w">${r.when}</span><span role="cell" class="n mn">${r.min}</span><span role="cell" class="n ty">${r.typ}</span><span role="cell" class="n mx">${r.max}</span><span role="cell" class="u">${r.unit}</span><span role="cell" class="n all">${empty ? 'not read' : compact(r)}</span><span role="cell" class="n p">${pageLink(h, r.id, r.page, r.label)}</span></div>`
   }
   // The input is its own template: a binding after a void element is mis-parsed by some DOM implementations (happy-dom).
-  const input = html`<input type="search" aria-label="Filter what we extracted" placeholder=${`Filter ${body.total} values`}
+  const input = html`<input type="search" aria-label=${t('Filter what we extracted')} placeholder=${t('files.filterValues', { count: body.total })}
       .value=${live(body.filter)} @input=${(e: Event) => h.onFilter((e.currentTarget as HTMLInputElement).value)} />`
-  const head = html`<div class="r hdr" role="row"><span role="columnheader" class="l">Parameter</span><span role="columnheader" class="sym">Symbol</span><span role="columnheader" class="w">Conditions</span><span role="columnheader" class="n mn">Min</span><span role="columnheader" class="n ty">Typ</span><span role="columnheader" class="n mx">Max</span><span role="columnheader" class="u">Unit</span><span role="columnheader" class="n p"><span class="visually-hidden">Page</span></span></div>`
+  const head = html`<div class="r hdr" role="row"><span role="columnheader" class="l">${t('Parameter')}</span><span role="columnheader" class="sym">${t('Symbol')}</span><span role="columnheader" class="w">${t('Conditions')}</span><span role="columnheader" class="n mn">${t('Min')}</span><span role="columnheader" class="n ty">${t('Typ')}</span><span role="columnheader" class="n mx">${t('Max')}</span><span role="columnheader" class="u">${t('Unit')}</span><span role="columnheader" class="n p"><span class="visually-hidden">${t('Page')}</span></span></div>`
   // One element around the whole face: a binding at a template's top level after an element is drawn as text by happy-dom.
   return html`<div class="fp-table"><div class="fp-filter">${input}<span class="fp-shown" role="status">${body.filter ? `${body.shown} of ${body.total}` : ''}</span></div>
-    ${body.groups.length ? html`<div class="fp-spec" role="table" aria-label="What we extracted">${head}${body.groups.map(g => html`<div role="rowgroup" data-group=${g.id}>
+    ${body.groups.length ? html`<div class="fp-spec" role="table" aria-label=${t('What we extracted')}>${head}${body.groups.map(g => html`<div role="rowgroup" data-group=${g.id}>
       <div class="group" role="row"><span role="rowheader">${g.title}${g.tag ? html`<span class="tag">${g.tag}</span>` : nothing}</span></div>
-      ${g.rows.map(r => isHeading(r) ? html`<div class="sub" role="row"><span role="rowheader">${r.heading}</span></div>` : cells(r))}
+      ${g.rows.map(r => isHeading(r) ? html`<div class="sub" role="row"><span role="rowheader">${localizeLabel(r.heading)}</span></div>` : cells(r))}
     </div>`)}</div>`
-      : html`<p class="fp-snote">Nothing matches “${body.filter}”.</p>`}
-    ${body.registers?.length ? html`<div class="fp-regs"><h3>Registers</h3><div class="fp-spec regs" role="table" aria-label="Registers">
-      <div class="r hdr" role="row"><span role="columnheader" class="l">Register</span><span role="columnheader" class="sym">Address</span><span role="columnheader" class="sym">Reset</span><span role="columnheader" class="n">Fields</span><span role="columnheader" class="w">Description</span><span role="columnheader" class="n p"><span class="visually-hidden">Page</span></span></div>
+      : html`<p class="fp-snote">${t('files.noMatch', { query: body.filter })}</p>`}
+    ${body.registers?.length ? html`<div class="fp-regs"><h3>${t('Registers')}</h3><div class="fp-spec regs" role="table" aria-label=${t('Registers')}>
+      <div class="r hdr" role="row"><span role="columnheader" class="l">${t('Register')}</span><span role="columnheader" class="sym">${t('Address')}</span><span role="columnheader" class="sym">${t('Reset')}</span><span role="columnheader" class="n">${t('Fields')}</span><span role="columnheader" class="w">${t('Description')}</span><span role="columnheader" class="n p"><span class="visually-hidden">${t('Page')}</span></span></div>
       ${body.registers.map(r => html`<div class="r" role="row" data-register=${r.id}><span role="cell" class="l">${r.name}</span><span role="cell" class="sym">${r.address}</span><span role="cell" class="sym">${r.reset}</span><span role="cell" class="n">${r.fields || ''}</span><span role="cell" class="w">${r.description}</span><span role="cell" class="n p">${r.page !== null ? html`<button type="button" class="fp-plink"
         @click=${() => h.onGoto(`page:${r.page}`, r.page)}>p.&nbsp;${r.page}</button>` : nothing}</span></div>`)}
     </div></div>` : nothing}</div>`
@@ -314,9 +315,9 @@ function renderLinks(links: readonly FilesPageLink[], h: FilesPageHandlers): Tem
 }
 
 function renderNotes(notes: FilesPageNotes, h: FilesPageHandlers): TemplateResult {
-  if (notes.status === 'loading') return html`<p class="fp-snote">Reading your notes…</p>`
-  return html`<div class="fp-notes"><hoja-editor posture="page" label="Your notes" .valueKey=${notes.valueKey}
-    placeholder=${notes.readOnly ? 'No notes yet.' : 'Write a note about this file: what you used it for, what to watch out for…'}
+  if (notes.status === 'loading') return html`<p class="fp-snote">${t('Reading your notes…')}</p>`
+  return html`<div class="fp-notes"><hoja-editor posture="page" label=${t('Your notes')} .valueKey=${notes.valueKey}
+    placeholder=${notes.readOnly ? t('No notes yet.') : t('Write a note about this file: what you used it for, what to watch out for…')}
     .pageDocument=${notes.document ?? null} .value=${''} .readOnly=${notes.readOnly}
     @hoja-change=${(e: CustomEvent<{ json: unknown; value: string; isEmpty: boolean }>) => h.onNotes({ json: e.detail.json, value: e.detail.value, isEmpty: e.detail.isEmpty })}
   ></hoja-editor></div>`
@@ -325,7 +326,7 @@ function renderNotes(notes: FilesPageNotes, h: FilesPageHandlers): TemplateResul
 function renderBody(section: FilesPageSection, h: FilesPageHandlers): TemplateResult | typeof nothing {
   const body = section.body
   if (section.face === 'source') return h.source()
-  if (!body) return section.note ? nothing : html`<p class="fp-snote">Reading…</p>`
+  if (!body) return section.note ? nothing : html`<p class="fp-snote">${t('Reading…')}</p>`
   switch (body.face) {
     case 'facts': return renderFacts(body.rows, h)
     case 'values': return renderValues(body.values, h)
@@ -361,7 +362,7 @@ export function renderFilesPage(page: FilesPanePage, h: FilesPageHandlers): Temp
         <div>
           <h1>${page.title}</h1>
           ${page.lines.length ? html`<p class="fp-lines">${page.lines.map(l => html`<span title=${l.title ?? nothing}>${l.text}</span>`)}</p>` : nothing}
-          ${page.chips.length ? html`<ul class="fp-chips" aria-label="Parts this document covers">${page.chips.map(c => html`<li ?data-current=${c.current === true}
+          ${page.chips.length ? html`<ul class="fp-chips" aria-label=${t('Parts this document covers')}>${page.chips.map(c => html`<li ?data-current=${c.current === true}
             title=${c.title ?? nothing}>${c.text}</li>`)}</ul>` : nothing}
         </div>
       </header>

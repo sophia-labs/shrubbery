@@ -10,6 +10,7 @@
  * second hidden read path.
  */
 
+import { LocaleController, localeSource, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, unsafeCSS, type TemplateResult } from 'lit'
 import { customElement, property, state } from 'lit/decorators.js'
 import { repeat } from 'lit/directives/repeat.js'
@@ -172,7 +173,7 @@ function timestamp(value: number | string | Date | null | undefined): number {
 function formatDate(value: number | string | Date | null | undefined): string {
   const ms = timestamp(value)
   if (!ms) return ''
-  return new Date(ms).toLocaleDateString(undefined, {
+  return new Date(ms).toLocaleDateString(localeSource.get(), {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
@@ -360,6 +361,8 @@ export function projectPublicShellGraph(
 
 @customElement('mn-public-shell')
 export class MnPublicShell extends SkinAware(LitElement) {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     ${unsafeCSS(iconStyles)}
 
@@ -1051,7 +1054,7 @@ export class MnPublicShell extends SkinAware(LitElement) {
         @mn-graph-panel-refresh=${() => this._emit('mn-public-shell-refresh', {})}
       >
         <mn-graph-panel
-          title="Public Graph"
+          title=${t('Public Graph')}
           subtitle=${`${projection.documentCount} ${documentLabel} · ${projection.wireCount} ${wireLabel}`}
           status="ready"
           .nodes=${projection.nodes}
@@ -1206,7 +1209,7 @@ export class MnPublicShell extends SkinAware(LitElement) {
   private _renderDocument(): TemplateResult {
     if (!this.document) {
       return html`<div class="state">
-        <mn-empty-state icon="file-text" title="Select a document" description="Choose a public document from the sidebar." variant="compact"></mn-empty-state>
+        <mn-empty-state icon="file-text" title=${t('Select a document')} description=${t('Choose a public document from the sidebar.')} variant="compact"></mn-empty-state>
       </div>`
     }
     const blocks = [...(this.document.blocks ?? [])].sort((a, b) => orderOf(a.order) - orderOf(b.order))
@@ -1215,7 +1218,7 @@ export class MnPublicShell extends SkinAware(LitElement) {
     return html`<div class="document-scroll">
       <header class="doc-head">
         <h1 class="doc-title">${this.document.title}</h1>
-        ${updated ? html`<span class="updated">Last modified ${updated}</span>` : nothing}
+        ${updated ? html`<span class="updated">${t('public.modified', { date: updated })}</span>` : nothing}
       </header>
       <div class="doc-body">
         ${blocks.length
@@ -1227,11 +1230,11 @@ export class MnPublicShell extends SkinAware(LitElement) {
                 data-wired=${String(isWired)}
                 style=${block.type !== 'heading' && block.level ? `padding-left:${block.level * 20}px` : ''}
               >
-                ${isWired ? html`<span class="wire-dot" title="This block has connections">${icon('wire', { size: 10 })}</span>` : nothing}
+                ${isWired ? html`<span class="wire-dot" title=${t('This block has connections')}>${icon('wire', { size: 10 })}</span>` : nothing}
                 ${this._renderBlock(block, index)}
               </div>`
             })
-          : html`<mn-empty-state icon="file-text" title="No content" description="This public document has no rendered blocks." variant="compact"></mn-empty-state>`}
+          : html`<mn-empty-state icon="file-text" title=${t('No content')} description=${t('This public document has no rendered blocks.')} variant="compact"></mn-empty-state>`}
       </div>
     </div>`
   }
@@ -1244,7 +1247,7 @@ export class MnPublicShell extends SkinAware(LitElement) {
       data-wire-id=${wire.id}
       @click=${() => this._openDocument(wire.otherDocumentId, wire.otherBlockId ?? null, 'wire')}
     >
-      <div class="predicate">${direction === 'out' ? 'Outgoing' : 'Incoming'} · ${wire.predicateLabel}</div>
+      <div class="predicate">${direction === 'out' ? t('Outgoing') : t('Incoming')} · ${wire.predicateLabel}</div>
       <div class="wire-title">${title}</div>
       ${wire.otherSnippet ? html`<div class="snippet">${wire.otherSnippet}</div>` : nothing}
     </button>`
@@ -1254,24 +1257,24 @@ export class MnPublicShell extends SkinAware(LitElement) {
     const outgoing = this.wires?.outgoing ?? []
     const incoming = this.wires?.incoming ?? []
     const total = outgoing.length + incoming.length
-    return html`<aside class="wires" aria-label="Public connections" ?hidden=${!this._wiresOpen}>
+    return html`<aside class="wires" aria-label=${t('Public connections')} ?hidden=${!this._wiresOpen}>
       <header class="wires-head">
         ${icon('wire', { size: 15 })}
-        <span style="flex:1">Connections</span>
+        <span style="flex:1">${t('Connections')}</span>
         <span class="count">${total}</span>
-        <button class="icon-button" type="button" aria-label="Hide connections" @click=${() => { this._wiresOpen = false }}>
+        <button class="icon-button" type="button" aria-label=${t('Hide connections')} @click=${() => { this._wiresOpen = false }}>
           ${icon('x', { size: 14 })}
         </button>
       </header>
       <div class="wires-body">
         ${total === 0
-          ? html`<mn-empty-state icon="wire" title="No connections" description="No public wires are available for this document." variant="compact"></mn-empty-state>`
+          ? html`<mn-empty-state icon="wire" title=${t('No connections')} description=${t('No public wires are available for this document.')} variant="compact"></mn-empty-state>`
           : [
               outgoing.length
-                ? [html`<div class="wire-section">Outgoing</div>`, ...outgoing.map((wire) => this._renderWire(wire, 'out'))]
+                ? [html`<div class="wire-section">${t('Outgoing')}</div>`, ...outgoing.map((wire) => this._renderWire(wire, 'out'))]
                 : nothing,
               incoming.length
-                ? [html`<div class="wire-section">Incoming</div>`, ...incoming.map((wire) => this._renderWire(wire, 'in'))]
+                ? [html`<div class="wire-section">${t('Incoming')}</div>`, ...incoming.map((wire) => this._renderWire(wire, 'in'))]
                 : nothing,
             ]}
       </div>
@@ -1281,54 +1284,54 @@ export class MnPublicShell extends SkinAware(LitElement) {
   private _renderReady(): TemplateResult {
     const tree = this._tree()
     return html`<div class="shell" data-wires=${this._wiresOpen ? 'open' : 'closed'}>
-      <nav class="sidebar" aria-label="Public documents">
+      <nav class="sidebar" aria-label=${t('Public documents')}>
         <header class="sidebar-head">
           <span class="brand-mark">${icon('sprout', { size: 16 })}</span>
           <span class="workspace-title">${this._graphTitle()}</span>
-          <span class="readonly">read-only</span>
+          <span class="readonly">${t('read-only')}</span>
         </header>
         <div class="tree">
           ${tree.length
             ? tree.map((node) => this._renderNavNode(node))
-            : html`<mn-empty-state icon="folder" title="No documents" description="This public graph has no visible documents." variant="compact"></mn-empty-state>`}
+            : html`<mn-empty-state icon="folder" title=${t('No documents')} description=${t('This public graph has no visible documents.')} variant="compact"></mn-empty-state>`}
         </div>
       </nav>
       <main class="center">
         <div class="center-bar">
           ${!this._wiresOpen ? html`<button class="view-button" type="button" @click=${() => { this._wiresOpen = true }}>
-            ${icon('wire', { size: 13 })} Connections
+            ${icon('wire', { size: 13 })} ${t('Connections')}
           </button>` : nothing}
           <button
             class="view-button"
             type="button"
             data-view-toggle
-            aria-label=${this.view === 'document' ? 'Show graph view' : 'Show document view'}
+            aria-label=${this.view === 'document' ? t('Show graph view') : t('Show document view')}
             aria-pressed=${String(this.view === 'graph')}
             @click=${() => this._setView(this.view === 'document' ? 'graph' : 'document')}
           >
             ${this.view === 'document' ? icon('network', { size: 13 }) : icon('file-text', { size: 13 })}
-            ${this.view === 'document' ? 'Graph view' : 'Document view'}
+            ${this.view === 'document' ? t('Graph view') : t('Document view')}
           </button>
-          <button class="icon-button" type="button" aria-label="Refresh public workspace" @click=${() => this._emit('mn-public-shell-refresh', {})}>
+          <button class="icon-button" type="button" aria-label=${t('Refresh public workspace')} @click=${() => this._emit('mn-public-shell-refresh', {})}>
             ${icon('refresh-cw', { size: 14 })}
           </button>
         </div>
         ${this.view === 'graph'
-          ? html`<div class="graph-slot" role="region" aria-label="Public graph">${this._renderGraph()}</div>`
+          ? html`<div class="graph-slot" role="region" aria-label=${t('Public graph')}>${this._renderGraph()}</div>`
           : this._renderDocument()}
       </main>
       ${this._renderWires()}
-      <footer class="footer">Garden public graph view by Sophia Labs</footer>
+      <footer class="footer">${t('Garden public graph view by Sophia Labs')}</footer>
     </div>`
   }
 
   render(): TemplateResult {
     if (this.status === 'loading' || this.status === 'idle') {
-      return html`<div class="state"><mn-loading size="md" text="Loading public workspace"></mn-loading></div>`
+      return html`<div class="state"><mn-loading size="md" text=${t('Loading public workspace')}></mn-loading></div>`
     }
     if (this.status === 'error') {
       return html`<div class="state">
-        <mn-empty-state icon="alert-circle" title="Public workspace unavailable" description=${this.error || 'The public workspace could not be loaded.'} mood="danger"></mn-empty-state>
+        <mn-empty-state icon="alert-circle" title=${t('Public workspace unavailable')} description=${this.error || t('The public workspace could not be loaded.')} mood="danger"></mn-empty-state>
       </div>`
     }
     return this._renderReady()

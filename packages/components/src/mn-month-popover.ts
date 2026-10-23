@@ -5,6 +5,7 @@
  * keys, and the set of dates with notes. Selection and close are emitted.
  */
 
+import { LocaleController, localeSource, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing } from 'lit'
 import { customElement, property, query, state } from 'lit/decorators.js'
 import { classMap } from 'lit/directives/class-map.js'
@@ -36,6 +37,8 @@ function parseDateKeyFallback(dateKey: string): Date {
 
 @customElement('mn-month-popover')
 export class MnMonthPopover extends SkinAware(LitElement) {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     :host {
       display: block;
@@ -230,7 +233,7 @@ export class MnMonthPopover extends SkinAware(LitElement) {
   @property({ type: String, attribute: 'viewed-key' }) viewedKey = ''
   @property({ attribute: false }) datesWithNotes: Set<string> = new Set()
   @property({ type: Number, attribute: 'week-start' }) weekStart: 0 | 1 = 1
-  @property({ type: String }) locale = 'en-US'
+  @property({ type: String }) locale = ''
 
   @state() private displayedMonthKey = ''
 
@@ -330,13 +333,13 @@ export class MnMonthPopover extends SkinAware(LitElement) {
     const labels: string[] = []
     for (let i = 0; i < 7; i++) {
       const day = addDays(sunday, (i + this.weekStart) % 7)
-      labels.push(new Intl.DateTimeFormat(this.locale, { timeZone: 'UTC', weekday: 'narrow' }).format(day))
+      labels.push(new Intl.DateTimeFormat(this.locale || localeSource.get(), { timeZone: 'UTC', weekday: 'narrow' }).format(day))
     }
     return labels
   }
 
   private monthLabel(): string {
-    return new Intl.DateTimeFormat(this.locale, {
+    return new Intl.DateTimeFormat(this.locale || localeSource.get(), {
       timeZone: 'UTC',
       year: 'numeric',
       month: 'long',
@@ -344,7 +347,7 @@ export class MnMonthPopover extends SkinAware(LitElement) {
   }
 
   private cellAriaLabel(date: Date, isToday: boolean, hasNote: boolean): string {
-    const label = new Intl.DateTimeFormat(this.locale, {
+    const label = new Intl.DateTimeFormat(this.locale || localeSource.get(), {
       timeZone: 'UTC',
       weekday: 'long',
       month: 'long',
@@ -369,7 +372,7 @@ export class MnMonthPopover extends SkinAware(LitElement) {
         class="popover"
         popover="manual"
         role="dialog"
-        aria-label="Calendar"
+        aria-label=${t('Calendar')}
         style=${`left: ${this.x}px; top: ${this.y}px;`}
       >
         <div class="header">
@@ -377,13 +380,13 @@ export class MnMonthPopover extends SkinAware(LitElement) {
           <span class="header-controls">
             <mn-icon-button
               icon="chevron-left"
-              label="Previous month"
+              label=${t('Previous month')}
               size="xs"
               @click=${() => this.shiftMonth(-1)}
             ></mn-icon-button>
             <mn-icon-button
               icon="chevron-right"
-              label="Next month"
+              label=${t('Next month')}
               size="xs"
               @click=${() => this.shiftMonth(1)}
             ></mn-icon-button>
@@ -425,7 +428,7 @@ export class MnMonthPopover extends SkinAware(LitElement) {
         </div>
 
         <div class="footer">
-          <button class="footer-link" type="button" @click=${this.openJumpInput}>Jump to date...</button>
+          <button class="footer-link" type="button" @click=${this.openJumpInput}>${t('Jump to date...')}</button>
           ${hideBackToToday
             ? html`<span></span>`
             : html`<button class="footer-link" type="button" @click=${() => this.selectDate(this.todayKey)}>

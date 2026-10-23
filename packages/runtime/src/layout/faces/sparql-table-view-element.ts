@@ -25,6 +25,7 @@
  * only. Color tokens carry no raw-hex fallbacks — tokens.css is always
  * loaded in-product (harness pages import it too).
  */
+import { LocaleController, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, type TemplateResult, type nothing } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 import {
@@ -61,6 +62,8 @@ export interface SubjectRowActivateDetail {
 
 @customElement('sh-sparql-table-view')
 export class ShSparqlTableView extends LitElement {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     :host {
       display: flex;
@@ -245,7 +248,7 @@ export class ShSparqlTableView extends LitElement {
       return html`
         <div class="result">
           <div class="meta">${this.queryKind.toUpperCase()} · ${this.durationMs}ms · 0 rows</div>
-          ${this._state('No rows.')}
+          ${this._state(t('No rows.'))}
         </div>
       `
     }
@@ -311,7 +314,7 @@ export class ShSparqlTableView extends LitElement {
   }
 
   render(): TemplateResult {
-    return html`<div class="stage" role="region" aria-label="SPARQL bindings table">${this._body()}</div>`
+    return html`<div class="stage" role="region" aria-label=${t('SPARQL bindings table')}>${this._body()}</div>`
   }
 }
 

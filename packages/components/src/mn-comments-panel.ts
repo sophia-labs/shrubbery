@@ -7,6 +7,7 @@
  * hover / edit / resolve / delete leave as composed intents.
  */
 
+import { LocaleController, localeSource, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, unsafeCSS, type TemplateResult } from 'lit'
 import { customElement, property, state } from 'lit/decorators.js'
 import { classMap } from 'lit/directives/class-map.js'
@@ -69,11 +70,11 @@ function formatDate(value: number | Date): string {
   const hours = Math.floor(diff / 3600000)
   const days = Math.floor(diff / 86400000)
 
-  if (minutes < 1) return 'Just now'
+  if (minutes < 1) return t('Just now')
   if (minutes < 60) return `${minutes}m ago`
   if (hours < 24) return `${hours}h ago`
   if (days < 7) return `${days}d ago`
-  return date.toLocaleDateString()
+  return date.toLocaleDateString(localeSource.get())
 }
 
 function osShortcutLabel(): string {
@@ -86,6 +87,8 @@ function osShortcutLabel(): string {
 
 @customElement('mn-comments-panel')
 export class MnCommentsPanel extends SkinAware(LitElement) {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     ${unsafeCSS(iconStyles)}
 
@@ -477,7 +480,7 @@ export class MnCommentsPanel extends SkinAware(LitElement) {
     return html`
       <div class="empty-state">
         <div class="empty-state-icon">${icon('message-square', { size: 48 })}</div>
-        <div class="empty-state-title">No comments yet</div>
+        <div class="empty-state-title">${t('No comments yet')}</div>
         <div class="empty-state-description">
           Select text or a block, then press ${shortcut} to comment.
         </div>
@@ -512,10 +515,10 @@ export class MnCommentsPanel extends SkinAware(LitElement) {
           @mouseenter=${() => this.hoverComment(comment)}
           @mouseleave=${() => this.hoverComment(null)}
         >
-          <div class="comment-quoted-text">${comment.quotedText || 'Selected text...'}</div>
+          <div class="comment-quoted-text">${comment.quotedText || t('Selected text...')}</div>
           ${comment.location ? html`<div class="comment-location" title=${comment.location}>${comment.location}</div>` : nothing}
           <div class="comment-card-header">
-            ${highlight ? html`<span class="comment-kind">Highlight</span>` : html`<span class="comment-author">${comment.author}</span>`}
+            ${highlight ? html`<span class="comment-kind">${t('Highlight')}</span>` : html`<span class="comment-author">${comment.author}</span>`}
             <span class="comment-date">${formatDate(comment.createdAt)}</span>
           </div>
           ${editing
@@ -530,7 +533,7 @@ export class MnCommentsPanel extends SkinAware(LitElement) {
                   @keydown=${(event: KeyboardEvent) => this.handleInlineEditKeydown(event)}
                   @blur=${() => this.saveInlineEdit()}
                   @click=${(event: Event) => event.stopPropagation()}
-                  placeholder="Add your comment..."
+                  placeholder=${t('Add your comment...')}
                 ></textarea>
                 <div class="comment-edit-hint">${osShortcutLabel()}+Enter to save, Escape to cancel</div>
               `
@@ -539,7 +542,7 @@ export class MnCommentsPanel extends SkinAware(LitElement) {
                   class="comment-text ${comment.text ? '' : 'placeholder'}"
                   @click=${(event: Event) => this.startInlineEdit(comment, event)}
                 >
-                  ${comment.text || (highlight ? 'Add a note…' : '(Click to add comment...)')}
+                  ${comment.text || (highlight ? t('Add a note…') : '(Click to add comment...)')}
                 </div>
               `}
           ${editing
@@ -549,9 +552,9 @@ export class MnCommentsPanel extends SkinAware(LitElement) {
                   ${this.crossView ? html`<button
                     type="button"
                     class="comment-action-btn comment-cross"
-                    title=${this.crossView === 'original' ? 'Show it in the original' : 'Show it in the text'}
+                    title=${this.crossView === 'original' ? t('Show it in the original') : t('Show it in the text')}
                     @click=${(event: Event) => this.crossComment(comment, event)}
-                  >${this.crossView === 'original' ? 'Show in original' : 'Show in text'}</button>` : nothing}
+                  >${this.crossView === 'original' ? t('Show in original') : t('Show in text')}</button>` : nothing}
                   <button
                     type="button"
                     class="comment-action-btn resolve"
@@ -564,7 +567,7 @@ export class MnCommentsPanel extends SkinAware(LitElement) {
                   <button
                     type="button"
                     class="comment-action-btn delete"
-                    title="Delete comment"
+                    title=${t('Delete comment')}
                     aria-label=${`Delete comment ${comment.id}`}
                     @click=${(event: Event) => this.deleteComment(comment, event)}
                   >
@@ -589,7 +592,7 @@ export class MnCommentsPanel extends SkinAware(LitElement) {
     return html`
       <header class="header">
         <div class="header-left">
-          <span class="header-title">${ordered.some(comment => comment.kind === 'highlight') ? 'Notes & Highlights' : 'Comments'}</span>
+          <span class="header-title">${ordered.some(comment => comment.kind === 'highlight') ? t('Notes & Highlights') : t('Comments')}</span>
           ${unresolvedCount > 0 ? html`<span class="header-count">${unresolvedCount}</span>` : nothing}
         </div>
       </header>

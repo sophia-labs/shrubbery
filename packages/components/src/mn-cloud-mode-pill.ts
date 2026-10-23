@@ -6,6 +6,7 @@
  * status button: the host provides mode/status and receives an open-panel intent.
  */
 
+import { LocaleController, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, type TemplateResult } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 import { SkinAware } from './skin-aware.js'
@@ -20,6 +21,8 @@ export interface MnCloudModePillOpenDetail {
 
 @customElement('mn-cloud-mode-pill')
 export class MnCloudModePill extends SkinAware(LitElement) {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     :host {
       display: inline-flex;
@@ -159,9 +162,9 @@ export class MnCloudModePill extends SkinAware(LitElement) {
       case 'stale':
         return 'Reconnecting'
       case 'signed-out':
-        return 'Signed out'
+        return t('Signed out')
       default:
-        return 'Local'
+        return t('Local')
     }
   }
 

@@ -11,6 +11,7 @@
  * card lives in Excalidraw's shadow root, so the host re-dispatches them `bubbles` + `composed` from the card node
  * for the shell's document-level `onObjectViewIntent`.
  */
+import { t } from '@shrubbery/nucleus'
 import type { ShInjerto } from '../object-view/injerto-element.js'
 import '../object-view/injerto-element.js'
 import { OBJECT_VIEW_INTENT_EVENT, type ObjectViewIntent } from '../object-view/object-view-element.js'
@@ -172,8 +173,8 @@ function buildRenderer(source: WbTypedObjectsSource, defaultGraph: string): Card
     name.style.cssText = 'flex:1;min-width:0;font-weight:600;overflow-wrap:anywhere;'
     const open = document.createElement('button')
     open.type = 'button'
-    open.textContent = 'Open'
-    open.title = 'Open it full size'
+    open.textContent = t('Open')
+    open.title = t('Open it full size')
     open.style.cssText =
       'flex:none;font:inherit;font-size:12px;padding:1px 10px;border-radius:999px;cursor:pointer;' +
       'border:1px solid var(--mn-color-border-default);background:var(--mn-color-surface-raised);color:inherit;'
@@ -404,7 +405,7 @@ function nameOf(target: WbTarget): string {
 function placeCard(deps: WbCardFlowDeps, target: WbTarget, at: { x: number; y: number }): WbElement | null {
   const api = deps.api()
   if (!api) {
-    deps.notify('The board is not ready yet')
+    deps.notify(t('The board is not ready yet'))
     return null
   }
   const all = api.getSceneElementsIncludingDeleted() as readonly WbElement[]
@@ -416,7 +417,7 @@ function placeCard(deps: WbCardFlowDeps, target: WbTarget, at: { x: number; y: n
   })
   const detail: WbCardAddedDetail = { elementId: card.id, target }
   deps.eventTarget.dispatchEvent(new CustomEvent(WB_CARD_EVENT, { detail, bubbles: true, composed: true }))
-  deps.notify(`Added a card for ${nameOf(target)}`)
+  deps.notify(t('whiteboard.addedCard', { name: nameOf(target) }))
   return card
 }
 
@@ -429,16 +430,16 @@ export async function addCard(deps: WbCardFlowDeps, at?: { readonly x: number; r
   const page = deps.page()
   if (!page) return null
   if (page.readOnly) {
-    deps.notify('This board is read-only')
+    deps.notify(t('This board is read-only'))
     return null
   }
   if (!page.pickLink) {
-    deps.notify('Cards need the graph: this board cannot pick a document or object')
+    deps.notify(t('Cards need the graph: this board cannot pick a document or object'))
     return null
   }
   let target: WbTarget | null
   try {
-    target = await page.pickLink({ graphId: page.graphId, heading: 'Add a card', accept: 'any', excludeDocumentId: page.documentId })
+    target = await page.pickLink({ graphId: page.graphId, get heading() { return t('Add a card') }, accept: 'any', excludeDocumentId: page.documentId })
   } catch (error) {
     deps.notify(error instanceof Error ? error.message : 'Could not pick a card')
     return null
@@ -478,7 +479,7 @@ export function attachSidebarDrop(stage: HTMLElement, deps: WbCardFlowDeps): () 
     if (!node) return
     const target = page.targetOfSidebarNode?.(node) ?? null
     if (!target) {
-      deps.notify('A board can only hold documents and objects')
+      deps.notify(t('A board can only hold documents and objects'))
       return
     }
     const rect = stage.getBoundingClientRect()

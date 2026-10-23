@@ -5,6 +5,7 @@
  * this component. Shrubbery keeps those as shell intents over controlled data.
  */
 
+import { LocaleController, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, type PropertyValues, type TemplateResult } from 'lit'
 import { customElement, property, state } from 'lit/decorators.js'
 
@@ -161,6 +162,8 @@ function closestSeparation(nodes: readonly OverlayNode[]): number {
 
 @customElement('mn-wire-radial-overlay')
 export class MnWireRadialOverlay extends LitElement {
+  protected readonly _locale = new LocaleController(this)
+
   private static readonly NS = 'http://www.w3.org/2000/svg'
 
   static styles = css`
@@ -642,14 +645,14 @@ export class MnWireRadialOverlay extends LitElement {
     if (this.expandedId !== node.id) return nothing
     const state = contextValue(this.contexts, node.id) ?? { status: 'loading' as const }
     if (state.status === 'loading') {
-      return html`<div class="expanded"><span class="expanded-loading">Loading...</span></div>`
+      return html`<div class="expanded"><span class="expanded-loading">${t('Loading...')}</span></div>`
     }
     if (state.status === 'error') {
-      return html`<div class="expanded"><span class="expanded-loading">${state.message ?? 'Could not load'}</span></div>`
+      return html`<div class="expanded"><span class="expanded-loading">${state.message ?? t('Could not load')}</span></div>`
     }
     const data = state.data
     if (data.blocks.length === 0) {
-      return html`<div class="expanded"><span class="expanded-loading">Preview unavailable</span></div>`
+      return html`<div class="expanded"><span class="expanded-loading">${t('Preview unavailable')}</span></div>`
     }
     return html`
       <div class="expanded">
@@ -663,12 +666,12 @@ export class MnWireRadialOverlay extends LitElement {
 
   private renderFooter(node: OverlayNode): TemplateResult {
     if (node.isSuggestion) {
-      return html`<span class="suggestion-badge">suggested</span>`
+      return html`<span class="suggestion-badge">${t('suggested')}</span>`
     }
     if (node.bidirectional || node.isOutgoing) {
-      return html`<span class="dir">here</span><span class="predicate">${node.predicateLabel}</span><span class="dir">there</span>`
+      return html`<span class="dir">${t('here')}</span><span class="predicate">${node.predicateLabel}</span><span class="dir">${t('there')}</span>`
     }
-    return html`<span class="dir">there</span><span class="predicate">${node.predicateLabel}</span><span class="dir">here</span>`
+    return html`<span class="dir">${t('there')}</span><span class="predicate">${node.predicateLabel}</span><span class="dir">${t('here')}</span>`
   }
 
   private svgEl(tag: string, attrs: Record<string, string | number>): SVGElement {
@@ -800,7 +803,7 @@ export class MnWireRadialOverlay extends LitElement {
       >
         <div class="title">${node.title}</div>
         ${node.snippet || node.isSuggestion
-          ? html`<div class="snippet">${node.snippet || 'Suggested connection'}</div>`
+          ? html`<div class="snippet">${node.snippet || t('Suggested connection')}</div>`
           : nothing}
         <div class="footer">${this.renderFooter(node)}</div>
         ${node.isSuggestion
@@ -834,7 +837,7 @@ export class MnWireRadialOverlay extends LitElement {
         class="root"
         data-wire-radial-overlay
         role="region"
-        aria-label="Wire connections"
+        aria-label=${t('Wire connections')}
         @mouseenter=${() => this.emit('overlay-mouse-enter')}
         @mouseleave=${() => this.emit('overlay-mouse-leave')}
       >

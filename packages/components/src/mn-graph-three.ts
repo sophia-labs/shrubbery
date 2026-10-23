@@ -15,6 +15,7 @@
  * the non-relocatable WebGL surface used by the manifested graph panel.
  */
 
+import { LocaleController, t as msg } from '@shrubbery/nucleus'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { LitElement, css, html, nothing, unsafeCSS, type PropertyValues, type TemplateResult } from 'lit'
@@ -550,6 +551,8 @@ function cssColorString(value: string, fallback: string): string {
 
 @customElement('mn-graph-three')
 export class MnGraphThree extends SkinAware(LitElement) {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     ${unsafeCSS(iconStyles)}
 
@@ -1856,9 +1859,9 @@ export class MnGraphThree extends SkinAware(LitElement) {
     return html`
       ${this._fullscreen ? html`<div class="modal-backdrop" @click=${() => this._setFullscreen(false)}></div>` : nothing}
       <div class="shell">
-        <div class="stage" role="img" aria-label="Graph network"></div>
+        <div class="stage" role="img" aria-label=${msg('Graph network')}></div>
         ${this.interactive && this.nodes.length > 0
-          ? html`<nav class="accessible-nodes" aria-label="Graph nodes">
+          ? html`<nav class="accessible-nodes" aria-label=${msg('Graph nodes')}>
               <ul>
                 ${this.nodes.map((node) => html`<li>
                   <button
@@ -1875,8 +1878,8 @@ export class MnGraphThree extends SkinAware(LitElement) {
           ? html`<button
               class="graph-tool"
               type="button"
-              aria-label=${this._fullscreen ? 'Exit full screen graph' : 'Open full screen graph'}
-              title=${this._fullscreen ? 'Exit full screen' : 'Open full screen'}
+              aria-label=${this._fullscreen ? msg('Exit full screen graph') : msg('Open full screen graph')}
+              title=${this._fullscreen ? msg('Exit full screen') : msg('Open full screen')}
               @click=${() => this._setFullscreen(!this._fullscreen)}
             >
               ${icon(this._fullscreen ? 'minimize' : 'fullscreen', { size: 16 })}
@@ -1917,7 +1920,7 @@ export class MnGraphThree extends SkinAware(LitElement) {
                 <button
                   class="card-close"
                   type="button"
-                  aria-label="Close graph card"
+                  aria-label=${msg('Close graph card')}
                   @click=${() => { this._expanded = null }}
                 >×</button>
               </header>

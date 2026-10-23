@@ -6,6 +6,7 @@
  * DOM nodes and resolve local user intent.
  */
 
+import { LocaleController, localeSource, localizeLabel, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, unsafeCSS, type PropertyValues } from 'lit'
 import { customElement, property, query } from 'lit/decorators.js'
 import { SkinAware } from './skin-aware.js'
@@ -66,6 +67,8 @@ function requestFrame(callback: FrameRequestCallback): void {
 
 @customElement('mn-dialog')
 export class MnDialog extends SkinAware(LitElement) {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     ${unsafeCSS(iconStyles)}
 
@@ -324,7 +327,7 @@ export class MnDialog extends SkinAware(LitElement) {
             <div class="header-content"><slot name="header"></slot></div>
             ${this.closable
               ? html`
-                  <button class="close-btn" type="button" aria-label="Close dialog" @click=${() => this.close('cancel')}>
+                  <button class="close-btn" type="button" aria-label=${t('Close dialog')} @click=${() => this.close('cancel')}>
                     ${icon('x', { size: 16 })}
                   </button>
                 `
@@ -346,11 +349,11 @@ export class MnDialog extends SkinAware(LitElement) {
 
       const header = document.createElement('span')
       header.slot = 'header'
-      header.textContent = options.title
+      header.textContent = localizeLabel(options.title)
 
       const body = document.createElement('p')
       body.style.margin = '0'
-      body.textContent = options.message
+      body.textContent = localizeLabel(options.message)
 
       const footer = document.createElement('div')
       footer.slot = 'footer'
@@ -359,22 +362,32 @@ export class MnDialog extends SkinAware(LitElement) {
       const cancel = document.createElement('button')
       cancel.type = 'button'
       cancel.className = 'mn-dialog-cancel-btn'
-      cancel.textContent = options.cancelText ?? 'Cancel'
+      cancel.textContent = localizeLabel(options.cancelText ?? 'Cancel')
       cancel.style.cssText = buttonStyle('cancel')
 
       const confirm = document.createElement('button')
       confirm.type = 'button'
       confirm.className = 'mn-dialog-confirm-btn'
-      confirm.textContent = options.confirmText ?? 'Confirm'
+      confirm.textContent = localizeLabel(options.confirmText ?? 'Confirm')
       confirm.style.cssText = buttonStyle(options.variant === 'danger' ? 'danger' : options.variant === 'warning' ? 'warning' : 'confirm')
 
       footer.append(cancel, confirm)
       dialog.append(header, body, footer)
 
+      const updateLocale = (): void => {
+        header.textContent = localizeLabel(options.title)
+        cancel.textContent = localizeLabel(options.cancelText ?? 'Cancel')
+        confirm.textContent = localizeLabel(options.confirmText ?? 'Confirm')
+        const message = body.querySelector('p')
+        if (message) message.textContent = localizeLabel(options.message ?? '')
+        if (body.tagName === 'P') body.textContent = localizeLabel(options.message ?? '')
+      }
+      const unsubscribeLocale = localeSource.subscribe(updateLocale)
       let settled = false
       const settle = (result: boolean): void => {
         if (settled) return
         settled = true
+        unsubscribeLocale()
         dialog.close(result ? 'confirm' : 'cancel')
         window.setTimeout(() => dialog.remove(), 0)
         resolve(result)
@@ -399,20 +412,20 @@ export class MnDialog extends SkinAware(LitElement) {
 
       const header = document.createElement('span')
       header.slot = 'header'
-      header.textContent = options.title
+      header.textContent = localizeLabel(options.title)
 
       const body = document.createElement('div')
       if (options.message) {
         const message = document.createElement('p')
         message.style.cssText = 'margin:0 0 var(--mn-space-3,12px);color:var(--mn-color-text-secondary,#4b5563);'
-        message.textContent = options.message
+        message.textContent = localizeLabel(options.message)
         body.appendChild(message)
       }
 
       const input = document.createElement('input')
       input.type = 'text'
       input.value = options.value ?? ''
-      input.placeholder = options.placeholder ?? ''
+      input.placeholder = localizeLabel(options.placeholder ?? '')
       input.style.cssText =
         'width:100%;box-sizing:border-box;padding:var(--mn-space-2,8px) var(--mn-space-3,12px);' +
         'font-family:var(--mn-font-chrome,system-ui,sans-serif);font-size:var(--mn-text-sm,13px);' +
@@ -426,21 +439,33 @@ export class MnDialog extends SkinAware(LitElement) {
 
       const cancel = document.createElement('button')
       cancel.type = 'button'
-      cancel.textContent = options.cancelText ?? 'Cancel'
+      cancel.textContent = localizeLabel(options.cancelText ?? 'Cancel')
       cancel.style.cssText = buttonStyle('cancel')
 
       const confirm = document.createElement('button')
       confirm.type = 'button'
-      confirm.textContent = options.confirmText ?? 'OK'
+      confirm.textContent = localizeLabel(options.confirmText ?? 'OK')
       confirm.style.cssText = buttonStyle('confirm')
 
       footer.append(cancel, confirm)
       dialog.append(header, body, footer)
 
+      const updateLocale = (): void => {
+        header.textContent = localizeLabel(options.title)
+        cancel.textContent = localizeLabel(options.cancelText ?? 'Cancel')
+        confirm.textContent = localizeLabel(options.confirmText ?? 'OK')
+        const message = body.querySelector('p')
+        if (message) message.textContent = localizeLabel(options.message ?? '')
+        if (body.tagName === 'P') body.textContent = localizeLabel(options.message ?? '')
+        const input = body.querySelector('input')
+        if (input) input.placeholder = localizeLabel(options.placeholder ?? '')
+      }
+      const unsubscribeLocale = localeSource.subscribe(updateLocale)
       let settled = false
       const settle = (result: string | null): void => {
         if (settled) return
         settled = true
+        unsubscribeLocale()
         dialog.close(result === null ? 'cancel' : 'confirm')
         window.setTimeout(() => dialog.remove(), 0)
         resolve(result)

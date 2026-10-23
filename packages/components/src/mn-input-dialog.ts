@@ -6,6 +6,7 @@
  * validation, persistence, loading, and closing policy.
  */
 
+import { LocaleController, localizeLabel } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, unsafeCSS } from 'lit'
 import { customElement, property, query } from 'lit/decorators.js'
 import { SkinAware } from './skin-aware.js'
@@ -28,6 +29,8 @@ function deepestActiveElement(ownerDocument: Document): HTMLElement | null {
 
 @customElement('mn-input-dialog')
 export class MnInputDialog extends SkinAware(LitElement) {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     ${unsafeCSS(iconStyles)}
 
@@ -440,8 +443,8 @@ export class MnInputDialog extends SkinAware(LitElement) {
           <header class="header">
             <span class="icon-container" aria-hidden="true">${icon('file-text', { size: 22 })}</span>
             <div class="header-content">
-              <h2 class="title" id=${`${this.overlayId}-title`}>${this.title}</h2>
-              ${this.message ? html`<p class="message" id=${`${this.overlayId}-message`}>${this.message}</p>` : ''}
+              <h2 class="title" id=${`${this.overlayId}-title`}>${localizeLabel(this.title)}</h2>
+              ${this.message ? html`<p class="message" id=${`${this.overlayId}-message`}>${localizeLabel(this.message)}</p>` : ''}
             </div>
           </header>
           <div class="body">
@@ -449,7 +452,7 @@ export class MnInputDialog extends SkinAware(LitElement) {
               class="input"
               type="text"
               .value=${this.value}
-              placeholder=${this.placeholder}
+              placeholder=${localizeLabel(this.placeholder)}
               ?disabled=${this.loading}
               @input=${this.handleInput}
               @keydown=${this.handleInputKeyDown}
@@ -457,10 +460,10 @@ export class MnInputDialog extends SkinAware(LitElement) {
           </div>
           <footer class="footer">
             <button class="cancel-button" type="button" ?disabled=${this.loading} @click=${() => this.cancel()}>
-              ${this.cancelText}
+              ${localizeLabel(this.cancelText)}
             </button>
             <button class="confirm-button" type="button" ?disabled=${this.loading} @click=${() => this.confirm()}>
-              ${this.confirmText}
+              ${localizeLabel(this.confirmText)}
             </button>
           </footer>
         </section>

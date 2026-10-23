@@ -7,6 +7,7 @@
  * and editor insertion.
  */
 
+import { LocaleController, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, unsafeCSS, type PropertyValues, type TemplateResult } from 'lit'
 import { customElement, property, query } from 'lit/decorators.js'
 import { SkinAware } from './skin-aware.js'
@@ -43,6 +44,8 @@ function itemMeta(item: MnCitationItem): string {
 
 @customElement('mn-citation-picker')
 export class MnCitationPicker extends SkinAware(LitElement) {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     ${unsafeCSS(iconStyles)}
 
@@ -311,10 +314,10 @@ export class MnCitationPicker extends SkinAware(LitElement) {
   }
 
   private renderResults(): unknown {
-    if (this.loading) return html`<div class="state">Searching...</div>`
+    if (this.loading) return html`<div class="state">${t('Searching...')}</div>`
     if (this.error) return html`<div class="state error">${this.error}</div>`
-    if (!this.query.trim()) return html`<div class="state">Type to search the library.</div>`
-    if (this.results.length === 0) return html`<div class="state">No matches.</div>`
+    if (!this.query.trim()) return html`<div class="state">${t('Type to search the library.')}</div>`
+    if (this.results.length === 0) return html`<div class="state">${t('No matches.')}</div>`
     return this.results.map((item, index) => this.renderItem(item, index))
   }
 
@@ -326,7 +329,7 @@ export class MnCitationPicker extends SkinAware(LitElement) {
         class="panel"
         data-citation-picker
         role="dialog"
-        aria-label="Search citation sources"
+        aria-label=${t('Search citation sources')}
         @keydown=${this.handleKeydown}
       >
         <header class="search">
@@ -338,12 +341,12 @@ export class MnCitationPicker extends SkinAware(LitElement) {
             writingsuggestions="false"
             data-citation-search
             type="text"
-            placeholder="Search your Zotero library..."
+            placeholder=${t('Search your Zotero library...')}
             .value=${this.query}
             @input=${(event: Event) => this.search((event.target as HTMLInputElement).value)}
           />
-          <span class="hint">Arrows / Enter</span>
-          <button type="button" class="close" title="Cancel" data-citation-close @click=${() => this.close()}>
+          <span class="hint">${t('Arrows / Enter')}</span>
+          <button type="button" class="close" title=${t('Cancel')} data-citation-close @click=${() => this.close()}>
             ${icon('x', { size: 16 })}
           </button>
         </header>

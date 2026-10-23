@@ -4,6 +4,7 @@
  * Purely presentational: date state flows in, open/calendar intents flow out.
  */
 
+import { LocaleController, localeSource, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 import { classMap } from 'lit/directives/class-map.js'
@@ -26,6 +27,8 @@ export interface MnDailyNoteCalendarAnchorRequestDetail {
 
 @customElement('mn-daily-note-header')
 export class MnDailyNoteHeader extends SkinAware(LitElement) {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     :host {
       display: block;
@@ -91,7 +94,7 @@ export class MnDailyNoteHeader extends SkinAware(LitElement) {
   @property({ type: String, attribute: 'date-key' }) dateKey = ''
   @property({ type: String, attribute: 'today-key' }) todayKey = ''
   @property({ attribute: false }) adjacency: MnDailyNoteHeaderAdjacency | null = null
-  @property({ type: String }) locale = 'en-US'
+  @property({ type: String }) locale = ''
 
   private get isToday(): boolean {
     return this.dateKey !== '' && this.dateKey === this.todayKey
@@ -101,14 +104,14 @@ export class MnDailyNoteHeader extends SkinAware(LitElement) {
     if (!this.dateKey) return ''
     const date = parseDateKey(this.dateKey)
     if (!date) return this.dateKey
-    const long = new Intl.DateTimeFormat(this.locale, {
+    const long = new Intl.DateTimeFormat(this.locale || localeSource.get(), {
       timeZone: 'UTC',
       year: 'numeric',
       month: 'long',
       day: 'numeric',
     }).format(date)
     if (this.isToday) return `Today · ${long}`
-    const weekday = new Intl.DateTimeFormat(this.locale, {
+    const weekday = new Intl.DateTimeFormat(this.locale || localeSource.get(), {
       timeZone: 'UTC',
       weekday: 'long',
     }).format(date)
@@ -169,7 +172,7 @@ export class MnDailyNoteHeader extends SkinAware(LitElement) {
         <div class="title-row">
           <mn-icon-button
             icon="arrow-left"
-            label="Previous day"
+            label=${t('Previous day')}
             size="sm"
             @click=${this.onPrev}
           ></mn-icon-button>
@@ -177,14 +180,14 @@ export class MnDailyNoteHeader extends SkinAware(LitElement) {
           <span class="calendar-trigger">
             <mn-icon-button
               icon="calendar-days"
-              label="Jump to date"
+              label=${t('Jump to date')}
               size="sm"
               @click=${this.onCalendar}
             ></mn-icon-button>
           </span>
           <mn-icon-button
             icon="arrow-right"
-            label="Next day"
+            label=${t('Next day')}
             size="sm"
             @click=${this.onNext}
           ></mn-icon-button>

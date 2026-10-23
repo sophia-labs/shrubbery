@@ -6,6 +6,7 @@
  * handles accept/decline intents.
  */
 
+import { LocaleController, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, type TemplateResult } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 import { SkinAware } from './skin-aware.js'
@@ -19,6 +20,8 @@ export interface MnConsentChoiceDetail {
 
 @customElement('mn-consent-banner')
 export class MnConsentBanner extends SkinAware(LitElement) {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     :host {
       position: fixed;
@@ -141,7 +144,7 @@ export class MnConsentBanner extends SkinAware(LitElement) {
   override render(): TemplateResult | typeof nothing {
     if (this.consentState !== 'pending') return nothing
     return html`
-      <div class="banner" role="dialog" aria-live="polite" aria-label="Analytics consent">
+      <div class="banner" role="dialog" aria-live="polite" aria-label=${t('Analytics consent')}>
         <span class="copy">
           ${this.copy}
           <a href=${this.privacyHref} target="_blank" rel="noopener">${this.learnMoreLabel}</a>

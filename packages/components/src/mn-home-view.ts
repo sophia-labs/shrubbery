@@ -5,6 +5,7 @@
  * activity history, daily-note creation, and persistence remain shell concerns.
  */
 
+import { LocaleController, localeSource, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, unsafeCSS } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 import { SkinAware } from './skin-aware.js'
@@ -39,12 +40,14 @@ function relativeTime(timestamp: number | null | undefined): string {
   if (hours < 24) return `${hours}h ago`
   const days = Math.floor(hours / 24)
   if (days < 30) return `${days}d ago`
-  return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' })
+  return new Intl.DateTimeFormat(localeSource.get(), { month: 'short', day: 'numeric' })
     .format(new Date(timestamp))
 }
 
 @customElement('mn-home-view')
 export class MnHomeView extends SkinAware(LitElement) {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     ${unsafeCSS(iconStyles)}
 
@@ -417,19 +420,19 @@ export class MnHomeView extends SkinAware(LitElement) {
 
   render() {
     const hasDocuments = this.pinned.length + this.newlyCreated.length + this.recent.length > 0
-    return html`<main class="home" aria-label="Garden home">
+    return html`<main class="home" aria-label=${t('Garden home')}>
       <div class="home-inner">
         <header class="heading">
           <span class="bookplate" aria-hidden="true"><span class="mark">${icon('sprout', { size: 30 })}</span></span>
           ${this.graphTitle || this.graphId ? html`<p class="workspace">${this.graphTitle || this.graphId}</p>` : nothing}
           <h1>Garden</h1>
-          <p class="welcome-copy">A little room for what’s growing.</p>
+          <p class="welcome-copy">${t('A little room for what’s growing.')}</p>
         </header>
 
         ${this.status === 'loading'
-          ? html`<div class="state" role="status" aria-busy="true">Gathering this garden…</div>`
+          ? html`<div class="state" role="status" aria-busy="true">${t('Gathering this garden…')}</div>`
           : this.status === 'error'
-            ? html`<div class="state error" role="alert">${this.error || 'Workspace documents are unavailable.'}</div>`
+            ? html`<div class="state error" role="alert">${this.error || t('Workspace documents are unavailable.')}</div>`
             : html`<div class="ready">
               ${this.resume ? html`<div class="actions resume-actions">
                 <button
@@ -440,18 +443,18 @@ export class MnHomeView extends SkinAware(LitElement) {
                 >
                   <span class="resume-glyph">${icon('arrow-left', { size: 15 })}</span>
                   <span class="resume-copy">
-                    <span class="resume-kicker">Continue writing</span>
+                    <span class="resume-kicker">${t('Continue writing')}</span>
                     <span class="resume-title">${this.resume.title || 'Untitled'}</span>
                   </span>
                 </button>
               </div>` : nothing}
               <div class="actions">
                 <button class="home-action-btn new-document" type="button" @click=${() => this.emit('mn-home-new-document')}>
-                  ${icon('file-plus-corner', { size: 15 })}<span class="action-label">New document</span>
+                  ${icon('file-plus-corner', { size: 15 })}<span class="action-label">${t('New document')}</span>
                 </button>
               </div>
-              ${this.todayKey || this.dreamJournal ? html`<section class="practice" aria-label="Daily practice">
-                <h2>Daily practice</h2>
+              ${this.todayKey || this.dreamJournal ? html`<section class="practice" aria-label=${t('Daily practice')}>
+                <h2>${t('Daily practice')}</h2>
                 ${this.todayKey ? html`<div class="daily">
                   <mn-daily-note-row
                     displayed-date=${this.todayKey}
@@ -460,14 +463,14 @@ export class MnHomeView extends SkinAware(LitElement) {
                   ></mn-daily-note-row>
                 </div>` : nothing}
                 ${this.dreamJournal ? html`<button class="dream" type="button" @click=${() => this.open(this.dreamJournal!)}>
-                  ${icon('moon', { size: 16 })}<span>Dream Journal</span>
+                  ${icon('moon', { size: 16 })}<span>${t('Dream Journal')}</span>
                   ${this.dreamJournal.timestamp ? html`<span class="time">${relativeTime(this.dreamJournal.timestamp)}</span>` : nothing}
                 </button>` : nothing}
               </section>` : nothing}
               ${this.renderSection('Pinned', this.pinned, true)}
-              ${this.renderSection('Newly Created', this.newlyCreated, false)}
-              ${this.renderSection('Recently Opened', this.recent, false)}
-              ${!hasDocuments ? html`<p class="empty">Your first pages will gather here.</p>` : nothing}
+              ${this.renderSection(t('Newly Created'), this.newlyCreated, false)}
+              ${this.renderSection(t('Recently Opened'), this.recent, false)}
+              ${!hasDocuments ? html`<p class="empty">${t('Your first pages will gather here.')}</p>` : nothing}
             </div>`}
       </div>
     </main>`

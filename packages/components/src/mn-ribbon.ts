@@ -24,6 +24,7 @@
  * Dependencies: lit ONLY. No stores, no wf-model, no backend (island-guarded).
  */
 
+import { LocaleController, localizeLabel } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 import { classMap } from 'lit/directives/class-map.js'
@@ -41,6 +42,8 @@ export interface MnRibbonSegment {
 
 @customElement('mn-ribbon')
 export class MnRibbon extends SkinAware(LitElement) {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     :host {
       display: block;
@@ -147,8 +150,8 @@ export class MnRibbon extends SkinAware(LitElement) {
                 part="segment"
                 role="listitem"
                 style="background:${this.tint(i, n)}"
-                title=${seg.title ? `${seg.label} — ${seg.title}` : seg.label}
-                aria-label=${seg.label}
+                title=${seg.title ? `${localizeLabel(seg.label)} — ${seg.title}` : seg.label}
+                aria-label=${localizeLabel(seg.label)}
                 @click=${() => this._select(seg, order)}
               ></button>
             `
@@ -156,7 +159,7 @@ export class MnRibbon extends SkinAware(LitElement) {
         </div>
         ${this.showLabels
           ? html`<div class="labels" part="labels">
-              ${this.segments.map((s) => html`<span>${s.label}</span>`)}
+              ${this.segments.map((s) => html`<span>${localizeLabel(s.label)}</span>`)}
             </div>`
           : nothing}
       </div>

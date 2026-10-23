@@ -18,6 +18,7 @@
  * reproduced against the same `--mn-kind-*` tokens because `kind.css` does not
  * light inside a shadow root (object-card-view-element.ts's header).
  */
+import { LocaleController, localeSource, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, type TemplateResult } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 import type { AgentEntry } from '../../despacho/agent-reading.js'
@@ -30,7 +31,7 @@ function formatWhen(iso: string | null): string {
   if (!iso) return ''
   const date = new Date(iso)
   if (Number.isNaN(date.getTime())) return iso
-  return new Intl.DateTimeFormat('en', { dateStyle: 'medium', timeStyle: 'short' }).format(date)
+  return new Intl.DateTimeFormat(localeSource.get(), { dateStyle: 'medium', timeStyle: 'short' }).format(date)
 }
 
 /** The entry's slug: the last segment of a `…:seat:<id>` IRI, else the IRI's tail. */
@@ -42,6 +43,8 @@ export function entrySlug(iri: string): string {
 
 @customElement('sh-agent-entry-view')
 export class ShAgentEntryView extends LitElement {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     :host {
       display: flex;
@@ -344,7 +347,7 @@ export class ShAgentEntryView extends LitElement {
       <div class="foot mn-kind" data-kind="metric">
         ${seat.capabilities.length > 0 ? html`<span>${seat.capabilities.length} moves</span>` : nothing}
         ${seat.lettersIn + seat.lettersOut > 0 ? html`<span>${seat.lettersIn} in · ${seat.lettersOut} out</span>` : nothing}
-        ${last.when ? html`<span title=${last.claimed ? 'as its source claimed at fold time' : 'recorded run'}>ran ${formatAgo(last.when, this.now())}${last.claimed ? ' (claimed)' : ''}</span>` : html`<span>no run recorded</span>`}
+        ${last.when ? html`<span title=${last.claimed ? 'as its source claimed at fold time' : 'recorded run'}>ran ${formatAgo(last.when, this.now())}${last.claimed ? ' (claimed)' : ''}</span>` : html`<span>${t('no run recorded')}</span>`}
       </div>
     </div>`
   }
@@ -356,27 +359,27 @@ export class ShAgentEntryView extends LitElement {
     return html`<div class="stats mn-kind" data-kind="metric">
       <div class="stat" data-stat="runs">
         <span class="n">${runs.total}</span>
-        <span class="label">runs recorded</span>
+        <span class="label">${t('runs recorded')}</span>
         <span class="detail">${runs.completed} completed · ${runs.failed} failed · ${runs.open} open</span>
       </div>
       <div class="stat" data-stat="last-run">
         <span class="n">${last.when ? formatAgo(last.when, this.now()) : '—'}</span>
-        <span class="label">last run</span>
+        <span class="label">${t('last run')}</span>
         <span class="detail">${last.when ? `${formatWhen(last.when)}${last.claimed ? ' · as its source claimed at fold time' : ''}` : 'none recorded'}</span>
       </div>
       <div class="stat" data-stat="letters">
         <span class="n">${seat.lettersIn}</span>
-        <span class="label">letters in</span>
+        <span class="label">${t('letters in')}</span>
         <span class="detail">${seat.lettersOut} out · ${seat.unacknowledged} awaiting its acknowledgement</span>
       </div>
       <div class="stat" data-stat="moves">
         <span class="n">${seat.capabilities.length}</span>
-        <span class="label">moves</span>
+        <span class="label">${t('moves')}</span>
         <span class="detail">${seat.seals.length} seal${seat.seals.length === 1 ? '' : 's'}${seat.jail ? ' · one never' : ''}</span>
       </div>
       <div class="stat" data-stat="beads">
         <span class="n">${seat.heldBeads.length}</span>
-        <span class="label">beads held</span>
+        <span class="label">${t('beads held')}</span>
         <span class="detail">${seat.heldBeads.length === 0 ? 'beads name holders by office, not by seat, today' : `${seat.heldBeads.filter((b) => b.status === 'done').length} done`}</span>
       </div>
     </div>`
@@ -394,19 +397,19 @@ export class ShAgentEntryView extends LitElement {
       </div>
       <h1 class="title mn-kind" data-kind="identity">${seat.title}</h1>
       <dl class="identity mn-kind" data-kind="identity">
-        <dt>entry</dt><dd>${slug}</dd>
+        <dt>${t('entry')}</dt><dd>${slug}</dd>
         <dt>iri</dt><dd>${seat.subject}</dd>
-        ${seat.agentUri ? html`<dt>agent</dt><dd data-agent-uri>${seat.agentUri}</dd>` : nothing}
-        ${seat.model ? html`<dt>model</dt><dd>${seat.model}</dd>` : nothing}
-        ${seat.trigger ? html`<dt>woken by</dt><dd>${seat.trigger}</dd>` : nothing}
-        ${seat.parent ? html`<dt>under</dt><dd><a href=${this.focusHref(seat.parent.iri)} data-parent=${seat.parent.iri}>${seat.parent.seatId}</a></dd>` : nothing}
+        ${seat.agentUri ? html`<dt>${t('agent')}</dt><dd data-agent-uri>${seat.agentUri}</dd>` : nothing}
+        ${seat.model ? html`<dt>${t('model')}</dt><dd>${seat.model}</dd>` : nothing}
+        ${seat.trigger ? html`<dt>${t('woken by')}</dt><dd>${seat.trigger}</dd>` : nothing}
+        ${seat.parent ? html`<dt>${t('under')}</dt><dd><a href=${this.focusHref(seat.parent.iri)} data-parent=${seat.parent.iri}>${seat.parent.seatId}</a></dd>` : nothing}
       </dl>
       ${this._stats(entry)}
       ${seat.mandate ? html`<p class="mn-kind" data-kind="prose" data-mandate>${seat.mandate}</p>` : nothing}
       ${seat.scope && seat.scope !== seat.mandate ? html`<p class="muted mn-kind" data-kind="prose">${seat.scope}</p>` : nothing}
       ${seat.card
         ? html`<section class="mn-kind" data-kind="prose" aria-labelledby="entry-text-heading">
-            <h2 id="entry-text-heading">The entry, in its own words</h2>
+            <h2 id="entry-text-heading">${t('The entry, in its own words')}</h2>
             <blockquote class="verbatim">${seat.card}</blockquote>
           </section>`
         : nothing}
@@ -418,41 +421,41 @@ export class ShAgentEntryView extends LitElement {
                 (move) => html`<li data-capability=${move.iri}>
                   <div class="move-head"><strong>${move.name}</strong>${move.confidence ? html`<span class="muted">confidence ${move.confidence}</span>` : nothing}${move.mergeVerdict ? html`<span class="pill">${move.mergeVerdict}</span>` : nothing}</div>
                   ${move.definition ? html`<div class="move-text">${move.definition}</div>` : nothing}
-                  ${move.contract ? html`<div class="move-text muted"><em>Contract:</em> ${move.contract}</div>` : nothing}
+                  ${move.contract ? html`<div class="move-text muted"><em>${t('Contract:')}</em> ${move.contract}</div>` : nothing}
                 </li>`,
               )}
             </ul>`
-          : html`<p class="muted" data-moves="none">No move is recorded for this entry. Moves come from the swarm graph's capabilities and, later, from a tool manifest.</p>`}
+          : html`<p class="muted" data-moves="none">${t('No move is recorded for this entry. Moves come from the swarm graph\'s capabilities and, later, from a tool manifest.')}</p>`}
       </section>
       ${seat.jail || seat.seals.length > 0
         ? html`<section class="rules mn-kind" data-kind="prose" aria-labelledby="rules-heading">
-            <h2 id="rules-heading">Rules</h2>
-            ${seat.jail ? html`<p data-jail><strong>Never:</strong> ${seat.jail}</p>` : nothing}
+            <h2 id="rules-heading">${t('Rules')}</h2>
+            ${seat.jail ? html`<p data-jail><strong>${t('Never:')}</strong> ${seat.jail}</p>` : nothing}
             ${seat.seals.length > 0 ? html`<ul>${seat.seals.map((seal) => html`<li data-seal>${seal}</li>`)}</ul>` : nothing}
           </section>`
         : nothing}
       <section class="lineage mn-kind" data-kind="reference" aria-labelledby="lineage-heading">
-        <h2 id="lineage-heading">Lineage and evolutions</h2>
+        <h2 id="lineage-heading">${t('Lineage and evolutions')}</h2>
         <ul>
-          ${entry.lineage.ancestor ? html`<li data-ancestor=${entry.lineage.ancestor.iri}>supersedes <a href=${this.focusHref(entry.lineage.ancestor.iri)}>${entry.lineage.ancestor.title ?? entrySlug(entry.lineage.ancestor.iri)}</a>${entry.lineage.ancestor.status ? html` <span class="pill">${entry.lineage.ancestor.status}</span>` : nothing}</li>` : nothing}
-          ${entry.lineage.heirs.map((heir) => html`<li data-heir=${heir.iri}>superseded by <a href=${this.focusHref(heir.iri)}>${heir.title ?? entrySlug(heir.iri)}</a>${heir.status ? html` <span class="pill">${heir.status}</span>` : nothing}</li>`)}
-          ${seat.parent ? html`<li>under <a href=${this.focusHref(seat.parent.iri)}>${seat.parent.seatId}</a></li>` : nothing}
-          ${seat.foldedFrom.map((src) => html`<li data-folded-from=${src}>folded from <span class="muted">${src}</span></li>`)}
-          ${seat.definitions.map((doc) => html`<li data-definition>defined in <span class="muted">${doc}</span></li>`)}
+          ${entry.lineage.ancestor ? html`<li data-ancestor=${entry.lineage.ancestor.iri}>${t('supersedes')} <a href=${this.focusHref(entry.lineage.ancestor.iri)}>${entry.lineage.ancestor.title ?? entrySlug(entry.lineage.ancestor.iri)}</a>${entry.lineage.ancestor.status ? html` <span class="pill">${entry.lineage.ancestor.status}</span>` : nothing}</li>` : nothing}
+          ${entry.lineage.heirs.map((heir) => html`<li data-heir=${heir.iri}>${t('superseded by')} <a href=${this.focusHref(heir.iri)}>${heir.title ?? entrySlug(heir.iri)}</a>${heir.status ? html` <span class="pill">${heir.status}</span>` : nothing}</li>`)}
+          ${seat.parent ? html`<li>${t('under')} <a href=${this.focusHref(seat.parent.iri)}>${seat.parent.seatId}</a></li>` : nothing}
+          ${seat.foldedFrom.map((src) => html`<li data-folded-from=${src}>${t('folded from')} <span class="muted">${src}</span></li>`)}
+          ${seat.definitions.map((doc) => html`<li data-definition>${t('defined in')} <span class="muted">${doc}</span></li>`)}
           ${!entry.lineage.ancestor && entry.lineage.heirs.length === 0 && !seat.parent && seat.foldedFrom.length === 0 && seat.definitions.length === 0
-            ? html`<li class="muted" data-lineage="none">No lineage recorded: a first of its kind, as far as the register knows.</li>`
+            ? html`<li class="muted" data-lineage="none">${t('No lineage recorded: a first of its kind, as far as the register knows.')}</li>`
             : nothing}
         </ul>
       </section>
       ${seat.correspondents.length > 0
         ? html`<section class="lineage mn-kind" data-kind="reference" aria-labelledby="peers-heading">
-            <h2 id="peers-heading">Corresponds most with</h2>
+            <h2 id="peers-heading">${t('Corresponds most with')}</h2>
             <ul>${seat.correspondents.map((peer) => html`<li><a href=${this.focusHref(peer.iri)} data-peer=${peer.iri}>${peer.title ?? peer.iri}</a> <span class="muted">${peer.letters} letters</span></li>`)}</ul>
           </section>`
         : nothing}
       ${seat.heldBeads.length > 0
         ? html`<section class="lineage mn-kind" data-kind="reference" aria-labelledby="beads-heading">
-            <h2 id="beads-heading">Beads it holds</h2>
+            <h2 id="beads-heading">${t('Beads it holds')}</h2>
             <ul>${seat.heldBeads.map((bead) => html`<li><a href=${this.focusHref(bead.iri)} data-bead=${bead.iri}>${bead.title}</a> <span class="pill">${bead.status.replace('_', ' ')}</span></li>`)}</ul>
           </section>`
         : nothing}
@@ -474,7 +477,7 @@ export class ShAgentEntryView extends LitElement {
     if (this.status === 'loading') return this._state(this.mode === 'tile' ? '…' : 'Opening the entry…')
     if (this.status === 'error') return this._state(this.error || 'This entry could not be opened.', 'danger')
     const entry = this.entry
-    if (!entry) return this._state('Nothing to show.')
+    if (!entry) return this._state(t('Nothing to show.'))
     if (!entry.seat.found) return this._state(`No record in this graph for ${entry.seat.subject}.`, 'danger')
     if (!entry.seat.isSeat) return this._state(`${entry.seat.subject} is not a seat of the correo canon.`, 'danger')
     return this.mode === 'tile' ? this._tile(entry) : this._chapter(entry)

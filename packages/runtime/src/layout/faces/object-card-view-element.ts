@@ -36,6 +36,7 @@
  * per-proposal bylines), and `affordance` (proposal action buttons, Slice 5).
  * `object-card-kind-parity.test.ts` guards this duplication against drift.
  */
+import { LocaleController, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, type PropertyValues, type TemplateResult } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 import type { DisplayKind } from '@shrubbery/nucleus'
@@ -148,6 +149,8 @@ function shortHash(value: string): string {
 
 @customElement('sh-object-card-view')
 export class ShObjectCardView extends LitElement {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     ${OBJECT_KIND_STYLES}
     :host {
@@ -412,10 +415,10 @@ export class ShObjectCardView extends LitElement {
           <dt title=${field.fullLabel}>${field.label}</dt>
           <dd>
             ${field.absent
-              ? this._kindValue('—', 'state', { title: 'No value recorded.' })
+              ? this._kindValue('—', 'state', { get title() { return t('No value recorded.') } })
               : field.nested
                 ? this._kindValue(field.value, 'prose', {
-                    title: 'A structured value, shown as JSON. Per-class rendering has not been defined for this class.',
+                    get title() { return t('A structured value, shown as JSON. Per-class rendering has not been defined for this class.') },
                   })
                 : this._kindValue(field.value, field.kind, { unit: field.unit, href: field.href })}
           </dd>
@@ -426,7 +429,7 @@ export class ShObjectCardView extends LitElement {
 
   private _record(): TemplateResult {
     if (this.fields.length === 0) {
-      return this._state('This object has no recorded fields.')
+      return this._state(t('This object has no recorded fields.'))
     }
     // Wrapped in `.record-region` for the same reason `_body()`'s
     // `.body-region` is — two top-level dynamic child parts (the `<dl>` and
@@ -442,24 +445,24 @@ export class ShObjectCardView extends LitElement {
 
   private _strategyChip(): TemplateResult {
     if (!this.reconciliationStrategy || this.unavailable.includes('reconciliationStrategy')) {
-      return html`<span class="chip">reconciliation not read</span>`
+      return html`<span class="chip">${t('reconciliation not read')}</span>`
     }
-    return html`<span class="chip" title="How this class reconciles concurrent writes.">${this.reconciliationStrategy}</span>`
+    return html`<span class="chip" title=${t('How this class reconciles concurrent writes.')}>${this.reconciliationStrategy}</span>`
   }
 
   private _versionSlot(): TemplateResult {
     if (!this.sourceVersion || this.unavailable.includes('sourceVersion')) {
-      return html`<span class="version">source version not read</span>`
+      return html`<span class="version">${t('source version not read')}</span>`
     }
     return html`<span class="version" title=${this.sourceVersion}>source ${shortHash(this.sourceVersion)}</span>`
   }
 
   private _writerSlot(): TemplateResult {
-    return html`<span class="writer">${this._testimonyValue(this.lastWriter, 'Last writer not recorded by this cell.')}</span>`
+    return html`<span class="writer">${this._testimonyValue(this.lastWriter, t('Last writer not recorded by this cell.'))}</span>`
   }
 
   private _provenanceSlot(): TemplateResult {
-    if (this.provenance === 'authority-projection') return html`<span class="provenance">read live from the cell's projection</span>`
+    if (this.provenance === 'authority-projection') return html`<span class="provenance">${t('read live from the cell\'s projection')}</span>`
     return html`<span class="provenance">from the local mirror, epoch ${this.epoch}</span>`
   }
 
@@ -470,7 +473,7 @@ export class ShObjectCardView extends LitElement {
         <span class="strategy">${this._strategyChip()}</span>
         ${this._versionSlot()} ${this._writerSlot()} ${this._provenanceSlot()}
         ${this.provenance === 'authority-projection'
-          ? html`<span class="caveat">Source version, reconciliation strategy, and proposals are not available from this read.</span>`
+          ? html`<span class="caveat">${t('Source version, reconciliation strategy, and proposals are not available from this read.')}</span>`
           : nothing}
       </footer>
     `
@@ -548,21 +551,21 @@ export class ShObjectCardView extends LitElement {
     if (this.stance !== 'contested' && !this.provisionalHead) return nothing
     return html`<div class="provisional">
       ${this.stance === 'contested'
-        ? html`<span class="mn-kind" data-kind="state"><span class="mn-kind-value">Contested</span></span>`
+        ? html`<span class="mn-kind" data-kind="state"><span class="mn-kind-value">${t('Contested')}</span></span>`
         : nothing}
       ${this.provisionalHead
         ? html`<span
             class="mn-kind"
             data-kind="state"
-            title="While this object is contested, the cell projects the proposal with the lowest version hash. That is a deterministic order, not a decision."
-            ><span class="mn-kind-value">Provisional head — hash order, not chosen</span></span
+            title=${t('While this object is contested, the cell projects the proposal with the lowest version hash. That is a deterministic order, not a decision.')}
+            ><span class="mn-kind-value">${t('Provisional head — hash order, not chosen')}</span></span
           >`
         : nothing}
     </div>`
   }
 
   private _proposalFields(proposal: ObjectCardProposal): TemplateResult {
-    if (proposal.fields.length === 0) return this._state('This object has no recorded fields.')
+    if (proposal.fields.length === 0) return this._state(t('This object has no recorded fields.'))
     return this._fieldsList(proposal.fields)
   }
 
@@ -570,11 +573,11 @@ export class ShObjectCardView extends LitElement {
     const expanded = this.#expandedOperationIds.has(proposal.operationId)
     return html`<li class="proposal" ?data-projected=${proposal.projected}>
       <div class="proposal-head">
-        ${proposal.projected ? html`<span class="projected-badge">Projected head</span>` : nothing}
+        ${proposal.projected ? html`<span class="projected-badge">${t('Projected head')}</span>` : nothing}
         <span class="byline"
           >${this._testimonyValue(
             proposal.observer ?? '',
-            'Proposal not attributed — this cell does not record who wrote it.',
+            t('Proposal not attributed — this cell does not record who wrote it.'),
           )}</span
         >
       </div>
@@ -589,9 +592,9 @@ export class ShObjectCardView extends LitElement {
               type="button"
               class="mn-kind"
               data-kind="affordance"
-              title="Select this proposal as the object's record."
+              title=${t('Select this proposal as the object\'s record.')}
               @click=${() => this._onKeep(proposal)}
-            ><span class="mn-kind-value">Keep this one</span></button>`
+            ><span class="mn-kind-value">${t('Keep this one')}</span></button>`
           : nothing}
         <button
           type="button"
@@ -599,7 +602,7 @@ export class ShObjectCardView extends LitElement {
           data-kind="affordance"
           title=${expanded ? "Collapse this proposal's record." : "Show this proposal's complete record here."}
           @click=${() => this._onInspect(proposal)}
-        ><span class="mn-kind-value">${expanded ? 'Hide full record' : 'Show full record'}</span></button>
+        ><span class="mn-kind-value">${expanded ? t('Hide full record') : t('Show full record')}</span></button>
       </div>
       ${expanded ? html`<div class="proposal-record">${this._proposalFields(proposal)}</div>` : nothing}
     </li>`
@@ -630,28 +633,28 @@ export class ShObjectCardView extends LitElement {
     const count = this.proposals.length
     return html`<section class="proposals">
       <div class="proposals-header">
-        <h2>Proposals</h2>
+        <h2>${t('Proposals')}</h2>
         ${!degraded && this.showProposals
           ? html`<span class="compose-action"
               ><button
                 type="button"
                 class="mn-kind"
                 data-kind="affordance"
-                title="Write a new record for this object, starting from these proposals."
+                title=${t('Write a new record for this object, starting from these proposals.')}
                 @click=${(event: MouseEvent) => this._onCompose(event)}
-              ><span class="mn-kind-value">Compose a merged value…</span></button></span
+              ><span class="mn-kind-value">${t('Compose a merged value…')}</span></button></span
             >`
           : nothing}
       </div>
       ${degraded
-        ? html`<p class="order-note">This object is contested, but the proposals did not arrive with this epoch.</p>`
+        ? html`<p class="order-note">${t('This object is contested, but the proposals did not arrive with this epoch.')}</p>`
         : !this.showProposals
           ? html`<p class="order-note">${count} proposals — hidden by this view's settings.</p>`
           : html`
               <p class="order-note">
                 ${count >= 2 ? `${count} proposals share one observed base.` : 'One proposal references a base this cell no longer has.'}
               </p>
-              <p class="order-note">Ordered by version hash, not by time.</p>
+              <p class="order-note">${t('Ordered by version hash, not by time.')}</p>
               <div class="proposals-region">
                 ${this.contestReason ? html`<p class="reason-line">${this.contestReason}</p>` : nothing}
                 <ol class="proposal-list">
@@ -659,12 +662,12 @@ export class ShObjectCardView extends LitElement {
                 </ol>
               </div>
             `}
-      <p class="ethic-line">Resolving selects — the unchosen proposal remains in the ledger's history.</p>
+      <p class="ethic-line">${t('Resolving selects — the unchosen proposal remains in the ledger\'s history.')}</p>
     </section>`
   }
 
   private _body(): TemplateResult {
-    if (this.status === 'loading') return this._state('Loading…')
+    if (this.status === 'loading') return this._state(t('Loading…'))
     if (this.status === 'error') {
       return this._state(this.error || 'This object could not be read.', 'danger')
     }
@@ -706,7 +709,7 @@ export class ShObjectCardView extends LitElement {
     return html`<div
       class="stage"
       role="region"
-      aria-label=${this.title || this.objectKey || 'Meaningful Object card'}
+      aria-label=${this.title || this.objectKey || t('Meaningful Object card')}
     >
       ${this._body()}
     </div>`

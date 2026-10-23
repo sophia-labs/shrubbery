@@ -7,6 +7,7 @@
  * DOM events. Runtime glue owns filtering UI and the live editor owns execution.
  */
 
+import { t } from '@shrubbery/nucleus'
 import { Extension } from '@tiptap/core'
 import { Plugin } from '@tiptap/pm/state'
 import type { EditorView } from '@tiptap/pm/view'
@@ -53,86 +54,86 @@ export interface OpenSlashCommandDetail {
 export const SLASH_COMMANDS: readonly SlashCommandItem[] = [
   {
     id: 'heading1',
-    label: 'Heading 1',
-    description: 'Large section heading',
+    get label() { return t('Heading 1') },
+    get description() { return t('Large section heading') },
     keywords: 'h1 title',
   },
   {
     id: 'heading2',
-    label: 'Heading 2',
-    description: 'Medium section heading',
+    get label() { return t('Heading 2') },
+    get description() { return t('Medium section heading') },
     keywords: 'h2 subtitle',
   },
   {
     id: 'heading3',
-    label: 'Heading 3',
-    description: 'Small section heading',
+    get label() { return t('Heading 3') },
+    get description() { return t('Small section heading') },
     keywords: 'h3',
   },
   {
     id: 'bulletList',
-    label: 'Bullet List',
-    description: 'Unordered list',
+    get label() { return t('Bullet List') },
+    get description() { return t('Unordered list') },
     keywords: 'ul unordered bullets',
   },
   {
     id: 'orderedList',
-    label: 'Numbered List',
-    description: 'Ordered list',
+    get label() { return t('Numbered List') },
+    get description() { return t('Ordered list') },
     keywords: 'ol numbered',
   },
   {
     id: 'taskList',
-    label: 'Task List',
-    description: 'Checklist with toggles',
+    get label() { return t('Task List') },
+    get description() { return t('Checklist with toggles') },
     keywords: 'todo checkbox check',
   },
   {
     id: 'blockquote',
-    label: 'Quote',
-    description: 'Block quotation',
+    get label() { return t('Quote') },
+    get description() { return t('Block quotation') },
     keywords: 'quote blockquote',
   },
   {
     id: 'codeBlock',
-    label: 'Code Block',
-    description: 'Fenced code block',
+    get label() { return t('Code Block') },
+    get description() { return t('Fenced code block') },
     keywords: 'code pre fence',
   },
   {
     id: 'table',
-    label: 'Table',
+    get label() { return t('Table') },
     description: '3x3 table',
     keywords: 'grid rows columns',
   },
   {
     id: 'image',
-    label: 'Image',
-    description: 'Upload an image',
+    get label() { return t('Image') },
+    get description() { return t('Upload an image') },
     keywords: 'img picture photo upload',
   },
   {
     id: 'queryBlock',
-    label: 'Query Block',
-    description: 'SPARQL query block',
+    get label() { return t('Query Block') },
+    get description() { return t('SPARQL query block') },
     keywords: 'sparql query database search rdf graph',
   },
   {
     id: 'object',
-    label: 'Object',
-    description: 'Embed a typed object (a dream report, a finding)',
+    get label() { return t('Object') },
+    get description() { return t('Embed a typed object (a dream report, a finding)') },
     keywords: 'object embed injerto typed card class item finding transclude',
   },
   {
     id: 'math',
-    label: 'Math Block',
-    description: 'LaTeX math equation',
+    get label() { return t('Math Block') },
+    get description() { return t('LaTeX math equation') },
     keywords: 'latex equation formula katex',
   },
   {
     id: 'horizontalRule',
-    label: 'Divider',
-    description: 'Horizontal rule',
+    get label() { return t('Divider') },
+    get description() { return t('Horizontal rule') },
     keywords: 'hr separator line divider',
   },
 ]

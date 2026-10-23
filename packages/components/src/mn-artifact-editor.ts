@@ -5,6 +5,7 @@
  * Shrubbery lift keeps the real local Fabric canvas editor, but generation is a
  * host-owned intent. It never imports services, stores, runtime, or persistence.
  */
+import { LocaleController, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, unsafeCSS, type PropertyValues, type TemplateResult } from 'lit'
 import { customElement, property, state } from 'lit/decorators.js'
 import { Canvas, FabricImage, PencilBrush, Point, Rect, filters } from 'fabric'
@@ -25,6 +26,8 @@ export interface MnArtifactEditorGenerateDetail extends MnArtifactEditorSaveDeta
 
 @customElement('mn-artifact-editor')
 export class MnArtifactEditor extends LitElement {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     ${unsafeCSS(iconStyles)}
 
@@ -540,30 +543,30 @@ export class MnArtifactEditor extends LitElement {
   render(): TemplateResult {
     return html`
       <div class="toolbar">
-        <div class="group" aria-label="Viewport controls">
-          <button type="button" class=${this._tool === 'pan' ? 'active' : ''} @click=${() => this._setTool('pan')}>Pan</button>
-          <button type="button" title="Zoom out" aria-label="Zoom out" @click=${() => this._setZoom(this._zoomPct / 100 - 0.2)}>-</button>
+        <div class="group" aria-label=${t('Viewport controls')}>
+          <button type="button" class=${this._tool === 'pan' ? 'active' : ''} @click=${() => this._setTool('pan')}>${t('Pan')}</button>
+          <button type="button" title=${t('Zoom out')} aria-label=${t('Zoom out')} @click=${() => this._setZoom(this._zoomPct / 100 - 0.2)}>-</button>
           <span class="zoom" aria-live="polite">${this._zoomPct}%</span>
-          <button type="button" title="Zoom in" aria-label="Zoom in" @click=${() => this._setZoom(this._zoomPct / 100 + 0.2)}>+</button>
-          <button type="button" @click=${() => this._fitViewport()}>Fit</button>
+          <button type="button" title=${t('Zoom in')} aria-label=${t('Zoom in')} @click=${() => this._setZoom(this._zoomPct / 100 + 0.2)}>+</button>
+          <button type="button" @click=${() => this._fitViewport()}>${t('Fit')}</button>
           <button type="button" @click=${() => this._setZoom(1)}>1:1</button>
         </div>
-        <div class="group" aria-label="Transform controls">
-          <button type="button" title="Rotate 90 degrees" @click=${() => void this._bakeWithTransform(90, false, false)}>
+        <div class="group" aria-label=${t('Transform controls')}>
+          <button type="button" title=${t('Rotate 90 degrees')} @click=${() => void this._bakeWithTransform(90, false, false)}>
             ${icon('rotate-ccw', { size: 14 })} Rotate
           </button>
-          <button type="button" @click=${() => void this._bakeWithTransform(0, true, false)}>Flip X</button>
-          <button type="button" @click=${() => void this._bakeWithTransform(0, false, true)}>Flip Y</button>
+          <button type="button" @click=${() => void this._bakeWithTransform(0, true, false)}>${t('Flip X')}</button>
+          <button type="button" @click=${() => void this._bakeWithTransform(0, false, true)}>${t('Flip Y')}</button>
         </div>
-        <div class="group" aria-label="Crop controls">
+        <div class="group" aria-label=${t('Crop controls')}>
           <button type="button" class=${this._tool === 'crop' ? 'active' : ''} @click=${() => this._setTool(this._tool === 'crop' ? 'pan' : 'crop')}>
             Crop
           </button>
           ${this._tool === 'crop'
-            ? html`<button type="button" class="primary" @click=${() => void this._applyCrop()}>Apply</button>`
+            ? html`<button type="button" class="primary" @click=${() => void this._applyCrop()}>${t('Apply')}</button>`
             : nothing}
         </div>
-        <div class="group" aria-label="Draw controls">
+        <div class="group" aria-label=${t('Draw controls')}>
           <button type="button" class=${this._tool === 'draw' ? 'active' : ''} @click=${() => this._setTool(this._tool === 'draw' ? 'pan' : 'draw')}>
             ${icon('pencil', { size: 14 })} Draw
           </button>
@@ -571,7 +574,7 @@ export class MnArtifactEditor extends LitElement {
             ? html`
                 <input
                   type="color"
-                  aria-label="Brush color"
+                  aria-label=${t('Brush color')}
                   .value=${this._brushColor}
                   @input=${(event: Event) => {
                     this._brushColor = (event.target as HTMLInputElement).value
@@ -580,7 +583,7 @@ export class MnArtifactEditor extends LitElement {
                 />
                 <input
                   type="range"
-                  aria-label="Brush width"
+                  aria-label=${t('Brush width')}
                   min="1"
                   max="40"
                   .value=${String(this._brushWidth)}
@@ -592,20 +595,20 @@ export class MnArtifactEditor extends LitElement {
               `
             : nothing}
         </div>
-        <div class="group" aria-label="Filter controls">
-          <label>Bright<input type="range" min="-100" max="100" .value=${String(this._brightness)} @input=${(event: Event) => this._onSlider('brightness', Number((event.target as HTMLInputElement).value))} /></label>
-          <label>Contrast<input type="range" min="-100" max="100" .value=${String(this._contrast)} @input=${(event: Event) => this._onSlider('contrast', Number((event.target as HTMLInputElement).value))} /></label>
-          <label>Sat<input type="range" min="-100" max="100" .value=${String(this._saturation)} @input=${(event: Event) => this._onSlider('saturation', Number((event.target as HTMLInputElement).value))} /></label>
+        <div class="group" aria-label=${t('Filter controls')}>
+          <label>${t('Bright')}<input type="range" min="-100" max="100" .value=${String(this._brightness)} @input=${(event: Event) => this._onSlider('brightness', Number((event.target as HTMLInputElement).value))} /></label>
+          <label>${t('Contrast')}<input type="range" min="-100" max="100" .value=${String(this._contrast)} @input=${(event: Event) => this._onSlider('contrast', Number((event.target as HTMLInputElement).value))} /></label>
+          <label>${t('Sat')}<input type="range" min="-100" max="100" .value=${String(this._saturation)} @input=${(event: Event) => this._onSlider('saturation', Number((event.target as HTMLInputElement).value))} /></label>
         </div>
         <div class="spacer"></div>
-        <button type="button" @click=${this._cancel}>Cancel</button>
+        <button type="button" @click=${this._cancel}>${t('Cancel')}</button>
         <button type="button" class="primary" ?disabled=${this.generating} @click=${this._save}>${icon('save', { size: 14 })} Save version</button>
       </div>
       <div class="promptbar">
         <input
           class="prompt"
           type="text"
-          placeholder="Describe an image edit to generate..."
+          placeholder=${t('Describe an image edit to generate...')}
           .value=${this.prompt}
           ?disabled=${this.generating}
           @input=${(event: Event) => {
@@ -622,8 +625,8 @@ export class MnArtifactEditor extends LitElement {
             this.generationTarget = (event.target as HTMLSelectElement).value as MnArtifactEditorGenerateTarget
           }}
         >
-          <option value="version">New version</option>
-          <option value="artifact">New artifact</option>
+          <option value="version">${t('New version')}</option>
+          <option value="artifact">${t('New artifact')}</option>
         </select>
         <button type="button" class="primary" ?disabled=${this.generating || !this.prompt.trim()} @click=${this._generate}>
           ${this.generating ? 'Generating...' : 'Generate'}
@@ -631,7 +634,7 @@ export class MnArtifactEditor extends LitElement {
         ${this.generationError ? html`<span class="error">${this.generationError}</span>` : nothing}
       </div>
       <div class="stage">
-        <canvas aria-label="Artifact image editor canvas"></canvas>
+        <canvas aria-label=${t('Artifact image editor canvas')}></canvas>
         ${this._renderHeadlessState()}
       </div>
     `

@@ -38,6 +38,7 @@
  * Emporium (Sophia) skin turns the whole catalogue Sophia Blue with no per-skin code here.
  */
 
+import { t } from '@shrubbery/nucleus'
 import { html, nothing, type TemplateResult } from 'lit'
 import type { VocabPack, VocabSummary } from '@shrubbery/render'
 
@@ -82,7 +83,7 @@ export function renderVocabCatalogue(
   if (vocabs.length === 0) {
     return html`
       <div class="vocab-catalogue" data-empty="true">
-        <p class="vocab-empty">No vocabularies served by this cell (the live /emporium registry is empty).</p>
+        <p class="vocab-empty">${t('No vocabularies served by this cell (the live /emporium registry is empty).')}</p>
       </div>
     `
   }
@@ -193,7 +194,7 @@ export function renderVocabPack(
               interactive
               state="neutral"
               glyph="←"
-              label="catalogue"
+              label=${t('catalogue')}
               hint="back to the vocabulary catalogue"
               @mn-badge-action=${() => opts.onBack?.()}
             ></mn-badge>
@@ -222,7 +223,7 @@ export function renderVocabPack(
 
       <div class="vocab-pack__classes">
         ${pack.classes.length === 0
-          ? html`<p class="vocab-empty">This pack declares no classes.</p>`
+          ? html`<p class="vocab-empty">${t('This pack declares no classes.')}</p>`
           : pack.classes.map((cls) => renderClassCard(cls))}
       </div>
     </div>
@@ -278,7 +279,7 @@ function renderNamespaceTable(
   return html`
     <table class="vocab-pack__ns">
       <thead>
-        <tr><th>prefix</th><th>namespace</th></tr>
+        <tr><th>${t('prefix')}</th><th>${t('namespace')}</th></tr>
       </thead>
       <tbody>
         ${entries.map(
@@ -311,8 +312,8 @@ function renderMinting(
   return html`
     <mn-card class="vocab-pack__minting" data-section="minting">
       <div slot="header" class="vocab-pack__section-head">
-        <span>Minting</span>
-        <mn-chip tone="muted" label="slug · uri · doc-id rules"></mn-chip>
+        <span>${t('Minting')}</span>
+        <mn-chip tone="muted" label=${t('slug · uri · doc-id rules')}></mn-chip>
       </div>
       <div class="vocab-pack__minting-body">
         ${hasSlug
@@ -344,7 +345,7 @@ function renderMintRuleTable(
     <table class="vocab-pack__mint">
       <thead>
         <tr><th colspan="2">${caption}</th></tr>
-        <tr><th>template</th><th>rule</th></tr>
+        <tr><th>${t('template')}</th><th>${t('rule')}</th></tr>
       </thead>
       <tbody>
         ${rules
@@ -383,12 +384,12 @@ function renderRelationships(
   return html`
     <mn-card class="vocab-pack__relationships" data-section="relationships" data-rel-view=${view}>
       <div slot="header" class="vocab-pack__section-head">
-        <span>Relationships</span>
+        <span>${t('Relationships')}</span>
         <mn-chip
           tone="muted"
           label=${`${relationships.length} ${relationships.length === 1 ? 'link' : 'links'}`}
         ></mn-chip>
-        <span class="vocab-pack__rel-toggle" role="group" aria-label="Relationships view">
+        <span class="vocab-pack__rel-toggle" role="group" aria-label=${t('Relationships view')}>
           <button
             class="vocab-pack__rel-toggle-btn ${view === 'list' ? 'is-active' : ''}"
             data-rel-view-btn="list"
@@ -412,12 +413,12 @@ function renderRelationships(
         : html`<div class="vocab-pack__rel-groups">
             ${predicateEdges.length > 0
               ? html`<div class="vocab-pack__rel-group" data-rel-kind="predicate">
-                  <div class="vocab-pack__rel-label">class → class (predicate ranges)</div>
+                  <div class="vocab-pack__rel-label">${t('class → class (predicate ranges)')}</div>
                   <mn-relations .relations=${predicateEdges}></mn-relations>
                 </div>`
               : nothing}${wireEdges.length > 0
               ? html`<div class="vocab-pack__rel-group" data-rel-kind="wire">
-                  <div class="vocab-pack__rel-label">CRDT wires (doc connections)</div>
+                  <div class="vocab-pack__rel-label">${t('CRDT wires (doc connections)')}</div>
                   <mn-relations .relations=${wireEdges}></mn-relations>
                 </div>`
               : nothing}
@@ -442,7 +443,7 @@ function renderRelationshipsGraph(
   const nodes = classes.map((c) => ({ id: c.name }))
   return html`
     <div class="vocab-pack__rel-graph" data-rel-kind="graph">
-      <div class="vocab-pack__rel-label">class graph (predicate ranges + CRDT wires)</div>
+      <div class="vocab-pack__rel-label">${t('class graph (predicate ranges + CRDT wires)')}</div>
       <mn-graph
         interactive
         hint="class graph: classes as nodes, predicate-range (solid) + CRDT-wire (dashed) edges"
@@ -476,7 +477,7 @@ function renderClassCard(cls: VocabPack['classes'][number]): TemplateResult {
 
       ${cls.subjectRule
         ? html`<div class="vocab-class__subject">
-            <mn-chip tone="muted" glyph="⌖" label="subject" hint="subject-minting rule"></mn-chip>
+            <mn-chip tone="muted" glyph="⌖" label=${t('subject')} hint="subject-minting rule"></mn-chip>
             <span class="vocab-class__subject-rule">${cls.subjectRule}</span>
           </div>`
         : nothing}
@@ -504,7 +505,7 @@ function renderPredGroup(
       <div class="vocab-class__group-label">${group}</div>
       <table class="vocab-class__preds">
         <thead>
-          <tr><th>predicate</th><th>datatype</th><th>flags / enum</th></tr>
+          <tr><th>${t('predicate')}</th><th>${t('datatype')}</th><th>${t('flags / enum')}</th></tr>
         </thead>
         <tbody>
           ${preds.map(
@@ -520,10 +521,10 @@ function renderPredGroup(
               <td class="vocab-class__dt">${pred.datatype ?? '—'}</td>
               <td class="vocab-class__flags">
                 ${group === 'required'
-                  ? html`<mn-badge state="warning" glyph="!" label="required"></mn-badge>`
+                  ? html`<mn-badge state="warning" glyph="!" label=${t('required')}></mn-badge>`
                   : nothing}
                 ${pred.multi
-                  ? html`<mn-chip tone="accent" label="multi" hint="multi-valued predicate"></mn-chip>`
+                  ? html`<mn-chip tone="accent" label=${t('multi')} hint="multi-valued predicate"></mn-chip>`
                   : nothing}
                 ${pred.relatesTo
                   ? html`<mn-chip tone="accent" glyph="→" label=${pred.relatesTo} hint="object-property range"></mn-chip>`

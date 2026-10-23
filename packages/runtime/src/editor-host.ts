@@ -52,6 +52,7 @@
  * EditorHostState/EditorHostBinding from a sibling .js — no store/contract/CRDT.
  */
 
+import { LocaleController, localizeLabel, t } from '@shrubbery/nucleus'
 import { LitElement, html, css, nothing, type TemplateResult } from 'lit'
 import { classMap } from 'lit/directives/class-map.js'
 import { unsafeHTML } from 'lit/directives/unsafe-html.js'
@@ -943,6 +944,8 @@ const ANCHOR_ID = 'mn-main-editor'
  */
 @customElement('sh-editor-host')
 export class ShEditorHost extends LitElement {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     ${collaborationCursorStyles}
     ${editorSemanticStyles}
@@ -4364,7 +4367,7 @@ export class ShEditorHost extends LitElement {
       const copy = el.cloneNode(true) as HTMLElement
       copy.querySelectorAll('[contenteditable="false"]').forEach(widget => widget.remove())
       const excerpt = (copy.textContent ?? '').trim().replace(/\s+/g, ' ').slice(0, 64)
-      control.setAttribute('aria-label', `Block actions: ${excerpt || 'Empty block'}`)
+      control.setAttribute('aria-label', t('editor.blockActions', { text: excerpt || t('Empty block') }))
       control.setAttribute('aria-description', `Level ${Number(el.getAttribute('data-indent') || 0) + 1}${isWired ? `; ${Math.max(1, wires.length)} connections` : ''}.`)
     }
   }
@@ -5323,17 +5326,17 @@ export class ShEditorHost extends LitElement {
 
   private async _promptImageInsert(): Promise<EditorImageInsert | null> {
     const src = (await this._promptTextDialog({
-      title: 'Insert Image',
-      message: 'Paste an image URL to insert it into the document.',
+      get title() { return t('Insert Image') },
+      get message() { return t('Paste an image URL to insert it into the document.') },
       placeholder: 'https://example.com/image.png',
-      confirmText: 'Continue',
+      get confirmText() { return t('Continue') },
     }))?.trim()
     if (!src) return null
     const alt = (await this._promptTextDialog({
-      title: 'Image Alt Text',
-      message: 'Describe the image for readers and agents.',
-      placeholder: 'Alt text',
-      confirmText: 'Insert',
+      get title() { return t('Image Alt Text') },
+      get message() { return t('Describe the image for readers and agents.') },
+      get placeholder() { return t('Alt text') },
+      get confirmText() { return t('Insert') },
     })) ?? ''
     return { src, alt }
   }
@@ -5372,10 +5375,10 @@ export class ShEditorHost extends LitElement {
 
   private async _promptFootnoteContent(): Promise<string | null> {
     const value = await this._promptTextDialog({
-      title: 'Insert Footnote',
-      message: 'Enter the footnote content.',
-      placeholder: 'Footnote content',
-      confirmText: 'Insert',
+      get title() { return t('Insert Footnote') },
+      get message() { return t('Enter the footnote content.') },
+      get placeholder() { return t('Footnote content') },
+      get confirmText() { return t('Insert') },
     })
     return value?.trim() || null
   }
@@ -5578,7 +5581,7 @@ export class ShEditorHost extends LitElement {
     button.style.right = `${right}px`
     button.style.bottom = `${bottom}px`
     button.title = 'Cycle image size'
-    button.setAttribute('aria-label', `Cycle image size, currently ${label}`)
+    button.setAttribute('aria-label', t('editor.imageSize', { size: label }))
     button.addEventListener('mousedown', (event) => {
       event.preventDefault()
       event.stopPropagation()
@@ -5682,7 +5685,7 @@ export class ShEditorHost extends LitElement {
         class="original-file-view"
         ?hidden=${!showOriginal}
         role="region"
-        aria-label="Original document view"
+        aria-label=${t('Original document view')}
       >
         ${inReader && original
           ? html`<mn-reader
@@ -5693,7 +5696,7 @@ export class ShEditorHost extends LitElement {
               .annotations=${original.readerAnnotations ?? []}
               ?can-annotate=${original.readerCanAnnotate ?? false}
               ?notes-open=${original.readerNotesOpen ?? false}
-              annotate-note=${original.readerCanAnnotate ? '' : 'Highlights and notes need the document to be open and connected.'}
+              annotate-note=${original.readerCanAnnotate ? '' : t('Highlights and notes need the document to be open and connected.')}
               ?text-view=${true}
               ?downloadable=${original.downloadable}
               .scan=${original.readerScan ?? null}
@@ -5726,7 +5729,7 @@ export class ShEditorHost extends LitElement {
       </div>
       <nav
         class="zoom-breadcrumb"
-        aria-label="Zoom trail"
+        aria-label=${t('Zoom trail')}
         ?hidden=${showOriginal || this.zoomSnapshot.breadcrumb.length === 0}
       ></nav>
       <div
@@ -5767,7 +5770,7 @@ export class ShEditorHost extends LitElement {
     const canMakeEditable = (this._activationSynced && !conflict) && (access?.makeEditable ?? true)
     const menu = [
       ...(canMakeEditable ? [{ id: 'make-editable', label: saving ? 'Making editable…' : 'Make Editable', icon: 'unlock', disabled: saving }] : []),
-      { id: 'download', label: 'Download original', icon: 'download', disabled: !original.downloadable },
+      { id: 'download', get label() { return t('Download original') }, icon: 'download', disabled: !original.downloadable },
       { type: 'divider' as const },
       {
         id: 'read-aloud',
@@ -5855,10 +5858,10 @@ export class ShEditorHost extends LitElement {
     // The menu's own click may move the selection (WebKit): what the menu was asked about is kept.
     this._readerContextSelection = sel
     bar.showContextMenu([
-      { id: 'copy', label: 'Copy', icon: 'copy', disabled: !sel },
+      { id: 'copy', get label() { return t('Copy') }, icon: 'copy', disabled: !sel },
       { type: 'divider' },
-      { id: 'ask', label: 'Ask Sophia about this passage', icon: 'bot', disabled: !sel },
-      { id: 'find', label: 'Find in this document', icon: 'search' },
+      { id: 'ask', get label() { return t('Ask Sophia about this passage') }, icon: 'bot', disabled: !sel },
+      { id: 'find', get label() { return t('Find in this document') }, icon: 'search' },
     ], { x: event.clientX, y: event.clientY })
   }
 
@@ -5955,8 +5958,8 @@ export class ShEditorHost extends LitElement {
       <button
         type="button"
         class=${classMap({ 'salience-gutter-icon': true, 'salience-gutter-icon--scored': !!score })}
-        title="Composite score"
-        aria-label="Composite score"
+        title=${t('Composite score')}
+        aria-label=${t('Composite score')}
         aria-expanded=${this.salienceOverlayExpanded ? 'true' : 'false'}
         @click=${() => { this.salienceOverlayExpanded = !this.salienceOverlayExpanded }}
       >${salienceIcon(signalIcon(score))}</button>
@@ -6104,7 +6107,7 @@ export class ShEditorHost extends LitElement {
         const button = doc.createElement('button')
         button.type = 'button'
         button.className = 'zoom-breadcrumb-crumb'
-        button.title = `Zoom to ${crumb.text}`
+        button.title = t('editor.zoomTo', { name: crumb.text })
         button.textContent = crumb.text
         button.addEventListener('click', () => this._onZoomCrumbClick(crumb.blockId, index))
         nav.appendChild(button)
@@ -6616,13 +6619,13 @@ export class ShEditorHost extends LitElement {
       ...(this._outlinerMenuId ? [['connections', `Connections${connections ? ` (${connections})` : ''}`], ['zoom', 'Focus on this block']] : []),
       ['select', 'Select block'], ['up', 'Move up'], ['down', 'Move down'], ['indent', 'Indent'], ['outdent', 'Outdent'],
     ]
-    return html`<div id="outliner-block-menu" class="outliner-menu" role="menu" aria-label="Block actions" popover="manual"
+    return html`<div id="outliner-block-menu" class="outliner-menu" role="menu" aria-label=${t('Block actions')} popover="manual"
       style=${`left:${Math.max(8, this._outlinerMenuPoint.x)}px;top:${Math.max(8, this._outlinerMenuPoint.y)}px`}
       @keydown=${this._outlinerMenuKey}>
-      <div class="outliner-menu-title">${context?.type ?? 'Block'} · level ${context?.level ?? 1}${context?.children ? ` · ${context.children} nested` : ''}</div>
+      <div class="outliner-menu-title">${context?.type ?? t('Block')} · level ${context?.level ?? 1}${context?.children ? ` · ${context.children} nested` : ''}</div>
       ${actions.map(([id, label]) => html`<button type="button" role="menuitem" data-outliner-action=${id}
         ?disabled=${['up', 'down', 'indent', 'outdent'].includes(id) && (this._effectiveReadOnly() || !context?.[id as 'up' | 'down' | 'indent' | 'outdent'])}
-        @click=${() => this._runOutlinerMenuAction(id)}>${label}</button>`)}
+        @click=${() => this._runOutlinerMenuAction(id)}>${localizeLabel(label)}</button>`)}
     </div>`
   }
 

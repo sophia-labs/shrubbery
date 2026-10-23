@@ -6,6 +6,7 @@
  * come in as props; upgrade/dismiss leave as events.
  */
 
+import { LocaleController, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, unsafeCSS, type TemplateResult } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 import { SkinAware } from './skin-aware.js'
@@ -17,6 +18,8 @@ export interface MnUpgradeBannerDetail {
 
 @customElement('mn-upgrade-banner')
 export class MnUpgradeBanner extends SkinAware(LitElement) {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     ${unsafeCSS(iconStyles)}
 
@@ -179,7 +182,7 @@ export class MnUpgradeBanner extends SkinAware(LitElement) {
             <span class="banner-text">
               <strong>${this.headline}</strong> - ${this.mobileMessage}
             </span>
-            <button type="button" class="dismiss-btn" aria-label="Dismiss" @click=${this.dismiss}>
+            <button type="button" class="dismiss-btn" aria-label=${t('Dismiss')} @click=${this.dismiss}>
               ${icon('x', { size: 14 })}
             </button>
           </div>
@@ -193,7 +196,7 @@ export class MnUpgradeBanner extends SkinAware(LitElement) {
           <strong>${this.headline}</strong> - ${this.message}
         </span>
         <button type="button" class="upgrade-btn" @click=${this.upgrade}>${this.upgradeLabel}</button>
-        <button type="button" class="dismiss-btn" aria-label="Dismiss" @click=${this.dismiss}>
+        <button type="button" class="dismiss-btn" aria-label=${t('Dismiss')} @click=${this.dismiss}>
           ${icon('x', { size: 14 })}
         </button>
       </div>

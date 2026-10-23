@@ -39,6 +39,7 @@
  * NO auth, NO tauri, NO @shrubbery/runtime, NO @shrubbery/render.
  */
 
+import { LocaleController, localizeLabel, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, unsafeCSS, type TemplateResult } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 import { SkinAware } from './skin-aware.js'
@@ -61,6 +62,8 @@ export interface MnCrumb {
 
 @customElement('mn-app-bar')
 export class MnAppBar extends SkinAware(LitElement) {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     /* Shadow DOM does NOT inherit garden's global icon stylesheet, so the inline
        <svg> icons need this rule locally to follow text color (stroke:
@@ -127,6 +130,10 @@ export class MnAppBar extends SkinAware(LitElement) {
     }
 
     /* ── Search / filter (controlled input) ── */
+    .search-slot {
+      /* Keep the conditional binding inside an element; happy-dom drops root child markers. */
+      display: contents;
+    }
     .search {
       display: flex;
       align-items: center;
@@ -428,10 +435,10 @@ export class MnAppBar extends SkinAware(LitElement) {
       return html`<span
         class="crumb crumb--current"
         aria-current=${isCurrent ? 'page' : nothing}
-        >${c.label}</span
+        >${localizeLabel(c.label)}</span
       >`
     }
-    return html`<button class="crumb" @click=${() => this._onCrumb(c)}>${c.label}</button>`
+    return html`<button class="crumb" @click=${() => this._onCrumb(c)}>${localizeLabel(c.label)}</button>`
   }
 
   render() {
@@ -447,35 +454,37 @@ export class MnAppBar extends SkinAware(LitElement) {
         </div>
       </div>
 
-      ${this.showSearch
-        ? html`<div class="search" part="search">
-            <span class="search-glyph" aria-hidden="true">${icon('search', { size: 14 })}</span>
-            <input
-              autocapitalize="off"
-              autocorrect="off"
-              writingsuggestions="false"
-              class="search-input"
-              type="text"
-              .value=${this.query}
-              placeholder=${this.searchPlaceholder}
-              aria-label=${this.searchPlaceholder}
-              spellcheck="false"
-              @input=${this._onSearchInput}
-              @keydown=${this._onSearchKeydown}
-            />
-            ${this.query
-              ? html`<button
-                  class="search-clear"
-                  aria-label="Clear search"
-                  @click=${() => this._emit('mn-search', { query: '' })}
-                >
-                  ${icon('x', { size: 13 })}
-                </button>`
-              : nothing}
-          </div>`
-        : nothing}
+      <div class="search-slot">
+        ${this.showSearch
+          ? html`<div class="search" part="search">
+              <span class="search-glyph" aria-hidden="true">${icon('search', { size: 14 })}</span>
+              <input
+                autocapitalize="off"
+                autocorrect="off"
+                writingsuggestions="false"
+                class="search-input"
+                type="text"
+                .value=${this.query}
+                placeholder=${this.searchPlaceholder}
+                aria-label=${this.searchPlaceholder}
+                spellcheck="false"
+                @input=${this._onSearchInput}
+                @keydown=${this._onSearchKeydown}
+              />
+              ${this.query
+                ? html`<button
+                    class="search-clear"
+                    aria-label=${t('Clear search')}
+                    @click=${() => this._emit('mn-search', { query: '' })}
+                  >
+                    ${icon('x', { size: 13 })}
+                  </button>`
+                : nothing}
+            </div>`
+          : nothing}
+      </div>
 
-      <nav class="breadcrumbs" part="breadcrumbs" aria-label="Breadcrumb">
+      <nav class="breadcrumbs" part="breadcrumbs" aria-label=${t('Breadcrumb')}>
         ${this.crumbs.map(
           (c, i) => html`<span class="crumb-item"
             >${i > 0 ? html`<span class="crumb-sep" aria-hidden="true">/</span>` : nothing}${this._crumbEl(c, i === last)}</span
@@ -489,7 +498,7 @@ export class MnAppBar extends SkinAware(LitElement) {
         ${this.showActions
           ? html`<button
                 class="action-btn ${this.isDark ? 'active' : ''}"
-                aria-label="Toggle theme"
+                aria-label=${t('Toggle theme')}
                 aria-pressed=${this.isDark ? 'true' : 'false'}
                 @click=${() => this._emit('mn-theme-toggle')}
               >
@@ -503,7 +512,7 @@ export class MnAppBar extends SkinAware(LitElement) {
               ></mn-skin-picker>
               <button
                 class="action-btn"
-                aria-label="Settings"
+                aria-label=${t('Settings')}
                 @click=${() => this._emit('mn-settings-toggle')}
               >
                 ${icon('settings')}

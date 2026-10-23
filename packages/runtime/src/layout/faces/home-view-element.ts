@@ -14,11 +14,14 @@
  * `dt` — one typographic hierarchy across the whole face set, even for the
  * quietest of the five.
  */
+import { LocaleController, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, type TemplateResult } from 'lit'
 import { customElement } from 'lit/decorators.js'
 
 @customElement('sh-home-view')
 export class ShHomeView extends LitElement {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     :host {
       display: grid;
@@ -55,7 +58,7 @@ export class ShHomeView extends LitElement {
   render(): TemplateResult {
     return html`
       <div class="mark" aria-hidden="true"></div>
-      <div class="label" role="status">Nothing is open here</div>
+      <div class="label" role="status">${t('Nothing is open here')}</div>
     `
   }
 }

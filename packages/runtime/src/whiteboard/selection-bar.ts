@@ -8,6 +8,7 @@
  * S2 also owns `sh-whiteboard.ts`: it mounts the bar, passes `createCardHost(...)`'s `renderEmbeddable` and
  * `validateEmbeddable`, calls `attachSidebarDrop`, and does the offline hardening.
  */
+import { localeSource, localizeLabel, t } from '@shrubbery/nucleus'
 import type { WhiteboardPageOptions } from './sh-whiteboard.js'
 import {
   WB_LINK_EVENT,
@@ -202,19 +203,19 @@ export function actionsFor(
   const editable = page.readOnly !== true
   const canOpen = !!selection.link && !!page.onOpenLink
   if (selection.kind === 'shape') {
-    if (editable && page.pickLink) out.push({ id: 'link', label: selection.link ? 'Relink…' : 'Link…' })
-    if (editable && selection.link) out.push({ id: 'unlink', label: 'Unlink' })
-    if (canOpen) out.push({ id: 'open', label: 'Open' })
+    if (editable && page.pickLink) out.push({ id: 'link', label: selection.link ? t('Relink…') : t('Link…') })
+    if (editable && selection.link) out.push({ id: 'unlink', get label() { return t('Unlink') } })
+    if (canOpen) out.push({ id: 'open', get label() { return t('Open') } })
   } else if (selection.kind === 'card') {
-    if (canOpen) out.push({ id: 'open', label: 'Open' })
+    if (canOpen) out.push({ id: 'open', get label() { return t('Open') } })
   } else if (selection.kind === 'arrow' && editable) {
     if (selection.wire) {
-      if (page.demoteArrow) out.push({ id: 'unwire', label: 'Unwire' })
+      if (page.demoteArrow) out.push({ id: 'unwire', get label() { return t('Unwire') } })
     } else if (page.pickPredicate && page.promoteArrow && arrowEndsOf(elements, selection.elementId)) {
-      out.push({ id: 'wire', label: 'Make wire…' })
+      out.push({ id: 'wire', get label() { return t('Make wire…') } })
     }
   }
-  if (editable && page.pickLink) out.push({ id: 'card', label: 'Add card…' })
+  if (editable && page.pickLink) out.push({ id: 'card', get label() { return t('Add card…') } })
   return out
 }
 
@@ -282,7 +283,7 @@ export function createSelectionBar(deps: WbSelectionBarDeps): WbSelectionBar {
       case 'link': void linkElement(deps, elementId); break
       case 'unlink': unlinkElement(deps, elementId); break
       case 'open':
-        if (selection.link && page?.onOpenLink && !page.onOpenLink(selection.link)) deps.notify('This link cannot be opened here.')
+        if (selection.link && page?.onOpenLink && !page.onOpenLink(selection.link)) deps.notify(t('This link cannot be opened here.'))
         break
       case 'wire': void promoteSelectedArrow(deps, elementId); break
       case 'unwire': void unwireArrow(deps, elementId); break
@@ -296,8 +297,8 @@ export function createSelectionBar(deps: WbSelectionBarDeps): WbSelectionBar {
       const button = doc.createElement('button')
       button.type = 'button'
       button.dataset.action = action.id
-      button.textContent = action.label
-      button.setAttribute('aria-label', action.label.replace('…', ''))
+      button.textContent = localizeLabel(action.label)
+      button.setAttribute('aria-label', localizeLabel(action.label).replace('…', ''))
       button.addEventListener('click', () => run(action.id, selection))
       bar.appendChild(button)
     }
@@ -319,7 +320,7 @@ export function createSelectionBar(deps: WbSelectionBarDeps): WbSelectionBar {
     // A board's own shape linking to the target is not "another place that links here".
     const others = (rows: readonly WbBacklink[]): number => rows.filter((row) => row.sourceDocumentId !== page.documentId).length
     const apply = (count: number): void => {
-      if (count > 0) { note.textContent = `Linked from ${count}`; note.hidden = false } else { note.hidden = true }
+      if (count > 0) { note.textContent = t('whiteboard.linkedFrom', { count }); note.hidden = false } else { note.hidden = true }
     }
     const known = backlinkCache.get(key)
     if (known !== undefined) { apply(known); return }
@@ -359,7 +360,7 @@ export function createSelectionBar(deps: WbSelectionBarDeps): WbSelectionBar {
       return
     }
     const wasHidden = bar.hidden
-    const actionKey = `${key}#${actions.map((a) => a.label).join(',')}`
+    const actionKey = `${key}#${actions.map((a) => localizeLabel(a.label)).join(',')}`
     if (wasHidden || actionKey !== renderedKey) {
       paint(selection, actions)
       renderedKey = actionKey
@@ -373,9 +374,11 @@ export function createSelectionBar(deps: WbSelectionBarDeps): WbSelectionBar {
     bar.dataset.placement = at.above ? 'above' : 'below'
   }
 
+  const unsubscribeLocale = localeSource.subscribe(update)
   return {
     update,
     destroy(): void {
+      unsubscribeLocale()
       destroyed = true
       bar.removeEventListener('keydown', onKeyDown)
       bar.remove()
@@ -414,13 +417,13 @@ export async function linkElement(deps: WbSelectionBarDeps, elementId: string): 
   const page = deps.page()
   const api = deps.api()
   if (!page || !api) return null
-  if (page.readOnly) { deps.notify('This board is read-only.'); return null }
+  if (page.readOnly) { deps.notify(t('This board is read-only.')); return null }
   if (!page.pickLink) return null
   // The popup first: it writes its own value back to the element when it unmounts, which would undo our link.
   api.updateScene({ appState: { showHyperlinkPopup: false } })
   let target: WbTarget | null
   try {
-    target = await page.pickLink({ graphId: page.graphId, heading: 'Link to…', accept: 'any', excludeDocumentId: page.documentId })
+    target = await page.pickLink({ graphId: page.graphId, get heading() { return t('Link to…') }, accept: 'any', excludeDocumentId: page.documentId })
   } catch (error) {
     deps.notify(error instanceof Error ? error.message : 'Could not open the link picker.')
     return null
@@ -434,7 +437,7 @@ export async function linkElement(deps: WbSelectionBarDeps, elementId: string): 
     link: linkOfTarget(picked),
     customData: { ...(e.customData ?? {}), mnemosyne: recordOfTarget(picked) },
   }))
-  if (!written) { deps.notify('That shape is gone.'); return null }
+  if (!written) { deps.notify(t('That shape is gone.')); return null }
   const detail: WbLinkChangedDetail = { elementId, target: picked }
   dispatch(deps.eventTarget, WB_LINK_EVENT, detail)
   return picked
@@ -445,7 +448,7 @@ export function unlinkElement(deps: WbSelectionBarDeps, elementId: string): void
   const page = deps.page()
   const api = deps.api()
   if (!api) return
-  if (page?.readOnly) { deps.notify('This board is read-only.'); return }
+  if (page?.readOnly) { deps.notify(t('This board is read-only.')); return }
   api.updateScene({ appState: { showHyperlinkPopup: false } })
   const written = replaceElement(api, elementId, (e) => {
     const { mnemosyne: _gone, ...rest } = (e.customData ?? {}) as Record<string, unknown>

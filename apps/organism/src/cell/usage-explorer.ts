@@ -1,3 +1,4 @@
+import { localeSource } from '@shrubbery/nucleus'
 export interface UsageEvent {
   id: string; source: 'sirin' | 'cloud-1'; ts: number; recordedAt: string; timezone: 'utc' | 'unspecified'
   provider: string; model: string; status: string; surface: string | null; graphId: string | null; sessionId: string | null
@@ -72,7 +73,7 @@ export function splitUsageTotals(rows: readonly UsageEvent[]): UsageSplit {
   }
   return split
 }
-export const usageMoney = (n: number | null): string => n === null ? 'Unknown' : new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 6 }).format(n / 1_000_000)
+export const usageMoney = (n: number | null): string => n === null ? 'Unknown' : new Intl.NumberFormat(localeSource.get(), { style: 'currency', currency: 'USD', minimumFractionDigits: 2, maximumFractionDigits: 6 }).format(n / 1_000_000)
 export function usageCsv(rows: UsageEvent[]): string {
   const fields: (keyof UsageEvent)[] = ['id', 'source', 'recordedAt', 'timezone', 'provider', 'model', 'status', 'surface', 'graphId', 'sessionId', 'fundingSource', 'inputTokens', 'outputTokens', 'cacheReadTokens', 'cacheWriteTokens', 'totalTokens', 'costMicroUsd', 'providerCostMicroUsd', 'providerReportedCostMicroUsd', 'markupMicroUsd']
   const escape = (v: unknown) => { let s = v == null ? '' : String(v); if (/^[\s]*[=+@-]/.test(s) || /^[\t\r\n]/.test(s)) s = "'" + s; return '"' + s.replace(/"/g, '""') + '"' }

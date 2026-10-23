@@ -5,6 +5,7 @@
  * The caller supplies copy, icon, and actions; this component only arranges them.
  */
 
+import { LocaleController, localizeLabel } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, unsafeCSS } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 import { classMap } from 'lit/directives/class-map.js'
@@ -17,6 +18,8 @@ export type MnEmptyStateMood = 'neutral' | 'success' | 'warning' | 'danger'
 
 @customElement('mn-empty-state')
 export class MnEmptyState extends SkinAware(LitElement) {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     ${unsafeCSS(iconStyles)}
 
@@ -172,8 +175,8 @@ export class MnEmptyState extends SkinAware(LitElement) {
         </slot>
 
         <div class="content">
-          ${this.title ? html`<h3 class="title">${this.title}</h3>` : nothing}
-          ${this.description ? html`<p class="description">${this.description}</p>` : nothing}
+          ${this.title ? html`<h3 class="title">${localizeLabel(this.title)}</h3>` : nothing}
+          ${this.description ? html`<p class="description">${localizeLabel(this.description)}</p>` : nothing}
           <slot name="description"></slot>
           <div class="actions">
             <slot name="action"></slot>

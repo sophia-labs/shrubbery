@@ -7,6 +7,7 @@
  * subscribes, persists, or interprets a workspace contract.
  */
 
+import { LocaleController, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, unsafeCSS, type TemplateResult } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 import { repeat } from 'lit/directives/repeat.js'
@@ -68,6 +69,8 @@ function groupBlocks(blocks: readonly MnTagViewBlock[]): BlockGroup[] {
 
 @customElement('mn-tag-view')
 export class MnTagView extends SkinAware(LitElement) {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     ${unsafeCSS(iconStyles)}
 
@@ -323,7 +326,7 @@ export class MnTagView extends SkinAware(LitElement) {
           <mn-empty-state
             icon="alert-circle"
             title=${`Could not load #${tagName}`}
-            description=${this.error || 'The tag lens read failed.'}
+            description=${this.error || t('The tag lens read failed.')}
             mood="danger"
           ></mn-empty-state>
         </div>
@@ -336,7 +339,7 @@ export class MnTagView extends SkinAware(LitElement) {
           <mn-empty-state
             icon="hash"
             title=${`No blocks tagged #${tagName}`}
-            description="Tagged blocks will appear here when the workspace projection contains matches."
+            description=${t('Tagged blocks will appear here when the workspace projection contains matches.')}
           ></mn-empty-state>
         </div>
       `
@@ -391,15 +394,15 @@ export class MnTagView extends SkinAware(LitElement) {
           <span class="title-wrap">
             <h2 class="title">#${tagName}</h2>
             <span class="meta">
-              <span class="scope">Global</span>
+              <span class="scope">${t('Global')}</span>
               ${this.status === 'ready' ? html`<span>${count} block${count === 1 ? '' : 's'}</span>` : nothing}
             </span>
           </span>
           <button
             type="button"
             class="icon-button"
-            title="Refresh tag"
-            aria-label="Refresh tag"
+            title=${t('Refresh tag')}
+            aria-label=${t('Refresh tag')}
             @click=${this._refresh}
           >
             ${icon('refresh', { size: 16 })}

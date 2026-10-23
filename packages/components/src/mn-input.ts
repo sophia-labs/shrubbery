@@ -8,6 +8,7 @@
  * a normal reflected property that a shell may control.
  */
 
+import { LocaleController, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, unsafeCSS } from 'lit'
 import { customElement, property, query, state } from 'lit/decorators.js'
 import { classMap } from 'lit/directives/class-map.js'
@@ -27,6 +28,8 @@ let nextInputId = 0
 
 @customElement('mn-input')
 export class MnInput extends SkinAware(LitElement) {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     ${unsafeCSS(iconStyles)}
 
@@ -387,7 +390,7 @@ export class MnInput extends SkinAware(LitElement) {
 
           ${showClear
             ? html`
-                <button class="ctrl-btn" type="button" aria-label="Clear" @click=${() => this.handleClear()}>
+                <button class="ctrl-btn" type="button" aria-label=${t('Clear')} @click=${() => this.handleClear()}>
                   ${icon('x', { size: 12 })}
                 </button>
               `
@@ -398,7 +401,7 @@ export class MnInput extends SkinAware(LitElement) {
                 <button
                   class="ctrl-btn"
                   type="button"
-                  aria-label=${this.passwordVisible ? 'Hide password' : 'Show password'}
+                  aria-label=${this.passwordVisible ? t('Hide password') : t('Show password')}
                   @click=${() => this.togglePassword()}
                 >
                   ${icon(this.passwordVisible ? 'eye-off' : 'eye', { size: 14 })}

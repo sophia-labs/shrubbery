@@ -7,6 +7,7 @@
  * ephemeral GPU interaction to mn-graph-three. No stores or backend calls.
  */
 
+import { LocaleController, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, unsafeCSS, type TemplateResult } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 import { SkinAware } from './skin-aware.js'
@@ -67,6 +68,8 @@ export interface MnGraphPanelViewModeChangeDetail {
 
 @customElement('mn-graph-panel')
 export class MnGraphPanel extends SkinAware(LitElement) {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     ${unsafeCSS(iconStyles)}
 
@@ -283,15 +286,15 @@ export class MnGraphPanel extends SkinAware(LitElement) {
 
   private _renderBody(): TemplateResult | typeof nothing {
     if (this.status === 'idle' || this.status === 'loading') {
-      return html`<div class="state"><mn-loading size="sm" text="Loading graph"></mn-loading></div>`
+      return html`<div class="state"><mn-loading size="sm" text=${t('Loading graph')}></mn-loading></div>`
     }
     if (this.status === 'error') {
       return html`
         <div class="state">
           <mn-empty-state
             icon="alert-circle"
-            title="Could not load graph"
-            description=${this.error || 'The graph projection read failed.'}
+            title=${t('Could not load graph')}
+            description=${this.error || t('The graph projection read failed.')}
             mood="danger"
           ></mn-empty-state>
         </div>
@@ -305,10 +308,10 @@ export class MnGraphPanel extends SkinAware(LitElement) {
         <div class="state">
           <mn-empty-state
             icon=${documentMode ? 'file-text' : 'network'}
-            title=${documentMode ? 'No document open' : 'Your space awaits'}
+            title=${documentMode ? t('No document open') : t('Your space awaits')}
             description=${documentMode
-              ? 'Open a document in the editor to visualize its structure.'
-              : 'Create a document to see your ideas take shape in three dimensions.'}
+              ? t('Open a document in the editor to visualize its structure.')
+              : t('Create a document to see your ideas take shape in three dimensions.')}
           ></mn-empty-state>
         </div>
       `
@@ -347,8 +350,8 @@ export class MnGraphPanel extends SkinAware(LitElement) {
           <button
             type="button"
             class="icon-button"
-            title="Back"
-            aria-label="Back to previous node"
+            title=${t('Back')}
+            aria-label=${t('Back to previous node')}
             ?disabled=${!this.canNavigateBack}
             @click=${this._navigateBack}
           >
@@ -357,35 +360,35 @@ export class MnGraphPanel extends SkinAware(LitElement) {
           <button
             type="button"
             class="icon-button"
-            title="Forward"
-            aria-label="Forward to next node"
+            title=${t('Forward')}
+            aria-label=${t('Forward to next node')}
             ?disabled=${!this.canNavigateForward}
             @click=${this._navigateForward}
           >
             ${icon('chevron-right', { size: 15 })}
           </button>
-          <span class="count" title="Graph nodes">${nodeCount}</span>
+          <span class="count" title=${t('Graph nodes')}>${nodeCount}</span>
           <button
             type="button"
             class="text-button"
-            title="Center graph view"
-            aria-label="Center graph view"
+            title=${t('Center graph view')}
+            aria-label=${t('Center graph view')}
             @click=${this._center}
-          >${icon('target', { size: 14 })}<span class="center-label">Center</span></button>
+          >${icon('target', { size: 14 })}<span class="center-label">${t('Center')}</span></button>
           ${!this.lockWorkspaceMode && (this.documentNodes.length > 0 || documentMode)
             ? html`<button
                 type="button"
                 class="text-button"
-                title=${documentMode ? 'Show the whole workspace' : 'Show this document'}
-                aria-label=${documentMode ? 'Show the whole workspace' : 'Show this document'}
+                title=${documentMode ? t('Show the whole workspace') : t('Show this document')}
+                aria-label=${documentMode ? t('Show the whole workspace') : t('Show this document')}
                 @click=${() => this._setViewMode(documentMode ? 'workspace' : 'document')}
-              >${documentMode ? 'Whole Workspace' : 'This Document'}</button>`
+              >${documentMode ? t('Whole Workspace') : t('This Document')}</button>`
             : nothing}
           <button
             type="button"
             class="icon-button"
-            title="Refresh graph"
-            aria-label="Refresh graph"
+            title=${t('Refresh graph')}
+            aria-label=${t('Refresh graph')}
             @click=${this._refresh}
           >
             ${icon('refresh', { size: 15 })}

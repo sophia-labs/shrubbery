@@ -8,6 +8,7 @@
  * invents an invitation inbox, app template, or launchable "surface".
  */
 
+import { LocaleController, localeSource, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, unsafeCSS } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 import { SkinAware } from './skin-aware.js'
@@ -56,9 +57,9 @@ function workspaceTitle(workspace: MnWorkspaceSummary): string {
 
 function roleLabel(role: MnWorkspaceRole): string {
   switch (role) {
-    case 'owner': return 'Owner'
-    case 'editor': return 'Editor'
-    case 'viewer': return 'Viewer'
+    case 'owner': return t('Owner')
+    case 'editor': return t('Editor')
+    case 'viewer': return t('Viewer')
   }
 }
 
@@ -78,7 +79,7 @@ function relativeTime(timestamp: number | null | undefined): string | null {
   if (hours < 24) return `${hours}h ago`
   const days = Math.floor(hours / 24)
   if (days < 30) return `${days}d ago`
-  return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric' })
+  return new Intl.DateTimeFormat(localeSource.get(), { month: 'short', day: 'numeric' })
     .format(new Date(timestamp))
 }
 
@@ -95,6 +96,8 @@ function firstName(account: MnGardenHomeAccount | null): string | null {
 
 @customElement('mn-garden-home')
 export class MnGardenHome extends SkinAware(LitElement) {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     ${unsafeCSS(iconStyles)}
 
@@ -485,7 +488,7 @@ export class MnGardenHome extends SkinAware(LitElement) {
   private renderMasthead() {
     return html`
       <header class="masthead">
-        <div class="brand" aria-label="Garden home">
+        <div class="brand" aria-label=${t('Garden home')}>
           ${icon('sprout', { size: 18 })}
           <span>Garden</span>
         </div>
@@ -493,17 +496,17 @@ export class MnGardenHome extends SkinAware(LitElement) {
           <button
             class="account"
             type="button"
-            aria-label="Open account"
+            aria-label=${t('Open account')}
             @click=${() => this.emit('mn-garden-home-account', { account: this.account! })}
           >
             <mn-avatar
               size="sm"
               .src=${this.account.avatarUrl ?? ''}
-              .alt=${this.account.displayName || this.account.email || 'Account'}
+              .alt=${this.account.displayName || this.account.email || t('Account')}
               .initials=${initials(this.account)}
             ></mn-avatar>
             <span class="account-copy">
-              <span class="account-name">${this.account.displayName || 'Garden account'}</span>
+              <span class="account-name">${this.account.displayName || t('Garden account')}</span>
               ${this.account.email ? html`<span class="account-email">${this.account.email}</span>` : nothing}
             </span>
             ${icon('chevron-down', { size: 14 })}
@@ -518,8 +521,8 @@ export class MnGardenHome extends SkinAware(LitElement) {
     return html`
       <section aria-labelledby="garden-continue-heading">
         <div class="section-heading">
-          <h2 id="garden-continue-heading">Continue</h2>
-          <span class="section-count">Recent graphs</span>
+          <h2 id="garden-continue-heading">${t('Continue')}</h2>
+          <span class="section-count">${t('Recent graphs')}</span>
         </div>
         <ol class="recent-list">
           ${workspaces.map(workspace => {
@@ -531,14 +534,14 @@ export class MnGardenHome extends SkinAware(LitElement) {
                   class="recent-card"
                   type="button"
                   ?disabled=${busy || Boolean(workspace.localCreation)}
-                  title=${workspace.localCreation ? 'Retry cloud confirmation before opening this workspace.' : workspaceTitle(workspace)}
+                  title=${workspace.localCreation ? t('Retry cloud confirmation before opening this workspace.') : workspaceTitle(workspace)}
                   aria-busy=${busy ? 'true' : 'false'}
                   @click=${() => this.openGraph(workspace)}
                 >
                   <span class="recent-glyph" aria-hidden="true">${icon('book-open', { size: 17 })}</span>
                   <span class="recent-copy">
                     <span class="recent-title">${workspaceTitle(workspace)}</span>
-                    <span class="recent-meta">${busy ? 'Opening…' : time ? `Opened ${time}` : roleLabel(workspace.role)}</span>
+                    <span class="recent-meta">${busy ? t('Opening…') : time ? `Opened ${time}` : roleLabel(workspace.role)}</span>
                   </span>
                   <span class="arrow" aria-hidden="true">${icon('arrow-right', { size: 16 })}</span>
                 </button>
@@ -566,16 +569,16 @@ export class MnGardenHome extends SkinAware(LitElement) {
                 <button
                   class="open-graph"
                   type="button"
-                  title=${workspace.localCreation ? 'Retry cloud confirmation before opening this workspace.' : title}
+                  title=${workspace.localCreation ? t('Retry cloud confirmation before opening this workspace.') : title}
                   ?disabled=${disabled}
                   aria-busy=${busy ? 'true' : 'false'}
                   @click=${() => this.openGraph(workspace)}
                 >${busy ? `Opening ${title}…` : title}</button>
               </h3>
-              <mn-badge pill size="sm" .label=${workspace.localCreation ? 'Saved locally' : roleLabel(workspace.role)}></mn-badge>
+              <mn-badge pill size="sm" .label=${workspace.localCreation ? t('Saved locally') : roleLabel(workspace.role)}></mn-badge>
             </div>
             ${path.length > 0 ? html`
-              <div class="graph-reference" aria-label="Graph reference">
+              <div class="graph-reference" aria-label=${t('Graph reference')}>
                 ${path.map(segment => html`<code>${segment}</code>`)}
               </div>
             ` : nothing}
@@ -595,17 +598,17 @@ export class MnGardenHome extends SkinAware(LitElement) {
               @click=${() => this.emit('mn-garden-home-manage-access', { workspace })}
             >
               ${icon('share', { size: 14 })}
-              <span>${workspace.role === 'owner' ? 'Share' : 'People'}</span>
+              <span>${workspace.role === 'owner' ? 'Share' : t('People')}</span>
             </button>
           </div>
           ${workspace.localCreation ? html`
             <p class="disabled-reason" title=${workspace.localCreation.error ?? ''}>
-              ${workspace.localCreation.status === 'conflict' ? 'Cloud creation was refused. Local work is retained.' : 'Cloud creation is not yet confirmed. Local work is retained.'}
+              ${workspace.localCreation.status === 'conflict' ? t('Cloud creation was refused. Local work is retained.') : t('Cloud creation is not yet confirmed. Local work is retained.')}
               Retry cloud confirmation before opening this workspace.
             </p>
           ` : nothing}
           ${workspace.disabled ? html`
-            <p class="disabled-reason">${workspace.disabledReason?.trim() || 'This graph is not available to open.'}</p>
+            <p class="disabled-reason">${workspace.disabledReason?.trim() || t('This graph is not available to open.')}</p>
           ` : nothing}
         </article>
       </li>
@@ -616,14 +619,14 @@ export class MnGardenHome extends SkinAware(LitElement) {
     return html`
       <section aria-labelledby="garden-all-heading">
         <div class="section-heading">
-          <h2 id="garden-all-heading">All graphs</h2>
+          <h2 id="garden-all-heading">${t('All graphs')}</h2>
           <span class="section-count">${this.workspaces.length}</span>
         </div>
         ${this.workspaces.length > 0
           ? html`<ol class="graph-list">${this.workspaces.map(workspace => this.renderGraph(workspace))}</ol>`
           : html`
               <div class="side-card">
-                <p>You do not have any graphs yet. Plant one to begin.</p>
+                <p>${t('You do not have any graphs yet. Plant one to begin.')}</p>
               </div>
             `}
       </section>
@@ -636,10 +639,10 @@ export class MnGardenHome extends SkinAware(LitElement) {
     return html`
       <section aria-labelledby="garden-new-heading">
         <div class="section-heading">
-          <h2 id="garden-new-heading">New graph</h2>
+          <h2 id="garden-new-heading">${t('New graph')}</h2>
         </div>
         <div class="side-card">
-          <p>A new graph starts empty. Inside it, Emporium describes the meaningful objects it can hold and Shrubbery supplies their compatible faces.</p>
+          <p>${t('A new graph starts empty. Inside it, Emporium describes the meaningful objects it can hold and Shrubbery supplies their compatible faces.')}</p>
           <button
             class="create-toggle"
             type="button"
@@ -650,10 +653,10 @@ export class MnGardenHome extends SkinAware(LitElement) {
             }}
           >
             ${icon('plus', { size: 15 })}
-            <span>${creating ? 'Creating graph…' : 'Create graph'}</span>
+            <span>${creating ? t('Creating graph…') : t('Create graph')}</span>
           </button>
           ${this.createStatus === 'error' ? html`
-            <p class="disabled-reason error" role="alert">${this.createError?.trim() || 'The graph could not be created.'}</p>
+            <p class="disabled-reason error" role="alert">${this.createError?.trim() || t('The graph could not be created.')}</p>
           ` : nothing}
         </div>
       </section>
@@ -666,10 +669,10 @@ export class MnGardenHome extends SkinAware(LitElement) {
     const busy = starting || this.createStatus === 'creating'
     return html`
       <section aria-labelledby="garden-tour-heading">
-        <div class="section-heading"><h2 id="garden-tour-heading">Begin with a question</h2></div>
+        <div class="section-heading"><h2 id="garden-tour-heading">${t('Begin with a question')}</h2></div>
         <div class="side-card">
-          <p>A short, editable project to try notes, search, sources and connections. Keep your own question at the center.</p>
-          <p>This creates a separate tour graph and uses one workspace slot. Your existing pages stay untouched. A later edition is an optional new copy, not an update over your work.</p>
+          <p>${t('A short, editable project to try notes, search, sources and connections. Keep your own question at the center.')}</p>
+          <p>${t('This creates a separate tour graph and uses one workspace slot. Your existing pages stay untouched. A later edition is an optional new copy, not an update over your work.')}</p>
           <button
             class="create-toggle start-onboarding"
             type="button"
@@ -680,10 +683,10 @@ export class MnGardenHome extends SkinAware(LitElement) {
             }}
           >
             ${icon('book-open', { size: 15 })}
-            <span>${starting ? 'Preparing your tour…' : 'Start the Garden tour'}</span>
+            <span>${starting ? t('Preparing your tour…') : t('Start the Garden tour')}</span>
           </button>
           ${this.onboardingStatus === 'error' ? html`
-            <p class="disabled-reason error" role="alert">${this.onboardingError?.trim() || 'The tour could not be completed. Any created graph is retained; inspect it before trying again.'}</p>
+            <p class="disabled-reason error" role="alert">${this.onboardingError?.trim() || t('The tour could not be completed. Any created graph is retained; inspect it before trying again.')}</p>
           ` : nothing}
         </div>
       </section>
@@ -695,13 +698,13 @@ export class MnGardenHome extends SkinAware(LitElement) {
       return html`
         <div class="state" role="alert">
           <div class="state-copy error">
-            <h2>Your Garden could not be opened</h2>
-            <p>${this.error?.trim() || 'The graph catalog is unavailable.'}</p>
+            <h2>${t('Your Garden could not be opened')}</h2>
+            <p>${this.error?.trim() || t('The graph catalog is unavailable.')}</p>
             <mn-button
               variant="secondary"
               size="sm"
               icon="refresh-cw"
-              label="Try again"
+              label=${t('Try again')}
               @click=${() => this.emit('mn-garden-home-refresh', {})}
             ></mn-button>
           </div>
@@ -711,8 +714,8 @@ export class MnGardenHome extends SkinAware(LitElement) {
     return html`
       <div class="state" role="status" aria-live="polite">
         <div class="state-copy">
-          <h2>${this.status === 'loading' ? 'Opening your Garden…' : 'Preparing your Garden…'}</h2>
-          <p>Your accessible graphs will appear here.</p>
+          <h2>${this.status === 'loading' ? t('Opening your Garden…') : t('Preparing your Garden…')}</h2>
+          <p>${t('Your accessible graphs will appear here.')}</p>
         </div>
       </div>
     `
@@ -727,7 +730,7 @@ export class MnGardenHome extends SkinAware(LitElement) {
         <main aria-labelledby="garden-home-title">
           <div class="intro">
             <h1 id="garden-home-title">${name ? `Welcome back, ${name}.` : 'Welcome to Garden.'}</h1>
-            <p class="lede">Open an accessible graph or plant a new one. The objects and faces inside belong to the graph, not this account screen.</p>
+            <p class="lede">${t('Open an accessible graph or plant a new one. The objects and faces inside belong to the graph, not this account screen.')}</p>
           </div>
           ${this.status !== 'ready'
             ? this.renderState()
@@ -737,7 +740,7 @@ export class MnGardenHome extends SkinAware(LitElement) {
                     ${this.renderRecent(recent)}
                     ${this.renderCatalog()}
                   </div>
-                  <aside class="column" aria-label="Garden account actions">
+                  <aside class="column" aria-label=${t('Garden account actions')}>
                     ${this.renderOnboarding()}
                     ${this.renderCreate()}
                   </aside>

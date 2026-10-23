@@ -17,6 +17,7 @@
  * though the live editor body is real. (The scanned files carry no collab import
  * or usage; the island guard's token scan confirms it.)
  */
+export { installLocale, setLanguage, LocaleController } from './locale.js'
 export {
   renderWorkspace,
   renderWorkspaceTemplate,

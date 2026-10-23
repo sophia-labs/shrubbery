@@ -5,6 +5,7 @@
  * open/calendar intents. No store, backend, session, or editor imports.
  */
 
+import { LocaleController, localeSource, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, unsafeCSS } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 import { classMap } from 'lit/directives/class-map.js'
@@ -24,6 +25,8 @@ export interface MnDailyNoteRowDoc {
 
 @customElement('mn-daily-note-row')
 export class MnDailyNoteRow extends SkinAware(LitElement) {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     ${unsafeCSS(iconStyles)}
 
@@ -185,7 +188,7 @@ export class MnDailyNoteRow extends SkinAware(LitElement) {
   @property({ type: String, attribute: 'displayed-date' }) displayedDate = ''
   @property({ type: String, attribute: 'today-key' }) todayKey = ''
   @property({ attribute: false }) doc: MnDailyNoteRowDoc | null = null
-  @property({ type: String }) locale = 'en-US'
+  @property({ type: String }) locale = ''
 
   private get isToday(): boolean {
     return this.displayedDate !== '' && this.displayedDate === this.todayKey
@@ -207,11 +210,11 @@ export class MnDailyNoteRow extends SkinAware(LitElement) {
     if (!this.displayedDate) return ''
     const date = parseDateKey(this.displayedDate)
     if (!date) return this.displayedDate
-    const weekday = new Intl.DateTimeFormat(this.locale, {
+    const weekday = new Intl.DateTimeFormat(this.locale || localeSource.get(), {
       timeZone: 'UTC',
       weekday: 'long',
     }).format(date)
-    const monthDay = new Intl.DateTimeFormat(this.locale, {
+    const monthDay = new Intl.DateTimeFormat(this.locale || localeSource.get(), {
       timeZone: 'UTC',
       month: 'long',
       day: 'numeric',
@@ -295,13 +298,13 @@ export class MnDailyNoteRow extends SkinAware(LitElement) {
           <span class="controls-prev-next">
             <mn-icon-button
               icon="chevron-left"
-              label="Previous day"
+              label=${t('Previous day')}
               size="xs"
               @click=${this.onPrev}
             ></mn-icon-button>
             <mn-icon-button
               icon="chevron-right"
-              label="Next day"
+              label=${t('Next day')}
               size="xs"
               @click=${this.onNext}
             ></mn-icon-button>
@@ -309,7 +312,7 @@ export class MnDailyNoteRow extends SkinAware(LitElement) {
           <span class="calendar-trigger">
             <mn-icon-button
               icon="calendar"
-              label="Jump to date"
+              label=${t('Jump to date')}
               size="xs"
               @click=${this.onCalendar}
             ></mn-icon-button>

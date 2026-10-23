@@ -1,3 +1,4 @@
+import { LocaleController, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, type TemplateResult } from 'lit'
 import { customElement, property, state } from 'lit/decorators.js'
 import {
@@ -99,6 +100,8 @@ export type PinnedWireNodeContextMap = PinnedWireBlockContextMap
 
 @customElement('sh-wire-pinned-layer')
 export class ShWirePinnedLayer extends LitElement {
+  protected readonly _locale = new LocaleController(this)
+
   private static readonly DOC_CARD_WIDTH = 220
   private static readonly BLOCK_CARD_WIDTH = 220
   private static readonly WIRE_CARD_WIDTH = 292
@@ -883,7 +886,7 @@ export class ShWirePinnedLayer extends LitElement {
           type="button"
           class="close"
           data-wire-pinned-doc-close
-          aria-label="Close pinned document"
+          aria-label=${t('Close pinned document')}
           @click=${() => this.closeDoc(doc)}
         >x</button>
         <div
@@ -903,7 +906,7 @@ export class ShWirePinnedLayer extends LitElement {
           >${doc.title}</button>
         </div>
         <div class="actions">
-          <button type="button" class="action" data-wire-pinned-doc-open @click=${() => this.openDoc(doc)}>Open</button>
+          <button type="button" class="action" data-wire-pinned-doc-open @click=${() => this.openDoc(doc)}>${t('Open')}</button>
         </div>
       </section>
     `
@@ -916,10 +919,10 @@ export class ShWirePinnedLayer extends LitElement {
   ): TemplateResult {
     const state = this.wireNodeContextFor(node, side)
     if (!state || state.status === 'loading') {
-      return html`<div class="context-blocks"><div class="context-block message">Loading...</div></div>`
+      return html`<div class="context-blocks"><div class="context-block message">${t('Loading...')}</div></div>`
     }
     if (state.status === 'error') {
-      return html`<div class="context-blocks"><div class="context-block message">${state.message ?? 'Could not load'}</div></div>`
+      return html`<div class="context-blocks"><div class="context-block message">${state.message ?? t('Could not load')}</div></div>`
     }
     const blocks = state.data.blocks
     const targetIndex = blocks.findIndex((entry) => entry.isTarget)
@@ -992,8 +995,8 @@ export class ShWirePinnedLayer extends LitElement {
             ${body
               ? body
               : blockId
-                ? html`<span class="block-placeholder">Empty block</span>`
-                : html`<span class="block-placeholder">No block preview</span>`}
+                ? html`<span class="block-placeholder">${t('Empty block')}</span>`
+                : html`<span class="block-placeholder">${t('No block preview')}</span>`}
           </div>
           ${blockId
             ? html`
@@ -1005,7 +1008,7 @@ export class ShWirePinnedLayer extends LitElement {
                   data-wire-endpoint="source"
                   aria-pressed=${aboveOpen ? 'true' : 'false'}
                   @click=${() => this.toggleWireNodeContext(node, side, 'above')}
-                >Above</button>
+                >${t('Above')}</button>
                 <button
                   type="button"
                   class="context-button ${belowOpen ? 'active' : ''}"
@@ -1013,7 +1016,7 @@ export class ShWirePinnedLayer extends LitElement {
                   data-wire-endpoint="source"
                   aria-pressed=${belowOpen ? 'true' : 'false'}
                   @click=${() => this.toggleWireNodeContext(node, side, 'below')}
-                >Below</button>
+                >${t('Below')}</button>
               </div>
             `
             : nothing}
@@ -1046,8 +1049,8 @@ export class ShWirePinnedLayer extends LitElement {
           ${body
             ? body
             : blockId
-              ? html`<span class="block-placeholder">Empty block</span>`
-              : html`<span class="block-placeholder">No block preview</span>`}
+              ? html`<span class="block-placeholder">${t('Empty block')}</span>`
+              : html`<span class="block-placeholder">${t('No block preview')}</span>`}
         </div>
         ${blockId
           ? html`
@@ -1059,7 +1062,7 @@ export class ShWirePinnedLayer extends LitElement {
                 data-wire-endpoint="target"
                 aria-pressed=${aboveOpen ? 'true' : 'false'}
                 @click=${() => this.toggleWireNodeContext(node, side, 'above')}
-              >Above</button>
+              >${t('Above')}</button>
               <button
                 type="button"
                 class="context-button ${belowOpen ? 'active' : ''}"
@@ -1067,7 +1070,7 @@ export class ShWirePinnedLayer extends LitElement {
                 data-wire-endpoint="target"
                 aria-pressed=${belowOpen ? 'true' : 'false'}
                 @click=${() => this.toggleWireNodeContext(node, side, 'below')}
-              >Below</button>
+              >${t('Below')}</button>
             </div>
           `
           : nothing}
@@ -1085,7 +1088,7 @@ export class ShWirePinnedLayer extends LitElement {
             {
               uri: DEFAULT_WIRE_PREDICATE_URI,
               label: getWirePredicateLabel(DEFAULT_WIRE_PREDICATE_URI),
-              description: 'General association',
+              get description() { return t('General association') },
             },
           ],
         },
@@ -1137,7 +1140,7 @@ export class ShWirePinnedLayer extends LitElement {
           type="button"
           class="close"
           data-wire-pinned-wire-close
-          aria-label="Close pinned wire"
+          aria-label=${t('Close pinned wire')}
           @click=${() => this.closeWireNode(node)}
         >x</button>
         ${this.renderWireEndpoint(
@@ -1155,8 +1158,8 @@ export class ShWirePinnedLayer extends LitElement {
             type="button"
             class="wire-control"
             data-wire-pinned-wire-swap
-            title="Swap direction"
-            aria-label="Swap wire direction"
+            title=${t('Swap direction')}
+            aria-label=${t('Swap wire direction')}
             ?disabled=${node.bidirectional}
             @click=${() => this.updateWireNode(node, node.predicate, false, true)}
           >⇄</button>
@@ -1175,7 +1178,7 @@ export class ShWirePinnedLayer extends LitElement {
             data-wire-pinned-wire-bidirectional
             aria-pressed=${node.bidirectional ? 'true' : 'false'}
             @click=${() => this.updateWireNode(node, node.predicate, !node.bidirectional, false)}
-          >Both</button>
+          >${t('Both')}</button>
         </div>
         ${predicateOpen ? this.renderPredicatePicker(node) : nothing}
         ${this.renderWireEndpoint(
@@ -1194,10 +1197,10 @@ export class ShWirePinnedLayer extends LitElement {
   private renderContextBlocks(block: PinnedWireBlock, direction: 'above' | 'below'): TemplateResult {
     const state = this.blockContextFor(block.id)
     if (!state || state.status === 'loading') {
-      return html`<div class="context-blocks"><div class="context-block message">Loading...</div></div>`
+      return html`<div class="context-blocks"><div class="context-block message">${t('Loading...')}</div></div>`
     }
     if (state.status === 'error') {
-      return html`<div class="context-blocks"><div class="context-block message">${state.message ?? 'Could not load'}</div></div>`
+      return html`<div class="context-blocks"><div class="context-block message">${state.message ?? t('Could not load')}</div></div>`
     }
     const blocks = state.data.blocks
     const targetIndex = blocks.findIndex((entry) => entry.isTarget)
@@ -1233,7 +1236,7 @@ export class ShWirePinnedLayer extends LitElement {
           type="button"
           class="close"
           data-wire-pinned-block-close
-          aria-label="Close pinned block"
+          aria-label=${t('Close pinned block')}
           @click=${() => this.closeBlock(block)}
         >x</button>
         <div
@@ -1254,7 +1257,7 @@ export class ShWirePinnedLayer extends LitElement {
         </div>
         ${aboveOpen ? this.renderContextBlocks(block, 'above') : nothing}
         <div class="block-body" data-wire-pinned-block-body>
-          ${text ? text : html`<span class="block-placeholder">Empty block</span>`}
+          ${text ? text : html`<span class="block-placeholder">${t('Empty block')}</span>`}
         </div>
         <div class="context-row">
           <button
@@ -1263,20 +1266,20 @@ export class ShWirePinnedLayer extends LitElement {
             data-wire-pinned-block-context-above
             aria-pressed=${aboveOpen ? 'true' : 'false'}
             @click=${() => this.toggleBlockContext(block, 'above')}
-          >Above</button>
+          >${t('Above')}</button>
           <button
             type="button"
             class="context-button ${belowOpen ? 'active' : ''}"
             data-wire-pinned-block-context-below
             aria-pressed=${belowOpen ? 'true' : 'false'}
             @click=${() => this.toggleBlockContext(block, 'below')}
-          >Below</button>
+          >${t('Below')}</button>
         </div>
         ${belowOpen ? this.renderContextBlocks(block, 'below') : nothing}
         <div class="actions">
-          <button type="button" class="action" data-wire-pinned-block-refresh @click=${() => this.refreshBlock(block)}>Refresh</button>
-          <button type="button" class="action" data-wire-pinned-block-wire @click=${(event: MouseEvent) => this.wireBlock(block, event)}>Wire</button>
-          <button type="button" class="action" data-wire-pinned-block-open @click=${() => this.openBlock(block)}>Open</button>
+          <button type="button" class="action" data-wire-pinned-block-refresh @click=${() => this.refreshBlock(block)}>${t('Refresh')}</button>
+          <button type="button" class="action" data-wire-pinned-block-wire @click=${(event: MouseEvent) => this.wireBlock(block, event)}>${t('Wire')}</button>
+          <button type="button" class="action" data-wire-pinned-block-open @click=${() => this.openBlock(block)}>${t('Open')}</button>
         </div>
       </section>
     `

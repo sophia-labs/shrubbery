@@ -49,6 +49,7 @@
  * the lockfile tripwire grep + compose.test.ts.
  */
 
+import { LocaleController, localizeLabel, t } from '@shrubbery/nucleus'
 import '@shrubbery/hoja'
 import type {
   HojaComposerDetail,
@@ -646,6 +647,8 @@ export interface ChatKernelOptions {
 
 @customElement('sh-chat-panel')
 export class ShChatPanel extends LitElement {
+  protected readonly _locale = new LocaleController(this)
+
   // ─────────────────────────────────────────────────────────────────────────
   // PUBLIC SEAM (ChatKernelOptions, flattened to reactive properties)
   // ─────────────────────────────────────────────────────────────────────────
@@ -976,7 +979,7 @@ export class ShChatPanel extends LitElement {
   }
 
   private thinkingLabel(): string {
-    return this.streamingElapsed >= 3 ? `Thinking... (${this.streamingElapsed}s)` : 'Thinking...'
+    return this.streamingElapsed >= 3 ? t('chat.thinkingSeconds', { seconds: this.streamingElapsed }) : 'Thinking...'
   }
 
   /**
@@ -998,11 +1001,11 @@ export class ShChatPanel extends LitElement {
     const streamingMsg = [...this.messages].reverse().find((msg) => msg.role === 'assistant' && msg.isStreaming)
     // Once the reply text is complete, "Thinking... (4s)" would be a lie: the model
     // has finished; what is awaited is the close of the turn.
-    if (!streamingMsg) return this.replyIsIn() ? 'Finishing...' : this.thinkingLabel()
+    if (!streamingMsg) return this.replyIsIn() ? t('Finishing...') : this.thinkingLabel()
 
     const runningTool = streamingMsg.toolCalls.find((tool) => tool.status === 'pending' || tool.status === 'running')
-    if (runningTool) return `Running ${runningTool.tool}...`
-    if (streamingMsg.content) return 'Responding...'
+    if (runningTool) return t('chat.runningTool', { name: runningTool.tool })
+    if (streamingMsg.content) return t('Responding...')
     return this.thinkingLabel()
   }
 
@@ -1422,7 +1425,7 @@ export class ShChatPanel extends LitElement {
           aria-expanded=${isExpanded ? 'true' : 'false'}
           @click=${() => this.toggleTool(tool.id)}
           @keydown=${(event: KeyboardEvent) => this.pressOnKey(event, () => this.toggleTool(tool.id))}
-          title="${isExpanded ? 'Collapse' : 'Expand'} details"
+          title="${isExpanded ? 'Collapse' : t('Expand')} details"
         >
           <div class="tool-info">
             <span class="tool-toggle">▸</span>
@@ -1432,7 +1435,7 @@ export class ShChatPanel extends LitElement {
           ${this.renderToolBadge(tool.status)}
         </div>
         ${testimony.length
-          ? html`<div class="tool-testimony" aria-label="Tool result testimony">
+          ? html`<div class="tool-testimony" aria-label=${t('Tool result testimony')}>
               ${testimony.map((label) => html`<span class="tool-testimony-label" data-testimony=${label}>${label}</span>`)}
             </div>`
           : nothing}
@@ -1443,9 +1446,9 @@ export class ShChatPanel extends LitElement {
           ? html`
               <div class="tool-call-details">
                 ${this.renderToolDataBlock('Input', tool.input)}
-                ${this.renderToolDataBlock(isError ? 'Error' : 'Output', tool.output)}
+                ${this.renderToolDataBlock(isError ? t('Error') : 'Output', tool.output)}
                 ${this.renderOutputNotRetained(tool)}
-                ${this.renderToolDataBlock('Testimony', tool.metadata)}
+                ${this.renderToolDataBlock(t('Testimony'), tool.metadata)}
               </div>
             `
           : nothing}
@@ -1459,21 +1462,21 @@ export class ShChatPanel extends LitElement {
     if (!this.transcriptOnly) return nothing
     if (tool.output !== null && tool.output !== undefined) return nothing
     if (tool.status !== 'completed' && tool.status !== 'error') return nothing
-    return html`<div class="tool-data-block"><p class="tool-output-missing">Output not retained.</p></div>`
+    return html`<div class="tool-data-block"><p class="tool-output-missing">${t('Output not retained.')}</p></div>`
   }
 
   /** The status badge — the 4 states the R5 real-DOM test asserts. */
   private renderToolBadge(status: ToolCall['status']): TemplateResult {
     switch (status) {
       case 'running':
-        return html`<span class="tool-status-icon tool-spinner" data-status="running" title="Running">⟳</span>`
+        return html`<span class="tool-status-icon tool-spinner" data-status="running" title=${t('Running')}>⟳</span>`
       case 'completed':
-        return html`<span class="tool-status-icon success" data-status="completed" title="Completed">✓</span>`
+        return html`<span class="tool-status-icon success" data-status="completed" title=${t('Completed')}>✓</span>`
       case 'error':
-        return html`<span class="tool-status-icon error" data-status="error" title="Error">✕</span>`
+        return html`<span class="tool-status-icon error" data-status="error" title=${t('Error')}>✕</span>`
       case 'pending':
       default:
-        return html`<span class="tool-status-icon pending" data-status="pending" title="Pending">◷</span>`
+        return html`<span class="tool-status-icon pending" data-status="pending" title=${t('Pending')}>◷</span>`
     }
   }
 
@@ -1546,7 +1549,7 @@ export class ShChatPanel extends LitElement {
 
   private renderTypingIndicator(): TemplateResult {
     return html`
-      <div class="typing-indicator" aria-label="Assistant is typing">
+      <div class="typing-indicator" aria-label=${t('Assistant is typing')}>
         <span class="typing-dot"></span>
         <span class="typing-dot"></span>
         <span class="typing-dot"></span>
@@ -1612,10 +1615,10 @@ export class ShChatPanel extends LitElement {
             aria-expanded=${isExpanded ? 'true' : 'false'}
             @click=${() => this.toggleReasoning(msg.id)}
             @keydown=${(event: KeyboardEvent) => this.pressOnKey(event, () => this.toggleReasoning(msg.id))}
-            title="${isExpanded ? 'Collapse' : 'Expand'} thinking"
+            title="${isExpanded ? 'Collapse' : t('Expand')} thinking"
           >
             <span class="reasoning-toggle">▸</span>
-            <span>Thinking</span>
+            <span>${t('Thinking')}</span>
           </div>
           ${isExpanded
             ? html`<div class="reasoning-content">
@@ -1676,10 +1679,10 @@ export class ShChatPanel extends LitElement {
                 ? this.renderTypingIndicator()
                 : msg.content
                   ? this.renderContent(msg.content, msg.id)
-                  : html`<span class="placeholder">Thinking…</span>`}
+                  : html`<span class="placeholder">${t('Thinking…')}</span>`}
             </div>
             ${msg.toolCalls.length > 0
-              ? html`<div class="tool-calls" role="list" aria-label="Tool calls">
+              ? html`<div class="tool-calls" role="list" aria-label=${t('Tool calls')}>
                   ${msg.toolCalls.map((t) => this.renderToolCall(t))}
                 </div>`
               : nothing}
@@ -1690,7 +1693,7 @@ export class ShChatPanel extends LitElement {
         class="message ${msg.role} ${isWindow ? 'window' : ''}"
         data-message-id=${msg.id}
         data-origin=${isWindow ? 'window' : nothing}
-        aria-label="${msg.role === 'user' ? 'Your message' : isWindow ? 'Earlier assistant message' : `${this.assistantLabel} message`}"
+        aria-label="${msg.role === 'user' ? t('Your message') : isWindow ? t('Earlier assistant message') : `${this.assistantLabel} message`}"
         @contextmenu=${(e: MouseEvent) => this.openMessageContextMenu(e, msg)}
       >
         <div class="message-byline" aria-hidden="true">
@@ -1712,7 +1715,7 @@ export class ShChatPanel extends LitElement {
             ? html`<span
                 class="message-voice"
                 data-voice-basis=${msg.voice.basis}
-                title=${msg.voice.id ?? 'The source did not record which model answered.'}
+                title=${msg.voice.id ?? t('The source did not record which model answered.')}
               >${voiceMarkText(msg.voice)}</span>`
             : nothing}
           ${annotation ? html`<span class="message-annotation">${annotation}</span>` : nothing}
@@ -1854,7 +1857,7 @@ export class ShChatPanel extends LitElement {
                 : { type: 'open-document', documentId: id!, ...(change.blockId ? { blockId: change.blockId } : {}) })}
             >${name}</button>`
           : html`<span class="turn-change-name">${name}</span>`}
-        ${change.pending ? html`<span class="turn-change-pending" aria-label="still changing">…</span>` : nothing}
+        ${change.pending ? html`<span class="turn-change-pending" aria-label=${t('still changing')}>…</span>` : nothing}
         ${opens
           ? html`<button
               class="turn-change-history"
@@ -1863,7 +1866,7 @@ export class ShChatPanel extends LitElement {
               @click=${() => this.changeAction(change.subject === 'artifact'
                 ? { type: 'open-artifact', artifactId: id!, revisions: true }
                 : { type: 'open-history', documentId: id!, ...(before !== null ? { before } : {}) })}
-            >${change.subject === 'artifact' ? 'Revisions' : 'History'}</button>`
+            >${change.subject === 'artifact' ? 'Revisions' : t('History')}</button>`
           : nothing}
         ${change.removal && removalNote(change.removal)
           ? html`<span class="turn-change-note">${removalNote(change.removal)}</span>`
@@ -1916,8 +1919,8 @@ export class ShChatPanel extends LitElement {
                 @click=${() => {
                   void this.handleMessageAction(msg.id, 'read')
                 }}
-                aria-label="Read aloud"
-                title="Read aloud"
+                aria-label=${t('Read aloud')}
+                title=${t('Read aloud')}
               >
                 🔊
               </button>
@@ -1930,11 +1933,11 @@ export class ShChatPanel extends LitElement {
                 @click=${() => {
                   void this.handleMessageAction(msg.id, 'copy')
                 }}
-                aria-label="${this.copiedMessageId === msg.id ? 'Copied' : 'Copy message'}"
-                title="${this.copiedMessageId === msg.id ? 'Copied!' : 'Copy message'}"
+                aria-label="${this.copiedMessageId === msg.id ? 'Copied' : t('Copy message')}"
+                title="${this.copiedMessageId === msg.id ? 'Copied!' : t('Copy message')}"
               >
                 ${this.copiedMessageId === msg.id
-                  ? html`✓<span class="copy-toast">Copied to clipboard</span>`
+                  ? html`✓<span class="copy-toast">${t('Copied to clipboard')}</span>`
                   : '⧉'}
               </button>
             `
@@ -1946,8 +1949,8 @@ export class ShChatPanel extends LitElement {
                 @click=${() => {
                   void this.handleMessageAction(msg.id, 'regenerate')
                 }}
-                aria-label="Regenerate"
-                title="Regenerate"
+                aria-label=${t('Regenerate')}
+                title=${t('Regenerate')}
               >
                 ↻
               </button>
@@ -1970,9 +1973,9 @@ export class ShChatPanel extends LitElement {
           @click=${() => {
             void this.handleMessageAction(msg.id, 'branch')
           }}
-          aria-label="Branch from here"
-          title="A new conversation from before this message, with it in the box to edit and send"
-        >Branch from here</button>
+          aria-label=${t('Branch from here')}
+          title=${t('A new conversation from before this message, with it in the box to edit and send')}
+        >${t('Branch from here')}</button>
       </div>
     `
   }
@@ -1997,7 +2000,7 @@ export class ShChatPanel extends LitElement {
           ? html`
               <button class="chat-menu-item" role="menuitem" @click=${() => this.selectContextMenuItem(msg, 'copy')}>
                 <span class="chat-menu-icon">⧉</span>
-                <span>Copy message</span>
+                <span>${t('Copy message')}</span>
               </button>
               <button
                 class="chat-menu-item"
@@ -2005,7 +2008,7 @@ export class ShChatPanel extends LitElement {
                 @click=${() => this.selectContextMenuItem(msg, 'copy-markdown')}
               >
                 <span class="chat-menu-icon">▤</span>
-                <span>Copy as Markdown</span>
+                <span>${t('Copy as Markdown')}</span>
               </button>
             `
           : nothing}
@@ -2017,7 +2020,7 @@ export class ShChatPanel extends LitElement {
                 @click=${() => this.selectContextMenuItem(msg, 'copy-code')}
               >
                 <span class="chat-menu-icon">&lt;/&gt;</span>
-                <span>Copy code block</span>
+                <span>${t('Copy code block')}</span>
               </button>
             `
           : nothing}
@@ -2030,7 +2033,7 @@ export class ShChatPanel extends LitElement {
                 @click=${() => this.selectContextMenuItem(msg, 'save-garden')}
               >
                 <span class="chat-menu-icon">✦</span>
-                <span>Save to Garden</span>
+                <span>${t('Save to Garden')}</span>
               </button>
             `
           : nothing}
@@ -2043,7 +2046,7 @@ export class ShChatPanel extends LitElement {
                 @click=${() => this.selectContextMenuItem(msg, 'regenerate')}
               >
                 <span class="chat-menu-icon">↻</span>
-                <span>Regenerate response</span>
+                <span>${t('Regenerate response')}</span>
               </button>
             `
           : nothing}
@@ -2053,9 +2056,9 @@ export class ShChatPanel extends LitElement {
 
   private displaySessionTitle(): string {
     const title = this.sessionTitle?.trim()
-    if (!title || title === 'New chat' || title.startsWith('New session - ')) return 'New chat'
+    if (!title || title === 'New chat' || title.startsWith('New session - ')) return t('New chat')
     // The label the shell gave a first chat before chats were titled. It names nothing.
-    if (title.toLowerCase() === 'organism-chat') return 'Untitled chat'
+    if (title.toLowerCase() === 'organism-chat') return t('Untitled chat')
     return title
   }
 
@@ -2071,11 +2074,11 @@ export class ShChatPanel extends LitElement {
         class="slot-indicator ${isActive ? 'active' : isFilled ? 'filled' : ''}"
         @click=${() => this.sessionAction(isActive ? { type: 'open-history' } : { type: 'slot', slot })}
         title="${isActive
-          ? 'Open chat history'
+          ? t('Open chat history')
           : isFilled
             ? `Switch to slot ${slot + 1}`
             : `New chat in slot ${slot + 1}`}"
-        aria-label="${isActive ? 'Current' : isFilled ? 'Filled' : 'Empty'} session slot ${slot + 1}"
+        aria-label="${isActive ? t('Current') : isFilled ? 'Filled' : 'Empty'} session slot ${slot + 1}"
         aria-pressed="${isActive ? 'true' : 'false'}"
       >
         ${slot + 1}
@@ -2334,10 +2337,10 @@ export class ShChatPanel extends LitElement {
     // are described by, and a screen reader says it before the person can accept it.
     const noteId = `${this.modelOverlayId}-confirm-note`
     return html`
-      <div class="model-picker-confirm" data-voice-confirm role="group" aria-label="Confirm ${name}">
+      <div class="model-picker-confirm" data-voice-confirm role="group" aria-label=${t('chat.confirmVoice', { name })}>
         <span class="model-picker-confirm-copy">
           <strong>${name}</strong>
-          <span id=${noteId} data-voice-confirm-note>${model.premiumNote ?? 'A short reply in this voice costs noticeably more than House.'}</span>
+          <span id=${noteId} data-voice-confirm-note>${model.premiumNote ?? t('A short reply in this voice costs noticeably more than House.')}</span>
         </span>
         <span class="model-picker-confirm-actions">
           <button
@@ -2346,14 +2349,14 @@ export class ShChatPanel extends LitElement {
             data-voice-confirm-accept
             aria-describedby=${noteId}
             @click=${() => this.chooseModel(model.id)}
-          >Use ${name}</button>
+          >${t('chat.useVoice', { name })}</button>
           <button
             class="model-picker-confirm-cancel"
             type="button"
             data-voice-confirm-cancel
             aria-describedby=${noteId}
             @click=${() => { this.declinePremium() }}
-          >Cancel</button>
+          >${t('Cancel')}</button>
         </span>
       </div>
     `
@@ -2384,10 +2387,10 @@ export class ShChatPanel extends LitElement {
         ${price || context || tools || multiple || model.premium
           ? html`<span class="model-picker-model-meta">
               ${price ? html`<span class="voice-price" title=${price.label}>${price.text}</span>` : nothing}
-              ${multiple ? html`<span class="voice-multiple" title="What a short reply costs, compared with the House default">${multiple}</span>` : nothing}
-              ${context ? html`<span class="voice-context" title="${context} tokens of context">${context} ctx</span>` : nothing}
+              ${multiple ? html`<span class="voice-multiple" title=${t('What a short reply costs, compared with the House default')}>${multiple}</span>` : nothing}
+              ${context ? html`<span class="voice-context" title=${t('chat.contextTokens', { count: context })}>${context} ctx</span>` : nothing}
               ${tools ? html`<span class="voice-badge ${tools === 'tools' ? 'tools' : 'no-tools'}">${tools}</span>` : nothing}
-              ${model.premium ? html`<span class="voice-badge premium" title="A premium voice: it is confirmed once before it is chosen">premium</span>` : nothing}
+              ${model.premium ? html`<span class="voice-badge premium" title=${t('A premium voice: it is confirmed once before it is chosen')}>${t('premium')}</span>` : nothing}
             </span>`
           : nothing}
       </button>
@@ -2401,8 +2404,8 @@ export class ShChatPanel extends LitElement {
         <input
           class="model-picker-search-input"
           type="search"
-          placeholder="Search ${this.models.length} voices"
-          aria-label="Search voices"
+          placeholder=${t('chat.searchVoices', { count: this.models.length })}
+          aria-label=${t('Search voices')}
           autocomplete="off"
           spellcheck="false"
           .value=${this.voiceQuery}
@@ -2417,8 +2420,8 @@ export class ShChatPanel extends LitElement {
   private renderPinnedVoices(pinned: readonly ChatModelOption[]): TemplateResult | typeof nothing {
     if (pinned.length === 0) return nothing
     return html`
-      <div class="model-picker-pinned" role="listbox" aria-label="House default">
-        <span class="model-picker-group-label" role="presentation">House default</span>
+      <div class="model-picker-pinned" role="listbox" aria-label=${t('House default')}>
+        <span class="model-picker-group-label" role="presentation">${t('House default')}</span>
         ${pinned.map((model) => this.renderVoiceOption(model))}
       </div>
     `
@@ -2432,7 +2435,7 @@ export class ShChatPanel extends LitElement {
     if (!priced && !note) return nothing
     return html`
       <div class="model-picker-foot">
-        ${priced ? html`<span class="model-picker-foot-caption">${this.voiceFootnote || 'US dollars per million tokens'}</span>` : nothing}
+        ${priced ? html`<span class="model-picker-foot-caption">${this.voiceFootnote || t('US dollars per million tokens')}</span>` : nothing}
         ${note
           ? html`<span class="model-picker-foot-account" title=${note.hint ?? nothing}>${[note.label, note.value].filter(Boolean).join(' ')}</span>`
           : nothing}
@@ -2444,7 +2447,7 @@ export class ShChatPanel extends LitElement {
     const activeModels = groups.find((group) => group.provider === activeProvider)?.models ?? []
     return html`
       <div class="model-picker-body">
-        <div class="model-picker-providers" role="group" aria-label="Model providers">
+        <div class="model-picker-providers" role="group" aria-label=${t('Model providers')}>
           ${groups.map((group) => {
             const hasSelection = group.models.some((model) => model.id === this.currentModel)
             const isActive = group.provider === activeProvider
@@ -2470,7 +2473,7 @@ export class ShChatPanel extends LitElement {
             `
           })}
         </div>
-        <div class="model-picker-models" role="listbox" aria-label="Models">
+        <div class="model-picker-models" role="listbox" aria-label=${t('Models')}>
           ${activeModels.map((model) => this.renderVoiceOption(model))}
         </div>
       </div>
@@ -2489,13 +2492,13 @@ export class ShChatPanel extends LitElement {
         ? nothing
         : html`
             <div class="model-picker-body search">
-              <div class="model-picker-empty" role="status">No voices match “${query}”.</div>
+              <div class="model-picker-empty" role="status">${t('chat.noVoices', { query })}</div>
             </div>
           `
     }
     return html`
       <div class="model-picker-body search">
-        <div class="model-picker-models" role="listbox" aria-label="Matching voices">
+        <div class="model-picker-models" role="listbox" aria-label=${t('Matching voices')}>
           ${groups.map((group) => html`
             <div class="model-picker-result-group" role="group" aria-label=${group.provider}>
               <span class="model-picker-group-label" role="presentation">${group.provider}</span>
@@ -2520,11 +2523,11 @@ export class ShChatPanel extends LitElement {
         <button
           class="model-selector-trigger ${locked ? 'locked' : ''}"
           @click=${() => this.openModelPicker()}
-          aria-label="Voice: ${this.currentModelLabel()}"
+          aria-label=${t('chat.voice', { name: this.currentModelLabel() })}
           aria-haspopup="dialog"
           aria-expanded="${this.modelPickerOpen ? 'true' : 'false'}"
           ?disabled=${locked}
-          title="${locked ? 'The voice is fixed once a conversation begins' : 'Choose a voice'}"
+          title="${locked ? t('The voice is fixed once a conversation begins') : t('Choose a voice')}"
         >
           <span class="model-name">${this.currentModelLabel()}</span>
           ${locked
@@ -2542,14 +2545,14 @@ export class ShChatPanel extends LitElement {
                 class="model-picker model-picker-sheet"
                 role="dialog"
                 aria-modal=${this.isCompactViewport() ? 'true' : 'false'}
-                aria-label="Choose a voice"
+                aria-label=${t('Choose a voice')}
               >
                 <div class="model-picker-head">
-                  <strong>Choose a voice</strong>
+                  <strong>${t('Choose a voice')}</strong>
                   <button
                     class="model-picker-close"
                     type="button"
-                    aria-label="Close voice picker"
+                    aria-label=${t('Close voice picker')}
                     @click=${() => this.closeModelPicker(true)}
                   >
                     ×
@@ -2627,14 +2630,15 @@ export class ShChatPanel extends LitElement {
     return html`
       <button
         class="${compact ? 'header-action-menu-item' : 'icon-button'} ${options.danger ? 'danger' : ''}"
+        data-header-action=${action}
         role=${compact ? 'menuitem' : nothing}
         @click=${() => this.headerAction(action)}
-        title=${label}
-        aria-label=${label}
+        title=${localizeLabel(label)}
+        aria-label=${localizeLabel(label)}
         ?disabled=${options.disabled}
       >
         <span class="header-action-symbol" aria-hidden="true">${symbol}</span>
-        ${compact ? html`<span>${label}</span>` : nothing}
+        ${compact ? html`<span>${localizeLabel(label)}</span>` : nothing}
       </button>
     `
   }
@@ -2655,13 +2659,13 @@ export class ShChatPanel extends LitElement {
       options: { disabled?: boolean; danger?: boolean }
     }> = []
     if (this.headerActionAllowed('save-garden')) {
-      entries.push({ action: 'save-garden', label: 'Save chat to Garden', symbol: '▣', options: { disabled: this.messages.length === 0 } })
+      entries.push({ action: 'save-garden', get label() { return t('Save chat to Garden') }, symbol: '▣', options: { disabled: this.messages.length === 0 } })
     }
     if (this.headerActionAllowed('refresh')) {
-      entries.push({ action: 'refresh', label: 'Refresh messages', symbol: '↻', options: {} })
+      entries.push({ action: 'refresh', get label() { return t('Refresh messages') }, symbol: '↻', options: {} })
     }
     if (this.streaming && this.headerActionAllowed('stop')) {
-      entries.push({ action: 'stop', label: 'Stop generating', symbol: '■', options: { danger: true } })
+      entries.push({ action: 'stop', get label() { return t('Stop generating') }, symbol: '■', options: { danger: true } })
     }
     if (this.headerActionAllowed(presentationAction)) {
       entries.push({ action: presentationAction, label: presentationLabel, symbol: presentationSymbol, options: {} })
@@ -2676,7 +2680,7 @@ export class ShChatPanel extends LitElement {
           <button
             class="compact-actions-trigger"
             type="button"
-            aria-label="More chat actions"
+            aria-label=${t('More chat actions')}
             aria-haspopup="menu"
             aria-expanded=${this.headerMenuOpen ? 'true' : 'false'}
             @click=${() => this.toggleHeaderMenu()}
@@ -2685,7 +2689,7 @@ export class ShChatPanel extends LitElement {
           </button>
           ${this.headerMenuOpen
             ? html`
-                <div class="header-actions-menu" role="menu" aria-label="Chat actions">
+                <div class="header-actions-menu" role="menu" aria-label=${t('Chat actions')}>
                   ${entries.map(entry => this.renderHeaderActionButton(entry.action, entry.label, entry.symbol, { ...entry.options, compact: true }))}
                 </div>
               `
@@ -2708,7 +2712,7 @@ export class ShChatPanel extends LitElement {
   private renderComposerControls(): TemplateResult | typeof nothing {
     if (this.composerControls.length === 0) return nothing
     return html`
-      <div class="composer-controls" aria-label="Chat controls">
+      <div class="composer-controls" aria-label=${t('Chat controls')}>
         ${this.composerControls.map((control) => html`
           <div
             class="composer-control-group ${control.disabled ? 'disabled' : ''}"
@@ -2861,7 +2865,7 @@ export class ShChatPanel extends LitElement {
                 <textarea
                   class="prompt-freeform-input"
                   rows="1"
-                  placeholder=${prompt.freeformPlaceholder ?? 'Answer in your own words...'}
+                  placeholder=${prompt.freeformPlaceholder ?? t('Answer in your own words...')}
                   .value=${this.promptDraft(prompt.id)}
                   @input=${(event: Event) => {
                     this.setPromptDraft(prompt.id, (event.target as HTMLTextAreaElement).value)
@@ -2885,7 +2889,7 @@ export class ShChatPanel extends LitElement {
   private renderPromptCards(): TemplateResult | typeof nothing {
     if (this.promptCards.length === 0) return nothing
     return html`
-      <div class="prompt-card-stack" aria-label="Assistant questions">
+      <div class="prompt-card-stack" aria-label=${t('Assistant questions')}>
         ${this.promptCards.map((prompt) => this.renderPromptCard(prompt))}
       </div>
     `
@@ -2896,9 +2900,9 @@ export class ShChatPanel extends LitElement {
     return html`
       <div class="empty-state">
         <div class="empty-icon">${this.emptyIcon}</div>
-        <p class="empty-eyebrow">A conversation with ${this.assistantLabel}</p>
-        <h3 class="empty-title">${this.emptyTitle}</h3>
-        <p class="empty-description">${this.emptyDescription}</p>
+        <p class="empty-eyebrow">${t('chat.conversationWith', { name: this.assistantLabel })}</p>
+        <h3 class="empty-title">${localizeLabel(this.emptyTitle)}</h3>
+        <p class="empty-description">${localizeLabel(this.emptyDescription)}</p>
         ${suggestions.length > 0
           ? html`<div class="empty-suggestions">
           ${suggestions.map(
@@ -2929,12 +2933,12 @@ export class ShChatPanel extends LitElement {
   }
 
   private composerPlaceholderText(): string {
-    if (this.readOnly) return 'This chat is read-only.'
+    if (this.readOnly) return t('This chat is read-only.')
     if (this.sendState === 'saving') return 'Sending your message…'
     if (this.sendState === 'uncertain') return 'Check message status before sending again.'
     switch (this.effectiveConversationState()) {
       case 'loading':
-        return 'Loading conversation…'
+        return t('Loading conversation…')
       case 'reconnecting':
         return 'Reconnecting to Sophia…'
       case 'offline':
@@ -2968,11 +2972,11 @@ export class ShChatPanel extends LitElement {
     if (this.readOnly) {
       return html`
         <div class="connection-banner readonly" role="status">
-          <span>${this.error ?? 'This chat is read-only.'}</span>
+          <span>${this.error ?? t('This chat is read-only.')}</span>
           ${this.onSessionAction
             ? html`
                 <button class="banner-action" type="button" @click=${() => this.sessionAction({ type: 'new' })}>
-                  New chat
+                  ${t('New chat')}
                 </button>
               `
             : nothing}
@@ -2988,11 +2992,11 @@ export class ShChatPanel extends LitElement {
     }
 
     const copy = state === 'loading'
-      ? { label: 'Loading conversation…', detail: 'Opening your saved messages.' }
+      ? { get label() { return t('Loading conversation…') }, detail: 'Opening your saved messages.' }
       : state === 'reconnecting'
-        ? { label: 'Reconnecting…', detail: 'Your conversation is still here.' }
+        ? { get label() { return t('Reconnecting…') }, detail: 'Your conversation is still here.' }
         : state === 'offline'
-          ? { label: 'You’re offline.', detail: 'Your conversation is still here.' }
+          ? { get label() { return t('You’re offline.') }, detail: 'Your conversation is still here.' }
           : { label: this.error ?? 'Conversation couldn’t load.', detail: 'Your current view is still here.' }
     const recoveryAction: ChatContinuityAction | null = state === 'error'
       ? { type: 'retry-load' }
@@ -3022,7 +3026,7 @@ export class ShChatPanel extends LitElement {
                 type="button"
                 @click=${() => this.continuityAction(recoveryAction)}
               >
-                ${state === 'error' ? 'Retry load' : 'Retry'}
+                ${state === 'error' ? 'Retry load' : t('Retry')}
               </button>
             `
           : nothing}
@@ -3113,10 +3117,10 @@ export class ShChatPanel extends LitElement {
               <button
                 class="send-retry send-new-chat"
                 type="button"
-                title="Leave this conversation and start a fresh one"
+                title=${t('Leave this conversation and start a fresh one')}
                 @click=${() => this.sessionAction({ type: 'new' })}
               >
-                New chat
+                ${t('New chat')}
               </button>
             `
           : nothing}
@@ -3152,7 +3156,7 @@ export class ShChatPanel extends LitElement {
               class="window-open-original"
               type="button"
               @click=${() => this.onSeamAction?.({ type: 'open-original' })}
-            >open the original</button>`
+            >${t('open the original')}</button>`
           : nothing}
       </div>
     `
@@ -3207,9 +3211,9 @@ export class ShChatPanel extends LitElement {
   private renderTranscriptOnly(): TemplateResult {
     return html`
       <div class="messages-wrapper" data-chat-viewport data-transcript-only @click=${() => this.closeContextMenu()}>
-        <div class="messages-container" data-chat-transcript role="region" tabindex="0" aria-label="Conversation">
+        <div class="messages-container" data-chat-transcript role="region" tabindex="0" aria-label=${t('Conversation')}>
           ${this.messages.length === 0
-            ? html`<p class="transcript-empty">This conversation has no messages to show.</p>`
+            ? html`<p class="transcript-empty">${t('This conversation has no messages to show.')}</p>`
             : this.messages.map((msg) => this.renderMessage(msg))}
         </div>
         ${this.renderMessageContextMenu()}
@@ -3237,15 +3241,15 @@ export class ShChatPanel extends LitElement {
           <button
             class="super-bar-identity"
             @click=${() => this.sessionAction({ type: 'open-history' })}
-            title="Chat history"
-            aria-label="Open chat history"
+            title=${t('Chat history')}
+            aria-label=${t('Open chat history')}
           >
             <span class="super-bar-icon" aria-hidden="true">☰</span>
             <span class="super-bar-sophia">${this.assistantLabel}</span>
             <span class="super-bar-sep">—</span>
             <span class="super-bar-chat-title">${this.displaySessionTitle()}</span>
           </button>
-          <div class="super-bar-slots" aria-label="Chat sessions">${this.renderSuperBarSlots()}</div>
+          <div class="super-bar-slots" aria-label=${t('Chat sessions')}>${this.renderSuperBarSlots()}</div>
         </div>
 
         <div class="header">
@@ -3272,7 +3276,7 @@ export class ShChatPanel extends LitElement {
           role="log"
           aria-live="polite"
           aria-busy="${this.streaming || this.sendState === 'saving' ? 'true' : 'false'}"
-          aria-label="Chat messages"
+          aria-label=${t('Chat messages')}
           @wheel=${(event: WheelEvent) => this.handleMessagesWheel(event)}
           @scroll=${() => this.handleMessagesScroll()}
         >
@@ -3284,8 +3288,8 @@ export class ShChatPanel extends LitElement {
               <button
                 class="scroll-to-bottom ${this.hasNewMessages ? 'has-new' : ''}"
                 @click=${() => this.scrollToBottomClick()}
-                aria-label="${this.hasNewMessages ? 'New messages - scroll to bottom' : 'Scroll to bottom'}"
-                title="${this.hasNewMessages ? 'New messages' : 'Scroll to bottom'}"
+                aria-label="${this.hasNewMessages ? t('New messages - scroll to bottom') : t('Scroll to bottom')}"
+                title="${this.hasNewMessages ? t('New messages') : t('Scroll to bottom')}"
               >
                 <span aria-hidden="true">↓</span>
               </button>
@@ -3293,14 +3297,14 @@ export class ShChatPanel extends LitElement {
           : nothing}
       </div>
 
-      <div class="composer" data-chat-footer role="group" aria-label="Chat composer">
+      <div class="composer" data-chat-footer role="group" aria-label=${t('Chat composer')}>
         ${this.renderComposerNotice()}
         ${this.renderPromptCards()}
         ${this.renderComposerControls()}
         ${this.renderSendContinuity()}
         ${this.renderAccessNote()}
         <div class="composer-heading">
-          <span class="composer-label">Write to ${this.assistantLabel}</span>
+          <span class="composer-label">${t('chat.writeTo', { name: this.assistantLabel })}</span>
           <span class="composer-hint">${this.composerGuidanceText()}</span>
         </div>
         <div class="composer-input-wrapper">
@@ -3310,7 +3314,7 @@ export class ShChatPanel extends LitElement {
             .valueKey=${this.draftIdentity}
             .referenceBindings=${this.draftDetail?.references ?? []}
             .placeholder=${this.composerPlaceholderText()}
-            .label=${`Message ${this.assistantLabel}`}
+            .label=${t('chat.messageTo', { name: this.assistantLabel })}
             .disabled=${composerDisabled}
             .readOnly=${isReadOnly}
             .resolveWikiLinks=${this.composerReferenceResolver}
@@ -3321,8 +3325,8 @@ export class ShChatPanel extends LitElement {
             ? html`<button
                 class="clear-button"
                 @click=${() => this.clearDraft()}
-                title="Clear message"
-                aria-label="Clear message"
+                title=${t('Clear message')}
+                aria-label=${t('Clear message')}
               >
                 ×
               </button>`
@@ -3331,8 +3335,8 @@ export class ShChatPanel extends LitElement {
             class="send-button"
             ?disabled=${sendBtnDisabled}
             @click=${() => this.send(this.draftDetail)}
-            title=${this.sendState === 'saving' ? 'Sending message' : 'Send message'}
-            aria-label=${this.sendState === 'saving' ? 'Sending message' : 'Send message'}
+            title=${this.sendState === 'saving' ? t('Sending message') : t('Send message')}
+            aria-label=${this.sendState === 'saving' ? t('Sending message') : t('Send message')}
             aria-busy=${this.sendState === 'saving' ? 'true' : 'false'}
           >
             ${this.sendState === 'saving' ? '…' : '➤'}

@@ -12,6 +12,7 @@
  * (`onFocus`, `onSelect`, `onOpenDocument`); the agents come from Choreograph's run (`plan.agents`).
  */
 
+import { LocaleController, formatNumber, localeSource, t } from '@shrubbery/nucleus'
 import type { BeingFace, ObjectModel } from '@shrubbery/nucleus/object-faces'
 import { css, html, LitElement, nothing, type TemplateResult } from 'lit'
 import './being/being-face-element.js'
@@ -30,7 +31,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function plural(n: number, one: string, many = `${one}s`): string {
-  return `${n.toLocaleString()} ${n === 1 ? one : many}`
+  const key = one === 'item' ? 'count.items' : one === 'turn' ? 'count.turns' : one === 'match' ? 'count.matches' : null
+  return key ? t(key, { count: n, number: formatNumber(n) }) : `${formatNumber(n)} ${n === 1 ? one : many}`
 }
 
 /** A span of time as a person says it: 840 ms, 4.1 s, 2 min 5 s. */
@@ -61,7 +63,7 @@ export function verdictOf(output: unknown): { passed: boolean; why: string } | n
 /** What an agent handed on, in a few words: in its stack's class when it has one ("3 dream reports, 1 unfit"). */
 function handedWords(agent: WorkflowAgentRunView, step: WorkflowPlanStepView, made?: WorkflowStackView, unfit?: readonly string[]): string {
   if (agent.state === 'failed') return agent.error ? `Failed: ${agent.error}` : 'Failed'
-  if (agent.state === 'running') return 'Working…'
+  if (agent.state === 'running') return t('Working…')
   if (agent.state === 'queued') return 'Waiting'
   if (unfit) return `Nothing that fit${unfit.length ? `: ${unfit.join('; ')}` : ''}`
   if (step.checks) {
@@ -143,6 +145,8 @@ function matches(item: unknown, filter: string): boolean {
 }
 
 export class ShWorkflowFocus extends LitElement {
+  protected readonly _locale = new LocaleController(this)
+
   static override properties = { plan: { attribute: false }, filter: { state: true } }
   declare plan: WorkflowPlanOptions | null
   declare filter: string
@@ -377,20 +381,20 @@ export class ShWorkflowFocus extends LitElement {
     const count = focus.item ? this.itemCount(focus.key) : 0
     const itemWord = part.kind === 'step' ? (part.step?.mode === 'perItem' || part.step?.checks ? 'Item' : 'Their work') : part.kind === 'refused' ? 'Refusal' : 'Item'
     return html`
-      <div class="bar" role="navigation" aria-label="Where you are in the workflow">
-        <button class="up" title="Up one level (Esc)" aria-label="Up one level" @click=${() => this.up()}>←</button>
+      <div class="bar" role="navigation" aria-label=${t('Where you are in the workflow')}>
+        <button class="up" title=${t('Up one level (Esc)')} aria-label=${t('Up one level')} @click=${() => this.up()}>←</button>
         <div class="crumbs">
-          <button @click=${() => this.go(null)} title="Back to the canvas">${plan.title}</button>
+          <button @click=${() => this.go(null)} title=${t('Back to the canvas')}>${plan.title}</button>
           <span class="sep">/</span>
           ${focus.item
             ? html`<button @click=${() => this.go({ key: focus.key })}>${this.partLabel(focus.key)}</button><span class="sep">/</span>
               <span class="here">${itemWord} ${count > 1 || part.kind !== 'step' ? focus.item : ''}</span>`
             : html`<span class="here">${this.partLabel(focus.key)}</span>`}
         </div>
-        ${focus.item && count > 1 ? html`<div class="stepper" aria-label="Items">
-          <button ?disabled=${focus.item <= 1} title="The one before (←)" @click=${() => this.go({ key: focus.key, item: focus.item! - 1 })}>‹</button>
+        ${focus.item && count > 1 ? html`<div class="stepper" aria-label=${t('Items')}>
+          <button ?disabled=${focus.item <= 1} title=${t('The one before (←)')} @click=${() => this.go({ key: focus.key, item: focus.item! - 1 })}>‹</button>
           <span>${focus.item} of ${count}</span>
-          <button ?disabled=${focus.item >= count} title="The next one (→)" @click=${() => this.go({ key: focus.key, item: focus.item! + 1 })}>›</button>
+          <button ?disabled=${focus.item >= count} title=${t('The next one (→)')} @click=${() => this.go({ key: focus.key, item: focus.item! + 1 })}>›</button>
         </div>` : nothing}
         <span class="keys"><kbd>Esc</kbd> up</span>
       </div>
@@ -398,7 +402,7 @@ export class ShWorkflowFocus extends LitElement {
         ${part.kind === 'step' && part.step ? (focus.item ? this.renderAgent(part.step, focus.item) : this.renderPerson(part.step))
           : part.kind === 'stack' && part.stack ? (focus.item ? this.renderStackItem(part.stack, focus.item) : this.renderStack(part.stack))
             : part.kind === 'refused' && part.step ? (focus.item ? this.renderRefusal(part.step, focus.item) : this.renderRefusals(part.step))
-              : html`<p class="empty">This part is not in the workflow any more.</p>`}
+              : html`<p class="empty">${t('This part is not in the workflow any more.')}</p>`}
       </div></div>`
   }
 
@@ -419,10 +423,10 @@ export class ShWorkflowFocus extends LitElement {
       ${sources.map((s) => html`<button class="chip" data-kind="source" title=${s.label}
         @click=${() => { if (s.documentId) plan.onOpenDocument?.({ documentId: s.documentId, blockId: 'fromBlock' in s ? (s.fromBlock ?? null) : null }) }}>${s.label}</button>`)}
       ${takes.map((c) => this.stackChip(c, step.mode === 'perItem' && (c === step.over || c === step.checks) ? `each of ${this.stackWords(c)}` : this.stackWords(c)))}
-      ${sources.length + takes.length === 0 ? html`<span class="sub">The run input</span>` : nothing}
+      ${sources.length + takes.length === 0 ? html`<span class="sub">${t('The run input')}</span>` : nothing}
       ${step.produces ? html`<span class="arrow">→</span>${this.stackChip(step.produces)}` : nothing}
       ${step.checks && plan.refused?.some((r) => r.step === step.id) ? html`<button class="chip" data-kind="check"
-        @click=${() => this.go({ key: nodeKey.refused(step.id) })}>refused</button>` : nothing}
+        @click=${() => this.go({ key: nodeKey.refused(step.id) })}>${t('refused')}</button>` : nothing}
     </div>`
   }
 
@@ -437,10 +441,10 @@ export class ShWorkflowFocus extends LitElement {
       ${this.hero(kind, step.label, [step.job, stepModeWords(step), step.phase ? `stage ${step.phase.order}, ${step.phase.title}` : ''].filter(Boolean).join(' · '), this.wiring(step), being)}
       <div class="cols">
         <div>
-          ${being ? html`<section><h2>${step.checks ? 'Who checks' : 'Who is cast'}</h2><sh-being-face .face=${being}></sh-being-face></section>` : nothing}
-          <section><h2>${step.checks ? 'What it checks' : 'What they are told'}</h2><p class="instructions">${step.instructions || '(no instructions yet)'}</p></section>
+          ${being ? html`<section><h2>${step.checks ? t('Who checks') : t('Who is cast')}</h2><sh-being-face .face=${being}></sh-being-face></section>` : nothing}
+          <section><h2>${step.checks ? t('What it checks') : t('What they are told')}</h2><p class="instructions">${step.instructions || '(no instructions yet)'}</p></section>
           ${!step.checks && made && stackFieldWords(made).length ? html`<section><h2>${made.itemClass ? `Each ${made.itemClass.label.toLowerCase()} they hand on has` : 'Each item they hand on has'}</h2><ul class="fields">${stackFieldWords(made).map((f) => html`<li>${f}</li>`)}</ul></section>` : nothing}
-          ${(step.problems ?? []).length ? html`<section><h2>What keeps them from running</h2>${step.problems!.map((p) => html`<p>${p}</p>`)}</section>` : nothing}
+          ${(step.problems ?? []).length ? html`<section><h2>${t('What keeps them from running')}</h2>${step.problems!.map((p) => html`<p>${p}</p>`)}</section>` : nothing}
           ${this.renderUnfitSittings(step)}
         </div>
         <div>${this.renderWork(step, agents)}</div>
@@ -455,16 +459,16 @@ export class ShWorkflowFocus extends LitElement {
       const agent = this.agentsOf(step).find((a) => a.label === sitting)
       if (agent) this.go({ key: nodeKey.step(step.id), item: agent.n ?? 1 })
     }
-    return html`<section><h2>Handed back nothing that fit</h2><ul class="unfit-list">
+    return html`<section><h2>${t('Handed back nothing that fit')}</h2><ul class="unfit-list">
       ${unfit.map((u) => html`<li><button class="link" @click=${() => open(u.sitting)}>${u.sitting}</button> handed back nothing that fit: ${u.violations.join('; ') || 'no reason given'}</li>`)}
     </ul></section>`
   }
 
   private renderWork(step: WorkflowPlanStepView, agents: readonly WorkflowAgentRunView[]): TemplateResult {
     if (agents.length === 0) {
-      return html`<section><h2>Their work</h2><p class="empty">${this.plan?.run
-        ? 'Choreograph has no record of their sittings for the last run.'
-        : 'Not run yet. When the workflow runs, each of their sittings shows here: what they were given, what they did, what they handed on.'}</p></section>`
+      return html`<section><h2>${t('Their work')}</h2><p class="empty">${this.plan?.run
+        ? t('Choreograph has no record of their sittings for the last run.')
+        : t('Not run yet. When the workflow runs, each of their sittings shows here: what they were given, what they did, what they handed on.')}</p></section>`
     }
     // A once step has one agent: its work is shown right here.
     if (step.mode !== 'perItem' && !step.checks && agents.length === 1) return this.renderAgentBody(step, agents[0]!, null)
@@ -481,18 +485,18 @@ export class ShWorkflowFocus extends LitElement {
     const inputs = this.inputsOf(step)
     const made = step.produces ? this.plan?.stacks?.find((s) => s.id === step.produces) : undefined
     const being = this.faceOf(step)
-    return html`<section><h2>${being ? `Sittings in the last run` : 'Their work in the last run'}</h2>
+    return html`<section><h2>${being ? t('Sittings in the last run') : t('Their work in the last run')}</h2>
       <div class="stats">
-        <span>${being ? html`<b>${being.name}</b>, ` : nothing}<b>${agents.length.toLocaleString()}</b> ${agents.length === 1 ? 'sitting' : 'sittings'}</span>
-        ${step.checks ? html`<span><b>${passed}</b> passed</span><span><b>${refused}</b> refused</span>` : html`<span><b>${done}</b> done</span>`}
+        <span>${being ? html`<b>${being.name}</b>, ` : nothing}${t('being.sittings', { count: agents.length, number: formatNumber(agents.length) })}</span>
+        ${step.checks ? html`<span><b>${passed}</b> passed</span><span><b>${refused}</b> ${t('refused')}</span>` : html`<span><b>${done}</b> done</span>`}
         ${failed ? html`<span><b>${failed}</b> failed</span>` : nothing}
         ${running ? html`<span><b>${running}</b> at work</span>` : nothing}
         ${Number.isFinite(start) && end > start ? html`<span>${spanWords(end - start)}</span>` : nothing}
-        ${tokens ? html`<span>${tokens.toLocaleString()} tokens</span>` : nothing}
+        ${tokens ? html`<span>${t('count.tokens', { count: tokens, number: formatNumber(tokens) })}</span>` : nothing}
         ${models.length ? html`<span class="sub">${models.join(', ')}</span>` : nothing}
       </div>
       <table>
-        <thead><tr><th></th><th>#</th><th>Given</th><th>${step.checks ? 'Verdict' : 'Handed on'}</th><th>Time</th><th>Tokens</th></tr></thead>
+        <thead><tr><th></th><th>#</th><th>${t('Given')}</th><th>${step.checks ? 'Verdict' : t('Handed on')}</th><th>${t('Time')}</th><th>${t('Tokens')}</th></tr></thead>
         <tbody>${agents.slice(0, ROWS_SHOWN).map((agent) => {
           const verdict = step.checks ? verdictOf(agent.output) : null
           const unfit = this.unfitOf(step, agent)
@@ -501,11 +505,11 @@ export class ShWorkflowFocus extends LitElement {
           const open = (): void => this.go({ key: nodeKey.step(step.id), item: agent.n ?? 1 })
           return html`<tr tabindex="0" @click=${open} @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter') open() }}>
             <td class="n"><span class="dot" data-state=${state} title=${state}></span></td>
-            <td class="n">${agent.attempts > 1 ? html`${agent.n ?? ''} <span title="Asked again">↻</span>` : String(agent.n ?? '')}</td>
+            <td class="n">${agent.attempts > 1 ? html`${agent.n ?? ''} <span title=${t('Asked again')}>↻</span>` : String(agent.n ?? '')}</td>
             <td><div class="clamp">${given === undefined ? '' : itemLine(given)}</div></td>
             <td class=${state === 'failed' || state === 'refused' ? 'why' : ''}><div class="clamp">${handedWords(agent, step, made, unfit)}</div></td>
             <td class="num">${spanWords(agent.startedAt !== null && agent.endedAt !== null ? agent.endedAt - agent.startedAt : null)}</td>
-            <td class="num">${agent.tokens ? agent.tokens.toLocaleString() : ''}</td>
+            <td class="num">${agent.tokens ? agent.tokens.toLocaleString(localeSource.get()) : ''}</td>
           </tr>`
         })}</tbody>
       </table>
@@ -529,7 +533,7 @@ export class ShWorkflowFocus extends LitElement {
     const kind = step.checks ? 'check' : 'step'
     const title = step.mode === 'perItem' || step.checks ? `${step.label}, item ${n}` : step.label
     const being = this.faceOf(step)
-    if (!agent) return html`${this.hero(kind, title, 'No record of this sitting in the last run.', this.wiring(step), being)}`
+    if (!agent) return html`${this.hero(kind, title, t('No record of this sitting in the last run.'), this.wiring(step), being)}`
     return html`<div class="part">${this.hero(kind, title, [being ? `a sitting of ${being.name}` : step.job, agent.model ?? ''].filter(Boolean).join(' · '), this.wiring(step), being)}
       ${this.renderAgentBody(step, agent, n)}</div>`
   }
@@ -547,45 +551,45 @@ export class ShWorkflowFocus extends LitElement {
     const made = step.produces ? plan.stacks?.find((s) => s.id === step.produces) : undefined
     const unfit = this.unfitOf(step, agent)
     return html`<div class="cols three">
-      <section><h2>Given</h2>
+      <section><h2>${t('Given')}</h2>
         ${given !== undefined
           ? html`<div class="part">${renderItemCard(plan, n !== null ? stackObject(this.inputStack(step), n - 1) : null, given, n !== null ? n - 1 : null, undefined, 20)}
             ${overStack ? html`<p class="sub">Item ${n} of ${this.stackChip(overStack)}</p>` : nothing}</div>`
           : sources.length ? html`${sources.map((s) => html`<p>${s!.documentTitle ? `${s!.label} · ${s!.documentTitle}` : s!.label}</p>`)}`
-            : html`<p class="sub">The run input.</p>`}
+            : html`<p class="sub">${t('The run input.')}</p>`}
       </section>
-      <section><h2>What it did</h2>
+      <section><h2>${t('What it did')}</h2>
         <ol class="timeline">
-          ${agent.queuedAt !== null ? html`<li><span class="what">Queued</span>${agent.model ? html` <span class="detail">for ${agent.model}</span>` : nothing}</li>` : nothing}
-          ${agent.startedAt !== null ? html`<li><span class="what">Started</span><span class="at">${at(agent.startedAt)}</span></li>` : nothing}
+          ${agent.queuedAt !== null ? html`<li><span class="what">${t('Queued')}</span>${agent.model ? html` <span class="detail">for ${agent.model}</span>` : nothing}</li>` : nothing}
+          ${agent.startedAt !== null ? html`<li><span class="what">${t('Started')}</span><span class="at">${at(agent.startedAt)}</span></li>` : nothing}
           ${agent.tools.map((tool) => html`<li><span class="tool">${tool.gate}</span><span class="at">${at(tool.at)}</span>
             <div class="detail">${toolLine(tool.args, titles)}</div></li>`)}
-          ${agent.state === 'done' || agent.state === 'failed' ? html`<li data-tone=${agent.state}><span class="what">${agent.state === 'done' ? 'Done' : 'Failed'}</span><span class="at">${at(agent.endedAt)}</span>
-            <div class="detail">${[agent.turns ? plural(agent.turns, 'turn') : '', agent.tokens ? `${agent.tokens.toLocaleString()} tokens` : '',
+          ${agent.state === 'done' || agent.state === 'failed' ? html`<li data-tone=${agent.state}><span class="what">${agent.state === 'done' ? t('Done') : 'Failed'}</span><span class="at">${at(agent.endedAt)}</span>
+            <div class="detail">${[agent.turns ? plural(agent.turns, 'turn') : '', agent.tokens ? t('count.tokens', { count: agent.tokens, number: formatNumber(agent.tokens) }) : '',
               agent.attempts > 1 ? `asked ${agent.attempts} times` : ''].filter(Boolean).join(' · ')}</div></li>`
-            : html`<li><span class="what">${agent.state === 'running' ? 'Working…' : 'Waiting'}</span></li>`}
+            : html`<li><span class="what">${agent.state === 'running' ? t('Working…') : 'Waiting'}</span></li>`}
         </ol>
       </section>
-      <section><h2>${step.checks ? 'Verdict' : 'Handed on'}</h2>
-        ${agent.state === 'failed' ? html`<div class="failure"><p><strong>It failed.</strong> ${agent.error ?? ''}</p>
-            <p class="sub">${agent.attempts > 1 ? 'It was asked again and failed again.' : 'Nothing it found was kept.'}</p></div>`
+      <section><h2>${step.checks ? 'Verdict' : t('Handed on')}</h2>
+        ${agent.state === 'failed' ? html`<div class="failure"><p><strong>${t('It failed.')}</strong> ${agent.error ?? ''}</p>
+            <p class="sub">${agent.attempts > 1 ? t('It was asked again and failed again.') : t('Nothing it found was kept.')}</p></div>`
           : unfit ? html`<div class="failure"><p><strong>It handed back nothing that fit${made?.itemClass ? ` a ${made.itemClass.label.toLowerCase()}` : ''}:</strong> ${unfit.join('; ') || 'no reason given'}</p>
-            <p class="sub">What it answered was kept as testimony, not as an item.</p></div>`
+            <p class="sub">${t('What it answered was kept as testimony, not as an item.')}</p></div>`
           : verdict ? html`<div class="verdict" data-passed=${String(verdict.passed)}><p class="what">${verdict.passed ? 'Passed' : 'Refused'}</p>
               ${verdict.why ? html`<p>${verdict.why}</p>` : nothing}
               ${step.produces && verdict.passed ? html`<p class="sub" style="margin-top:6px">It went on to ${this.stackChip(step.produces)}</p>` : nothing}
               ${!verdict.passed ? html`<p class="sub" style="margin-top:6px">It waits with the other ${this.refusedChip(step)}</p>` : nothing}</div>`
-            : handed ? (handed.length === 0 ? html`<p class="empty">Nothing: this item held none.</p>`
+            : handed ? (handed.length === 0 ? html`<p class="empty">${t('Nothing: this item held none.')}</p>`
               : html`<div class="part">${handed.slice(0, 50).map((item, i) => renderItemCard(plan, objectForItem(made, item), item, i, undefined, 12))}
                 ${step.produces ? html`<p class="sub">Into ${this.stackChip(step.produces)}</p>` : nothing}</div>`)
               : agent.output !== null && agent.output !== undefined ? html`<div class="item">${itemText(agent.output)}</div>`
-                : html`<p class="empty">${agent.state === 'done' ? 'Nothing.' : 'Not yet.'}</p>`}
+                : html`<p class="empty">${agent.state === 'done' ? 'Nothing.' : t('Not yet.')}</p>`}
       </section>
     </div>`
   }
 
   private refusedChip(step: WorkflowPlanStepView): TemplateResult {
-    return html`<button class="chip" data-kind="check" @click=${() => this.go({ key: nodeKey.refused(step.id) })}>refusals</button>`
+    return html`<button class="chip" data-kind="check" @click=${() => this.go({ key: nodeKey.refused(step.id) })}>${t('refusals')}</button>`
   }
 
   // A stack: every item as a row of a table; filter it; open one.
@@ -615,16 +619,16 @@ export class ShWorkflowFocus extends LitElement {
   ): TemplateResult {
     const rows = items.map((item, index) => ({ item, index })).filter(({ item, index }) => matches(item, this.filter) || (why?.[index] ?? '').toLowerCase().includes(this.filter.toLowerCase()))
     return html`<div class="part"><div class="filter">
-        <input type="search" placeholder=${`Filter ${plural(items.length, 'item')}`} .value=${this.filter} aria-label="Filter the items"
+        <input type="search" placeholder=${t('count.filterItems', { count: items.length })} .value=${this.filter} aria-label=${t('Filter the items')}
           @input=${(e: Event) => { this.filter = (e.target as HTMLInputElement).value }}>
         ${this.filter ? html`<span class="sub">${plural(rows.length, 'match', 'matches')}</span>` : nothing}
       </div>
       <table>
-        <thead><tr><th>#</th>${[...columns.map((c) => html`<th title=${c.key}>${c.label}</th>`), ...(why ? [html`<th>Why</th>`] : [])]}</tr></thead>
+        <thead><tr><th>#</th>${[...columns.map((c) => html`<th title=${c.key}>${c.label}</th>`), ...(why ? [html`<th>${t('Why')}</th>`] : [])]}</tr></thead>
         <tbody>${rows.slice(0, ROWS_SHOWN).map(({ item, index }) => {
           const model = objects?.[index] ?? null
           return html`<tr tabindex="0" data-stance=${model?.stance ?? 'read'} @click=${() => open(index)} @keydown=${(e: KeyboardEvent) => { if (e.key === 'Enter') open(index) }}>
-          <td class="n">${index + 1}${model?.stance === 'unfit' ? html`<span class="unfit-tag">unfit</span>` : nothing}</td>
+          <td class="n">${index + 1}${model?.stance === 'unfit' ? html`<span class="unfit-tag">${t('unfit')}</span>` : nothing}</td>
           ${columns.map((c, at) => html`<td class=${c.key === (model?.roleKeys.quote ?? 'quote') ? 'quote' : ''}><div class="clamp">${cellText(model, item, c.key, at === 0)}</div></td>`)}
           ${why ? html`<td class="why"><div class="clamp">${why[index] ?? ''}</div></td>` : nothing}
         </tr>`
@@ -637,7 +641,7 @@ export class ShWorkflowFocus extends LitElement {
   private renderStackItem(stack: WorkflowStackView, n: number): TemplateResult {
     const plan = this.plan!
     const item = stack.items?.[n - 1]
-    if (item === undefined) return html`${this.hero('stack', `${stackName(stack)}, item ${n}`, 'Not in the last run.')}`
+    if (item === undefined) return html`${this.hero('stack', `${stackName(stack)}, item ${n}`, t('Not in the last run.'))}`
     const model = stackObject(stack, n - 1)
     const producer = stack.producer ? plan.steps.find((s) => s.id === stack.producer) : undefined
     const same = JSON.stringify(item)
@@ -655,20 +659,20 @@ export class ShWorkflowFocus extends LitElement {
     const sub = model ? `One of ${stackCountWords(stack, stack.items?.length ?? 0)}${model.stance === 'unfit' ? ', and it does not fit' : ''}` : `One of ${plural(stack.items?.length ?? 0, 'item')}`
     return html`<div class="part">${this.hero('stack', title, sub)}
       <div class="cols">
-        <section><h2>${model ? `The ${model.classLabel.toLowerCase()}` : 'The item'}</h2>${renderItemCard(plan, model, item, n - 1, undefined, 40, 'pane')}
-          ${model && plan.onOpenObject ? html`<p style="margin-top:10px"><button class="link" @click=${() => plan.onOpenObject?.({ iri: model.iri, graphId: plan.graphId ?? null })}>Open as an object</button></p>` : nothing}</section>
-        <section><h2>Its path</h2><div class="lineage">
-          ${producer ? html`<div class="row"><span class="sub">Made by</span>
+        <section><h2>${model ? `The ${model.classLabel.toLowerCase()}` : t('The item')}</h2>${renderItemCard(plan, model, item, n - 1, undefined, 40, 'pane')}
+          ${model && plan.onOpenObject ? html`<p style="margin-top:10px"><button class="link" @click=${() => plan.onOpenObject?.({ iri: model.iri, graphId: plan.graphId ?? null })}>${t('Open as an object')}</button></p>` : nothing}</section>
+        <section><h2>${t('Its path')}</h2><div class="lineage">
+          ${producer ? html`<div class="row"><span class="sub">${t('Made by')}</span>
             ${maker ? html`<button class="link" @click=${() => this.go({ key: nodeKey.step(producer.id), item: maker.n ?? 1 })}>${maker.label}</button>`
               : producer.checks && checkedFrom !== undefined && checkedFrom >= 0
                 ? html`<span class="part"><button class="link" @click=${() => this.go({ key: nodeKey.step(producer.id), item: checkedFrom + 1 })}>${producer.label} #${checkedFrom + 1}</button>
                   <span class="sub">passed it, from item ${checkedFrom + 1} of</span> ${this.stackChip(producer.checks)}</span>`
                 : this.stepChip(producer.id)}</div>` : nothing}
-          ${workers.map((w) => html`<div class="row"><span class="sub">${w.checks ? 'Checked by' : 'Worked by'}</span>
+          ${workers.map((w) => html`<div class="row"><span class="sub">${w.checks ? t('Checked by') : t('Worked by')}</span>
             <button class="link" @click=${() => this.go({ key: nodeKey.step(w.id), item: n })}>${w.label} #${n}</button></div>`)}
-          ${goes.map((d) => html`<div class="row"><span class="sub">Goes to</span><button class="chip" data-kind="destination"
+          ${goes.map((d) => html`<div class="row"><span class="sub">${t('Goes to')}</span><button class="chip" data-kind="destination"
             @click=${() => plan.onSelect?.(nodeKey.destination(d.id))}>${d.label}</button></div>`)}
-          ${!producer && workers.length + goes.length === 0 ? html`<p class="sub">No one makes or reads this stack yet.</p>` : nothing}
+          ${!producer && workers.length + goes.length === 0 ? html`<p class="sub">${t('No one makes or reads this stack yet.')}</p>` : nothing}
         </div></section>
       </div></div>`
   }
@@ -683,16 +687,16 @@ export class ShWorkflowFocus extends LitElement {
     const objects = checked?.itemClass ? refused.map((r) => objectForItem(checked, r.item)) : undefined
     const cols = checked?.itemClass ? stackColumns(checked, refused.map((r) => r.item)).slice(0, 5) : ordered
     return html`<div class="part">${this.hero('refused', `Refused by ${step.label}`, html`<span class="part">${checked?.itemClass ? stackCountWords(checked, refused.length) : plural(refused.length, 'item')} it would not pass on · ${this.stepChip(step.id)}</span>`)}
-      ${refused.length === 0 ? html`<p class="empty">It refused nothing in the last run.</p>`
+      ${refused.length === 0 ? html`<p class="empty">${t('It refused nothing in the last run.')}</p>`
         : this.renderTable(refused.map((r) => r.item), cols, (i) => this.go({ key: nodeKey.refused(step.id), item: i + 1 }), refused.map((r) => r.why), objects)}</div>`
   }
 
   private renderRefusal(step: WorkflowPlanStepView, n: number): TemplateResult {
     const refusal = (this.plan?.refused ?? []).filter((r) => r.step === step.id)[n - 1]
-    if (!refusal) return html`${this.hero('refused', `Refusal ${n}`, 'Not in the last run.')}`
+    if (!refusal) return html`${this.hero('refused', `Refusal ${n}`, t('Not in the last run.'))}`
     return html`<div class="part">${this.hero('refused', `Refused by ${step.label}`, `Refusal ${n}`)}
-      <div class="cols"><section><h2>The item</h2>${renderItemCard(this.plan, objectForItem(this.inputStack(step), refusal.item), refusal.item, n - 1, refusal.why, 40)}</section>
-        <section><h2>Why</h2><div class="verdict" data-passed="false"><p>${refusal.why}</p></div></section></div></div>`
+      <div class="cols"><section><h2>${t('The item')}</h2>${renderItemCard(this.plan, objectForItem(this.inputStack(step), refusal.item), refusal.item, n - 1, refusal.why, 40)}</section>
+        <section><h2>${t('Why')}</h2><div class="verdict" data-passed="false"><p>${refusal.why}</p></div></section></div></div>`
   }
 }
 

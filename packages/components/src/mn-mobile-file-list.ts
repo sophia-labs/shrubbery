@@ -5,6 +5,7 @@
  * port keeps the mobile folders/recents/workspace UI but makes data controlled
  * and emits host intents for every side effect.
  */
+import { LocaleController, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, unsafeCSS } from 'lit'
 import { customElement, property, state } from 'lit/decorators.js'
 import type {
@@ -119,6 +120,8 @@ let mobileFileListInstance = 0
 
 @customElement('mn-mobile-file-list')
 export class MnMobileFileList extends LitElement {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     ${unsafeCSS(iconStyles)}
 
@@ -1356,8 +1359,8 @@ export class MnMobileFileList extends LitElement {
 
   private operationActionLabel(operation: MnMobileFileOperationFeedback): string {
     if (operation.reconciling) return ''
-    if (operation.state === 'terminal-error' && operation.retryable) return 'Retry'
-    if (operation.state === 'indeterminate') return 'Check files'
+    if (operation.state === 'terminal-error' && operation.retryable) return t('Retry')
+    if (operation.state === 'indeterminate') return t('Check files')
     return ''
   }
 
@@ -1371,12 +1374,12 @@ export class MnMobileFileList extends LitElement {
         actionLabel: '',
       },
       offline: {
-        label: 'Offline',
+        get label() { return t('Offline') },
         detail: hasContent ? 'Showing the last available documents.' : 'No saved documents are available.',
         actionLabel: 'Reconnect',
       },
       reconnecting: {
-        label: 'Reconnecting\u2026',
+        get label() { return t('Reconnecting…') },
         detail: hasContent ? 'The last available documents remain here.' : 'Restoring this workspace.',
         actionLabel: '',
       },
@@ -1462,14 +1465,14 @@ export class MnMobileFileList extends LitElement {
     }
     if (status === 'offline' && !this.hasAvailableContent()) {
       return html`<div class="empty" data-mobile-file-state="offline">
-        <span class="empty-title">Nothing available offline</span>
-        <span class="empty-detail">Reconnect to load this workspace\u2019s documents.</span>
+        <span class="empty-title">${t('Nothing available offline')}</span>
+        <span class="empty-detail">${t('Reconnect to load this workspace’s documents.')}</span>
       </div>`
     }
     if (status === 'error' && !this.hasAvailableContent()) {
       return html`<div class="empty" data-mobile-file-state="error">
-        <span class="empty-title">Couldn\u2019t load documents</span>
-        <span class="empty-detail">Your workspace is unchanged. Use Retry above when you\u2019re ready.</span>
+        <span class="empty-title">${t('Couldn’t load documents')}</span>
+        <span class="empty-detail">${t('Your workspace is unchanged. Use Retry above when you’re ready.')}</span>
       </div>`
     }
     return this.view === 'folders' ? this.renderFolderView() : this.renderRecentsView()
@@ -1517,12 +1520,12 @@ export class MnMobileFileList extends LitElement {
                 id=${guidanceId}
                 data-error=${this.renameError ? 'true' : 'false'}
                 role=${this.renameError ? 'alert' : nothing}
-              >${this.renameError || 'Enter saves · Escape cancels'}</span>
+              >${this.renameError || t('Enter saves · Escape cancels')}</span>
             </span>
           </div>
           <div class="rename-actions">
-            <button type="button" class="rename-action rename-cancel" @click=${() => this.cancelRename()}>Cancel</button>
-            <button type="submit" class="rename-action rename-save">Save</button>
+            <button type="button" class="rename-action rename-cancel" @click=${() => this.cancelRename()}>${t('Cancel')}</button>
+            <button type="submit" class="rename-action rename-save">${t('Save')}</button>
           </div>
         </form>
       </div>
@@ -1578,7 +1581,7 @@ export class MnMobileFileList extends LitElement {
               </span>
               <span class="row-body">
                 <span class="row-title">${label}</span>
-                ${pending ? html`<span class="row-meta row-pending">Working\u2026</span>` : nothing}
+                ${pending ? html`<span class="row-meta row-pending">${t('Working…')}</span>` : nothing}
               </span>
               <span class="row-chevron" data-expanded=${shouldExpand} aria-hidden="true">
                 ${icon('chevron-right', { size: 16 })}
@@ -1636,7 +1639,7 @@ export class MnMobileFileList extends LitElement {
           </span>
           <span class="row-body">
             <span class="row-title">${label}</span>
-            ${pending ? html`<span class="row-meta row-pending">Working\u2026</span>` : nothing}
+            ${pending ? html`<span class="row-meta row-pending">${t('Working…')}</span>` : nothing}
           </span>
         </button>
         ${this.renderMoreButton(node.id, 'document', label)}
@@ -1670,16 +1673,16 @@ export class MnMobileFileList extends LitElement {
     if (tree.length === 0) {
       return this.searchQuery.trim()
         ? html`<div class="empty" data-mobile-file-state="no-results">
-            <span class="empty-title">No matches</span>
-            <span class="empty-detail">Try another search term or clear the search.</span>
+            <span class="empty-title">${t('No matches')}</span>
+            <span class="empty-detail">${t('Try another search term or clear the search.')}</span>
           </div>`
         : html`<div class="empty" data-mobile-file-state="empty">
-            <span class="empty-title">No documents yet</span>
-            <span class="empty-detail">Documents created in this workspace will appear here.</span>
+            <span class="empty-title">${t('No documents yet')}</span>
+            <span class="empty-detail">${t('Documents created in this workspace will appear here.')}</span>
           </div>`
     }
     const busy = this.effectiveStatus() === 'loading' || this.effectiveStatus() === 'reconnecting'
-    return html`<div class="list" aria-label="Documents" aria-busy=${busy ? 'true' : 'false'}>${tree.map((node) => this.renderNode(node, 0))}</div>`
+    return html`<div class="list" aria-label=${t('Documents')} aria-busy=${busy ? 'true' : 'false'}>${tree.map((node) => this.renderNode(node, 0))}</div>`
   }
 
   private renderRecentsView() {
@@ -1687,18 +1690,18 @@ export class MnMobileFileList extends LitElement {
     if (recents.length === 0) {
       return this.searchQuery.trim()
         ? html`<div class="empty" data-mobile-file-state="no-results">
-            <span class="empty-title">No matches</span>
-            <span class="empty-detail">Try another search term or clear the search.</span>
+            <span class="empty-title">${t('No matches')}</span>
+            <span class="empty-detail">${t('Try another search term or clear the search.')}</span>
           </div>`
         : html`<div class="empty" data-mobile-file-state="empty">
-            <span class="empty-title">No recent documents</span>
-            <span class="empty-detail">Documents you open will appear here for quick return.</span>
+            <span class="empty-title">${t('No recent documents')}</span>
+            <span class="empty-detail">${t('Documents you open will appear here for quick return.')}</span>
           </div>`
     }
 
     const busy = this.effectiveStatus() === 'loading' || this.effectiveStatus() === 'reconnecting'
     return html`
-      <div class="list" role="list" aria-label="Recently opened documents" aria-busy=${busy ? 'true' : 'false'}>
+      <div class="list" role="list" aria-label=${t('Recently opened documents')} aria-busy=${busy ? 'true' : 'false'}>
         ${recents.map((recent) => {
           const pending = this.isNodePending(recent.docId)
           const label = recent.title || 'Untitled'
@@ -1742,7 +1745,7 @@ export class MnMobileFileList extends LitElement {
               </span>
               <span class="row-body">
                 <span class="row-title">${label}</span>
-                ${pending ? html`<span class="row-meta row-pending">Working\u2026</span>` : nothing}
+                ${pending ? html`<span class="row-meta row-pending">${t('Working…')}</span>` : nothing}
                 ${recent.timestamp ? html`<span class="row-meta">${relativeTime(recent.timestamp)}</span>` : nothing}
               </span>
             </button>
@@ -1775,11 +1778,11 @@ export class MnMobileFileList extends LitElement {
       >
         <div class="sheet-handle" aria-hidden="true"></div>
         <div class="ws-sheet-header">
-          <h2 class="sheet-title" id=${titleId}>Workspaces</h2>
+          <h2 class="sheet-title" id=${titleId}>${t('Workspaces')}</h2>
           <button
             type="button"
             class="ws-sheet-close"
-            aria-label="Close workspace chooser"
+            aria-label=${t('Close workspace chooser')}
             @click=${() => this.closeWorkspaceSwitcher()}
           >
             ${icon('x', { size: 18 })}
@@ -1800,9 +1803,9 @@ export class MnMobileFileList extends LitElement {
                 variant="inline"
                 data-scope="workspaces"
                 state="error"
-                label="Workspaces unavailable"
+                label=${t('Workspaces unavailable')}
                 .detail=${this.workspaceError}
-                action-label="Retry"
+                action-label=${t('Retry')}
                 @continuity-action=${this.handleWorkspaceContinuityAction}
               ></mn-continuity-status>`
             : this.workspaceLoading
@@ -1810,12 +1813,12 @@ export class MnMobileFileList extends LitElement {
                   variant="inline"
                   data-scope="workspaces"
                   state="loading"
-                  label="Loading workspaces\u2026"
+                  label=${t('Loading workspaces…')}
                 ></mn-continuity-status>`
               : nothing}
         ${this.workspaces.length === 0
           ? !workspaceBusy && !this.workspaceError
-            ? html`<div class="ws-empty">No workspaces found</div>`
+            ? html`<div class="ws-empty">${t('No workspaces found')}</div>`
             : nothing
           : this.workspaces.map((workspace) => {
               const pending = this.isGraphPending(workspace.graphId)
@@ -1833,7 +1836,7 @@ export class MnMobileFileList extends LitElement {
                   <span aria-hidden="true">${icon('folder', { size: 18 })}</span>
                   <span class="ws-item-name">${workspace.title || workspace.graphId}</span>
                   ${pending
-                    ? html`<span class="row-meta row-pending">Working\u2026</span>`
+                    ? html`<span class="row-meta row-pending">${t('Working…')}</span>`
                     : workspace.graphId === this.activeGraphId
                     ? html`<span aria-hidden="true">${icon('check', { size: 16 })}</span>`
                     : nothing}
@@ -1843,7 +1846,7 @@ export class MnMobileFileList extends LitElement {
           <div class="ws-divider"></div>
           <button type="button" class="ws-item ws-new" ?disabled=${workspaceBusy} @click=${() => this.createWorkspace()}>
             <span aria-hidden="true">${icon('plus', { size: 18 })}</span>
-            <span class="ws-item-name">${workspaceOperation?.action === 'create-workspace' && workspaceOperation.state === 'pending' ? 'Creating workspace\u2026' : 'New Workspace'}</span>
+            <span class="ws-item-name">${workspaceOperation?.action === 'create-workspace' && workspaceOperation.state === 'pending' ? t('Creating workspace…') : t('New Workspace')}</span>
           </button>
         ` : nothing}
       </section>
@@ -1866,20 +1869,20 @@ export class MnMobileFileList extends LitElement {
       >
         <div class="sheet-handle" aria-hidden="true"></div>
         <header class="ctx-sheet-header">
-          <p class="ctx-eyebrow">${menu.nodeType === 'folder' ? 'Folder actions' : 'Document actions'}</p>
+          <p class="ctx-eyebrow">${menu.nodeType === 'folder' ? t('Folder actions') : t('Document actions')}</p>
           <h2 class="ctx-title" id=${titleId}>${menu.label}</h2>
         </header>
         <button type="button" class="ctx-item" @click=${() => this.beginRename(menu)}>
           <span aria-hidden="true">${icon('pencil', { size: 18 })}</span>
           <span class="ctx-item-copy">
-            <span class="ctx-item-label">Rename here</span>
+            <span class="ctx-item-label">${t('Rename here')}</span>
             <span class="ctx-item-detail">Edit “${menu.label}” without leaving Browse.</span>
           </span>
         </button>
         <button type="button" class="ctx-item" @click=${() => this.action('move', menu)}>
           <span aria-hidden="true">${icon('folder', { size: 18 })}</span>
           <span class="ctx-item-copy">
-            <span class="ctx-item-label">Move to folder…</span>
+            <span class="ctx-item-label">${t('Move to folder…')}</span>
             <span class="ctx-item-detail">Choose a new location for “${menu.label}”.</span>
           </span>
         </button>
@@ -1898,14 +1901,14 @@ export class MnMobileFileList extends LitElement {
               : `Removes “${menu.label}” from this graph. This cannot be undone here.`}</span>
           </span>
         </button>
-        <button type="button" class="ctx-item ctx-cancel" @click=${() => this.closeCtxMenu()}>Cancel</button>
+        <button type="button" class="ctx-item ctx-cancel" @click=${() => this.closeCtxMenu()}>${t('Cancel')}</button>
       </section>
     `
   }
 
   private renderSearchRow() {
     return html`
-      <div class="search-row" role="search" aria-label="Search documents">
+      <div class="search-row" role="search" aria-label=${t('Search documents')}>
         <span class="search-icon" aria-hidden="true">${icon('folder-search', { size: 18 })}</span>
         <input
           autocapitalize="off"
@@ -1914,8 +1917,8 @@ export class MnMobileFileList extends LitElement {
           writingsuggestions="false"
           class="search-input"
           type="search"
-          aria-label="Search folders and documents"
-          placeholder="Search"
+          aria-label=${t('Search folders and documents')}
+          placeholder=${t('Search')}
           .value=${this.searchQuery}
           @input=${(e: InputEvent) => this.setSearch((e.target as HTMLInputElement).value)}
         >
@@ -1924,7 +1927,7 @@ export class MnMobileFileList extends LitElement {
             <button
               type="button"
               class="search-clear"
-              aria-label="Clear search"
+              aria-label=${t('Clear search')}
               @click=${() => this.setSearch('')}
             >
               ${icon('x', { size: 16 })}
@@ -1937,21 +1940,21 @@ export class MnMobileFileList extends LitElement {
 
   private renderViewToggle() {
     return html`
-      <div class="view-toggle" role="group" aria-label="Browse view">
+      <div class="view-toggle" role="group" aria-label=${t('Browse view')}>
         <button
           type="button"
           class="toggle-btn"
           data-active=${this.view === 'folders'}
           aria-pressed=${this.view === 'folders' ? 'true' : 'false'}
           @click=${() => this.setView('folders')}
-        >Folders</button>
+        >${t('Folders')}</button>
         <button
           type="button"
           class="toggle-btn"
           data-active=${this.view === 'recents'}
           aria-pressed=${this.view === 'recents' ? 'true' : 'false'}
           @click=${() => this.setView('recents')}
-        >Recents</button>
+        >${t('Recents')}</button>
       </div>
     `
   }
@@ -1969,7 +1972,7 @@ export class MnMobileFileList extends LitElement {
         @click=${(event: MouseEvent) => this.openWorkspaceSwitcher(event.currentTarget as HTMLElement)}
       >
         <span class="workspace-btn-icon" aria-hidden="true">${icon('layers', { size: 18 })}</span>
-        <span class="workspace-name">${this.currentGraphTitle || 'No Workspace'}</span>
+        <span class="workspace-name">${this.currentGraphTitle || t('No Workspace')}</span>
         <span class="workspace-chevron" aria-hidden="true">${icon('chevron-down', { size: 14 })}</span>
       </button>
     `

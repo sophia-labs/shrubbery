@@ -5,6 +5,7 @@
  * behavior. Runtime/store concerns stay outside and arrive as controlled data.
  */
 
+import { LocaleController, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, unsafeCSS, type PropertyValues, type TemplateResult } from 'lit'
 import { customElement, property, query } from 'lit/decorators.js'
 import { SkinAware } from './skin-aware.js'
@@ -53,6 +54,8 @@ function stop(event: Event): void {
 
 @customElement('mn-wire-menu-dropdown')
 export class MnWireMenuDropdown extends SkinAware(LitElement) {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     ${unsafeCSS(iconStyles)}
 
@@ -325,7 +328,7 @@ export class MnWireMenuDropdown extends SkinAware(LitElement) {
 
   private get sections(): readonly WireSection[] {
     if (this.wires.length > 0) {
-      return [{ label: 'Existing wires', direction: 'flat', wires: this.wires }]
+      return [{ get label() { return t('Existing wires') }, direction: 'flat', wires: this.wires }]
     }
     const sections: WireSection[] = []
     if (this.outgoingWires.length > 0) {
@@ -338,7 +341,7 @@ export class MnWireMenuDropdown extends SkinAware(LitElement) {
   }
 
   private get headerLabel(): string {
-    if (this.loading && this.menuType === 'block') return 'Wires'
+    if (this.loading && this.menuType === 'block') return t('Wires')
     const count = this.totalWires
     return this.menuType === 'document' ? `Document Wires (${count})` : `Wires (${count})`
   }
@@ -425,8 +428,8 @@ export class MnWireMenuDropdown extends SkinAware(LitElement) {
                 <button
                   type="button"
                   class="icon-button"
-                  title="Add wire"
-                  aria-label="Add wire"
+                  title=${t('Add wire')}
+                  aria-label=${t('Add wire')}
                   data-wire-menu-add
                   @click=${(event: MouseEvent) => this.add(event)}
                   @mousedown=${stop}
@@ -460,7 +463,7 @@ export class MnWireMenuDropdown extends SkinAware(LitElement) {
             <span class="meta">
               ${label ? html`<span class="direction">${label}</span>` : nothing}
               <span class="predicate">${this.wirePredicate(wire)}</span>
-              ${wire.otherBlockId ? html`<span>Block</span>` : html`<span>Document</span>`}
+              ${wire.otherBlockId ? html`<span>${t('Block')}</span>` : html`<span>${t('Document')}</span>`}
             </span>
             ${snippet ? html`<span class="snippet">${snippet}</span>` : nothing}
           </span>
@@ -475,7 +478,7 @@ export class MnWireMenuDropdown extends SkinAware(LitElement) {
           @mousedown=${stop}
         >
           ${icon('trash', { size: 14 })}
-          <span class="sr-only">Delete</span>
+          <span class="sr-only">${t('Delete')}</span>
         </button>
       </li>
     `
@@ -499,7 +502,7 @@ export class MnWireMenuDropdown extends SkinAware(LitElement) {
       <div class="menu" data-wire-menu-dropdown @mousedown=${(event: Event) => event.stopPropagation()}>
         ${this.renderHeader()}
         ${this.loading
-          ? html`<div class="loading">Loading wires...</div>`
+          ? html`<div class="loading">${t('Loading wires...')}</div>`
           : sections.length === 0
             ? html`<div class="empty">${this.resolvedEmptyLabel}</div>`
             : sections.map(section => this.renderSection(section))}

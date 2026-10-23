@@ -11,6 +11,7 @@
  * to application state.
  */
 
+import { LocaleController, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, unsafeCSS, type PropertyValues, type TemplateResult } from 'lit'
 import { customElement, property, state } from 'lit/decorators.js'
 import { classMap } from 'lit/directives/class-map.js'
@@ -84,8 +85,8 @@ interface VisibleSidebarNode {
 }
 
 const DEFAULT_SECTIONS: readonly MnSidebarSection[] = [
-  { id: 'documents', label: 'Documents', icon: 'file-text', emptyLabel: 'No documents' },
-  { id: 'tags', label: 'Tags', icon: 'hash', emptyLabel: 'No tags' },
+  { id: 'documents', get label() { return t('Documents') }, icon: 'file-text', emptyLabel: 'No documents' },
+  { id: 'tags', get label() { return t('Tags') }, icon: 'hash', emptyLabel: 'No tags' },
 ]
 
 function defaultIcon(kind: MnSidebarNodeKind | undefined): IconName {
@@ -124,6 +125,8 @@ function fileTypeOf(node: MnSidebarNode): string {
 
 @customElement('mn-sidebar-panel')
 export class MnSidebarPanel extends SkinAware(LitElement) {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     ${unsafeCSS(iconStyles)}
 
@@ -1743,7 +1746,7 @@ export class MnSidebarPanel extends SkinAware(LitElement) {
               <div class="column-list">
                 ${column.nodes.length > 0
                   ? column.nodes.map(node => this._renderColumnNode(section, node, columnIndex))
-                  : html`<div class="empty">Empty folder</div>`}
+                  : html`<div class="empty">${t('Empty folder')}</div>`}
               </div>
             </div>
           `)}
@@ -1755,27 +1758,27 @@ export class MnSidebarPanel extends SkinAware(LitElement) {
   private _renderControls(): TemplateResult | typeof nothing {
     if (!this._hasCapability('sort') && !this._hasCapability('group')) return nothing
     return html`
-      <div class="sidebar-controls" role="toolbar" aria-label="File organization controls">
+      <div class="sidebar-controls" role="toolbar" aria-label=${t('File organization controls')}>
         ${this._hasCapability('sort')
           ? html`
               <select
                 class="sort-select"
-                aria-label="Sort files"
+                aria-label=${t('Sort files')}
                 .value=${this.sort.criterion}
                 @change=${(event: Event) => this._changeSort(
                   (event.target as HTMLSelectElement).value as MnSidebarSortCriterion,
                 )}
               >
-                <option value="manual">Manual order</option>
-                <option value="alphabetical">Alphabetical</option>
-                <option value="created">Date created</option>
-                <option value="last-accessed">Last accessed</option>
-                <option value="connectivity">Most connected</option>
+                <option value="manual">${t('Manual order')}</option>
+                <option value="alphabetical">${t('Alphabetical')}</option>
+                <option value="created">${t('Date created')}</option>
+                <option value="last-accessed">${t('Last accessed')}</option>
+                <option value="connectivity">${t('Most connected')}</option>
               </select>
               <button
                 type="button"
                 class="icon-button"
-                aria-label=${this.sort.direction === 'asc' ? 'Sort ascending' : 'Sort descending'}
+                aria-label=${this.sort.direction === 'asc' ? t('Sort ascending') : t('Sort descending')}
                 title=${this.sort.direction === 'asc' ? 'Ascending' : 'Descending'}
                 @click=${this._reverseSort}
               >${icon(this.sort.direction === 'asc' ? 'arrow-up' : 'arrow-down', { size: 15 })}</button>
@@ -1785,20 +1788,20 @@ export class MnSidebarPanel extends SkinAware(LitElement) {
           ? html`
               <select
                 class="sort-select kind-select"
-                aria-label="Show"
-                title="Show"
+                aria-label=${t('Show')}
+                title=${t('Show')}
                 .value=${this.grouping.kind ?? 'all'}
                 @change=${(event: Event) => this._setKindFilter((event.target as HTMLSelectElement).value as 'all' | 'documents' | 'files')}
               >
-                <option value="all">All</option>
-                <option value="documents">Documents</option>
-                <option value="files">Files</option>
+                <option value="all">${t('All')}</option>
+                <option value="documents">${t('Documents')}</option>
+                <option value="files">${t('Files')}</option>
               </select>
               <button
                 type="button"
                 class="icon-button control-toggle"
-                aria-label="Show folders"
-                title="Show folders"
+                aria-label=${t('Show folders')}
+                title=${t('Show folders')}
                 aria-pressed=${String(this.grouping.showFolders)}
                 @click=${() => this._toggleGrouping('showFolders')}
               >${icon('folder', { size: 15 })}</button>
@@ -1820,7 +1823,7 @@ export class MnSidebarPanel extends SkinAware(LitElement) {
         ${icon(this.status === 'error' ? 'alert-circle' : 'wifi-off', { size: 14 })}
         <span class="operational-copy">${copy}</span>
         ${this._hasCapability('refresh')
-          ? html`<button type="button" class="icon-button" aria-label="Refresh files" @click=${() => this._action('refresh')}>
+          ? html`<button type="button" class="icon-button" aria-label=${t('Refresh files')} @click=${() => this._action('refresh')}>
               ${icon('refresh', { size: 14 })}
             </button>`
           : nothing}
@@ -1841,9 +1844,9 @@ export class MnSidebarPanel extends SkinAware(LitElement) {
     }
     return html`
       <div class="storage" data-storage-percent=${Math.round(percent)}>
-        <span>${storage.label?.trim() || 'Graph storage'}</span>
+        <span>${storage.label?.trim() || t('Graph storage')}</span>
         <span>${format(used)} / ${format(storage.limitBytes)}</span>
-        <div class="storage-track" role="progressbar" aria-label="Graph storage" aria-valuemin="0" aria-valuemax="100" aria-valuenow=${Math.round(percent)}>
+        <div class="storage-track" role="progressbar" aria-label=${t('Graph storage')} aria-valuemin="0" aria-valuemax="100" aria-valuenow=${Math.round(percent)}>
           <div class="storage-fill" style=${`width:${percent}%`}></div>
         </div>
       </div>
@@ -1861,14 +1864,14 @@ export class MnSidebarPanel extends SkinAware(LitElement) {
           ? html`<button
               type="button"
               class="icon-button"
-              aria-label="Selected item actions"
+              aria-label=${t('Selected item actions')}
               @click=${(event: MouseEvent) => this._nodeMenu(event, nodes[0])}
             >${icon('more-horizontal', { size: 15 })}</button>`
           : nothing}
         <button
           type="button"
           class="icon-button"
-          aria-label="Clear selection"
+          aria-label=${t('Clear selection')}
           @click=${() => this._commitSelection(new Set(), null)}
         >${icon('close', { size: 14 })}</button>
       </div>
@@ -1895,7 +1898,7 @@ export class MnSidebarPanel extends SkinAware(LitElement) {
           <div class="state-title">${title}</div>
           <div>${copy}</div>
           ${this.status === 'error' && this._hasCapability('refresh')
-            ? html`<button type="button" class="icon-button" aria-label="Retry files" @click=${() => this._action('refresh')}>
+            ? html`<button type="button" class="icon-button" aria-label=${t('Retry files')} @click=${() => this._action('refresh')}>
                 ${icon('refresh', { size: 15 })}
               </button>`
             : nothing}
@@ -1982,7 +1985,7 @@ export class MnSidebarPanel extends SkinAware(LitElement) {
           class=${classMap({ expand: true, expanded, empty: !hasChildren })}
           tabindex="-1"
           aria-hidden=${hasChildren ? 'false' : 'true'}
-          aria-label=${expanded ? 'Collapse' : 'Expand'}
+          aria-label=${expanded ? 'Collapse' : t('Expand')}
           @click=${(event: MouseEvent) => this._toggleNode(event, node)}
         >
           ${icon('chevron-right', { size: 14 })}
@@ -1998,7 +2001,7 @@ export class MnSidebarPanel extends SkinAware(LitElement) {
               type="button"
               class="node-menu icon-button"
               tabindex="-1"
-              aria-label="Node actions"
+              aria-label=${t('Node actions')}
               @click=${(event: MouseEvent) => this._nodeMenu(event, node)}
             >
               ${icon('more-horizontal', { size: 15 })}
@@ -2057,7 +2060,7 @@ export class MnSidebarPanel extends SkinAware(LitElement) {
                   (part) => part,
                 )}
               </div>`
-            : html`<div class="empty">${section.emptyLabel ?? 'No items'}</div>`}
+            : html`<div class="empty">${section.emptyLabel ?? t('No items')}</div>`}
         </div>
       </section>
     `
@@ -2080,7 +2083,7 @@ export class MnSidebarPanel extends SkinAware(LitElement) {
         ? html`<div class="columns-sections" data-file-pane-body="columns">
             ${columnSections.length > 0
               ? columnSections.map(section => this._renderColumnsSection(section))
-              : html`<div class="empty">No file sections</div>`}
+              : html`<div class="empty">${t('No file sections')}</div>`}
           </div>`
         : html`<div class="sections" data-file-pane-body=${resolvedPresentation}>
             ${sections.map((section) => this._renderSection(section))}
@@ -2105,13 +2108,13 @@ export class MnSidebarPanel extends SkinAware(LitElement) {
         </label>
         ${this.showHeaderActions
           ? html`
-              <div class="header-actions" role="toolbar" aria-label="File actions">
+              <div class="header-actions" role="toolbar" aria-label=${t('File actions')}>
                 ${this._hasCapability('createDocument')
                   ? html`<button
                       type="button"
                       class="icon-button"
-                      aria-label="New document"
-                      title="New document"
+                      aria-label=${t('New document')}
+                      title=${t('New document')}
                       @click=${() => this._action('new-document')}
                     >${icon('plus', { size: 16 })}</button>`
                   : nothing}
@@ -2119,8 +2122,8 @@ export class MnSidebarPanel extends SkinAware(LitElement) {
                   ? html`<button
                       type="button"
                       class="icon-button"
-                      aria-label="New workflow"
-                      title="New workflow"
+                      aria-label=${t('New workflow')}
+                      title=${t('New workflow')}
                       @click=${() => this._action('new-workflow')}
                     >${icon('workflow', { size: 16 })}</button>`
                   : nothing}
@@ -2128,8 +2131,8 @@ export class MnSidebarPanel extends SkinAware(LitElement) {
                   ? html`<button
                       type="button"
                       class="icon-button"
-                      aria-label="New whiteboard"
-                      title="New whiteboard"
+                      aria-label=${t('New whiteboard')}
+                      title=${t('New whiteboard')}
                       @click=${() => this._action('new-whiteboard')}
                     >${icon('pencil', { size: 16 })}</button>`
                   : nothing}
@@ -2137,8 +2140,8 @@ export class MnSidebarPanel extends SkinAware(LitElement) {
                   ? html`<button
                       type="button"
                       class="icon-button"
-                      aria-label="Upload"
-                      title="Upload files or folders"
+                      aria-label=${t('Upload')}
+                      title=${t('Upload files or folders')}
                       @click=${() => this._action('upload')}
                     >${icon('upload', { size: 16 })}</button>`
                   : nothing}
@@ -2146,8 +2149,8 @@ export class MnSidebarPanel extends SkinAware(LitElement) {
                   ? html`<button
                       type="button"
                       class="icon-button"
-                      aria-label="New folder"
-                      title="New folder"
+                      aria-label=${t('New folder')}
+                      title=${t('New folder')}
                       @click=${() => this._action('new-folder')}
                     >${icon('folder', { size: 16 })}</button>`
                   : nothing}
@@ -2169,7 +2172,7 @@ export class MnSidebarPanel extends SkinAware(LitElement) {
         ${this.fileDropActive
           ? html`<div class="file-drop-overlay" aria-hidden="true">
               <span class="file-drop-icon">${icon('upload', { size: 22 })}</span>
-              <span class="file-drop-label">Drop to upload</span>
+              <span class="file-drop-label">${t('Drop to upload')}</span>
             </div>`
           : nothing}
       </div>

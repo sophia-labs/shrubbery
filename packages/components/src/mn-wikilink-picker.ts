@@ -6,6 +6,7 @@
  * documents/blocks/predicates as controlled data from a shell.
  */
 
+import { LocaleController, localizeLabel, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, unsafeCSS, type PropertyValues, type TemplateResult } from 'lit'
 import { customElement, property, query } from 'lit/decorators.js'
 import { SkinAware } from './skin-aware.js'
@@ -89,6 +90,8 @@ function stop(event: Event): void {
 
 @customElement('mn-wikilink-picker')
 export class MnWikiLinkPicker extends SkinAware(LitElement) {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     ${unsafeCSS(iconStyles)}
 
@@ -571,21 +574,21 @@ export class MnWikiLinkPicker extends SkinAware(LitElement) {
   }
 
   private get placeholder(): string {
-    if (this.phase === 'block') return 'Search blocks...'
-    if (this.phase === 'predicate') return 'Search predicates...'
-    return 'Search documents...'
+    if (this.phase === 'block') return t('Search blocks...')
+    if (this.phase === 'predicate') return t('Search predicates...')
+    return t('Search documents...')
   }
 
   private get phaseLabel(): string {
-    if (this.phase === 'block') return 'Block'
+    if (this.phase === 'block') return t('Block')
     if (this.phase === 'predicate') return 'Predicate'
-    return 'Wire to'
+    return t('Wire to')
   }
 
   private get emptyLabel(): string {
     if (this.phase === 'block') return this.blocks.length === 0 ? 'No blocks in document. Press Enter to link to document.' : 'No matching blocks'
-    if (this.phase === 'predicate') return 'No predicates found'
-    return 'No documents found'
+    if (this.phase === 'predicate') return t('No predicates found')
+    return t('No documents found')
   }
 
   /** Rows in the current list. The wire flow's block step adds the whole-document row. */
@@ -829,7 +832,7 @@ export class MnWikiLinkPicker extends SkinAware(LitElement) {
         <div class="context">
           ${icon('file-text', { size: 14 })}
           <span class="context-label">${this.selectedDocument.label}</span>
-          <button type="button" class="context-back" title="Back to documents" @click=${() => this.requestPhase('document')}>
+          <button type="button" class="context-back" title=${t('Back to documents')} @click=${() => this.requestPhase('document')}>
             ${icon('x', { size: 14 })}
           </button>
         </div>
@@ -913,7 +916,7 @@ export class MnWikiLinkPicker extends SkinAware(LitElement) {
         out.push(html`
           <div class="predicate-group-label">
             ${icon(predicate.icon || 'zap', { size: 12 })}
-            ${category}
+            ${localizeLabel(category)}
           </div>
         `)
       }
@@ -955,7 +958,7 @@ export class MnWikiLinkPicker extends SkinAware(LitElement) {
         <span class="sentence-end">${first}</span>
         <span class="sentence-predicate">${predicate}</span>
         <span class="sentence-end">${second}</span>${this.direction === 'bidirectional' ? html`, and back` : nothing}
-        <div class="directions" role="radiogroup" aria-label="Direction">
+        <div class="directions" role="radiogroup" aria-label=${t('Direction')}>
           ${WIRE_DIRECTIONS.map((direction) => html`
             <button
               type="button"
@@ -994,7 +997,7 @@ export class MnWikiLinkPicker extends SkinAware(LitElement) {
         }}
       >
         <span class="item-icon">${icon('file-text', { size: 14 })}</span>
-        <span class="item-content"><span class="item-label">Wire to document</span></span>
+        <span class="item-content"><span class="item-label">${t('Wire to document')}</span></span>
       </button>
     `
     return [wholeDocument, ...this.blocks.map((block, index) => this.renderBlock(block, index + 1))]
@@ -1031,7 +1034,7 @@ export class MnWikiLinkPicker extends SkinAware(LitElement) {
         >
           <span>${predicate.label}</span>
           ${predicate.category && predicate.category !== 'Default'
-            ? html`<span class="drum-category">${predicate.category}</span>`
+            ? html`<span class="drum-category">${localizeLabel(predicate.category)}</span>`
             : nothing}
         </button>
       `)
@@ -1043,7 +1046,7 @@ export class MnWikiLinkPicker extends SkinAware(LitElement) {
     // A refresh keeps the rows already on screen; the spinner is only for an
     // empty list, so typing in a long document does not blank it each key.
     if (this.loading && this.items.length === 0) {
-      return html`<div class="loading"><span class="spinner" aria-hidden="true"></span>Loading...</div>`
+      return html`<div class="loading"><span class="spinner" aria-hidden="true"></span>${t('Loading...')}</div>`
     }
     if (this.flow === 'wire' && this.phase === 'block') return this.renderWireBlocks()
     if (this.items.length === 0) {
@@ -1060,7 +1063,7 @@ export class MnWikiLinkPicker extends SkinAware(LitElement) {
       return html`
         <div class="hint">
           ${this.phase === 'predicate'
-            ? html`<span><kbd>↑↓</kbd> predicate</span><span><kbd>←→</kbd> direction</span><span><kbd>Enter</kbd> wire</span><span><kbd>Esc</kbd> back</span>`
+            ? html`<span><kbd>↑↓</kbd> ${t('predicate')}</span><span><kbd>←→</kbd> direction</span><span><kbd>Enter</kbd> wire</span><span><kbd>Esc</kbd> back</span>`
             : html`<span><kbd>↑↓</kbd> navigate</span><span><kbd>Enter</kbd> next</span><span><kbd>Esc</kbd> ${this.phase === 'document' ? 'close' : 'back'}</span>`}
         </div>
       `
@@ -1070,9 +1073,9 @@ export class MnWikiLinkPicker extends SkinAware(LitElement) {
         <span><kbd>↑↓</kbd> navigate</span>
         <span><kbd>Enter</kbd> select</span>
         ${this.phase === 'document'
-          ? html`<span><kbd>→</kbd><kbd>Tab</kbd> block</span><span><kbd>⇧Tab</kbd> predicate</span>`
+          ? html`<span><kbd>→</kbd><kbd>Tab</kbd> block</span><span><kbd>⇧Tab</kbd> ${t('predicate')}</span>`
           : this.phase === 'block'
-            ? html`<span><kbd>←</kbd><kbd>Esc</kbd> back</span><span><kbd>⇧Tab</kbd> predicate</span>`
+            ? html`<span><kbd>←</kbd><kbd>Esc</kbd> back</span><span><kbd>⇧Tab</kbd> ${t('predicate')}</span>`
             : html`<span><kbd>Esc</kbd> back</span>`}
       </div>
     `
@@ -1087,7 +1090,7 @@ export class MnWikiLinkPicker extends SkinAware(LitElement) {
         class=${this.flow === 'wire' ? 'container wire' : 'container'}
         style=${style}
         role="dialog"
-        aria-label="Wikilink picker"
+        aria-label=${t('Wikilink picker')}
         data-wikilink-picker
         @mousedown=${(event: Event) => event.stopPropagation()}
       >

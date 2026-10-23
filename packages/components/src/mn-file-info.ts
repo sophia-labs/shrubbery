@@ -6,6 +6,7 @@
  * A model is a title, a kind line and sections of rows. A row is a label and a text; it may carry a corroboration mark, be set in
  * monospace, be copyable (a digest), or be an `action` (a button that says its id back: a clickable location, a connection, "Open in reader").
  */
+import { LocaleController, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, unsafeCSS, type TemplateResult } from 'lit'
 import { customElement, property, state } from 'lit/decorators.js'
 import { SkinAware } from './skin-aware.js'
@@ -50,6 +51,8 @@ export interface MnFileInfoRenameDetail { readonly name: string }
 
 @customElement('mn-file-info')
 export class MnFileInfo extends SkinAware(LitElement) {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     ${unsafeCSS(iconStyles)}
 
@@ -184,7 +187,7 @@ export class MnFileInfo extends SkinAware(LitElement) {
       <span class="row-label">${row.label}</span>
       <span class=${`row-value${row.mono ? ' mono' : ''}`}>${value}
         ${row.mark ? html`<span class="mark" title=${row.markTitle ?? nothing} aria-label=${row.markTitle ?? row.mark}>${row.mark}</span>` : nothing}
-        ${row.copy ? html`<button type="button" class="copy" data-copy=${row.label} aria-label=${`Copy ${row.label}`} @click=${() => { void this.copy(row) }}>${this.copied === row.label ? 'Copied' : 'Copy'}</button>` : nothing}
+        ${row.copy ? html`<button type="button" class="copy" data-copy=${row.label} aria-label=${`Copy ${row.label}`} @click=${() => { void this.copy(row) }}>${this.copied === row.label ? 'Copied' : t('Copy')}</button>` : nothing}
       </span>
     </li>`
   }
@@ -201,16 +204,16 @@ export class MnFileInfo extends SkinAware(LitElement) {
     const model = this.model
     return html`
       <header class="header">
-        <div class="header-left">${icon('info', { size: 14 })}<span class="header-title">Info</span></div>
-        <button type="button" class="close-btn" title="Close info (Esc)" aria-label="Close info" @click=${() => this.close()}>${icon('x', { size: 14 })}</button>
+        <div class="header-left">${icon('info', { size: 14 })}<span class="header-title">${t('Info')}</span></div>
+        <button type="button" class="close-btn" title=${t('Close info (Esc)')} aria-label=${t('Close info')} @click=${() => this.close()}>${icon('x', { size: 14 })}</button>
       </header>
-      <div class="body" role="region" aria-label="Info">
+      <div class="body" role="region" aria-label=${t('Info')}>
         ${model ? html`
           <div class="identity">
             <span class="identity-icon">${icon(model.icon ?? 'file-text', { size: 16 })}</span>
             <div class="identity-text">
               ${model.renamable
-                ? html`<input class="rename" type="text" aria-label="Name" .value=${model.title} spellcheck="false"
+                ? html`<input class="rename" type="text" aria-label=${t('Name')} .value=${model.title} spellcheck="false"
                     @keydown=${(e: KeyboardEvent) => {
                       const input = e.target as HTMLInputElement
                       if (e.key === 'Enter') { e.preventDefault(); this.rename(input, true); input.blur() }
@@ -221,7 +224,7 @@ export class MnFileInfo extends SkinAware(LitElement) {
               <div class="type">${model.typeLabel}</div>
             </div>
           </div>
-          ${model.sections.map(s => this.renderSection(s))}` : html`<div class="note">Nothing to show.</div>`}
+          ${model.sections.map(s => this.renderSection(s))}` : html`<div class="note">${t('Nothing to show.')}</div>`}
       </div>`
   }
 }

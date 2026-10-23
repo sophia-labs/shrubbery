@@ -2,6 +2,7 @@
  * The empty folder, said once for every face (review P1.6): the same words, and no button of its own.
  * The canvas and the list both render this; a face keeps only the layout around it.
  */
+import { t } from '@shrubbery/nucleus'
 import { html, type TemplateResult } from 'lit'
 
 export const FILES_EMPTY_STYLE = `
@@ -18,6 +19,6 @@ export const FILES_EMPTY_STYLE = `
 export function renderFilesEmpty(canAdd: boolean): TemplateResult {
   // The pane header's Upload is the one Add; the empty state only says what to do.
   return html`<div class="files-empty" data-empty>
-    <p>${canAdd ? 'This folder is empty. Drop files here, or use Upload.' : 'This folder is empty.'}</p>
+    <p>${canAdd ? t('This folder is empty. Drop files here, or use Upload.') : t('This folder is empty.')}</p>
   </div>`
 }

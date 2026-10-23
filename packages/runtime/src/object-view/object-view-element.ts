@@ -20,6 +20,7 @@
  * would be assigned to a named slot); every host in this repo renders it inside its own shadow tree or a node view.
  */
 
+import { LocaleController, localeSource, t as msg } from '@shrubbery/nucleus'
 import type { ObjectStance } from '@shrubbery/nucleus/object-faces'
 import {
   type ObjectFaceParams,
@@ -60,8 +61,8 @@ export function whenWords(at: string | undefined, now = new Date()): string {
   const date = new Date(at)
   if (Number.isNaN(date.getTime())) return at
   return date.toDateString() === now.toDateString()
-    ? date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
-    : date.toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+    ? date.toLocaleTimeString(localeSource.get(), { hour: 'numeric', minute: '2-digit' })
+    : date.toLocaleString(localeSource.get(), { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
 }
 
 /** The testimony in one line: the sitting (or the being), the run, the moment. */
@@ -99,6 +100,8 @@ function isStance(value: string): value is ObjectStance {
 }
 
 export class ShObjectView extends LitElement {
+  protected readonly _locale = new LocaleController(this)
+
   static override properties = {
     model: { attribute: false },
     faceSlot: { type: String, attribute: 'slot', reflect: false },
@@ -288,7 +291,7 @@ export class ShObjectView extends LitElement {
 
   override render() {
     const model = this.model
-    if (!model) return html`<div class="view card"><p class="empty">Nothing to show.</p></div>`
+    if (!model) return html`<div class="view card"><p class="empty">${msg('Nothing to show.')}</p></div>`
     const slot = this.slotName
     const stance = this.effectiveStance
     const face = resolveObjectFace(model.classIri, slot, stance, [], { view: this.params ?? undefined })
@@ -304,7 +307,7 @@ export class ShObjectView extends LitElement {
 
   private violations(model: ObjectModel, params: ObjectFaceParams): TemplateResult | typeof nothing {
     if (params.violations === false || !model.violations?.length) return nothing
-    return html`<ul class="violations" aria-label="Why it does not fit">${model.violations.map((v) => html`<li>${v}</li>`)}</ul>`
+    return html`<ul class="violations" aria-label=${msg('Why it does not fit')}>${model.violations.map((v) => html`<li>${v}</li>`)}</ul>`
   }
 
   private renderInline(model: ObjectModel, stance: ObjectStance): TemplateResult {
@@ -315,12 +318,12 @@ export class ShObjectView extends LitElement {
 
   /** A field's value: an em dash when absent, a nested value's titles in a card, its sub-cards in a pane. */
   private fieldValue(field: ObjectModelField, full: boolean, depth: number): TemplateResult {
-    if (field.absent) return kindValue('—', 'state', { title: 'No value recorded.' })
+    if (field.absent) return kindValue('—', 'state', { get title() { return msg('No value recorded.') } })
     if (field.objects?.length) {
       if (!full) return kindValue(field.value, 'identity')
       return html`<div class="nested">${field.objects.map((o) => this.renderSub(o, depth + 1))}</div>`
     }
-    if (field.nested) return kindValue(field.value, 'prose', { title: 'A structured value, shown as JSON.' })
+    if (field.nested) return kindValue(field.value, 'prose', { get title() { return msg('A structured value, shown as JSON.') } })
     return kindValue(field.value, field.kind, { unit: field.unit, href: field.href })
   }
 
@@ -360,8 +363,8 @@ export class ShObjectView extends LitElement {
       ${fields.length ? this.fieldList(fields, false) : nothing}
       ${!this.noTestimony && params.testimony !== false ? this.testimony(model) : nothing}
       ${this.noActions ? nothing : html`<div class="actions">
-        <button class="quiet" @click=${() => this.openObject()}>Open</button>
-        <button class="quiet" @click=${() => this.embed()}>Embed in a document…</button>
+        <button class="quiet" @click=${() => this.openObject()}>${msg('Open')}</button>
+        <button class="quiet" @click=${() => this.embed()}>${msg('Embed in a document…')}</button>
       </div>`}
     </article>`
   }
@@ -383,30 +386,30 @@ export class ShObjectView extends LitElement {
         ${model.subtitle ? html`<p class="subtitle">${model.subtitle}</p>` : nothing}
       </header>
       ${this.violations(model, params)}
-      ${model.roles.quote || doc ? html`<section><h2>The quote</h2><div class="lines">
-        ${model.roles.quote ? html`<blockquote class="quote">${model.roles.quote}</blockquote>` : html`<p class="muted">No quote recorded.</p>`}
+      ${model.roles.quote || doc ? html`<section><h2>${msg('The quote')}</h2><div class="lines">
+        ${model.roles.quote ? html`<blockquote class="quote">${model.roles.quote}</blockquote>` : html`<p class="muted">${msg('No quote recorded.')}</p>`}
         ${doc ? html`<div class="actions"><button class="quiet" @click=${() => this.emit({ kind: 'open-document', documentId: doc.documentId, blockId: doc.blockId ?? null, graphId })}>Show in ${this.documentTitle(doc.documentId)}</button></div>` : nothing}
       </div></section>` : nothing}
-      ${model.roles.note ? html`<section><h2>Note</h2><p class="note">${model.roles.note}</p></section>` : nothing}
-      <section><h2>Fields</h2>${fields.length ? this.fieldList(fields, true) : html`<p class="muted">It has no other fields.</p>`}</section>
-      ${params.testimony !== false && !this.noTestimony ? html`<section><h2>Testimony</h2><div class="lines">
-        ${t.sitting ? html`<div class="row"><span class="what">Handed back by</span> <span>${t.sitting}</span></div>` : nothing}
-        ${t.by ? html`<div class="row"><span class="what">The being</span> ${this.beingLink(model, beingName(model) ?? '')}</div>` : nothing}
-        ${t.run ? html`<div class="row"><span class="what">In run</span> <button class="link" @click=${() => this.emit({ kind: 'open-run', runIri: t.run!.iri, runId: t.run!.id, graphId })}>${t.run.id}</button></div>` : nothing}
-        ${t.at ? html`<div class="row"><span class="what">At</span> <span>${whenWords(t.at)}</span></div>` : nothing}
-        ${!t.sitting && !t.by && !t.run && !t.at ? html`<p class="muted">No testimony recorded: who made it and when are not known.</p>` : nothing}
+      ${model.roles.note ? html`<section><h2>${msg('Note')}</h2><p class="note">${model.roles.note}</p></section>` : nothing}
+      <section><h2>${msg('Fields')}</h2>${fields.length ? this.fieldList(fields, true) : html`<p class="muted">${msg('It has no other fields.')}</p>`}</section>
+      ${params.testimony !== false && !this.noTestimony ? html`<section><h2>${msg('Testimony')}</h2><div class="lines">
+        ${t.sitting ? html`<div class="row"><span class="what">${msg('Handed back by')}</span> <span>${t.sitting}</span></div>` : nothing}
+        ${t.by ? html`<div class="row"><span class="what">${msg('The being')}</span> ${this.beingLink(model, beingName(model) ?? '')}</div>` : nothing}
+        ${t.run ? html`<div class="row"><span class="what">${msg('In run')}</span> <button class="link" @click=${() => this.emit({ kind: 'open-run', runIri: t.run!.iri, runId: t.run!.id, graphId })}>${t.run.id}</button></div>` : nothing}
+        ${t.at ? html`<div class="row"><span class="what">${msg('At')}</span> <span>${whenWords(t.at)}</span></div>` : nothing}
+        ${!t.sitting && !t.by && !t.run && !t.at ? html`<p class="muted">${msg('No testimony recorded: who made it and when are not known.')}</p>` : nothing}
         <div class="row"><span class="what">IRI</span> <code>${model.iri}</code></div>
       </div></section>` : nothing}
-      ${this.usedIn === undefined ? nothing : html`<section class="used-in"><h2>Used in</h2>${this.renderUsedIn()}</section>`}
-      ${this.noActions ? nothing : html`<div class="actions"><button class="quiet" @click=${() => this.embed()}>Embed in a document…</button></div>`}
+      ${this.usedIn === undefined ? nothing : html`<section class="used-in"><h2>${msg('Used in')}</h2>${this.renderUsedIn()}</section>`}
+      ${this.noActions ? nothing : html`<div class="actions"><button class="quiet" @click=${() => this.embed()}>${msg('Embed in a document…')}</button></div>`}
     </article>`
   }
 
   private renderUsedIn(): TemplateResult {
     const used = this.usedIn
     const graphId = this.graph()
-    if (!used) return html`<p class="muted">Looking…</p>`
-    if (used.length === 0) return html`<p class="muted">No document embeds it yet.</p>`
+    if (!used) return html`<p class="muted">${msg('Looking…')}</p>`
+    if (used.length === 0) return html`<p class="muted">${msg('No document embeds it yet.')}</p>`
     return html`<ul class="used">${used.map((u) => html`<li><button class="link"
       @click=${() => this.emit({ kind: 'open-document', documentId: u.documentId, blockId: u.blockId ?? null, graphId })}>${u.title || u.documentId}</button></li>`)}</ul>`
   }

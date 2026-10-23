@@ -21,6 +21,7 @@
  * pattern `mountQueryBlockVega`'s existing production caller already uses
  * (query-block-service.ts's plain `<div class="query-block-host-vega">`).
  */
+import { LocaleController, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, type TemplateResult } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 import {
@@ -35,6 +36,8 @@ export type VegaChartViewStatus = 'loading' | 'ready' | 'empty' | 'error'
 
 @customElement('sh-vega-chart-view')
 export class ShVegaChartView extends LitElement {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     :host {
       display: flex;
@@ -176,14 +179,14 @@ export class ShVegaChartView extends LitElement {
   }
 
   private _body(): TemplateResult {
-    if (this.status === 'loading') return this._state('Loading…')
+    if (this.status === 'loading') return this._state(t('Loading…'))
     if (this.status === 'error') return this._state(this.error || 'This chart could not be rendered.', 'danger')
-    if (this.status === 'empty') return this._state('No rows.')
+    if (this.status === 'empty') return this._state(t('No rows.'))
     return html`<div class="chart-host"></div>`
   }
 
   render(): TemplateResult {
-    return html`<div class="stage" role="img" aria-label="Chart">${this._body()}</div>`
+    return html`<div class="stage" role="img" aria-label=${t('Chart')}>${this._body()}</div>`
   }
 }
 

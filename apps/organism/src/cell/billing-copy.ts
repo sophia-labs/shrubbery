@@ -9,6 +9,7 @@
  * literally rather than importing them: importing would pin nothing.
  */
 
+import { localeSource } from '@shrubbery/nucleus'
 import { formatFeePercent } from '@shrubbery/runtime/chat-services/credits-facts'
 
 // The service fee is NOT a constant here. Vera, 2026-10-03: it is the backend's to say (the balance
@@ -51,6 +52,6 @@ export function feeNote(feePercent: number | null): string {
 /** Micro-dollars as US dollars; 'Unavailable' for anything that is not a safe integer. */
 export function formatMicroUsd(value: unknown): string {
   return typeof value === 'number' && Number.isSafeInteger(value)
-    ? new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 6 }).format(value / 1_000_000)
+    ? new Intl.NumberFormat(localeSource.get(), { style: 'currency', currency: 'USD', maximumFractionDigits: 6 }).format(value / 1_000_000)
     : 'Unavailable'
 }

@@ -22,6 +22,7 @@
  * element emits are reproduced here, token-driven against the SAME
  * `--mn-kind-*` custom properties.
  */
+import { LocaleController, localeSource, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, type TemplateResult } from 'lit'
 import { customElement, property, state } from 'lit/decorators.js'
 import type { CuentaReading, CuentaRendicion } from '../../despacho/cuenta-reading.js'
@@ -63,11 +64,13 @@ function formatWhen(iso: string | null): string {
   if (!iso) return ''
   const date = new Date(iso)
   if (Number.isNaN(date.getTime())) return iso
-  return new Intl.DateTimeFormat('en', { dateStyle: 'medium', timeStyle: 'short' }).format(date)
+  return new Intl.DateTimeFormat(localeSource.get(), { dateStyle: 'medium', timeStyle: 'short' }).format(date)
 }
 
 @customElement('sh-cuenta-chapter-view')
 export class ShCuentaChapterView extends LitElement {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     :host {
       display: flex;
@@ -443,9 +446,9 @@ export class ShCuentaChapterView extends LitElement {
       case 'idle':
         return nothing
       case 'dry-run':
-        return html`<p class="verb-state" data-verb-phase="dry-run">Asking the cell to check the word (nothing written yet)…</p>`
+        return html`<p class="verb-state" data-verb-phase="dry-run">${t('Asking the cell to check the word (nothing written yet)…')}</p>`
       case 'apply':
-        return html`<p class="verb-state" data-verb-phase="apply">The check passed. Writing the word…</p>`
+        return html`<p class="verb-state" data-verb-phase="apply">${t('The check passed. Writing the word…')}</p>`
       case 'refused':
         return html`<p class="verb-state" data-tone="danger" data-verb-phase="refused">Refused at ${vs.at}: ${vs.message}</p>`
       case 'applied':
@@ -457,9 +460,9 @@ export class ShCuentaChapterView extends LitElement {
     const busy = this.verbState.phase === 'dry-run' || this.verbState.phase === 'apply'
     const owner = reading.owner ? `${reading.owner}’s word` : 'a word'
     return html`<section class="act mn-kind" data-kind="affordance" aria-labelledby="act-heading">
-      <h2 id="act-heading">The act</h2>
+      <h2 id="act-heading">${t('The act')}</h2>
       <p class="ask">This gate waits for ${owner}. Give yours.</p>
-      <div class="words" role="radiogroup" aria-label="Your word">
+      <div class="words" role="radiogroup" aria-label=${t('Your word')}>
         ${CUENTA_WORDS.map(
           (word) => html`<label>
             <input type="radio" name="word" value=${word} .checked=${this._word === word} @change=${this._onWordChange} ?disabled=${busy} />
@@ -468,10 +471,10 @@ export class ShCuentaChapterView extends LitElement {
         )}
       </div>
       <label>
-        <span class="visually-hidden" hidden>Your words, verbatim</span>
+        <span class="visually-hidden" hidden>${t('Your words, verbatim')}</span>
         <textarea
           id="cuenta-utterance"
-          placeholder="Your words, verbatim. They are kept exactly as written."
+          placeholder=${t('Your words, verbatim. They are kept exactly as written.')}
           .value=${this._utterance}
           @input=${this._onUtteranceInput}
           ?disabled=${busy}
@@ -510,7 +513,7 @@ export class ShCuentaChapterView extends LitElement {
       <h1 class="title mn-kind" data-kind="identity">${reading.title}</h1>
       <div class="status-line mn-kind" data-kind="state">
         ${reading.status ? html`<span class="pill" data-status=${reading.status}>${reading.status.replace('_', ' ')}</span>` : nothing}
-        ${reading.ready ? html`<span class="ready">ready — nothing blocks it</span>` : nothing}
+        ${reading.ready ? html`<span class="ready">${t('ready — nothing blocks it')}</span>` : nothing}
         ${reading.createdAt ? html`<span class="attribution">strung ${formatWhen(reading.createdAt)}</span>` : nothing}
       </div>
       ${reading.note ? html`<p class="note mn-kind" data-kind="prose">${reading.note}</p>` : nothing}
@@ -530,7 +533,7 @@ export class ShCuentaChapterView extends LitElement {
         : nothing}
       ${reading.rendiciones.length > 0
         ? html`<section class="accounts" aria-labelledby="accounts-heading">
-            <h2 id="accounts-heading">${reading.rendiciones.length === 1 ? 'The account rendered' : 'The accounts rendered'}</h2>
+            <h2 id="accounts-heading">${reading.rendiciones.length === 1 ? t('The account rendered') : t('The accounts rendered')}</h2>
             ${reading.rendiciones.map((account) => this._account(account))}
           </section>`
         : nothing}
@@ -540,10 +543,10 @@ export class ShCuentaChapterView extends LitElement {
   }
 
   private _body(): TemplateResult {
-    if (this.status === 'loading') return this._state('Opening the bead…')
+    if (this.status === 'loading') return this._state(t('Opening the bead…'))
     if (this.status === 'error') return this._state(this.error || 'This bead could not be opened.', 'danger')
     const reading = this.reading
-    if (!reading) return this._state('Nothing to show.')
+    if (!reading) return this._state(t('Nothing to show.'))
     if (!reading.found) return this._state(`No record in this graph for ${reading.subject}.`, 'danger')
     return this.mode === 'entry' ? this._entry(reading) : this._chapter(reading)
   }

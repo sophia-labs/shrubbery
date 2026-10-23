@@ -1,9 +1,10 @@
+import { LocaleController, localeSource, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, type PropertyValues } from 'lit'
 import { customElement, property, state } from 'lit/decorators.js'
 import { formatMicroUsd } from './billing-copy.js'
 import type { CreditHistoryEntry, CreditHistoryReader } from './credit-history.js'
 
-const dateFormat = new Intl.DateTimeFormat('en-US', { dateStyle: 'medium' })
+const dateFormat = (date: Date): string => new Intl.DateTimeFormat(localeSource.get(), { dateStyle: 'medium' }).format(date)
 /** The sign is words as well as colour: a person who cannot see the red still reads "-". */
 const signed = (microUsd: number): string => `${microUsd < 0 ? '-' : '+'}${formatMicroUsd(Math.abs(microUsd))}`
 
@@ -15,6 +16,8 @@ const signed = (microUsd: number): string => `${microUsd < 0 ? '-' : '+'}${forma
  */
 @customElement('mn-credit-history')
 export class CreditHistoryView extends LitElement {
+  protected readonly _locale = new LocaleController(this)
+
   @property({ attribute: false }) reader: CreditHistoryReader | null = null
   /** Change it to reload the list (the return bumps it when a top-up lands). */
   @property({ type: Number }) refreshKey = 0
@@ -91,7 +94,7 @@ export class CreditHistoryView extends LitElement {
   private renderEntry(entry: CreditHistoryEntry) {
     const when = entry.at === null
       ? 'Date unknown'
-      : html`<time datetime=${new Date(entry.at).toISOString()}>${dateFormat.format(new Date(entry.at))}</time>`
+      : html`<time datetime=${new Date(entry.at).toISOString()}>${dateFormat(new Date(entry.at))}</time>`
     return html`<li class="entry" data-credit-entry data-kind=${entry.kind} data-direction=${entry.amountMicroUsd < 0 ? 'out' : 'in'}>
       <span class="when">${when}</span>
       <span class="what">${entry.label}</span>
@@ -103,14 +106,14 @@ export class CreditHistoryView extends LitElement {
     if (!this.reader || this.phase === 'absent') return nothing
     return html`
       <section class="history" data-credit-history aria-labelledby="credit-history-title">
-        <h3 id="credit-history-title">Credit history</h3>
-        ${this.phase === 'loading' ? html`<p class="muted" role="status" data-history-loading>Loading credit history…</p>` : nothing}
+        <h3 id="credit-history-title">${t('Credit history')}</h3>
+        ${this.phase === 'loading' ? html`<p class="muted" role="status" data-history-loading>${t('Loading credit history…')}</p>` : nothing}
         ${this.phase === 'error'
-          ? html`<p class="error" role="alert" data-history-error>${this.error} <button type="button" data-history-retry ?disabled=${this.busy} @click=${() => void this.load(true)}>Try again</button></p>`
+          ? html`<p class="error" role="alert" data-history-error>${this.error} <button type="button" data-history-retry ?disabled=${this.busy} @click=${() => void this.load(true)}>${t('Try again')}</button></p>`
           : nothing}
-        ${this.phase === 'ready' && this.entries.length === 0 ? html`<p class="muted" data-history-empty>No credit activity yet.</p>` : nothing}
+        ${this.phase === 'ready' && this.entries.length === 0 ? html`<p class="muted" data-history-empty>${t('No credit activity yet.')}</p>` : nothing}
         ${this.entries.length ? html`<ol class="entries">${this.entries.map(entry => this.renderEntry(entry))}</ol>` : nothing}
-        ${this.cursor ? html`<button type="button" class="more" data-history-more ?disabled=${this.busy} @click=${() => void this.load(false)}>Show earlier</button>` : nothing}
+        ${this.cursor ? html`<button type="button" class="more" data-history-more ?disabled=${this.busy} @click=${() => void this.load(false)}>${t('Show earlier')}</button>` : nothing}
       </section>
     `
   }

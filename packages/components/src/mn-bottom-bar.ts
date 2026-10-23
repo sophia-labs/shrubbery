@@ -60,6 +60,7 @@
  * the hoisted element anymore; THIS shell is too.
  */
 
+import { LocaleController, localizeLabel, t } from '@shrubbery/nucleus'
 import { css, html, LitElement, nothing, type PropertyValues } from 'lit'
 import { customElement, property, state } from 'lit/decorators.js'
 import { BEVELLED } from './bevelled-skins.js'
@@ -185,6 +186,8 @@ const SOURCE_BADGE_TONE: Readonly<Record<Exclude<ChromeSourceBadgeKind, 'contest
 
 @customElement('mn-bottom-bar')
 export class MnBottomBar extends SkinAware(LitElement) {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     :host {
       /* Splitter widths are preferred alignment inputs, not a text budget.
@@ -827,7 +830,7 @@ export class MnBottomBar extends SkinAware(LitElement) {
       data-source-badge=${badge.kind}
       state=${tone}
       glyph=${badge.glyph}
-      label=${badge.label}
+      label=${localizeLabel(badge.label)}
       .hint=${badge.hint}
       aria-label=${badge.accessibleName}
       ?interactive=${activatable}
@@ -848,7 +851,7 @@ export class MnBottomBar extends SkinAware(LitElement) {
     return html`<span
       class="status-group mirror-group"
       part="mirror-group"
-      aria-label="Local source state"
+      aria-label=${t('Local source state')}
       data-mirror-status
     >
       <span class="source-announcement" data-mirror-announcement role="status" aria-live="polite" aria-atomic="true">${summary}</span>
@@ -857,23 +860,23 @@ export class MnBottomBar extends SkinAware(LitElement) {
         aria-label=${`Local copy status: ${summary} Show details.`}
         aria-haspopup="dialog" aria-controls="source-details" aria-expanded=${String(this.sourceDetailsOpen)}
         @click=${() => void this.toggleSourceDetails()}>
-        <span aria-hidden="true">${primary?.kind === 'unknown' ? '?' : primary?.glyph ?? '✓'}</span><span>Local copy</span>
+        <span aria-hidden="true">${primary?.kind === 'unknown' ? '?' : primary?.glyph ?? '✓'}</span><span>${t('Local copy')}</span>
       </button>
       <section class="source-details" data-source-details id="source-details" popover="manual"
         role="dialog" aria-labelledby="source-details-title" aria-live="off">
-        <header><h2 id="source-details-title">This device’s local copy</h2>
-          <button type="button" class="source-close" data-source-close aria-label="Close local copy details" @click=${() => this.closeSourceDetails()}>×</button>
+        <header><h2 id="source-details-title">${t('This device’s local copy')}</h2>
+          <button type="button" class="source-close" data-source-close aria-label=${t('Close local copy details')} @click=${() => this.closeSourceDetails()}>×</button>
         </header>
         ${badges.length ? html`<ul>${badges.map(badge => html`<li>
           ${this._renderSourceBadge(badge)}<p>${badge.accessibleName}</p><p class="source-note">${badge.hint}</p>
         </li>`)}</ul>` : html`<p>${summary}</p>`}
-        <p class="source-note">Local-copy state is separate from connection and cloud-save status. Opening these details does not change your data.</p>
+        <p class="source-note">${t('Local-copy state is separate from connection and cloud-save status. Opening these details does not change your data.')}</p>
       </section>
     </span>`
   }
 
   private _renderPresenceOverflow(people: readonly ChromePresencePerson[]) {
-    return html`<section class="presence-overflow-menu" role="menu" aria-label="More people present">
+    return html`<section class="presence-overflow-menu" role="menu" aria-label=${t('More people present')}>
       ${people.map(person => html`<button
         type="button"
         role="menuitem"
@@ -882,7 +885,7 @@ export class MnBottomBar extends SkinAware(LitElement) {
         @click=${() => this._emit('mn-presence-open', { person } satisfies ChromePresenceOpenDetail)}
       ><span class="presence-overflow-dot" style=${`--presence-color:${person.color}`}></span>
         <span>${person.name}</span>
-        <small>${person.type === 'agent' ? 'Agent' : (person.isSelf ? 'You' : 'Human')}</small>
+        <small>${person.type === 'agent' ? t('Agent') : (person.isSelf ? t('You') : 'Human')}</small>
       </button>`)}
     </section>`
   }
@@ -892,10 +895,10 @@ export class MnBottomBar extends SkinAware(LitElement) {
     if (this.syncState === 'connecting') return 'Connecting'
     if (this.syncState === 'reconnecting') return 'Reconnecting'
     if (this.syncState === 'disconnected') return 'Disconnected'
-    if (this.syncState === 'error') return 'Sync error'
+    if (this.syncState === 'error') return t('Sync error')
     // `idle` is not a lost connection: it means no document session is bound, so nothing is syncing.
-    if (this.syncState === 'idle') return 'No document open'
-    return 'Offline'
+    if (this.syncState === 'idle') return t('No document open')
+    return t('Offline')
   }
 
   /**
@@ -925,28 +928,28 @@ export class MnBottomBar extends SkinAware(LitElement) {
       : null
     return html`
       <div class="left-section" part="left-section">
-        <div class="panel-toggles" role="group" aria-label="Left panel mode">
+        <div class="panel-toggles" role="group" aria-label=${t('Left panel mode')}>
           <button
             class="toggle-btn ${this.leftPanelMode === 'files' ? 'active' : ''}"
             aria-pressed=${this.leftPanelMode === 'files' ? 'true' : 'false'}
             @click=${() => this._setLeftMode('files')}
-            aria-label="Files"
-            title="Files"
-          ><span class="toggle-icon" aria-hidden="true">🗂</span><span class="toggle-label">Files</span></button>
+            aria-label=${t('Files')}
+            title=${t('Files')}
+          ><span class="toggle-icon" aria-hidden="true">🗂</span><span class="toggle-label">${t('Files')}</span></button>
           <button
             class="toggle-btn ${this.leftPanelMode === 'graph' ? 'active' : ''}"
             aria-pressed=${this.leftPanelMode === 'graph' ? 'true' : 'false'}
             @click=${() => this._setLeftMode('graph')}
-            aria-label="Graph"
-            title="Graph"
-          ><span class="toggle-icon" aria-hidden="true">◈</span><span class="toggle-label">Graph</span></button>
+            aria-label=${t('Graph')}
+            title=${t('Graph')}
+          ><span class="toggle-icon" aria-hidden="true">◈</span><span class="toggle-label">${t('Graph')}</span></button>
           <button
             class="toggle-btn ${this.leftPanelMode === 'outline' ? 'active' : ''}"
             aria-pressed=${this.leftPanelMode === 'outline' ? 'true' : 'false'}
             @click=${() => this._setLeftMode('outline')}
-            aria-label="Outline"
-            title="Outline"
-          ><span class="toggle-icon" aria-hidden="true">☰</span><span class="toggle-label">Outline</span></button>
+            aria-label=${t('Outline')}
+            title=${t('Outline')}
+          ><span class="toggle-icon" aria-hidden="true">☰</span><span class="toggle-label">${t('Outline')}</span></button>
         </div>
         <!--
           INERT left-status slot. Garden shows a live item count here (sourced
@@ -983,10 +986,10 @@ export class MnBottomBar extends SkinAware(LitElement) {
                 ? html`<span class="status-divider" aria-hidden="true">·</span><button
                     type="button"
                     class="export-btn"
-                    title="Export document"
-                    aria-label="Export document"
+                    title=${t('Export document')}
+                    aria-label=${t('Export document')}
                     @click=${() => this._emit('mn-document-export')}
-                  ><span aria-hidden="true">⬇</span> Export</button>`
+                  ><span aria-hidden="true">⬇</span> ${t('Export')}</button>`
                 : nothing}
             </span>`}
       </div>
@@ -1015,7 +1018,7 @@ export class MnBottomBar extends SkinAware(LitElement) {
           : nothing}
         ${this.sourceStatus !== null ? this._renderMirrorGroup() : nothing}
         ${this.presence.length > 0 || this.syncState !== 'idle' || this.runtimeMode != null
-          ? html`<span class="status-group live-group" part="live-group" aria-live="off" aria-label="Live session" data-live-status>
+          ? html`<span class="status-group live-group" part="live-group" aria-live="off" aria-label=${t('Live session')} data-live-status>
               ${this.presence.length > 0
                 ? html`<span class="presence-stack" aria-label=${`${this.presence.length} present`}>
                     ${visiblePresence.map((person) => html`<button
@@ -1052,35 +1055,35 @@ export class MnBottomBar extends SkinAware(LitElement) {
               ${this.runtimeMode ? html`<span class="runtime-pill">${this.runtimeMode}</span>` : nothing}
             </span>`
           : nothing}
-        <div class="panel-toggles" role="group" aria-label="Right panels">
+        <div class="panel-toggles" role="group" aria-label=${t('Right panels')}>
           ${this.chatAvailable ? html`<button
             class="toggle-btn ${this._selectedPanel === 'chat' ? 'active' : ''}"
             aria-pressed=${this._selectedPanel === 'chat' ? 'true' : 'false'}
             @click=${() => this._togglePanel('chat')}
-            aria-label="Toggle Sophia panel"
-            title="Toggle Sophia panel"
+            aria-label=${t('Toggle Sophia panel')}
+            title=${t('Toggle Sophia panel')}
           ><span class="toggle-icon" aria-hidden="true">✦</span><span class="toggle-label">Sophia</span></button>` : nothing}
           <button
             class="toggle-btn ${this._selectedPanel === 'comments' ? 'active' : ''}"
             aria-pressed=${this._selectedPanel === 'comments' ? 'true' : 'false'}
             @click=${() => this._togglePanel('comments')}
-            aria-label="Toggle comments panel"
-            title="Toggle comments panel"
-          ><span class="toggle-icon" aria-hidden="true">💬</span><span class="toggle-label">Comments</span></button>
+            aria-label=${t('Toggle comments panel')}
+            title=${t('Toggle comments panel')}
+          ><span class="toggle-icon" aria-hidden="true">💬</span><span class="toggle-label">${t('Comments')}</span></button>
           <button
             class="toggle-btn ${this._selectedPanel === 'wires' ? 'active' : ''}"
             aria-pressed=${this._selectedPanel === 'wires' ? 'true' : 'false'}
             @click=${() => this._togglePanel('wires')}
-            aria-label="Toggle wires panel"
-            title="Toggle wires panel"
-          ><span class="toggle-icon" aria-hidden="true">🔌</span><span class="toggle-label">Wires</span></button>
+            aria-label=${t('Toggle wires panel')}
+            title=${t('Toggle wires panel')}
+          ><span class="toggle-icon" aria-hidden="true">🔌</span><span class="toggle-label">${t('Wires')}</span></button>
           <button
             class="toggle-btn ${this._selectedPanel === 'graph' ? 'active' : ''}"
             aria-pressed=${this._selectedPanel === 'graph' ? 'true' : 'false'}
             @click=${() => this._togglePanel('graph')}
-            aria-label="Toggle graph panel"
-            title="Toggle graph panel"
-          ><span class="toggle-icon" aria-hidden="true">◈</span><span class="toggle-label">Graph</span></button>
+            aria-label=${t('Toggle graph panel')}
+            title=${t('Toggle graph panel')}
+          ><span class="toggle-icon" aria-hidden="true">◈</span><span class="toggle-label">${t('Graph')}</span></button>
         </div>
         ${this.presenceOverflowOpen && overflowPresence.length > 0
           ? this._renderPresenceOverflow(overflowPresence)

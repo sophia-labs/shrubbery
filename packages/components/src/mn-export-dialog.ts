@@ -6,6 +6,7 @@
  * host-owned preview/export state and emits action intents for the shell.
  */
 
+import { LocaleController, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, unsafeCSS, type TemplateResult } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 import { SkinAware } from './skin-aware.js'
@@ -45,6 +46,8 @@ export const defaultExportThemes: readonly MnExportTheme[] = Object.freeze([
 
 @customElement('mn-export-dialog')
 export class MnExportDialog extends SkinAware(LitElement) {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     ${unsafeCSS(iconStyles)}
 
@@ -493,15 +496,15 @@ export class MnExportDialog extends SkinAware(LitElement) {
           @click=${(event: Event) => event.stopPropagation()}
         >
           <div class="header">
-            <button type="button" class="close-button" aria-label="Close" @click=${this.close}>
+            <button type="button" class="close-button" aria-label=${t('Close')} @click=${this.close}>
               ${icon('x', { size: 18 })}
             </button>
             <h2 class="title" id="export-dialog-title">Export "${title}"</h2>
           </div>
 
           <div class="theme-bar">
-            <span class="theme-bar-label">Theme</span>
-            <div class="theme-options" role="radiogroup" aria-label="Export theme">
+            <span class="theme-bar-label">${t('Theme')}</span>
+            <div class="theme-options" role="radiogroup" aria-label=${t('Export theme')}>
               ${this.themes.map(theme => this.renderThemeSwatch(theme))}
             </div>
           </div>

@@ -6,6 +6,7 @@
  * text. Fullscreen is a visual state, not a data fetch.
  */
 
+import { LocaleController, localizeLabel } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 import { SkinAware } from './skin-aware.js'
@@ -17,6 +18,8 @@ export type MnLoadingSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl'
 
 @customElement('mn-loading')
 export class MnLoading extends SkinAware(LitElement) {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     :host {
       display: inline-flex;
@@ -152,7 +155,7 @@ export class MnLoading extends SkinAware(LitElement) {
     return html`
       <div class="container" role="status" aria-label=${this.text || 'Loading'}>
         ${this._indicator()}
-        ${this.text ? html`<span class="text">${this.text}</span>` : nothing}
+        ${this.text ? html`<span class="text">${localizeLabel(this.text)}</span>` : nothing}
       </div>
     `
   }

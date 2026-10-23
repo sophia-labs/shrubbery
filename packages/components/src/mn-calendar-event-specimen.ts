@@ -6,6 +6,7 @@
  * emits small patch events.
  */
 
+import { LocaleController, localeSource, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, type PropertyValues } from 'lit'
 import { customElement, property, state } from 'lit/decorators.js'
 import { classMap } from 'lit/directives/class-map.js'
@@ -61,6 +62,8 @@ function parseLocalDateTime(value: string): Date | null {
 
 @customElement('mn-calendar-event-specimen')
 export class MnCalendarEventSpecimen extends SkinAware(LitElement) {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     :host {
       display: block;
@@ -319,7 +322,7 @@ export class MnCalendarEventSpecimen extends SkinAware(LitElement) {
     if (allDay || !timeStart) return this.editable ? 'All day' : '.'
     const start = parseLocalDateTime(timeStart)
     if (!start) return this.editable ? 'All day' : '.'
-    const formatter = new Intl.DateTimeFormat(this.locale || undefined, {
+    const formatter = new Intl.DateTimeFormat(this.locale || localeSource.get(), {
       hour: '2-digit',
       minute: '2-digit',
     })
@@ -348,18 +351,18 @@ export class MnCalendarEventSpecimen extends SkinAware(LitElement) {
                 type="datetime-local"
                 .value=${this.attrs.timeStart ?? ''}
                 @change=${(event: Event) => this.onTimeStartChange(event)}
-                aria-label="Start"
+                aria-label=${t('Start')}
               />
               <span aria-hidden="true">-></span>
               <input
                 type="datetime-local"
                 .value=${this.attrs.timeEnd ?? ''}
                 @change=${(event: Event) => this.onTimeEndChange(event)}
-                aria-label="End"
+                aria-label=${t('End')}
               />
             `}
         <button class="time-editor-done" type="button" @click=${() => { this.timeEditing = false }}>
-          Done
+          ${t('Done')}
         </button>
       </div>
     `
@@ -392,7 +395,7 @@ export class MnCalendarEventSpecimen extends SkinAware(LitElement) {
         <span
           class="title"
           contenteditable=${this.editable ? 'plaintext-only' : 'false'}
-          data-placeholder="Untitled event"
+          data-placeholder=${t('Untitled event')}
           @blur=${(event: Event) => this.onTextFieldBlur('title', event)}
           @keydown=${this.onTextFieldKeydown}
         ></span>
@@ -406,7 +409,7 @@ export class MnCalendarEventSpecimen extends SkinAware(LitElement) {
                 <span
                   class="location"
                   contenteditable=${this.editable ? 'plaintext-only' : 'false'}
-                  data-placeholder="Location"
+                  data-placeholder=${t('Location')}
                   @blur=${(event: Event) => this.onTextFieldBlur('location', event)}
                   @keydown=${this.onTextFieldKeydown}
                 ></span>
@@ -414,7 +417,7 @@ export class MnCalendarEventSpecimen extends SkinAware(LitElement) {
                 <span
                   class="annotation"
                   contenteditable=${this.editable ? 'plaintext-only' : 'false'}
-                  data-placeholder="Notes"
+                  data-placeholder=${t('Notes')}
                   @blur=${(event: Event) => this.onTextFieldBlur('annotation', event)}
                   @keydown=${this.onTextFieldKeydown}
                 ></span>

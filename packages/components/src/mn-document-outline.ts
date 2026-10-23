@@ -13,6 +13,7 @@
  * backend calls.
  */
 
+import { LocaleController, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, unsafeCSS, type TemplateResult } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 import { SkinAware } from './skin-aware.js'
@@ -54,19 +55,21 @@ interface CommandSpec {
 
 /** Same commands, icons, labels, and shortcuts the editor toolbar's removed "Outliner" group used. */
 const COMMANDS: readonly CommandSpec[] = [
-  { command: 'toggleCollapse', icon: 'chevron-right', label: 'Toggle fold', shortcut: 'Mod+.' },
-  { command: 'collapseAll', icon: 'panel-left', label: 'Collapse all' },
-  { command: 'expandAll', icon: 'chevron-down', label: 'Expand all' },
-  { command: 'moveUp', icon: 'arrow-up', label: 'Move block up', shortcut: 'Alt+Shift+Up' },
-  { command: 'moveDown', icon: 'arrow-down', label: 'Move block down', shortcut: 'Alt+Shift+Down' },
-  { command: 'selectParent', icon: 'corner-up-right', label: 'Select parent block' },
-  { command: 'selectAll', icon: 'list', label: 'Select all blocks' },
-  { command: 'zoomIn', icon: 'arrow-right', label: 'Zoom into block', shortcut: 'Mod+Shift+Right' },
-  { command: 'zoomOut', icon: 'arrow-left', label: 'Zoom out', shortcut: 'Mod+Shift+Left' },
+  { command: 'toggleCollapse', icon: 'chevron-right', get label() { return t('Toggle fold') }, shortcut: 'Mod+.' },
+  { command: 'collapseAll', icon: 'panel-left', get label() { return t('Collapse all') } },
+  { command: 'expandAll', icon: 'chevron-down', get label() { return t('Expand all') } },
+  { command: 'moveUp', icon: 'arrow-up', get label() { return t('Move block up') }, shortcut: 'Alt+Shift+Up' },
+  { command: 'moveDown', icon: 'arrow-down', get label() { return t('Move block down') }, shortcut: 'Alt+Shift+Down' },
+  { command: 'selectParent', icon: 'corner-up-right', get label() { return t('Select parent block') } },
+  { command: 'selectAll', icon: 'list', get label() { return t('Select all blocks') } },
+  { command: 'zoomIn', icon: 'arrow-right', get label() { return t('Zoom into block') }, shortcut: 'Mod+Shift+Right' },
+  { command: 'zoomOut', icon: 'arrow-left', get label() { return t('Zoom out') }, shortcut: 'Mod+Shift+Left' },
 ]
 
 @customElement('mn-document-outline')
 export class MnDocumentOutline extends SkinAware(LitElement) {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     ${unsafeCSS(iconStyles)}
 
@@ -156,7 +159,7 @@ export class MnDocumentOutline extends SkinAware(LitElement) {
 
   protected override render(): TemplateResult {
     return html`
-      <div class="commands" role="toolbar" aria-label="Outliner commands">
+      <div class="commands" role="toolbar" aria-label=${t('Outliner commands')}>
         ${COMMANDS.map((spec) => html`
           <mn-icon-button
             data-outline-command=${spec.command}
@@ -180,8 +183,8 @@ export class MnDocumentOutline extends SkinAware(LitElement) {
         <div class="empty-state">
           <mn-empty-state
             icon="file-text"
-            title="No document open"
-            description="Open a document to see its outline."
+            title=${t('No document open')}
+            description=${t('Open a document to see its outline.')}
           ></mn-empty-state>
         </div>
       `
@@ -191,14 +194,14 @@ export class MnDocumentOutline extends SkinAware(LitElement) {
         <div class="empty-state">
           <mn-empty-state
             icon="list"
-            title="No headings yet"
-            description="Headings you add will show up here."
+            title=${t('No headings yet')}
+            description=${t('Headings you add will show up here.')}
           ></mn-empty-state>
         </div>
       `
     }
     return html`
-      <div class="headings" role="tree" aria-label="Document outline">
+      <div class="headings" role="tree" aria-label=${t('Document outline')}>
         ${this.headings.map((h) => html`
           <button
             type="button"

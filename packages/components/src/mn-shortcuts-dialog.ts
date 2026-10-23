@@ -6,6 +6,7 @@
  * data and emits an execute intent; the shell/runtime owns the registry/context.
  */
 
+import { LocaleController, localizeLabel, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, unsafeCSS, type PropertyValues, type TemplateResult } from 'lit'
 import { customElement, property, query, state } from 'lit/decorators.js'
 import { SkinAware } from './skin-aware.js'
@@ -102,6 +103,8 @@ function eventModifiers(event: MouseEvent | KeyboardEvent): MnShortcutRunDetail[
 
 @customElement('mn-shortcuts-dialog')
 export class MnShortcutsDialog extends SkinAware(LitElement) {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     ${unsafeCSS(iconStyles)}
 
@@ -458,7 +461,7 @@ export class MnShortcutsDialog extends SkinAware(LitElement) {
         @click=${(event: MouseEvent) => this.run(command, event)}
         @mouseenter=${() => { this.selectedIndex = index }}
       >
-        <span class="label">${command.label}</span>
+        <span class="label">${localizeLabel(command.label)}</span>
         <span class="keys"><kbd>${formatShortcutLabel(command.shortcut, this.platform)}</kbd></span>
       </button>
     `
@@ -470,7 +473,7 @@ export class MnShortcutsDialog extends SkinAware(LitElement) {
     let index = 0
     const rowParts: TemplateResult[] = []
     for (const [category, commands] of grouped) {
-      rowParts.push(html`<h3 class="category">${category}</h3>`)
+      rowParts.push(html`<h3 class="category">${localizeLabel(category)}</h3>`)
       for (const command of commands) {
         rowParts.push(this.renderRow(command, index++))
       }
@@ -486,7 +489,7 @@ export class MnShortcutsDialog extends SkinAware(LitElement) {
       >
         <header class="header">
           <h2 class="title">${this.dialogTitle}</h2>
-          <button type="button" class="close-btn" aria-label="Close" @click=${() => this.close()}>
+          <button type="button" class="close-btn" aria-label=${t('Close')} @click=${() => this.close()}>
             ${icon('x', { size: 16 })}
           </button>
         </header>

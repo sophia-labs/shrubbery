@@ -8,6 +8,7 @@
  * query/toggle/open intents outside this component.
  */
 
+import { LocaleController, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, unsafeCSS, type TemplateResult } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 import { SkinAware } from './skin-aware.js'
@@ -59,6 +60,8 @@ function asKeySet(value: ReadonlySet<string> | readonly string[]): ReadonlySet<s
 
 @customElement('mn-zotero-library-panel')
 export class MnZoteroLibraryPanel extends SkinAware(LitElement) {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     ${unsafeCSS(iconStyles)}
 
@@ -329,7 +332,7 @@ export class MnZoteroLibraryPanel extends SkinAware(LitElement) {
               <div class="collection-items">
                 ${children.map(child => this.renderCollection(child))}
                 ${items.map(item => this.renderItem(item, 'collection', collection.key))}
-                ${children.length === 0 && items.length === 0 ? html`<div class="state">Empty.</div>` : nothing}
+                ${children.length === 0 && items.length === 0 ? html`<div class="state">${t('Empty.')}</div>` : nothing}
               </div>
             `
           : nothing}
@@ -343,25 +346,25 @@ export class MnZoteroLibraryPanel extends SkinAware(LitElement) {
 
     if (this.error) parts.push(html`<div class="state error">${this.error}</div>`)
     if (roots.length) {
-      parts.push(html`<div class="group-label">${icon('folder', { size: 12 })}<span>Collections</span></div>`)
+      parts.push(html`<div class="group-label">${icon('folder', { size: 12 })}<span>${t('Collections')}</span></div>`)
       parts.push(...roots.map(collection => this.renderCollection(collection)))
     }
 
-    parts.push(html`<div class="group-label">${icon('book-open', { size: 12 })}<span>All items</span></div>`)
+    parts.push(html`<div class="group-label">${icon('book-open', { size: 12 })}<span>${t('All items')}</span></div>`)
     if (this.loading) {
-      parts.push(html`<div class="state">Loading...</div>`)
+      parts.push(html`<div class="state">${t('Loading...')}</div>`)
     } else if (this.topItems.length) {
       parts.push(...this.topItems.map(item => this.renderItem(item, 'top')))
     } else {
-      parts.push(html`<div class="state">Library is empty.</div>`)
+      parts.push(html`<div class="state">${t('Library is empty.')}</div>`)
     }
 
     return parts
   }
 
   private renderSearch(): unknown {
-    if (this.searching) return html`<div class="state">Searching...</div>`
-    if (this.searchResults.length === 0) return html`<div class="state">No matches.</div>`
+    if (this.searching) return html`<div class="state">${t('Searching...')}</div>`
+    if (this.searchResults.length === 0) return html`<div class="state">${t('No matches.')}</div>`
     return this.searchResults.map(item => this.renderItem(item, 'search'))
   }
 
@@ -377,7 +380,7 @@ export class MnZoteroLibraryPanel extends SkinAware(LitElement) {
           writingsuggestions="false"
           data-zotero-search
           type="text"
-          placeholder="Search library..."
+          placeholder=${t('Search library...')}
           .value=${this.query}
           @input=${(event: Event) => this.emitSearch((event.target as HTMLInputElement).value)}
         />

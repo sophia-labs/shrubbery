@@ -19,6 +19,7 @@
  * delivery form changes, never the member-grant CRUD logic itself.
  */
 
+import { LocaleController, localeSource, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, unsafeCSS, type PropertyValues } from 'lit'
 import { customElement, property, state } from 'lit/decorators.js'
 import { SkinAware } from './skin-aware.js'
@@ -72,15 +73,15 @@ export interface MnShareLinkRevokeDetail {
 }
 
 const LINK_EXPIRY_CHOICES: readonly { readonly value: string, readonly label: string, readonly seconds: number | null }[] = [
-  { value: '7d', label: '7 days', seconds: 7 * 24 * 60 * 60 },
-  { value: '30d', label: '30 days', seconds: 30 * 24 * 60 * 60 },
-  { value: 'never', label: 'Until revoked', seconds: null },
+  { value: '7d', get label() { return t('7 days') }, seconds: 7 * 24 * 60 * 60 },
+  { value: '30d', get label() { return t('30 days') }, seconds: 30 * 24 * 60 * 60 },
+  { value: 'never', get label() { return t('Until revoked') }, seconds: null },
 ]
 
 function shortDate(iso: string): string {
   const date = new Date(iso)
   return Number.isFinite(date.getTime())
-    ? date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+    ? date.toLocaleDateString(localeSource.get(), { year: 'numeric', month: 'short', day: 'numeric' })
     : iso
 }
 
@@ -127,6 +128,8 @@ function initials(grant: MnAccessGrant): string {
 
 @customElement('mn-access-manager')
 export class MnAccessManager extends SkinAware(LitElement) {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     ${unsafeCSS(iconStyles)}
 
@@ -736,8 +739,8 @@ export class MnAccessManager extends SkinAware(LitElement) {
     const busy = Boolean(sharing.busyAction) || sharing.status === 'loading'
     const now = Date.now()
     return html`<div class="sharing-body">
-      <div class="sharing-section" aria-label="General access" role="group">
-        <div class="section-title">General access</div>
+      <div class="sharing-section" aria-label=${t('General access')} role="group">
+        <div class="section-title">${t('General access')}</div>
         <label class="everyone-row">
           <input
             type="checkbox"
@@ -750,28 +753,28 @@ export class MnAccessManager extends SkinAware(LitElement) {
           />
           <span>
             Anyone signed in can view
-            <div class="hint">Every Garden account can find and read this workspace. They cannot edit it.</div>
+            <div class="hint">${t('Every Garden account can find and read this workspace. They cannot edit it.')}</div>
           </span>
         </label>
       </div>
 
-      <div class="sharing-section" aria-label="Share links" role="group">
-        <div class="section-title">Share links</div>
+      <div class="sharing-section" aria-label=${t('Share links')} role="group">
+        <div class="section-title">${t('Share links')}</div>
         <form class="link-form" @submit=${this.createLink} novalidate>
           <label class="field">
-            <span>Link gives</span>
+            <span>${t('Link gives')}</span>
             <select
               name="share-link-role"
               .value=${this.linkRole}
               ?disabled=${busy}
               @change=${(event: Event) => { this.linkRole = (event.currentTarget as HTMLSelectElement).value as 'viewer' | 'editor' }}
             >
-              <option value="viewer">Viewer</option>
-              <option value="editor">Editor</option>
+              <option value="viewer">${t('Viewer')}</option>
+              <option value="editor">${t('Editor')}</option>
             </select>
           </label>
           <label class="field">
-            <span>Expires</span>
+            <span>${t('Expires')}</span>
             <select
               name="share-link-expiry"
               .value=${this.linkExpiry}
@@ -782,22 +785,22 @@ export class MnAccessManager extends SkinAware(LitElement) {
             </select>
           </label>
           <button class="link-create" type="submit" ?disabled=${busy || sharing.status !== 'ready'}>
-            ${sharing.busyAction === 'link-create' ? 'Creating…' : 'Create link'}
+            ${sharing.busyAction === 'link-create' ? 'Creating…' : t('Create link')}
           </button>
         </form>
         ${sharing.createdLinkUrl ? html`<div class="created-link" role="status" aria-live="polite">
-          <input name="share-link-url" readonly .value=${sharing.createdLinkUrl} aria-label="New share link" data-private="true" />
+          <input name="share-link-url" readonly .value=${sharing.createdLinkUrl} aria-label=${t('New share link')} data-private="true" />
           <button class="copy" type="button" @click=${() => void this.copyLink(sharing.createdLinkUrl!)}>
-            ${this.copied ? 'Copied' : 'Copy'}
+            ${this.copied ? 'Copied' : t('Copy')}
           </button>
-          <button class="dismiss" type="button" aria-label="Hide link" @click=${() => {
+          <button class="dismiss" type="button" aria-label=${t('Hide link')} @click=${() => {
             this.copied = false
             this.emit('mn-access-link-dismiss')
-          }}>Done</button>
+          }}>${t('Done')}</button>
         </div>
-        <div class="hint">Copy it now: the link is shown only once. Anyone who opens it and signs in joins with the link's role.</div>` : nothing}
+        <div class="hint">${t('Copy it now: the link is shown only once. Anyone who opens it and signs in joins with the link\'s role.')}</div>` : nothing}
         ${sharing.error ? html`<div class="error" role="alert">${sharing.error}</div>` : nothing}
-        ${sharing.links.length ? html`<ul class="link-list" aria-label="Share links">
+        ${sharing.links.length ? html`<ul class="link-list" aria-label=${t('Share links')}>
           ${sharing.links.map(link => {
             const expired = !link.live || (link.expiresAt !== null && Date.parse(link.expiresAt) <= now)
             return html`<li class="link-row ${expired ? 'expired' : ''}" data-link-id=${link.linkId}>
@@ -810,14 +813,14 @@ export class MnAccessManager extends SkinAware(LitElement) {
                 class="remove"
                 type="button"
                 aria-label=${`Revoke ${link.role} link created ${shortDate(link.createdAt)}`}
-                title="Revoke link"
+                title=${t('Revoke link')}
                 ?disabled=${busy}
                 @click=${() => this.emit('mn-access-link-revoke', { linkId: link.linkId } satisfies MnShareLinkRevokeDetail)}
               >${icon('x', { size: 14 })}</button>
             </li>`
           })}
         </ul>` : sharing.status === 'ready'
-          ? html`<div class="hint">No share links yet.</div>`
+          ? html`<div class="hint">${t('No share links yet.')}</div>`
           : nothing}
       </div>
     </div>`
@@ -849,14 +852,14 @@ export class MnAccessManager extends SkinAware(LitElement) {
           role: (event.currentTarget as HTMLSelectElement).value as 'viewer' | 'editor',
         } satisfies MnAccessRoleChangeDetail)}
       >
-        <option value="editor">Editor</option>
-        <option value="viewer">Viewer</option>
+        <option value="editor">${t('Editor')}</option>
+        <option value="viewer">${t('Viewer')}</option>
       </select>` : html`<span class="role ${grant.role}">${grant.role}</span>`}
       ${canManage ? html`<button
         class="remove"
         type="button"
         aria-label=${`Remove ${label}`}
-        title="Remove member"
+        title=${t('Remove member')}
         ?disabled=${busy}
         @click=${() => this.emit('mn-access-remove', { userId: grant.userId } satisfies MnAccessRemoveDetail)}
       >${icon('x', { size: 14 })}</button>` : nothing}
@@ -869,7 +872,7 @@ export class MnAccessManager extends SkinAware(LitElement) {
     const busy = Boolean(model.busyAction) || model.status !== 'ready'
     return html`<form class="add-form" @submit=${this.add} novalidate>
       <label class="field">
-        <span>Member user ID (user:&lt;subject&gt;)</span>
+        <span>${t('Member user ID (user:&lt;subject&gt;)')}</span>
         <input
           name="access-user-id"
           autocomplete="off"
@@ -883,22 +886,22 @@ export class MnAccessManager extends SkinAware(LitElement) {
         />
       </label>
       <label class="field">
-        <span>Role</span>
+        <span>${t('Role')}</span>
         <select
           name="access-role"
           .value=${this.addRole}
           ?disabled=${busy}
           @change=${(event: Event) => { this.addRole = (event.currentTarget as HTMLSelectElement).value as 'viewer' | 'editor' }}
         >
-          <option value="editor">Editor</option>
-          <option value="viewer">Viewer</option>
+          <option value="editor">${t('Editor')}</option>
+          <option value="viewer">${t('Viewer')}</option>
         </select>
       </label>
       ${this.validationError
         ? html`<div class="validation" role="alert">${this.validationError}</div>`
         : nothing}
       <button class="add-button" type="submit" ?disabled=${busy || !this.addUserId.trim()}>
-        ${model.busyAction === 'add' ? 'Adding member…' : 'Add member'}
+        ${model.busyAction === 'add' ? t('Adding member…') : t('Add member')}
       </button>
     </form>`
   }
@@ -925,10 +928,10 @@ export class MnAccessManager extends SkinAware(LitElement) {
     return html`<div class="panel-body">
       <div class="header">
         <div class="heading">
-          <div class="title">Workspace access</div>
+          <div class="title">${t('Workspace access')}</div>
           <div class="graph-title">${model.graphTitle || model.graphId}</div>
         </div>
-        ${closeButton ? html`<button class="close" type="button" aria-label="Close workspace access" @click=${this.closePanel}>
+        ${closeButton ? html`<button class="close" type="button" aria-label=${t('Close workspace access')} @click=${this.closePanel}>
           ${icon('x', { size: 15 })}
         </button>` : nothing}
       </div>
@@ -938,36 +941,36 @@ export class MnAccessManager extends SkinAware(LitElement) {
         <button
           class="refresh"
           type="button"
-          aria-label="Refresh workspace access"
-          title="Refresh members"
+          aria-label=${t('Refresh workspace access')}
+          title=${t('Refresh members')}
           ?disabled=${Boolean(model.busyAction) || model.status === 'loading'}
           @click=${() => this.emit('mn-access-refresh')}
         >${icon('refresh-cw', { size: 14 })}</button>
       </div>
 
       ${model.status === 'loading' && model.grants.length === 0
-        ? html`<div class="state" role="status" aria-live="polite">Loading members…</div>`
+        ? html`<div class="state" role="status" aria-live="polite">${t('Loading members…')}</div>`
         : nothing}
       ${model.error ? html`<div class="error-row">
         <div class="error" role="alert">${model.error}</div>
         ${model.status === 'error'
-          ? html`<button class="retry" type="button" @click=${() => this.emit('mn-access-refresh')}>Retry</button>`
+          ? html`<button class="retry" type="button" @click=${() => this.emit('mn-access-refresh')}>${t('Retry')}</button>`
           : nothing}
       </div>` : nothing}
       ${model.notice ? html`<div class="notice" role="status" aria-live="polite">${model.notice}</div>` : nothing}
 
       ${model.grants.length > 0
-        ? html`<ul class="member-list" aria-label="Workspace members">
+        ? html`<ul class="member-list" aria-label=${t('Workspace members')}>
             ${model.grants.map(grant => this.renderGrant(grant))}
           </ul>`
         : model.status === 'ready'
-          ? html`<div class="state">No access grants were returned.</div>`
+          ? html`<div class="state">${t('No access grants were returned.')}</div>`
           : nothing}
 
       ${model.currentRole === 'unknown' && model.status !== 'loading'
-        ? html`<div class="permission-note">Your role could not be resolved. Member access is read-only.</div>`
+        ? html`<div class="permission-note">${t('Your role could not be resolved. Member access is read-only.')}</div>`
         : model.currentRole !== 'owner'
-          ? html`<div class="permission-note">Only the workspace owner can add, change, or remove members.</div>`
+          ? html`<div class="permission-note">${t('Only the workspace owner can add, change, or remove members.')}</div>`
           : nothing}
 
       ${this.renderAddForm()}
@@ -986,7 +989,7 @@ export class MnAccessManager extends SkinAware(LitElement) {
     return html`<section
       class="embedded-panel"
       role="group"
-      aria-label="Workspace access"
+      aria-label=${t('Workspace access')}
       @keydown=${this.onKeyDown}
     >${this.renderPanelBody(model, false)}</section>`
   }
@@ -1000,7 +1003,7 @@ export class MnAccessManager extends SkinAware(LitElement) {
       <button
         class="trigger ${hasSharedMembers ? 'active' : ''}"
         type="button"
-        aria-label="Manage workspace access"
+        aria-label=${t('Manage workspace access')}
         aria-haspopup="dialog"
         aria-expanded=${this.panelOpen ? 'true' : 'false'}
         aria-controls="workspace-access-panel"
@@ -1011,7 +1014,7 @@ export class MnAccessManager extends SkinAware(LitElement) {
         id="workspace-access-panel"
         class="panel"
         role="dialog"
-        aria-label="Workspace access"
+        aria-label=${t('Workspace access')}
         ?hidden=${!this.panelOpen}
         aria-hidden=${this.panelOpen ? 'false' : 'true'}
         @keydown=${this.onKeyDown}

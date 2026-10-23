@@ -7,6 +7,7 @@
  * the component. Every function consumes and returns plain projected data.
  */
 
+import { t } from '@shrubbery/nucleus'
 import type {
   FilePaneGrouping,
   FilePaneNode,
@@ -169,7 +170,7 @@ export function groupFilePaneSections(
   const artifacts = source.find(section => section.id === 'artifacts')
   if (!artifacts) return source
   const merged: FilePaneSection = {
-    ...(documents ?? { id: 'documents', label: 'Documents', icon: 'file-text' }),
+    ...(documents ?? { id: 'documents', get label() { return t('Documents') }, icon: 'file-text' }),
     nodes: [...(documents?.nodes ?? []), ...(artifacts.nodes ?? [])],
     count: (documents?.count ?? 0) + (artifacts.count ?? 0),
   }

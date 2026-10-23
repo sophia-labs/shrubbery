@@ -5,6 +5,7 @@
  * or falls back to the pure nucleus taxonomy, then emits confirm/close intents.
  */
 
+import { LocaleController, localizeLabel, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, unsafeCSS, type PropertyValues, type TemplateResult } from 'lit'
 import { customElement, property, query } from 'lit/decorators.js'
 import {
@@ -36,12 +37,12 @@ function defaultPredicateGroups(): readonly MnWirePredicateGroup[] {
   return [
     {
       name: 'Default',
-      description: 'General association',
+      get description() { return t('General association') },
       predicates: [
         {
           uri: DEFAULT_WIRE_PREDICATE_URI,
           label: getWirePredicateLabel(DEFAULT_WIRE_PREDICATE_URI),
-          description: 'General association',
+          get description() { return t('General association') },
         },
       ],
     },
@@ -61,6 +62,8 @@ function eventModifiers(event: MouseEvent | KeyboardEvent): void {
 
 @customElement('mn-advanced-wire-menu')
 export class MnAdvancedWireMenu extends SkinAware(LitElement) {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     ${unsafeCSS(iconStyles)}
 
@@ -418,7 +421,7 @@ export class MnAdvancedWireMenu extends SkinAware(LitElement) {
         <div class="group-header">
           ${group.icon ? html`<span class="group-icon" aria-hidden="true">${icon(group.icon, { size: 14 })}</span>` : ''}
           <div class="group-copy">
-            <div class="group-title">${group.name}</div>
+            <div class="group-title">${localizeLabel(group.name)}</div>
             ${group.description ? html`<div class="group-description">${group.description}</div>` : ''}
           </div>
         </div>
@@ -454,14 +457,14 @@ export class MnAdvancedWireMenu extends SkinAware(LitElement) {
       >
         <header class="header">
           <div>
-            <h2 class="title" id="mn-advanced-wire-title">Wire Relationship</h2>
-            <p class="subtitle">Select the connection type and direction.</p>
+            <h2 class="title" id="mn-advanced-wire-title">${t('Wire Relationship')}</h2>
+            <p class="subtitle">${t('Select the connection type and direction.')}</p>
           </div>
           <button
             type="button"
             class="close"
             data-wire-advanced-close
-            aria-label="Close wire relationship dialog"
+            aria-label=${t('Close wire relationship dialog')}
             @click=${() => this.close()}
           >
             ${icon('x', { size: 16 })}
@@ -473,10 +476,10 @@ export class MnAdvancedWireMenu extends SkinAware(LitElement) {
         <footer class="footer">
           ${this.fixedDirection
             ? html`<div class="directions"></div>`
-            : html`<div class="directions" role="group" aria-label="Wire direction">
-                ${this.renderDirection('forward', 'Forward')}
+            : html`<div class="directions" role="group" aria-label=${t('Wire direction')}>
+                ${this.renderDirection('forward', t('Forward'))}
                 ${this.renderDirection('reverse', 'Reverse')}
-                ${this.renderDirection('bidirectional', 'Both')}
+                ${this.renderDirection('bidirectional', t('Both'))}
               </div>`}
           <div class="actions">
             <button
@@ -484,13 +487,13 @@ export class MnAdvancedWireMenu extends SkinAware(LitElement) {
               class="action cancel"
               data-wire-advanced-cancel
               @click=${() => this.close()}
-            >Cancel</button>
+            >${t('Cancel')}</button>
             <button
               type="button"
               class="action confirm"
               data-wire-advanced-confirm
               @click=${() => this.confirm()}
-            >Choose Target</button>
+            >${t('Choose Target')}</button>
           </div>
         </footer>
       </section>

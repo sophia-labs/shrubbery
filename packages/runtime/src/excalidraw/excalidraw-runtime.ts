@@ -1,4 +1,3 @@
-import { adoptStyleSheet, styleRootOf } from '@shrubbery/nucleus'
 /**
  * Excalidraw React-island runtime for the controlled <mn-excalidraw-canvas>.
  *
@@ -10,6 +9,7 @@ import { adoptStyleSheet, styleRootOf } from '@shrubbery/nucleus'
  * this boundary rather than smuggled into the runtime package.
  */
 
+import { adoptStyleSheet, localeSource, styleRootOf } from '@shrubbery/nucleus'
 export const EXCALIDRAW_SCENE_MIME = 'application/vnd.excalidraw+json'
 export const EXCALIDRAW_NODE_DND_MIME = 'application/x-mnemosyne-node'
 
@@ -311,6 +311,7 @@ type CanvasEventDetail = {
 }
 
 type ExcalidrawComponentProps = {
+  readonly langCode: string
   readonly key: string
   readonly initialData: ExcalidrawInitialData
   readonly onInitialize: (api: ExcalidrawApi) => void
@@ -443,6 +444,8 @@ class ExcalidrawRuntimeController implements ExcalidrawRuntimeHandle {
   private changeEffectsScheduled = false
   private isSaving = false
   private isDestroyed = false
+  private localeUnsubscribe?: () => void
+  private renderedProps?: ExcalidrawComponentProps
   private resolveReady!: () => void
   private rejectReady!: (reason: unknown) => void
   private readySettled = false
@@ -450,6 +453,11 @@ class ExcalidrawRuntimeController implements ExcalidrawRuntimeHandle {
   constructor(host: ExcalidrawCanvasHost, options: ExcalidrawRuntimeOptions) {
     this.host = host
     this.options = options
+    this.localeUnsubscribe = localeSource.subscribe(() => {
+      if (!this.runtime || !this.root || !this.renderedProps || this.isDestroyed) return
+      this.renderedProps = { ...this.renderedProps, langCode: localeSource.get() === 'ja' ? 'ja-JP' : 'en' }
+      this.root.render(this.runtime.createElement(this.runtime.Excalidraw, this.renderedProps as unknown as Record<string, unknown>))
+    })
     this.mountElement = document.createElement('div')
     this.mountElement.slot = 'canvas'
     this.mountElement.className = 'sh-excalidraw-runtime-slot'
@@ -576,6 +584,8 @@ class ExcalidrawRuntimeController implements ExcalidrawRuntimeHandle {
   destroy(): void {
     if (this.isDestroyed) return
     this.isDestroyed = true
+    this.localeUnsubscribe?.()
+    this.localeUnsubscribe = undefined
     this.loadGeneration += 1
     this.projectionGeneration += 1
     this.operationGeneration += 1
@@ -656,12 +666,14 @@ class ExcalidrawRuntimeController implements ExcalidrawRuntimeHandle {
 
       if (!this.root) this.root = runtime.createRoot(this.reactContainer)
       const props: ExcalidrawComponentProps = {
+        langCode: localeSource.get() === 'ja' ? 'ja-JP' : 'en',
         key: `${this.options.scope.graphId}/${this.options.scope.artifactId}/${++this.renderGeneration}`,
         initialData,
         onInitialize: (api) => this.claimApi(api, generation),
         onChange: (elements, appState, files) => this.sceneChanged(elements, appState, files, generation),
         onLinkOpen: (element, event) => this.linkOpened(element, event),
       }
+      this.renderedProps = props
       this.root.render(runtime.createElement(runtime.Excalidraw, props as unknown as Record<string, unknown>))
     } catch (error) {
       // A reload intentionally aborts the previous generation. A stale abort

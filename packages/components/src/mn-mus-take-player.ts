@@ -8,6 +8,7 @@
  *
  * Needs `media-src blob:` in the page's CSP.
  */
+import { LocaleController, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, type PropertyValues } from 'lit'
 import { customElement, property, state } from 'lit/decorators.js'
 import { SkinAware } from './skin-aware.js'
@@ -34,6 +35,8 @@ export function formatClock(seconds: number): string {
 
 @customElement('mn-mus-take-player')
 export class MnMusTakePlayer extends SkinAware(LitElement) {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     :host { display: block; font-family: var(--mn-font-sans, system-ui, sans-serif); color: var(--mn-color-text-primary, #1d2420); }
     .row { display: flex; align-items: center; gap: 10px; min-width: 0; }
@@ -157,7 +160,7 @@ export class MnMusTakePlayer extends SkinAware(LitElement) {
           ${this.playing ? '❚❚' : '▶'}
         </button>
         <input type="range" min="0" max=${duration || 0} step="0.01" .value=${String(this.time)} ?disabled=${!this.take}
-          aria-label="Position" aria-valuetext=${`${formatClock(this.time)} of ${formatClock(duration)}`} @input=${this.seek} />
+          aria-label=${t('Position')} aria-valuetext=${`${formatClock(this.time)} of ${formatClock(duration)}`} @input=${this.seek} />
         <span class="clock" aria-live="off">${formatClock(this.time)} / ${formatClock(duration)}</span>
       </div>
       ${this.error ? html`<div class="error" role="alert">${this.error}</div>` : null}

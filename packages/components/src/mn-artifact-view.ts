@@ -8,6 +8,7 @@
  * object URLs, persists, or talks to a workspace contract.
  */
 
+import { LocaleController, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, unsafeCSS, type TemplateResult } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 import { keyed } from 'lit/directives/keyed.js'
@@ -79,7 +80,7 @@ function kindIcon(kind: MnArtifactViewKind): IconName {
 function kindLabel(kind: MnArtifactViewKind): string {
   switch (kind) {
     case 'image':
-      return 'Image'
+      return t('Image')
     case 'pdf':
       return 'PDF'
     case 'audio':
@@ -91,7 +92,7 @@ function kindLabel(kind: MnArtifactViewKind): string {
     case 'html':
       return 'HTML'
     case 'text':
-      return 'Text'
+      return t('Text')
     case 'binary':
     default:
       return 'Artifact'
@@ -100,6 +101,8 @@ function kindLabel(kind: MnArtifactViewKind): string {
 
 @customElement('mn-artifact-view')
 export class MnArtifactView extends SkinAware(LitElement) {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     ${unsafeCSS(iconStyles)}
 
@@ -365,8 +368,8 @@ export class MnArtifactView extends SkinAware(LitElement) {
         <div class="state">
           <mn-empty-state
             icon="alert-circle"
-            title="Could not load artifact"
-            description=${this.error || 'The artifact preview read failed.'}
+            title=${t('Could not load artifact')}
+            description=${this.error || t('The artifact preview read failed.')}
             mood="danger"
           ></mn-empty-state>
         </div>
@@ -390,20 +393,20 @@ export class MnArtifactView extends SkinAware(LitElement) {
     }
     if (kind === 'html') {
       return html`<div class="state"><mn-empty-state
-        icon="file-text" title="HTML preview unavailable"
-        description="No committed HTML source is available."
+        icon="file-text" title=${t('HTML preview unavailable')}
+        description=${t('No committed HTML source is available.')}
       ></mn-empty-state></div>`
     }
     if (kind === 'image' && trimmed(this.previewUrl)) {
-      return html`<div class="preview-frame"><img src=${this.previewUrl} alt=${this.title || 'Artifact preview'} /></div>`
+      return html`<div class="preview-frame"><img src=${this.previewUrl} alt=${this.title || t('Artifact preview')} /></div>`
     }
     if (kind === 'image') {
       return html`
         <div class="state">
           <mn-empty-state
             icon="image-plus"
-            title="No image preview"
-            description="The image artifact is selected, but no preview URL is available."
+            title=${t('No image preview')}
+            description=${t('The image artifact is selected, but no preview URL is available.')}
           ></mn-empty-state>
         </div>
       `
@@ -413,7 +416,7 @@ export class MnArtifactView extends SkinAware(LitElement) {
         <mn-empty-state
           icon=${kindIcon(kind)}
           title=${`No inline preview for ${label.toLowerCase()}`}
-          description="The artifact is selected and ready for shell-owned actions."
+          description=${t('The artifact is selected and ready for shell-owned actions.')}
         ></mn-empty-state>
       </div>
     `
@@ -454,14 +457,14 @@ export class MnArtifactView extends SkinAware(LitElement) {
             </span>
           </span>
           <span class="actions">
-            <button type="button" class="icon-button" title="Refresh artifact" aria-label="Refresh artifact" @click=${this._refresh}>
+            <button type="button" class="icon-button" title=${t('Refresh artifact')} aria-label=${t('Refresh artifact')} @click=${this._refresh}>
               ${icon('refresh', { size: 16 })}
             </button>
             <button
               type="button"
               class="icon-button"
-              title="Edit artifact"
-              aria-label="Edit artifact"
+              title=${t('Edit artifact')}
+              aria-label=${t('Edit artifact')}
               ?disabled=${!canEdit}
               @click=${this._openEditor}
             >
@@ -470,8 +473,8 @@ export class MnArtifactView extends SkinAware(LitElement) {
             <button
               type="button"
               class="icon-button"
-              title="Open artifact history"
-              aria-label="Open artifact history"
+              title=${t('Open artifact history')}
+              aria-label=${t('Open artifact history')}
               ?disabled=${!canOpenHistory}
               @click=${this._openHistory}
             >
@@ -480,8 +483,8 @@ export class MnArtifactView extends SkinAware(LitElement) {
             <button
               type="button"
               class="icon-button"
-              title="Download artifact"
-              aria-label="Download artifact"
+              title=${t('Download artifact')}
+              aria-label=${t('Download artifact')}
               ?disabled=${!canDownload}
               @click=${this._download}
             >
@@ -492,8 +495,8 @@ export class MnArtifactView extends SkinAware(LitElement) {
                   <button
                     type="button"
                     class="icon-button"
-                    title="Open ingested document"
-                    aria-label="Open ingested document"
+                    title=${t('Open ingested document')}
+                    aria-label=${t('Open ingested document')}
                     @click=${this._openDocument}
                   >
                     ${icon('file-text', { size: 16 })}

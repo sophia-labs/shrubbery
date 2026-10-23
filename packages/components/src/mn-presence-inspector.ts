@@ -34,6 +34,7 @@
  * "no longer present" empty state instead of a blank pane.
  */
 
+import { LocaleController, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 import './mn-empty-state.js'
@@ -53,6 +54,8 @@ export type {
 
 @customElement('mn-presence-inspector')
 export class MnPresenceInspector extends LitElement {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     :host {
       position: absolute;
@@ -335,8 +338,8 @@ export class MnPresenceInspector extends LitElement {
     const person = this.person
     if (!person) {
       return html`<mn-empty-state
-        title="No longer present"
-        description="This person's live session ended."
+        title=${t('No longer present')}
+        description=${t('This person\'s live session ended.')}
       ></mn-empty-state>`
     }
     const sessions = this._presenceSessions(person)
@@ -364,33 +367,33 @@ export class MnPresenceInspector extends LitElement {
           <strong>${person.name}</strong>
           <span class="presence-badges">
             <span class="presence-badge" data-presence-actor-type>${actorType}</span>
-            ${person.isSelf ? html`<span class="presence-badge">You</span>` : nothing}
+            ${person.isSelf ? html`<span class="presence-badge">${t('You')}</span>` : nothing}
           </span>
         </span>
         ${this.showClose
           ? html`<button
               type="button"
               class="presence-inspector-close"
-              aria-label="Close presence details"
+              aria-label=${t('Close presence details')}
               @click=${() => this._emit('mn-presence-close')}
             >×</button>`
           : nothing}
       </header>
       <p class="presence-explanation">${this._presenceExplanation(person)}</p>
-      ${sessions.length > 0 ? html`<ul class="presence-sessions" aria-label="Live sessions">
+      ${sessions.length > 0 ? html`<ul class="presence-sessions" aria-label=${t('Live sessions')}>
         ${sessions.map((session, index) => {
           const following = this.followedPresenceClientId === session.clientId
           return html`<li class="presence-session" data-presence-client-id=${session.clientId}>
             <span class="presence-session-copy">
               <strong>${this._sessionLabel(person, session, index)}</strong>
-              <span>${session.hasCursor ? 'Cursor active' : 'No cursor published yet'}</span>
+              <span>${session.hasCursor ? t('Cursor active') : t('No cursor published yet')}</span>
             </span>
             ${person.isSelf ? nothing : html`<button
               type="button"
               class="presence-follow"
               aria-pressed=${following ? 'true' : 'false'}
               ?disabled=${!session.hasCursor}
-              title=${session.hasCursor ? `${following ? 'Stop following' : 'Follow'} this exact tab cursor` : 'This tab has not published a cursor'}
+              title=${session.hasCursor ? `${following ? 'Stop following' : 'Follow'} this exact tab cursor` : t('This tab has not published a cursor')}
               @click=${() => this._emit('mn-presence-follow', {
                 person,
                 session,
@@ -401,7 +404,7 @@ export class MnPresenceInspector extends LitElement {
         })}
       </ul>` : nothing}
       ${profileEditable ? html`<div class="presence-profile" data-presence-self-controls>
-        <label>Display name
+        <label>${t('Display name')}
           <input
             data-presence-name
             maxlength="80"
@@ -411,8 +414,8 @@ export class MnPresenceInspector extends LitElement {
           >
         </label>
         ${this.presenceColors.length > 0 ? html`<div>
-          <span class="presence-badge">Cursor color</span>
-          <div class="presence-palette" role="group" aria-label="Cursor color">
+          <span class="presence-badge">${t('Cursor color')}</span>
+          <div class="presence-palette" role="group" aria-label=${t('Cursor color')}>
             ${this.presenceColors.map(color => html`<button
               type="button"
               class="presence-swatch"
@@ -427,7 +430,7 @@ export class MnPresenceInspector extends LitElement {
             ></button>`)}
           </div>
         </div>` : nothing}
-        <p class="presence-profile-note">Name and cursor color are shared through live awareness and reused by this browser. Account identity and Human/Agent type cannot be changed here.</p>
+        <p class="presence-profile-note">${t('Name and cursor color are shared through live awareness and reused by this browser. Account identity and Human/Agent type cannot be changed here.')}</p>
       </div>` : nothing}
     </section>`
   }

@@ -5,6 +5,7 @@
  * provenance-friendly metadata and emits select/open/promote intents.
  */
 
+import { LocaleController, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, unsafeCSS } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 import { repeat } from 'lit/directives/repeat.js'
@@ -51,6 +52,8 @@ function byline(source: MnResearchSource): string {
 
 @customElement('mn-research-source-card')
 export class MnResearchSourceCard extends SkinAware(LitElement) {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     ${unsafeCSS(iconStyles)}
 
@@ -225,7 +228,7 @@ export class MnResearchSourceCard extends SkinAware(LitElement) {
 
   override render() {
     const source = this.source
-    if (!source) return html`<article><mn-research-source-chip label="No source" status="queued"></mn-research-source-chip></article>`
+    if (!source) return html`<article><mn-research-source-chip label=${t('No source')} status="queued"></mn-research-source-chip></article>`
 
     const tags = source.tags ?? []
     const meta = byline(source)
@@ -250,24 +253,24 @@ export class MnResearchSourceCard extends SkinAware(LitElement) {
                 <button
                   class="primary"
                   type="button"
-                  title="Select source"
-                  aria-label="Select source"
+                  title=${t('Select source')}
+                  aria-label=${t('Select source')}
                   @click=${() => this.emit('mn-research-source-select', source)}
                 >
                   ${icon('check', { size: 14 })}
                 </button>
                 <button
                   type="button"
-                  title="Open source"
-                  aria-label="Open source"
+                  title=${t('Open source')}
+                  aria-label=${t('Open source')}
                   @click=${() => this.emit('mn-research-source-open', source)}
                 >
                   ${icon(source.url ? 'external-link' : 'corner-up-right', { size: 14 })}
                 </button>
                 <button
                   type="button"
-                  title="Promote to brief"
-                  aria-label="Promote to brief"
+                  title=${t('Promote to brief')}
+                  aria-label=${t('Promote to brief')}
                   @click=${() => this.emit('mn-research-source-promote', source)}
                 >
                   ${icon('bookmark', { size: 14 })}

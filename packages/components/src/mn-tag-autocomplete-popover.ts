@@ -5,6 +5,7 @@
  * no lookup, insertion, editor range, or scheduling logic.
  */
 
+import { LocaleController, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 import { classMap } from 'lit/directives/class-map.js'
@@ -37,6 +38,8 @@ function normalizeName(value: unknown): string {
 
 @customElement('mn-tag-autocomplete-popover')
 export class MnTagAutocompletePopover extends SkinAware(LitElement) {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     :host {
       display: block;
@@ -163,7 +166,7 @@ export class MnTagAutocompletePopover extends SkinAware(LitElement) {
 
   override render() {
     if (this.items.length === 0) {
-      return html`<div class="empty">No matching tags</div>`
+      return html`<div class="empty">${t('No matching tags')}</div>`
     }
     return html`
       <div class="items" role="listbox">

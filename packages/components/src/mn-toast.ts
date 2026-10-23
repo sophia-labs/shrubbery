@@ -5,6 +5,7 @@
  * `mn-action`, `mn-show`, and `mn-dismiss` intents.
  */
 
+import { LocaleController, localizeLabel, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, unsafeCSS } from 'lit'
 import { customElement, property, state } from 'lit/decorators.js'
 import { classMap } from 'lit/directives/class-map.js'
@@ -22,6 +23,8 @@ export type MnToastPosition =
 
 @customElement('mn-toast')
 export class MnToast extends SkinAware(LitElement) {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     ${unsafeCSS(iconStyles)}
 
@@ -324,17 +327,17 @@ export class MnToast extends SkinAware(LitElement) {
         <span class="toast-icon" aria-hidden="true">${icon(this.iconName(), { size: 18 })}</span>
 
         <div class="content">
-          <p class="message">${this.message}</p>
-          ${this.description ? html`<p class="description">${this.description}</p>` : nothing}
+          <p class="message">${localizeLabel(this.message)}</p>
+          ${this.description ? html`<p class="description">${localizeLabel(this.description)}</p>` : nothing}
         </div>
 
         <div class="actions">
           ${this.actionText
-            ? html`<button class="action-button" type="button" @click=${this.handleAction}>${this.actionText}</button>`
+            ? html`<button class="action-button" type="button" @click=${this.handleAction}>${localizeLabel(this.actionText)}</button>`
             : nothing}
           ${this.closable
             ? html`
-                <button class="close-button" type="button" aria-label="Close" @click=${this.handleClose}>
+                <button class="close-button" type="button" aria-label=${t('Close')} @click=${this.handleClose}>
                   ${icon('x', { size: 16 })}
                 </button>
               `

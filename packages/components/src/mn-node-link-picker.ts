@@ -5,6 +5,7 @@
  * lookup in the shell: callers pass candidates and receive pick/close intents.
  */
 
+import { LocaleController, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, unsafeCSS, type PropertyValues, type TemplateResult } from 'lit'
 import { customElement, property, query } from 'lit/decorators.js'
 import { SkinAware } from './skin-aware.js'
@@ -39,6 +40,8 @@ function normalize(value: string): string {
 
 @customElement('mn-node-link-picker')
 export class MnNodeLinkPicker extends SkinAware(LitElement) {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     ${unsafeCSS(iconStyles)}
 
@@ -327,7 +330,7 @@ export class MnNodeLinkPicker extends SkinAware(LitElement) {
           if (event.target === event.currentTarget) this.close()
         }}
       >
-        <section class="panel" role="dialog" aria-label="Link to a document or artifact" @keydown=${this.handleKeydown}>
+        <section class="panel" role="dialog" aria-label=${t('Link to a document or artifact')} @keydown=${this.handleKeydown}>
           <header class="head">
             <span class="head-icon" aria-hidden="true">${icon('search', { size: 16 })}</span>
             <input
@@ -337,19 +340,19 @@ export class MnNodeLinkPicker extends SkinAware(LitElement) {
               writingsuggestions="false"
               data-node-link-search
               type="text"
-              placeholder="Link to a document or artifact..."
+              placeholder=${t('Link to a document or artifact...')}
               .value=${this.query}
               @input=${(event: Event) => {
                 this.query = (event.target as HTMLInputElement).value
               }}
             />
-            <button type="button" class="close" data-node-link-close title="Cancel" @click=${() => this.close()}>
+            <button type="button" class="close" data-node-link-close title=${t('Cancel')} @click=${() => this.close()}>
               ${icon('x', { size: 16 })}
             </button>
           </header>
           <div class="list" role="listbox">
             ${items.length === 0
-              ? html`<div class="empty">No matching nodes</div>`
+              ? html`<div class="empty">${t('No matching nodes')}</div>`
               : items.map((candidate, index) => this.renderRow(candidate, index))}
           </div>
         </section>

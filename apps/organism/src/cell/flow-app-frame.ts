@@ -1,3 +1,4 @@
+import { LocaleController, t } from '@shrubbery/nucleus'
 import { LitElement, css, html } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 
@@ -12,6 +13,8 @@ import { customElement, property } from 'lit/decorators.js'
  */
 @customElement('sh-flow-app-frame')
 export class ShFlowAppFrame extends LitElement {
+  protected readonly _locale = new LocaleController(this)
+
   static override styles = css`
     :host { display: block; width: 100%; height: 100%; min-height: 0; }
     iframe { display: block; width: 100%; height: 100%; border: 0; background: var(--mn-color-bg, #fff); }
@@ -33,7 +36,7 @@ export class ShFlowAppFrame extends LitElement {
 
   override render() {
     const src = this.frameSrc
-    if (!src) return html`<p class="empty">Open a workspace to see its Flow board.</p>`
+    if (!src) return html`<p class="empty">${t('Open a workspace to see its Flow board.')}</p>`
     return html`<iframe title="Mithras Flow" src=${src} data-flow-graph=${this.graphId}></iframe>`
   }
 }

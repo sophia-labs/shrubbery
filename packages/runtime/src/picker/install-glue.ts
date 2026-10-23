@@ -39,6 +39,7 @@
  * *.ts file (island guard).
  */
 
+import { t } from '@shrubbery/nucleus'
 import { html, render, nothing } from 'lit'
 import {
   DEFAULT_WIRE_PREDICATE_URI,
@@ -1711,7 +1712,7 @@ class SlashCommandDropdown {
         class="slash-command-popup"
         data-slash-command-menu
         role="listbox"
-        aria-label="Slash commands"
+        aria-label=${t('Slash commands')}
         data-query=${this.query}
       >
         ${this.items.map((item, index) => html`

@@ -8,6 +8,7 @@
  * close.
  */
 
+import { LocaleController, localizeLabel, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, unsafeCSS, type PropertyValues, type TemplateResult } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 import { SkinAware } from './skin-aware.js'
@@ -159,107 +160,107 @@ export interface MnSettingsJobActionDetail {
 
 const DEFAULT_NAV: readonly MnSettingsNavGroup[] = [
   {
-    label: 'Personal',
+    get label() { return t('Personal') },
     items: [
-      { id: 'account', label: 'Account', icon: 'user' },
-      { id: 'appearance', label: 'Appearance', icon: 'eye' },
-      { id: 'interface', label: 'Interface', icon: 'panel-left' },
+      { id: 'account', get label() { return t('Account') }, icon: 'user' },
+      { id: 'appearance', get label() { return t('Appearance') }, icon: 'eye' },
+      { id: 'interface', get label() { return t('Interface') }, icon: 'panel-left' },
     ],
   },
   {
-    label: 'Plan',
+    get label() { return t('Plan') },
     items: [
-      { id: 'billing', label: 'Billing', icon: 'wallet' },
-      { id: 'usage', label: 'Usage', icon: 'gauge' },
+      { id: 'billing', get label() { return t('Billing') }, icon: 'wallet' },
+      { id: 'usage', get label() { return t('Usage') }, icon: 'gauge' },
     ],
   },
   {
-    label: 'Workspace',
+    get label() { return t('Workspace') },
     items: [
-      { id: 'history', label: 'Version History', icon: 'history' },
-      { id: 'graph-ops', label: 'Graph Ops', icon: 'graph' },
-      { id: 'imports', label: 'Imports', icon: 'upload' },
+      { id: 'history', get label() { return t('Version History') }, icon: 'history' },
+      { id: 'graph-ops', get label() { return t('Graph Ops') }, icon: 'graph' },
+      { id: 'imports', get label() { return t('Imports') }, icon: 'upload' },
     ],
   },
   {
-    label: 'Integrations',
+    get label() { return t('Integrations') },
     items: [
-      { id: 'api-keys', label: 'AI Provider Keys', icon: 'hash' },
-      { id: 'api-mcp', label: 'API & MCP', icon: 'link' },
-      { id: 'local-ai', label: 'Local AI', icon: 'bot' },
+      { id: 'api-keys', get label() { return t('AI Provider Keys') }, icon: 'hash' },
+      { id: 'api-mcp', get label() { return t('API & MCP') }, icon: 'link' },
+      { id: 'local-ai', get label() { return t('Local AI') }, icon: 'bot' },
     ],
   },
   {
-    label: 'Agents',
+    get label() { return t('Agents') },
     items: [
       { id: 'phanes', label: 'Phanes', icon: 'bot' },
     ],
   },
   {
-    label: 'Advanced',
+    get label() { return t('Advanced') },
     items: [
-      { id: 'experimental', label: 'Experimental', icon: 'package' },
-      { id: 'privacy', label: 'Privacy', icon: 'settings' },
+      { id: 'experimental', get label() { return t('Experimental') }, icon: 'package' },
+      { id: 'privacy', get label() { return t('Privacy') }, icon: 'settings' },
     ],
   },
 ]
 
 const SECTION_COPY: Record<string, { readonly title: string; readonly description: string }> = {
   account: {
-    title: 'Account',
-    description: 'Profile, authentication, and account state.',
+    get title() { return t('Account') },
+    get description() { return t('Profile, authentication, and account state.') },
   },
   appearance: {
-    title: 'Appearance',
-    description: 'Skin, theme, and reading posture preferences.',
+    get title() { return t('Appearance') },
+    get description() { return t('Skin, theme, and reading posture preferences.') },
   },
   interface: {
-    title: 'Interface',
-    description: 'Native window and local chrome behavior.',
+    get title() { return t('Interface') },
+    get description() { return t('Native window and local chrome behavior.') },
   },
   billing: {
-    title: 'Billing',
-    description: 'Plan, subscription, and credit controls.',
+    get title() { return t('Billing') },
+    get description() { return t('Plan, subscription, and credit controls.') },
   },
   usage: {
-    title: 'Usage',
-    description: 'Token, storage, and activity summaries.',
+    get title() { return t('Usage') },
+    get description() { return t('Token, storage, and activity summaries.') },
   },
   history: {
-    title: 'History',
-    description: 'Restore points, snapshots, and time travel controls.',
+    get title() { return t('History') },
+    get description() { return t('Restore points, snapshots, and time travel controls.') },
   },
   'graph-ops': {
-    title: 'Graph Ops',
-    description: 'Duplicate, export, import, and maintenance jobs.',
+    get title() { return t('Graph Ops') },
+    get description() { return t('Duplicate, export, import, and maintenance jobs.') },
   },
   imports: {
-    title: 'Imports',
-    description: 'Obsidian, Notion, Roam, and media import workflows.',
+    get title() { return t('Imports') },
+    get description() { return t('Obsidian, Notion, Roam, and media import workflows.') },
   },
   'api-keys': {
-    title: 'AI Provider Keys',
-    description: 'Provider keys and hosted gateway credentials.',
+    get title() { return t('AI Provider Keys') },
+    get description() { return t('Provider keys and hosted gateway credentials.') },
   },
   'api-mcp': {
-    title: 'API & MCP',
-    description: 'Loopback API, MCP clients, and local access tokens.',
+    get title() { return t('API & MCP') },
+    get description() { return t('Loopback API, MCP clients, and local access tokens.') },
   },
   'local-ai': {
-    title: 'Local AI',
-    description: 'Semantic model, embedding index, Docling, and PDF pipeline runtime.',
+    get title() { return t('Local AI') },
+    get description() { return t('Semantic model, embedding index, Docling, and PDF pipeline runtime.') },
   },
   experimental: {
-    title: 'Experimental',
-    description: 'Opt-in features and beta settings.',
+    get title() { return t('Experimental') },
+    get description() { return t('Opt-in features and beta settings.') },
   },
   privacy: {
-    title: 'Privacy',
-    description: 'Local data, retention, and telemetry controls.',
+    get title() { return t('Privacy') },
+    get description() { return t('Local data, retention, and telemetry controls.') },
   },
   phanes: {
     title: 'Phanes',
-    description: 'Agent presentation, top-level flows, and Discord ingestion policy.',
+    get description() { return t('Agent presentation, top-level flows, and Discord ingestion policy.') },
   },
 }
 
@@ -286,16 +287,16 @@ function jobTone(status: string): MnSettingsTone {
 
 function jobStatusLabel(status: string): string {
   switch (status.trim().toLowerCase()) {
-    case 'queued': return 'Queued'
-    case 'running': return 'In progress'
-    case 'succeeded': return 'Complete'
-    case 'failed': return 'Failed'
+    case 'queued': return t('Queued')
+    case 'running': return t('In progress')
+    case 'succeeded': return t('Complete')
+    case 'failed': return t('Failed')
     case 'cancelled':
-    case 'canceled': return 'Cancelled'
-    case 'interrupted': return 'Interrupted'
-    case 'ready': return 'Ready'
-    case 'idle': return 'Idle'
-    default: return status || 'Unknown'
+    case 'canceled': return t('Cancelled')
+    case 'interrupted': return t('Interrupted')
+    case 'ready': return t('Ready')
+    case 'idle': return t('Idle')
+    default: return status || t('Unknown')
   }
 }
 
@@ -308,6 +309,8 @@ function noteTone(note: string): 'neutral' | 'warning' | 'danger' {
 
 @customElement('mn-settings-page')
 export class MnSettingsPage extends SkinAware(LitElement) {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     ${unsafeCSS(iconStyles)}
 
@@ -2188,10 +2191,10 @@ export class MnSettingsPage extends SkinAware(LitElement) {
     const groups = this._availableNavGroups()
     return html`
       <aside class="sidebar">
-        <nav class="nav" aria-label="Settings navigation">
+        <nav class="nav" aria-label=${t('Settings navigation')}>
           ${groups.map((group) => html`
               <section class="nav-group">
-                <p class="nav-label">${group.label}</p>
+                <p class="nav-label">${localizeLabel(group.label)}</p>
                 ${group.items.map((item) => html`
                   <button
                     type="button"
@@ -2203,7 +2206,7 @@ export class MnSettingsPage extends SkinAware(LitElement) {
                     @click=${() => this._changeSection(item.id)}
                   >
                     ${icon(item.icon || 'settings', { size: 15 })}
-                    <span>${item.label}</span>
+                    <span>${localizeLabel(item.label)}</span>
                     ${trimmed(item.badge) ? html`<span class="nav-badge">${item.badge}</span>` : nothing}
                   </button>
                 `)}
@@ -2213,7 +2216,7 @@ export class MnSettingsPage extends SkinAware(LitElement) {
         ${this.showClose ? html`<footer class="sidebar-footer">
           <button type="button" class="back-button" @click=${() => this._close()}>
             ${icon('chevron-left', { size: 16 })}
-            <span>Back to workspace</span>
+            <span>${t('Back to workspace')}</span>
           </button>
         </footer>` : nothing}
       </aside>
@@ -2226,7 +2229,7 @@ export class MnSettingsPage extends SkinAware(LitElement) {
       <div class="metric-grid">
         ${metrics.map((metric) => html`
           <div class="metric" data-metric-id=${metric.id} data-tone=${metric.tone ?? 'neutral'}>
-            <div class="metric-label">${metric.label}</div>
+            <div class="metric-label">${localizeLabel(metric.label)}</div>
             <div class="metric-value">${metric.value}</div>
             ${trimmed(metric.detail) ? html`<div class="metric-detail">${metric.detail}</div>` : nothing}
           </div>
@@ -2238,8 +2241,8 @@ export class MnSettingsPage extends SkinAware(LitElement) {
   private _renderPanelHeading(title: string, caption = ''): TemplateResult {
     return html`
       <header class="panel-heading">
-        <h3 class="panel-title">${title}</h3>
-        ${trimmed(caption) ? html`<p class="panel-caption">${caption}</p>` : nothing}
+        <h3 class="panel-title">${localizeLabel(title)}</h3>
+        ${trimmed(caption) ? html`<p class="panel-caption">${localizeLabel(caption)}</p>` : nothing}
       </header>
     `
   }
@@ -2251,18 +2254,18 @@ export class MnSettingsPage extends SkinAware(LitElement) {
   ): TemplateResult | typeof nothing {
     if (!toggles.length) return nothing
     return html`
-      <section class="panel" aria-label="Toggle settings">
+      <section class="panel" aria-label=${t('Toggle settings')}>
         ${this._renderPanelHeading(title, caption)}
         ${toggles.map((setting) => html`
           <div class="row" data-setting-id=${setting.id}>
             <div class="row-main">
-              <div class="row-title">${setting.label}</div>
-              ${trimmed(setting.description) ? html`<div class="row-description">${setting.description}</div>` : nothing}
+              <div class="row-title">${localizeLabel(setting.label)}</div>
+              ${trimmed(setting.description) ? html`<div class="row-description">${localizeLabel(setting.description)}</div>` : nothing}
             </div>
             <button
               type="button"
               class="toggle"
-              aria-label=${setting.label}
+              aria-label=${localizeLabel(setting.label)}
               aria-pressed=${setting.checked ? 'true' : 'false'}
               ?disabled=${setting.disabled}
               @click=${() => this._toggle(setting)}
@@ -2280,22 +2283,22 @@ export class MnSettingsPage extends SkinAware(LitElement) {
   ): TemplateResult | typeof nothing {
     if (!selects.length) return nothing
     return html`
-      <section class="panel" aria-label="Option settings">
+      <section class="panel" aria-label=${t('Option settings')}>
         ${this._renderPanelHeading(title, caption)}
         ${selects.map((setting) => html`
           <div class="row" data-setting-id=${setting.id}>
             <div class="row-main">
-              <div class="row-title">${setting.label}</div>
-              ${trimmed(setting.description) ? html`<div class="row-description">${setting.description}</div>` : nothing}
+              <div class="row-title">${localizeLabel(setting.label)}</div>
+              ${trimmed(setting.description) ? html`<div class="row-description">${localizeLabel(setting.description)}</div>` : nothing}
             </div>
             <select
-              aria-label=${setting.label}
+              aria-label=${localizeLabel(setting.label)}
               .value=${setting.value}
               ?disabled=${setting.disabled}
               @change=${(event: Event) => this._select(setting, (event.target as HTMLSelectElement).value)}
             >
               ${setting.options.map((option) => html`
-                <option value=${option.value} ?selected=${option.value === setting.value}>${option.label}</option>
+                <option value=${option.value} ?selected=${option.value === setting.value}>${localizeLabel(option.label)}</option>
               `)}
             </select>
           </div>
@@ -2311,24 +2314,24 @@ export class MnSettingsPage extends SkinAware(LitElement) {
   ): TemplateResult | typeof nothing {
     if (!secrets.length) return nothing
     return html`
-      <section class="panel" aria-label="Secrets">
+      <section class="panel" aria-label=${t('Secrets')}>
         ${this._renderPanelHeading(title, caption)}
         ${secrets.map((secret) => html`
           <div class="row" data-secret-id=${secret.id}>
             <div class="row-main">
-              <div class="row-title">${secret.label}</div>
-              ${trimmed(secret.description) ? html`<div class="row-description">${secret.description}</div>` : nothing}
+              <div class="row-title">${localizeLabel(secret.label)}</div>
+              ${trimmed(secret.description) ? html`<div class="row-description">${localizeLabel(secret.description)}</div>` : nothing}
             </div>
             <div class="row-actions">
               <span class="secret-state" data-tone=${secret.configured ? 'success' : 'neutral'}>
                 ${icon(secret.configured ? 'check' : 'circle', { size: 12 })}
-                ${secret.configured ? 'Configured' : 'Not configured'}
+                ${secret.configured ? 'Configured' : t('Not configured')}
               </span>
               <button type="button" class="button" ?disabled=${secret.disabled} @click=${() => this._secret(secret, 'configure')}>
-                ${secret.configured ? 'Replace' : 'Configure'}
+                ${secret.configured ? t('Replace') : 'Configure'}
               </button>
               ${secret.configured
-                ? html`<button type="button" class="button" data-variant="danger" ?disabled=${secret.disabled} @click=${() => this._secret(secret, 'delete')}>Delete</button>`
+                ? html`<button type="button" class="button" data-variant="danger" ?disabled=${secret.disabled} @click=${() => this._secret(secret, 'delete')}>${t('Delete')}</button>`
                 : nothing}
             </div>
           </div>
@@ -2344,7 +2347,7 @@ export class MnSettingsPage extends SkinAware(LitElement) {
   ): TemplateResult | typeof nothing {
     if (!jobs.length) return nothing
     return html`
-      <section class="panel" aria-label="Runtime jobs">
+      <section class="panel" aria-label=${t('Runtime jobs')}>
         ${this._renderPanelHeading(title, caption)}
         ${jobs.map((job) => {
           const progress = clampPercent(job.progress)
@@ -2352,7 +2355,7 @@ export class MnSettingsPage extends SkinAware(LitElement) {
           return html`
             <div class="row" data-job-id=${job.id} data-status=${job.status}>
               <div class="row-main">
-                <div class="row-title">${job.label}</div>
+                <div class="row-title">${localizeLabel(job.label)}</div>
                 ${trimmed(job.detail) ? html`<div class="row-description">${job.detail}</div>` : nothing}
               </div>
               <div class="row-actions">
@@ -2361,7 +2364,7 @@ export class MnSettingsPage extends SkinAware(LitElement) {
                   : html`<span
                       class="progress"
                       role="progressbar"
-                      aria-label=${`${job.label} progress`}
+                      aria-label=${`${localizeLabel(job.label)} progress`}
                       aria-valuemin="0"
                       aria-valuemax="100"
                       aria-valuenow=${progress}
@@ -2388,13 +2391,13 @@ export class MnSettingsPage extends SkinAware(LitElement) {
   ): TemplateResult | typeof nothing {
     if (!actions.length) return nothing
     return html`
-      <section class="panel" aria-label="Actions">
+      <section class="panel" aria-label=${t('Actions')}>
         ${this._renderPanelHeading(title, caption)}
         ${actions.map((action) => html`
           <div class="row" data-action-id=${action.id}>
             <div class="row-main">
-              <div class="row-title">${action.label}</div>
-              ${trimmed(action.description) ? html`<div class="row-description">${action.description}</div>` : nothing}
+              <div class="row-title">${localizeLabel(action.label)}</div>
+              ${trimmed(action.description) ? html`<div class="row-description">${localizeLabel(action.description)}</div>` : nothing}
             </div>
             <button
               type="button"
@@ -2404,7 +2407,7 @@ export class MnSettingsPage extends SkinAware(LitElement) {
               @click=${() => this._action(action)}
             >
               ${icon(action.icon || 'settings', { size: 13 })}
-              ${action.label}
+              ${localizeLabel(action.label)}
             </button>
           </div>
         `)}
@@ -2414,7 +2417,7 @@ export class MnSettingsPage extends SkinAware(LitElement) {
 
   private _renderNotes(notes: readonly string[] = []): TemplateResult | typeof nothing {
     if (!notes.length) return nothing
-    return html`<div class="notes">${notes.map((note) => html`<div class="note" data-tone=${noteTone(note)}>${note}</div>`)}</div>`
+    return html`<div class="notes">${notes.map((note) => html`<div class="note" data-tone=${noteTone(note)}>${localizeLabel(note)}</div>`)}</div>`
   }
 
   /** The nav glyph for a section, reused as its heading mark. */
@@ -2423,9 +2426,9 @@ export class MnSettingsPage extends SkinAware(LitElement) {
   }
 
   private _sectionTitle(section: MnSettingsSection): string {
-    if (section.id === 'api-keys') return 'AI Provider Keys'
-    if (section.id === 'history' && section.title === 'History') return 'Version History'
-    return section.title
+    if (section.id === 'api-keys') return t('AI Provider Keys')
+    if (section.id === 'history' && section.title === 'History') return t('Version History')
+    return localizeLabel(section.title)
   }
 
   private _sectionGroupLabel(sectionId: MnSettingsSectionId): string {
@@ -2440,11 +2443,11 @@ export class MnSettingsPage extends SkinAware(LitElement) {
     description: string,
   ): TemplateResult {
     return html`
-      <section class="capability-state" data-empty-state=${id} aria-label=${title}>
+      <section class="capability-state" data-empty-state=${id} aria-label=${localizeLabel(title)}>
         <div>
           <span class="capability-state-icon">${icon(stateIcon, { size: 17 })}</span>
-          <h3 class="capability-state-title">${title}</h3>
-          <p class="capability-state-copy">${description}</p>
+          <h3 class="capability-state-title">${localizeLabel(title)}</h3>
+          <p class="capability-state-copy">${localizeLabel(description)}</p>
         </div>
       </section>
     `
@@ -2462,7 +2465,7 @@ export class MnSettingsPage extends SkinAware(LitElement) {
             <span class="section-mark" aria-hidden="true">${icon(this._sectionIcon(section.id), { size: 20 })}</span>
             <p class="section-kicker">${this._sectionGroupLabel(section.id)}</p>
             <h2 class="section-title" id="settings-section-title">${this._sectionTitle(section)}</h2>
-            ${trimmed(section.description) ? html`<p class="section-description">${section.description}</p>` : nothing}
+            ${trimmed(section.description) ? html`<p class="section-description">${localizeLabel(section.description)}</p>` : nothing}
           </div>
           ${headerAction}
         </header>
@@ -2481,7 +2484,7 @@ export class MnSettingsPage extends SkinAware(LitElement) {
           : html`<span
               class="progress"
               role="progressbar"
-              aria-label=${`${job.label} progress`}
+              aria-label=${`${localizeLabel(job.label)} progress`}
               aria-valuemin="0"
               aria-valuemax="100"
               aria-valuenow=${progress}
@@ -2502,7 +2505,7 @@ export class MnSettingsPage extends SkinAware(LitElement) {
     return jobs.map((job) => html`
       <div class="inline-job" data-job-id=${job.id} data-status=${job.status}>
         <div class="row-main">
-          <div class="row-title">${job.label}</div>
+          <div class="row-title">${localizeLabel(job.label)}</div>
           ${trimmed(job.detail) ? html`<div class="row-description">${job.detail}</div>` : nothing}
         </div>
         ${this._renderJobControls(job)}
@@ -2520,7 +2523,7 @@ export class MnSettingsPage extends SkinAware(LitElement) {
         @click=${() => this._action(action)}
       >
         ${trimmed(action.icon) ? icon(action.icon!, { size: 13 }) : nothing}
-        ${action.label}
+        ${localizeLabel(action.label)}
       </button>
     `
   }
@@ -2533,39 +2536,39 @@ export class MnSettingsPage extends SkinAware(LitElement) {
     const displayName = trimmed(this.userName) || (hasEmail ? this.userEmail : 'Local Garden profile')
     const initial = displayName.slice(0, 1) || 'G'
     return this._renderSectionFrame(section, [
-      html`<section class="identity-card" aria-label="Account identity">
+      html`<section class="identity-card" aria-label=${t('Account identity')}>
         <header class="identity-heading">
           <span class="identity-mark" aria-hidden="true">${initial}</span>
           <div>
             <div class="row-title">${displayName}</div>
-            <div class="identity-kind">${hosted ? 'Hosted account' : 'On-device identity'}</div>
+            <div class="identity-kind">${hosted ? t('Hosted account') : t('On-device identity')}</div>
           </div>
         </header>
         <div class="identity-row">
-          <div class="field-label">${hosted ? 'Display name' : 'Local profile'}</div>
+          <div class="field-label">${hosted ? t('Display name') : t('Local profile')}</div>
           <div class="identity-value" data-identity="name">${displayName}</div>
         </div>
         ${hosted && trimmed(this.userUsername) ? html`
           <div class="identity-row">
-            <div class="field-label">Username</div>
+            <div class="field-label">${t('Username')}</div>
             <div class="identity-value" data-identity="username">${this.userUsername}</div>
           </div>
         ` : nothing}
         ${hasEmail ? html`
           <div class="identity-row">
-            <div class="field-label">Email</div>
+            <div class="field-label">${t('Email')}</div>
             <div class="identity-value" data-identity="email">${this.userEmail}</div>
           </div>
         ` : nothing}
         ${hosted && hasEmail && this.emailVerified !== null ? html`
           <div class="identity-row">
-            <div class="field-label">Email status</div>
-            <div class="identity-value">${this.emailVerified ? 'Verified' : 'Not verified'}</div>
+            <div class="field-label">${t('Email status')}</div>
+            <div class="identity-value">${this.emailVerified ? t('Verified') : t('Not verified')}</div>
           </div>
         ` : nothing}
         ${hosted && trimmed(this.userId) ? html`
           <div class="identity-row">
-            <div class="field-label">Account ID</div>
+            <div class="field-label">${t('Account ID')}</div>
             <div class="identity-value" data-identity="id" style="user-select:all;overflow-wrap:anywhere">${this.userId}</div>
           </div>
         ` : nothing}
@@ -2591,14 +2594,14 @@ export class MnSettingsPage extends SkinAware(LitElement) {
     const actions = section.actions ?? []
     return this._renderSectionFrame(section, [
       this._renderInlineJobs(section.jobs),
-      actions.length ? html`<div class="card-grid import-grid" aria-label="Supported importers">
+      actions.length ? html`<div class="card-grid import-grid" aria-label=${t('Supported importers')}>
         ${actions.map((action) => {
           const meta = this._importCardMeta(action.id)
           return html`
             <article class="feature-card importer-card" data-action-id=${action.id} data-muted=${action.disabled ? 'true' : 'false'}>
               <div class="card-eyebrow">${meta.eyebrow}</div>
-              <h3 class="card-heading"><span class="card-icon">${icon(meta.icon, { size: 18 })}</span>${action.label}</h3>
-              <p class="card-copy">${trimmed(action.description) || 'Choose an export and bring its documents into the active graph.'}</p>
+              <h3 class="card-heading"><span class="card-icon">${icon(meta.icon, { size: 18 })}</span>${localizeLabel(action.label)}</h3>
+              <p class="card-copy">${trimmed(action.description) || t('Choose an export and bring its documents into the active graph.')}</p>
               <div class="card-footer">${this._renderActionButton(action)}</div>
             </article>
           `
@@ -2627,20 +2630,20 @@ export class MnSettingsPage extends SkinAware(LitElement) {
   private _renderGraphOps(section: MnSettingsSection): TemplateResult {
     const actions = section.actions ?? []
     return this._renderSectionFrame(section, [
-      html`<section class="context-card" aria-label="Graph context">
-        <div class="card-eyebrow">Current graph</div>
-        <h3 class="card-heading"><span class="card-icon">${icon('database', { size: 18 })}</span>Graph context</h3>
-        ${trimmed(section.description) ? html`<p class="card-copy">${section.description}</p>` : nothing}
+      html`<section class="context-card" aria-label=${t('Graph context')}>
+        <div class="card-eyebrow">${t('Current graph')}</div>
+        <h3 class="card-heading"><span class="card-icon">${icon('database', { size: 18 })}</span>${t('Graph context')}</h3>
+        ${trimmed(section.description) ? html`<p class="card-copy">${localizeLabel(section.description)}</p>` : nothing}
         ${[this._renderMetrics(section.metrics), this._renderInlineJobs(section.jobs)]}
       </section>`,
-      actions.length ? html`<div class="card-grid" data-columns="3" aria-label="Graph operations">
+      actions.length ? html`<div class="card-grid" data-columns="3" aria-label=${t('Graph operations')}>
         ${actions.map((action) => {
           const meta = this._graphActionMeta(action.id)
           return html`
             <article class="feature-card graph-operation-card" data-action-id=${action.id} data-muted=${action.disabled ? 'true' : 'false'}>
               <div class="card-eyebrow">${meta.eyebrow}</div>
-              <h3 class="card-heading"><span class="card-icon">${icon(meta.icon, { size: 18 })}</span>${action.label}</h3>
-              <p class="card-copy">${trimmed(action.description) || 'Run this operation against the active graph.'}</p>
+              <h3 class="card-heading"><span class="card-icon">${icon(meta.icon, { size: 18 })}</span>${localizeLabel(action.label)}</h3>
+              <p class="card-copy">${trimmed(action.description) || t('Run this operation against the active graph.')}</p>
               <div class="card-footer">${this._renderActionButton(action)}</div>
             </article>
           `
@@ -2672,17 +2675,17 @@ export class MnSettingsPage extends SkinAware(LitElement) {
       html`<div class="history-summary">${[this._renderMetrics(section.metrics)]}</div>`,
       this._renderInlineJobs(section.jobs),
       contextualActions.length ? html`
-        <div class="history-actions" aria-label="History actions">
+        <div class="history-actions" aria-label=${t('History actions')}>
           ${contextualActions.map((action) => html`<span data-action-id=${action.id}>${this._renderActionButton(action)}</span>`)}
         </div>
       ` : nothing,
       restoreActions.length ? html`
-        <section class="timeline" aria-label="Restore points">
+        <section class="timeline" aria-label=${t('Restore points')}>
           ${restoreActions.map((action) => html`
             <article class="timeline-row" data-action-id=${action.id}>
               <div class="row-main">
                 <div class="row-title">${action.label.replace(/^Restore\s+/, '')}</div>
-                ${trimmed(action.description) ? html`<div class="row-description">${action.description}</div>` : nothing}
+                ${trimmed(action.description) ? html`<div class="row-description">${localizeLabel(action.description)}</div>` : nothing}
               </div>
               ${this._renderActionButton(action)}
             </article>
@@ -2704,23 +2707,23 @@ export class MnSettingsPage extends SkinAware(LitElement) {
   private _renderProviderCards(secrets: readonly MnSettingsSecret[] = []): TemplateResult | typeof nothing {
     if (!secrets.length) return nothing
     return html`
-      <div class="card-grid provider-grid" aria-label="AI provider credentials">
+      <div class="card-grid provider-grid" aria-label=${t('AI provider credentials')}>
         ${secrets.map((secret) => html`
           <article class="feature-card" data-secret-id=${secret.id} data-muted=${secret.disabled ? 'true' : 'false'}>
-            <div class="card-eyebrow">AI provider</div>
-            <h3 class="card-heading">${secret.label}</h3>
-            <p class="card-copy">${trimmed(secret.description) || 'Stored locally and never reflected back into this page.'}</p>
+            <div class="card-eyebrow">${t('AI provider')}</div>
+            <h3 class="card-heading">${localizeLabel(secret.label)}</h3>
+            <p class="card-copy">${trimmed(secret.description) || t('Stored locally and never reflected back into this page.')}</p>
             <div class="card-footer">
               <span class="secret-state" data-tone=${secret.configured ? 'success' : 'neutral'}>
                 ${icon(secret.configured ? 'check' : 'circle', { size: 12 })}
-                ${secret.configured ? 'Configured' : 'Not configured'}
+                ${secret.configured ? 'Configured' : t('Not configured')}
               </span>
               <span class="row-actions">
                 <button type="button" class="button" ?disabled=${secret.disabled} @click=${() => this._secret(secret, 'configure')}>
-                  ${secret.configured ? 'Replace' : 'Configure'}
+                  ${secret.configured ? t('Replace') : 'Configure'}
                 </button>
                 ${secret.configured
-                  ? html`<button type="button" class="button" data-variant="danger" ?disabled=${secret.disabled} @click=${() => this._secret(secret, 'delete')}>Delete</button>`
+                  ? html`<button type="button" class="button" data-variant="danger" ?disabled=${secret.disabled} @click=${() => this._secret(secret, 'delete')}>${t('Delete')}</button>`
                   : nothing}
               </span>
             </div>
@@ -2759,12 +2762,12 @@ export class MnSettingsPage extends SkinAware(LitElement) {
       return action
     }
     return this._renderSectionFrame(section, [
-      section.metrics?.length ? html`<div class="endpoint-list" aria-label="API and MCP endpoints">
+      section.metrics?.length ? html`<div class="endpoint-list" aria-label=${t('API and MCP endpoints')}>
         ${(section.metrics ?? []).map((metric) => {
           const action = actionForMetric(metric)
           return html`
             <section class="endpoint-card" data-endpoint-id=${metric.id}>
-              <div class="field-label">${metric.label}</div>
+              <div class="field-label">${localizeLabel(metric.label)}</div>
               <div class="endpoint-value">
                 <code>${metric.value}</code>
                 ${action ? html`<span data-action-id=${action.id}>${this._renderActionButton(action)}</span>` : nothing}
@@ -2794,13 +2797,13 @@ export class MnSettingsPage extends SkinAware(LitElement) {
     return html`
       <section class="local-ai-group" aria-labelledby="local-ai-overview-title">
         <div class="local-ai-group-header">
-          <h3 class="local-ai-group-title" id="local-ai-overview-title">Runtime at a glance</h3>
-          <p class="local-ai-group-caption">Live cell state</p>
+          <h3 class="local-ai-group-title" id="local-ai-overview-title">${t('Runtime at a glance')}</h3>
+          <p class="local-ai-group-caption">${t('Live cell state')}</p>
         </div>
         <div class="local-ai-ledger">
           ${metrics.map(metric => html`
             <div class="local-ai-status-row" data-metric-id=${metric.id} data-tone=${metric.tone ?? 'neutral'}>
-              <div class="local-ai-status-label">${metric.label}</div>
+              <div class="local-ai-status-label">${localizeLabel(metric.label)}</div>
               <div class="local-ai-status-main">
                 <div class="local-ai-status-value">${metric.value}</div>
                 ${trimmed(metric.detail) ? html`<div class="local-ai-status-detail">${metric.detail}</div>` : nothing}
@@ -2818,25 +2821,25 @@ export class MnSettingsPage extends SkinAware(LitElement) {
     return html`
       <section class="local-ai-group" aria-labelledby="local-ai-configuration-title">
         <div class="local-ai-group-header">
-          <h3 class="local-ai-group-title" id="local-ai-configuration-title">Configuration</h3>
-          <p class="local-ai-group-caption">Saved to the local runtime</p>
+          <h3 class="local-ai-group-title" id="local-ai-configuration-title">${t('Configuration')}</h3>
+          <p class="local-ai-group-caption">${t('Saved to the local runtime')}</p>
         </div>
         <div class="local-ai-list">
         ${selects.map((setting) => html`
           <div class="local-ai-row" data-setting-id=${setting.id} data-muted=${setting.disabled ? 'true' : 'false'}>
-            <div class="local-ai-status-label">${setting.label}</div>
+            <div class="local-ai-status-label">${localizeLabel(setting.label)}</div>
             <div class="local-ai-row-main">
-              ${trimmed(setting.description) ? html`<div class="local-ai-row-copy">${setting.description}</div>` : nothing}
+              ${trimmed(setting.description) ? html`<div class="local-ai-row-copy">${localizeLabel(setting.description)}</div>` : nothing}
             </div>
             <div class="local-ai-row-control">
               <select
-                aria-label=${setting.label}
+                aria-label=${localizeLabel(setting.label)}
                 .value=${setting.value}
                 ?disabled=${setting.disabled}
                 @change=${(event: Event) => this._select(setting, (event.target as HTMLSelectElement).value)}
               >
                 ${setting.options.map((option) => html`
-                  <option value=${option.value} ?selected=${option.value === setting.value}>${option.label}</option>
+                  <option value=${option.value} ?selected=${option.value === setting.value}>${localizeLabel(option.label)}</option>
                 `)}
               </select>
             </div>
@@ -2852,15 +2855,15 @@ export class MnSettingsPage extends SkinAware(LitElement) {
     return html`
       <section class="local-ai-group" aria-labelledby="local-ai-maintenance-title">
         <div class="local-ai-group-header">
-          <h3 class="local-ai-group-title" id="local-ai-maintenance-title">Maintenance</h3>
-          <p class="local-ai-group-caption">Explicit, cancellable work</p>
+          <h3 class="local-ai-group-title" id="local-ai-maintenance-title">${t('Maintenance')}</h3>
+          <p class="local-ai-group-caption">${t('Explicit, cancellable work')}</p>
         </div>
         <div class="local-ai-list">
         ${jobs.map((job) => html`
           <div class="local-ai-row" data-job-id=${job.id} data-status=${job.status} data-muted=${job.disabled ? 'true' : 'false'}>
-            <div class="local-ai-status-label">${job.label}</div>
+            <div class="local-ai-status-label">${localizeLabel(job.label)}</div>
             <div class="local-ai-row-main">
-              <div class="local-ai-row-copy">${trimmed(job.detail) || 'Prepare or refresh this runtime resource on this device.'}</div>
+              <div class="local-ai-row-copy">${trimmed(job.detail) || t('Prepare or refresh this runtime resource on this device.')}</div>
             </div>
             <div class="local-ai-row-control">${this._renderJobControls(job)}</div>
           </div>
@@ -2875,26 +2878,26 @@ export class MnSettingsPage extends SkinAware(LitElement) {
     return html`
       <section class="local-ai-group" aria-labelledby="local-ai-provider-title">
         <div class="local-ai-group-header">
-          <h3 class="local-ai-group-title" id="local-ai-provider-title">AI provider</h3>
-          <p class="local-ai-group-caption">Write-only credential</p>
+          <h3 class="local-ai-group-title" id="local-ai-provider-title">${t('AI provider')}</h3>
+          <p class="local-ai-group-caption">${t('Write-only credential')}</p>
         </div>
         <div class="local-ai-list">
           ${secrets.map(secret => html`
             <div class="local-ai-row" data-secret-id=${secret.id} data-muted=${secret.disabled ? 'true' : 'false'}>
-              <div class="local-ai-status-label">${secret.label}</div>
+              <div class="local-ai-status-label">${localizeLabel(secret.label)}</div>
               <div class="local-ai-row-main">
-                <div class="local-ai-row-copy">${trimmed(secret.description) || 'Stored outside graph and browser state.'}</div>
+                <div class="local-ai-row-copy">${trimmed(secret.description) || t('Stored outside graph and browser state.')}</div>
               </div>
               <div class="local-ai-row-control row-actions">
                 <span class="secret-state" data-tone=${secret.configured ? 'success' : 'neutral'}>
                   ${icon(secret.configured ? 'check' : 'circle', { size: 12 })}
-                  ${secret.configured ? 'Configured' : 'Not configured'}
+                  ${secret.configured ? 'Configured' : t('Not configured')}
                 </span>
                 <button type="button" class="button" ?disabled=${secret.disabled} @click=${() => this._secret(secret, 'configure')}>
-                  ${secret.configured ? 'Replace' : 'Configure'}
+                  ${secret.configured ? t('Replace') : 'Configure'}
                 </button>
                 ${secret.configured
-                  ? html`<button type="button" class="button" data-variant="danger" ?disabled=${secret.disabled} @click=${() => this._secret(secret, 'delete')}>Delete</button>`
+                  ? html`<button type="button" class="button" data-variant="danger" ?disabled=${secret.disabled} @click=${() => this._secret(secret, 'delete')}>${t('Delete')}</button>`
                   : nothing}
               </div>
             </div>
@@ -2910,11 +2913,11 @@ export class MnSettingsPage extends SkinAware(LitElement) {
     return html`
       <details class="local-ai-diagnostics">
         <summary>
-          <span>Runtime notes</span>
+          <span>${t('Runtime notes')}</span>
           <span class="local-ai-diagnostics-count">${unique.length} ${unique.length === 1 ? 'note' : 'notes'}</span>
         </summary>
         <ul class="local-ai-diagnostics-list">
-          ${unique.map(note => html`<li class="note" data-tone=${noteTone(note)}>${note}</li>`)}
+          ${unique.map(note => html`<li class="note" data-tone=${noteTone(note)}>${localizeLabel(note)}</li>`)}
         </ul>
       </details>
     `
@@ -2934,8 +2937,8 @@ export class MnSettingsPage extends SkinAware(LitElement) {
         ${hasControls ? nothing : this._renderCapabilityState(
           'local-ai',
           'bot',
-          'Local AI is unavailable',
-          'This runtime did not report a model, index, parser, provider, or maintenance contract.',
+          t('Local AI is unavailable'),
+          t('This runtime did not report a model, index, parser, provider, or maintenance contract.'),
         )}
         ${this._renderLocalAiProviders(section.secrets)}
         ${this._renderLocalAiMetrics(section.metrics)}
@@ -2954,25 +2957,25 @@ export class MnSettingsPage extends SkinAware(LitElement) {
       html`<div class="card-grid feature-grid" aria-label=${`${this._sectionTitle(section)} features`}>
         ${(section.toggles ?? []).map((setting) => html`
           <article class="feature-card feature-toggle-card" data-setting-id=${setting.id} data-muted=${setting.disabled ? 'true' : 'false'}>
-            <div class="card-eyebrow">Feature</div>
+            <div class="card-eyebrow">${t('Feature')}</div>
             <h3 class="card-heading">
-              <span>${setting.label}</span>
+              <span>${localizeLabel(setting.label)}</span>
               <button
                 type="button"
                 class="toggle"
-                aria-label=${setting.label}
+                aria-label=${localizeLabel(setting.label)}
                 aria-pressed=${setting.checked ? 'true' : 'false'}
                 ?disabled=${setting.disabled}
                 @click=${() => this._toggle(setting)}
               ></button>
             </h3>
-            ${trimmed(setting.description) ? html`<p class="card-copy">${setting.description}</p>` : nothing}
+            ${trimmed(setting.description) ? html`<p class="card-copy">${localizeLabel(setting.description)}</p>` : nothing}
           </article>
         `)}
         ${(section.actions ?? []).map((action) => html`
           <article class="feature-card" data-action-id=${action.id} data-muted=${action.disabled ? 'true' : 'false'}>
-            <div class="card-eyebrow">Data control</div>
-            <h3 class="card-heading">${action.label}</h3>
+            <div class="card-eyebrow">${t('Data control')}</div>
+            <h3 class="card-heading">${localizeLabel(action.label)}</h3>
             <p class="card-copy">${trimmed(action.description)}</p>
             <div class="card-footer">${this._renderActionButton(action)}</div>
           </article>
@@ -3067,15 +3070,15 @@ export class MnSettingsPage extends SkinAware(LitElement) {
       return html`
         <div class="status-banner" data-tone="loading" role="status">
           ${icon('refresh', { size: 14 })}
-          <span>Updating settings…</span>
+          <span>${t('Updating settings…')}</span>
         </div>
       `
     }
     return html`
       <div class="status-banner" data-tone="danger" role="alert">
         ${icon('alert-circle', { size: 14 })}
-        <span>${this.error || 'The settings refresh failed.'}</span>
-        <button type="button" class="button" @click=${() => this._refresh()}>Try again</button>
+        <span>${this.error || t('The settings refresh failed.')}</span>
+        <button type="button" class="button" @click=${() => this._refresh()}>${t('Try again')}</button>
       </div>
     `
   }
@@ -3087,7 +3090,7 @@ export class MnSettingsPage extends SkinAware(LitElement) {
       if (retainedSection) {
         return [this._renderRetainedStatus('loading'), this._renderSection(retainedSection)]
       }
-      return html`<div class="state" data-state="loading" role="status"><mn-loading size="sm" text="Loading settings"></mn-loading></div>`
+      return html`<div class="state" data-state="loading" role="status"><mn-loading size="sm" text=${t('Loading settings')}></mn-loading></div>`
     }
     if (this.status === 'error') {
       if (retainedSection) {
@@ -3097,12 +3100,12 @@ export class MnSettingsPage extends SkinAware(LitElement) {
         <div class="state" data-state="error" role="alert">
           <mn-empty-state
             icon="alert-circle"
-            title="Settings failed"
-            description=${this.error || 'The settings read failed.'}
+            title=${t('Settings failed')}
+            description=${this.error || t('The settings read failed.')}
             mood="danger"
             variant="compact"
           >
-            <button slot="action" type="button" class="button state-action" @click=${() => this._refresh()}>Try again</button>
+            <button slot="action" type="button" class="button state-action" @click=${() => this._refresh()}>${t('Try again')}</button>
           </mn-empty-state>
         </div>
       `
@@ -3113,8 +3116,8 @@ export class MnSettingsPage extends SkinAware(LitElement) {
         <div class="state">
           <mn-empty-state
             icon="settings"
-            title="No settings available"
-            description="This workspace did not provide any settings sections."
+            title=${t('No settings available')}
+            description=${t('This workspace did not provide any settings sections.')}
             variant="compact"
           ></mn-empty-state>
         </div>
@@ -3125,10 +3128,10 @@ export class MnSettingsPage extends SkinAware(LitElement) {
 
   render(): TemplateResult {
     return html`
-      <section class="root" role="region" aria-label="Settings">
+      <section class="root" role="region" aria-label=${t('Settings')}>
         <header class="header">
-          <span class="brand"><span class="brand-glyph">${icon('settings', { size: 18 })}</span><span class="brand-orb" aria-hidden="true">${icon('settings', { size: 15 })}</span><h1 class="brand-title">Settings</h1></span>
-          ${this.showClose ? html`<button type="button" class="close" aria-label="Close settings" @click=${() => this._close()}>
+          <span class="brand"><span class="brand-glyph">${icon('settings', { size: 18 })}</span><span class="brand-orb" aria-hidden="true">${icon('settings', { size: 15 })}</span><h1 class="brand-title">${t('Settings')}</h1></span>
+          ${this.showClose ? html`<button type="button" class="close" aria-label=${t('Close settings')} @click=${() => this._close()}>
             ${icon('x', { size: 18 })}
           </button>` : nothing}
         </header>

@@ -1,3 +1,4 @@
+import { LocaleController, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, type TemplateResult } from 'lit'
 import { customElement, property, state } from 'lit/decorators.js'
 import { repeat } from 'lit/directives/repeat.js'
@@ -88,6 +89,8 @@ function domToken(value: string): string {
  */
 @customElement('sh-center-panes')
 export class ShCenterPanes extends LitElement {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     :host {
       display: block;
@@ -725,9 +728,9 @@ export class ShCenterPanes extends LitElement {
     return html`<div class="toc-wrap" data-toc-wrap=${domToken(pane.id)}>
       <button
         class="toc-btn"
-        aria-label="Table of contents"
+        aria-label=${t('Table of contents')}
         aria-expanded=${open ? 'true' : 'false'}
-        title="Table of contents"
+        title=${t('Table of contents')}
         @click=${() => this._toggleToc(pane.id)}
       >${tocIcon()}<span class="toc-btn-label">${label || 'Untitled'}</span><span aria-hidden="true">▾</span></button>
       ${open ? html`<div class="toc-dropdown" popover="manual" role="menu">
@@ -774,7 +777,7 @@ export class ShCenterPanes extends LitElement {
           class="pane-command"
           data-pane-back=${pane.id}
           aria-label=${`Go back in ${pane.title}`}
-          title=${eventTitle(pane.capabilities.navigateDisabledReason, 'Go back')}
+          title=${eventTitle(pane.capabilities.navigateDisabledReason, t('Go back'))}
           ?disabled=${!pane.canGoBack}
           @click=${() => this.requestNavigate(pane.id, 'back')}
         >←</button>
@@ -782,7 +785,7 @@ export class ShCenterPanes extends LitElement {
           class="pane-command"
           data-pane-forward=${pane.id}
           aria-label=${`Go forward in ${pane.title}`}
-          title=${eventTitle(pane.capabilities.navigateDisabledReason, 'Go forward')}
+          title=${eventTitle(pane.capabilities.navigateDisabledReason, t('Go forward'))}
           ?disabled=${!pane.canGoForward}
           @click=${() => this.requestNavigate(pane.id, 'forward')}
         >→</button>
@@ -792,7 +795,7 @@ export class ShCenterPanes extends LitElement {
           class="pane-command"
           data-pane-open=${pane.id}
           aria-label=${`Open a document in ${pane.title}`}
-          title=${eventTitle(pane.capabilities.openDisabledReason, 'Open a document in this pane')}
+          title=${eventTitle(pane.capabilities.openDisabledReason, t('Open a document in this pane'))}
           ?disabled=${!pane.capabilities.openDocument}
           @click=${() => this.requestOpen(pane.id, 'active', 'choose-document')}
         >⌘O</button>
@@ -811,8 +814,8 @@ export class ShCenterPanes extends LitElement {
         ${pane.position === 'secondary' ? html`<button
           class="pane-command"
           data-pane-close=${pane.id}
-          aria-label="Close secondary pane"
-          title=${eventTitle(pane.capabilities.closeDisabledReason, 'Close secondary pane')}
+          aria-label=${t('Close secondary pane')}
+          title=${eventTitle(pane.capabilities.closeDisabledReason, t('Close secondary pane'))}
           ?disabled=${!pane.capabilities.close}
           @click=${() => this.requestClose(pane.id, 'pane-command')}
         >×</button>` : nothing}
@@ -846,12 +849,12 @@ export class ShCenterPanes extends LitElement {
           .ttsAvailable=${config?.ttsAvailable ?? false}
         ></sh-editor-host>
         ${pane.current.kind === 'home' ? html`<div class="empty-pane" data-pane-home=${pane.id}>
-          <span>${pane.position === 'primary' ? 'Choose a document to begin.' : 'A second path through the garden.'}</span>
+          <span>${pane.position === 'primary' ? t('Choose a document to begin.') : t('A second path through the garden.')}</span>
           <button
             class="empty-open"
             ?disabled=${!pane.capabilities.openDocument}
             @click=${() => this.requestOpen(pane.id, 'active', 'choose-document')}
-          >Open a document</button>
+          >${t('Open a document')}</button>
         </div>` : nothing}
       </div>
     </section>`
@@ -881,12 +884,12 @@ export class ShCenterPanes extends LitElement {
         ?data-dragging=${this.draggingPointerId !== null}
         role="separator"
         tabindex=${this.projection.capabilities.resize ? '0' : '-1'}
-        aria-label="Resize document panes"
+        aria-label=${t('Resize document panes')}
         aria-orientation="vertical"
         aria-valuemin=${String(this.projection.dividerMinPercent)}
         aria-valuemax=${String(this.projection.dividerMaxPercent)}
         aria-valuenow=${String(this.projection.dividerPercent)}
-        title=${eventTitle(this.projection.capabilities.resizeDisabledReason, 'Resize document panes')}
+        title=${eventTitle(this.projection.capabilities.resizeDisabledReason, t('Resize document panes'))}
         style=${dividerStyle}
         @pointerdown=${this.onDividerPointerDown}
         @pointermove=${this.onDividerPointerMove}

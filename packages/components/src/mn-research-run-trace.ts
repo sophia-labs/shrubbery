@@ -5,6 +5,7 @@
  * emits an open intent for hosts that want to focus a step, tool call, or trace.
  */
 
+import { LocaleController, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, unsafeCSS } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 import { repeat } from 'lit/directives/repeat.js'
@@ -48,6 +49,8 @@ function iconForStatus(status: MnResearchRunStepStatus): IconName {
 
 @customElement('mn-research-run-trace')
 export class MnResearchRunTrace extends SkinAware(LitElement) {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     ${unsafeCSS(iconStyles)}
 
@@ -256,7 +259,7 @@ export class MnResearchRunTrace extends SkinAware(LitElement) {
         </header>
         ${this.steps.length > 0
           ? html`<ol>${repeat(this.steps, (step) => step.id, (step) => this.renderStep(step))}</ol>`
-          : html`<div class="description">No steps yet</div>`}
+          : html`<div class="description">${t('No steps yet')}</div>`}
       </section>
     `
   }

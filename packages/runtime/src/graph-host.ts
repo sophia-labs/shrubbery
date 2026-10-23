@@ -7,6 +7,7 @@
  * controlled GraphPanelOptions value; only WebGL/camera presentation survives.
  */
 
+import { LocaleController, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, type PropertyValues, type TemplateResult } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 import { keyed } from 'lit/directives/keyed.js'
@@ -24,6 +25,8 @@ const GRAPH_ANCHOR = '[data-graph-panel-anchor]'
 
 @customElement('sh-graph-host')
 export class ShGraphHost extends LitElement {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     :host {
       position: absolute;
@@ -140,7 +143,7 @@ export class ShGraphHost extends LitElement {
     const graph = this.options
     return html`<mn-graph-panel
       aria-owns="mn-graph-panel-anchor"
-      .title=${graph?.title ?? 'Knowledge Space'}
+      .title=${graph?.title ?? t('Knowledge Space')}
       .subtitle=${graph?.subtitle ?? ''}
       .status=${graph?.status ?? 'ready'}
       .error=${graph?.error ?? ''}

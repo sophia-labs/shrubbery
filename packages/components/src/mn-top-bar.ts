@@ -51,6 +51,7 @@
  * test — NO stores, NO auth, NO tauri, NO @shrubbery/runtime.
  */
 
+import { LocaleController, localizeLabel, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, unsafeCSS } from 'lit'
 import { customElement, property, state } from 'lit/decorators.js'
 import { SkinAware } from './skin-aware.js'
@@ -137,6 +138,8 @@ export interface ChromeBreadcrumbMenuOpenDetail {
 
 @customElement('mn-top-bar')
 export class MnTopBar extends SkinAware(LitElement) {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     /* Shadow DOM does NOT inherit garden's global icon stylesheet, so the inline
        <svg> icons need this rule locally to follow text color (stroke:
@@ -962,7 +965,7 @@ export class MnTopBar extends SkinAware(LitElement) {
         data-app-link=""
         href=${entry.app.href}
         @click=${() => this._closeLauncher()}
-      >${tile}<span class="switcher-text"><span class="switcher-name"><span class="switcher-label">${app.label}</span>${stageTag}</span><span class="switcher-description">${description}</span></span><span class="switcher-check" aria-hidden="true">${icon('check', { size: 16 })}</span></a>`
+      >${tile}<span class="switcher-text"><span class="switcher-name"><span class="switcher-label">${localizeLabel(app.label)}</span>${stageTag}</span><span class="switcher-description">${description}</span></span><span class="switcher-check" aria-hidden="true">${icon('check', { size: 16 })}</span></a>`
     }
     return html`<button
       type="button"
@@ -972,7 +975,7 @@ export class MnTopBar extends SkinAware(LitElement) {
       aria-label=${accessibleName}
       data-app-id=${app.id}
       @click=${() => this._selectApp(app.id)}
-    >${tile}<span class="switcher-text"><span class="switcher-name"><span class="switcher-label">${app.label}</span>${stageTag}</span><span class="switcher-description">${description}</span></span><span class="switcher-check" aria-hidden="true">${icon('check', { size: 16 })}</span></button>`
+    >${tile}<span class="switcher-text"><span class="switcher-name"><span class="switcher-label">${localizeLabel(app.label)}</span>${stageTag}</span><span class="switcher-description">${description}</span></span><span class="switcher-check" aria-hidden="true">${icon('check', { size: 16 })}</span></button>`
   }
 
   render() {
@@ -1023,8 +1026,8 @@ export class MnTopBar extends SkinAware(LitElement) {
           type="button"
           class="action-btn toolbar-btn"
           data-app-action=${action.id}
-          aria-label=${action.label}
-          title=${action.label}
+          aria-label=${localizeLabel(action.label)}
+          title=${localizeLabel(action.label)}
           ?disabled=${Boolean(action.disabled)}
           @click=${() => { if (!action.disabled) this._emit(action.event, action.detail) }}
         >${icon(action.icon)}</button>`)}
@@ -1036,7 +1039,7 @@ export class MnTopBar extends SkinAware(LitElement) {
         part="app-switcher"
         popover="auto"
         role="menu"
-        aria-label="Switch app"
+        aria-label=${t('Switch app')}
         ?hidden=${entries.length === 0}
         @toggle=${(event: Event) => this._onToggle(event)}
         @keydown=${this._onMenuKeydown}
@@ -1056,7 +1059,7 @@ export class MnTopBar extends SkinAware(LitElement) {
       <nav
         class="breadcrumbs"
         part="breadcrumbs"
-        aria-label="Breadcrumb"
+        aria-label=${t('Breadcrumb')}
         data-inert-slot=${this.breadcrumbs.length === 0 ? 'breadcrumbs' : nothing}
       >
         ${this.workspaces !== null ? html`<mn-workspace-selector
@@ -1078,7 +1081,7 @@ export class MnTopBar extends SkinAware(LitElement) {
                   data-kind="${breadcrumb.kind ?? 'view'}"
                   aria-current="${breadcrumb.current ? 'page' : 'false'}"
                   aria-haspopup=${isCurrentDocument ? 'menu' : nothing}
-                  title=${isCurrentDocument ? `${breadcrumb.label} — document actions` : nothing}
+                  title=${isCurrentDocument ? `${breadcrumb.label} — ${t('Document actions')}` : nothing}
                   ?disabled=${Boolean(breadcrumb.disabled)}
                   @click=${(event: MouseEvent) => this._openBreadcrumb(breadcrumb, event)}
                 >${breadcrumb.label}${isCurrentDocument
@@ -1093,8 +1096,8 @@ export class MnTopBar extends SkinAware(LitElement) {
         <button
           class="action-btn appearance-btn"
           ?hidden=${!this._showControl('appearance')}
-          title="Appearance menu"
-          aria-label="Appearance menu"
+          title=${t('Appearance menu')}
+          aria-label=${t('Appearance menu')}
           aria-haspopup="menu"
           @click=${(event: MouseEvent) => {
             const box = (event.currentTarget as HTMLElement).getBoundingClientRect()
@@ -1110,7 +1113,7 @@ export class MnTopBar extends SkinAware(LitElement) {
           class="action-btn theme-action ${this.isDark ? 'active' : ''}"
           data-action="theme"
           ?hidden=${!this._showControl('theme')}
-          aria-label="Toggle theme"
+          aria-label=${t('Toggle theme')}
           aria-pressed=${this.isDark ? 'true' : 'false'}
           @click=${() => this._emit('mn-theme-toggle')}
         >
@@ -1127,7 +1130,7 @@ export class MnTopBar extends SkinAware(LitElement) {
           class="action-btn settings-action"
           data-action="settings"
           ?hidden=${!this._showControl('settings')}
-          aria-label="Settings"
+          aria-label=${t('Settings')}
           @click=${() => this._emit('mn-settings-toggle')}
         >
           ${icon('settings')}

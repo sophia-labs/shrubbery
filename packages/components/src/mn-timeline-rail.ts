@@ -5,6 +5,7 @@
  * retained but all snapshot IO left to the host.
  */
 
+import { LocaleController, localeSource, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, unsafeCSS, type TemplateResult } from 'lit'
 import { customElement, property, state } from 'lit/decorators.js'
 import { repeat } from 'lit/directives/repeat.js'
@@ -84,8 +85,8 @@ function relativeTime(value: string | number | Date): string {
 
 function absoluteTime(value: string | number | Date): string {
   const date = new Date(timestamp(value))
-  if (!Number.isFinite(date.getTime())) return 'Unknown date'
-  return date.toLocaleString(undefined, {
+  if (!Number.isFinite(date.getTime())) return t('Unknown date')
+  return date.toLocaleString(localeSource.get(), {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
@@ -96,6 +97,8 @@ function absoluteTime(value: string | number | Date): string {
 
 @customElement('mn-timeline-rail')
 export class MnTimelineRail extends SkinAware(LitElement) {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     ${unsafeCSS(iconStyles)}
 
@@ -352,7 +355,7 @@ export class MnTimelineRail extends SkinAware(LitElement) {
       {
         id: 'live',
         kind: 'live',
-        label: 'Live (now)',
+        get label() { return t('Live (now)') },
         sublabel: 'unsaved working copy',
       },
       ...this.snapshots.map((snapshot) => ({
@@ -513,15 +516,15 @@ export class MnTimelineRail extends SkinAware(LitElement) {
         </span>
         <span class="row-actions">
           ${row.snapshot && (row.snapshot.snapshot_count ?? 0) > 1
-            ? html`<span class="count-chip" title="Consolidates earlier auto-saves">${row.snapshot.snapshot_count}x</span>`
+            ? html`<span class="count-chip" title=${t('Consolidates earlier auto-saves')}>${row.snapshot.snapshot_count}x</span>`
             : nothing}
           ${row.tier ? html`<span class="tier-badge">${TIER_BADGE[row.tier] ?? row.tier}</span>` : nothing}
           ${row.snapshot && !row.snapshot.is_manual ? html`
             <button
               type="button"
               class="icon-button"
-              title="Save this version"
-              aria-label="Save this version"
+              title=${t('Save this version')}
+              aria-label=${t('Save this version')}
               @click=${(event: Event) => this._emitSnapshot('snapshot-bookmark', row.snapshot!.snapshot_id, event)}
             >${icon('bookmark', { size: 13 })}</button>
           ` : nothing}
@@ -530,8 +533,8 @@ export class MnTimelineRail extends SkinAware(LitElement) {
               type="button"
               class="icon-button"
               data-tone="danger"
-              title="Delete this saved version"
-              aria-label="Delete this saved version"
+              title=${t('Delete this saved version')}
+              aria-label=${t('Delete this saved version')}
               @click=${(event: Event) => this._emitSnapshot('snapshot-delete', row.snapshot!.snapshot_id, event)}
             >${icon('trash', { size: 13 })}</button>
           ` : nothing}
@@ -544,7 +547,7 @@ export class MnTimelineRail extends SkinAware(LitElement) {
     const rows = this._rows()
     return html`
       <header class="rail-header">
-        <span class="rail-title">Timeline</span>
+        <span class="rail-title">${t('Timeline')}</span>
         <div class="rail-cursor-summary">
           <b>&lt; Older:</b> ${this._rowLabel(this.olderId)}<br />
           <b>&gt; Newer:</b> ${this._rowLabel(this.newerId)}
@@ -564,12 +567,12 @@ export class MnTimelineRail extends SkinAware(LitElement) {
           </button>
         </div>
       </header>
-      <div class="rail-list" role="listbox" aria-label="Snapshot timeline" aria-busy=${this.loading ? 'true' : 'false'}>
+      <div class="rail-list" role="listbox" aria-label=${t('Snapshot timeline')} aria-busy=${this.loading ? 'true' : 'false'}>
         ${this.loading
-          ? html`<div class="empty">Loading history...</div>`
+          ? html`<div class="empty">${t('Loading history...')}</div>`
           : rows.length > 1
             ? repeat(rows, (row) => row.id, (row) => this._renderRow(row))
-            : html`<div class="empty">No saved versions yet.</div>`}
+            : html`<div class="empty">${t('No saved versions yet.')}</div>`}
       </div>
     `
   }

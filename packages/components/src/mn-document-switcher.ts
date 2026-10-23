@@ -7,6 +7,7 @@
  * document/block/action rows and receive composed intents for all host work.
  */
 
+import { LocaleController, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, unsafeCSS, type PropertyValues, type TemplateResult } from 'lit'
 import { customElement, property, query, state } from 'lit/decorators.js'
 import { repeat } from 'lit/directives/repeat.js'
@@ -117,6 +118,8 @@ function badgeFor(item: MnDocumentSwitcherItem): string {
 
 @customElement('mn-document-switcher')
 export class MnDocumentSwitcher extends SkinAware(LitElement) {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     ${unsafeCSS(iconStyles)}
 
@@ -527,22 +530,22 @@ export class MnDocumentSwitcher extends SkinAware(LitElement) {
     if (this.statusText) return this.statusText
     switch (this.status) {
       case 'loading':
-        return 'Searching blocks...'
+        return t('Searching blocks...')
       case 'indexing':
-        return 'Indexing local embeddings...'
+        return t('Indexing local embeddings...')
       case 'wiring':
-        return 'Creating wire...'
+        return t('Creating wire...')
       case 'error':
-        return 'Search failed'
+        return t('Search failed')
       default:
         return ''
     }
   }
 
   private _emptyText(): string {
-    if (this.scope === 'actions') return 'No matching actions'
-    if (trimmed(this.query).length < 2 && this.scope !== 'documents') return 'Type at least 2 characters to search blocks'
-    return 'No results found'
+    if (this.scope === 'actions') return t('No matching actions')
+    if (trimmed(this.query).length < 2 && this.scope !== 'documents') return t('Type at least 2 characters to search blocks')
+    return t('No results found')
   }
 
   private _close(): void {
@@ -789,10 +792,10 @@ export class MnDocumentSwitcher extends SkinAware(LitElement) {
     event.stopPropagation()
     this._contextItem = item
     const entries: MenuEntry[] = [
-      { id: 'open', label: 'Open', icon: 'file-text' },
-      { id: 'open-split', label: 'Open in split view', icon: 'panel-left', disabled: item.kind !== 'document' },
+      { id: 'open', get label() { return t('Open') }, icon: 'file-text' },
+      { id: 'open-split', get label() { return t('Open in split view') }, icon: 'panel-left', disabled: item.kind !== 'document' },
       { type: 'divider' },
-      { id: 'wire-to', label: 'Wire to this item', icon: 'wire' },
+      { id: 'wire-to', get label() { return t('Wire to this item') }, icon: 'wire' },
     ]
     if (!this.contextMenu) return
     this.contextMenu.items = entries
@@ -848,7 +851,7 @@ export class MnDocumentSwitcher extends SkinAware(LitElement) {
         class="container"
         role="dialog"
         aria-modal="true"
-        aria-label=${actionsMode ? 'Run a command' : 'Search graph'}
+        aria-label=${actionsMode ? t('Run a command') : t('Search graph')}
         @keydown=${this._handleKeydown}
       >
         <div class="input-row">
@@ -859,8 +862,8 @@ export class MnDocumentSwitcher extends SkinAware(LitElement) {
                 <button
                   type="button"
                   class="semantic-button"
-                  title="Fuzzy search"
-                  aria-label="Fuzzy search"
+                  title=${t('Fuzzy search')}
+                  aria-label=${t('Fuzzy search')}
                   aria-pressed=${this.semanticEnabled ? 'true' : 'false'}
                   @click=${this._toggleSemantic}
                 >${icon('search', { size: 14 })}</button>
@@ -872,8 +875,8 @@ export class MnDocumentSwitcher extends SkinAware(LitElement) {
             writingsuggestions="false"
             class="input"
             type="text"
-            placeholder=${actionsMode ? 'Run a command...' : 'Search graph...'}
-            aria-label=${actionsMode ? 'Run a command' : 'Search graph'}
+            placeholder=${actionsMode ? t('Run a command...') : t('Search graph...')}
+            aria-label=${actionsMode ? t('Run a command') : t('Search graph')}
             .value=${this.query}
             @input=${this._queryChanged}
             autofocus
@@ -885,13 +888,13 @@ export class MnDocumentSwitcher extends SkinAware(LitElement) {
         </div>
 
         <div class="controls">
-          <div class="scope-group" role="group" aria-label="Search scope">
-            ${this._renderScopeButton('actions', 'Actions')}
-            ${this._renderScopeButton('all', 'All')}
-            ${this._renderScopeButton('documents', 'Documents')}
+          <div class="scope-group" role="group" aria-label=${t('Search scope')}>
+            ${this._renderScopeButton('actions', t('Actions'))}
+            ${this._renderScopeButton('all', t('All'))}
+            ${this._renderScopeButton('documents', t('Documents'))}
             ${this._renderScopeButton('blocks', 'Blocks')}
           </div>
-          <div class="sort-group" role="group" aria-label="Sort results">
+          <div class="sort-group" role="group" aria-label=${t('Sort results')}>
             ${actionsMode
               ? nothing
               : html`
@@ -903,7 +906,7 @@ export class MnDocumentSwitcher extends SkinAware(LitElement) {
           </div>
         </div>
 
-        <div class="results" role="listbox" aria-label=${actionsMode ? 'Actions' : 'Search results'}>
+        <div class="results" role="listbox" aria-label=${actionsMode ? t('Actions') : t('Search results')}>
           ${resultCount === 0
             ? html`<div class="empty" role="status">${this._emptyText()}</div>`
             : actionsMode

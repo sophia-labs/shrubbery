@@ -5,6 +5,7 @@
  * folder id. Callers own move validation, persistence, and folder creation.
  */
 
+import { LocaleController, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, unsafeCSS } from 'lit'
 import { customElement, property, state } from 'lit/decorators.js'
 import { classMap } from 'lit/directives/class-map.js'
@@ -33,6 +34,8 @@ let folderPickerDialogInstance = 0
 
 @customElement('mn-folder-picker-dialog')
 export class MnFolderPickerDialog extends SkinAware(LitElement) {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     ${unsafeCSS(iconStyles)}
 
@@ -552,8 +555,8 @@ export class MnFolderPickerDialog extends SkinAware(LitElement) {
       >
         <span class="folder-icon" aria-hidden="true">${icon('folder', { size: 16 })}</span>
         <span class="folder-name">${node.name}</span>
-        ${current ? html`<span class="status-badge current-badge">Current</span>` : nothing}
-        ${disabled ? html`<span class="status-badge unavailable-badge">Unavailable</span>` : nothing}
+        ${current ? html`<span class="status-badge current-badge">${t('Current')}</span>` : nothing}
+        ${disabled ? html`<span class="status-badge unavailable-badge">${t('Unavailable')}</span>` : nothing}
       </button>
       ${node.children.length > 0
         ? repeat(node.children, (child) => child.id, (child) => this.renderFolderNode(child))
@@ -576,12 +579,12 @@ export class MnFolderPickerDialog extends SkinAware(LitElement) {
         >
           <header class="header">
             <h2 class="title" id="mn-folder-picker-title">${this.title}</h2>
-            <button type="button" class="close-button" aria-label="Close" @click=${() => this.cancel()}>
+            <button type="button" class="close-button" aria-label=${t('Close')} @click=${() => this.cancel()}>
               ${icon('x', { size: 17 })}
             </button>
           </header>
           <div class="body">
-            <div class="folder-tree" role="listbox" aria-label="Select destination folder">
+            <div class="folder-tree" role="listbox" aria-label=${t('Select destination folder')}>
               <button
                 type="button"
                 class=${classMap({ 'folder-item': true, 'root-option': true, selected: rootSelected, current: rootCurrent })}
@@ -594,15 +597,15 @@ export class MnFolderPickerDialog extends SkinAware(LitElement) {
               >
                 <span class="folder-icon" aria-hidden="true">${icon('home', { size: 16 })}</span>
                 <span class="folder-name">${this.rootName()} root</span>
-                ${rootCurrent ? html`<span class="status-badge current-badge">Current</span>` : nothing}
+                ${rootCurrent ? html`<span class="status-badge current-badge">${t('Current')}</span>` : nothing}
               </button>
               ${tree.length > 0
                 ? repeat(tree, (node) => node.id, (node) => this.renderFolderNode(node))
-                : html`<div class="empty">No folders available</div>`}
+                : html`<div class="empty">${t('No folders available')}</div>`}
             </div>
           </div>
           <footer class="footer">
-            <button type="button" class="cancel-button" @click=${() => this.cancel()}>Cancel</button>
+            <button type="button" class="cancel-button" @click=${() => this.cancel()}>${t('Cancel')}</button>
             <button
               type="button"
               class="confirm-button"

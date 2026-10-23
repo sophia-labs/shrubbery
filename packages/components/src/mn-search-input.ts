@@ -7,6 +7,7 @@
  * fields.
  */
 
+import { LocaleController, localizeLabel, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, unsafeCSS } from 'lit'
 import { customElement, property, query, state } from 'lit/decorators.js'
 import { classMap } from 'lit/directives/class-map.js'
@@ -20,6 +21,8 @@ export interface MnSearchInputDetail {
 
 @customElement('mn-search-input')
 export class MnSearchInput extends SkinAware(LitElement) {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     ${unsafeCSS(iconStyles)}
 
@@ -229,7 +232,7 @@ export class MnSearchInput extends SkinAware(LitElement) {
           writingsuggestions="false"
           type="search"
           .value=${this.value}
-          placeholder=${this.placeholder}
+          placeholder=${localizeLabel(this.placeholder)}
           aria-label=${this.label}
           autocomplete="off"
           autocorrect="off"
@@ -245,7 +248,7 @@ export class MnSearchInput extends SkinAware(LitElement) {
           : nothing}
         ${hasValue
           ? html`
-              <button class="clear-btn" type="button" aria-label="Clear search" tabindex="-1" @click=${() => this.handleClear()}>
+              <button class="clear-btn" type="button" aria-label=${t('Clear search')} tabindex="-1" @click=${() => this.handleClear()}>
                 ${icon('x', { size: 12 })}
               </button>
             `

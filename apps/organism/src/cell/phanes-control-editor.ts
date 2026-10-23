@@ -1,3 +1,4 @@
+import { LocaleController, localeSource, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, unsafeCSS } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 import {
@@ -26,6 +27,8 @@ registerRenderableComponentTags(['mn-phanes-control-editor'])
 
 @customElement('mn-phanes-control-editor')
 export class MnPhanesControlEditor extends LitElement {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     ${unsafeCSS(iconStyles)}
 
@@ -662,7 +665,7 @@ export class MnPhanesControlEditor extends LitElement {
   }
 
   private renderOperations() {
-    if (!this.operations) return html`<div class="empty">Phanes has not published runtime operations yet.</div>`
+    if (!this.operations) return html`<div class="empty">${t('Phanes has not published runtime operations yet.')}</div>`
     const { control, status } = this.operations
     const ingestion = status.value.ingestion
     const requestPending = (control.value.ingestionRequest?.requestId ?? null) !== ingestion.controlRequestId
@@ -671,7 +674,7 @@ export class MnPhanesControlEditor extends LitElement {
     return html`
       <div class="operations-grid">
         <section class="operations-card">
-          <h2>Responses</h2>
+          <h2>${t('Responses')}</h2>
           <p>
             This switch controls Discord replies only. Privacy-safe live ingestion and local RDF maintenance continue.
           </p>
@@ -692,22 +695,22 @@ export class MnPhanesControlEditor extends LitElement {
           </label>
         </section>
         <section class="operations-card">
-          <h2>Ingestion</h2>
+          <h2>${t('Ingestion')}</h2>
           <p>
             Reconcile the admitted channels through the Privacy Steward. Existing RDF is rematerialized locally;
             Discord history is read only for consented principals already awaiting a one-time backfill.
           </p>
           <button class="primary" ?disabled=${this.saving || busy} @click=${() => void this.runIngestion()}>
             ${busy ? icon('loader-circle', { size: 14, class: 'mn-icon-spin' }) : icon('play', { size: 14 })}
-            ${busy ? 'Ingestion in progress…' : 'Run ingestion now'}
+            ${busy ? t('Ingestion in progress…') : t('Run ingestion now')}
           </button>
           <dl class="operations-state">
-            <dt>Phase</dt><dd>${ingestion.phase}</dd>
-            <dt>Messages</dt><dd>${ingestion.messageCount}</dd>
-            <dt>Documents</dt><dd>${ingestion.documentCount}</dd>
-            <dt>Authority</dt><dd>${ingestion.authorityRevision === null ? 'starting' : `r${ingestion.authorityRevision}`}</dd>
-            <dt>Updated</dt><dd>${new Date(status.value.updatedAt).toLocaleString()}</dd>
-            ${ingestion.errorCode ? html`<dt>Error</dt><dd>${ingestion.errorCode}</dd>` : nothing}
+            <dt>${t('Phase')}</dt><dd>${ingestion.phase}</dd>
+            <dt>${t('Messages')}</dt><dd>${ingestion.messageCount}</dd>
+            <dt>${t('Documents')}</dt><dd>${ingestion.documentCount}</dd>
+            <dt>${t('Authority')}</dt><dd>${ingestion.authorityRevision === null ? 'starting' : `r${ingestion.authorityRevision}`}</dd>
+            <dt>${t('Updated')}</dt><dd>${new Date(status.value.updatedAt).toLocaleString(localeSource.get())}</dd>
+            ${ingestion.errorCode ? html`<dt>${t('Error')}</dt><dd>${ingestion.errorCode}</dd>` : nothing}
           </dl>
           <button ?disabled=${this.saving} @click=${() => void this.refreshOperations()}>
             ${icon('refresh-cw', { size: 14 })} Refresh status
@@ -723,7 +726,7 @@ export class MnPhanesControlEditor extends LitElement {
 
   private renderChannelPolicy(channels: PhanesDiscordChannel[], excluded: Set<string>) {
     if (!this.ingestion || !this.policyDraft) {
-      return html`<div class="empty">The bot-authored Discord channel catalog is unavailable.</div>`
+      return html`<div class="empty">${t('The bot-authored Discord channel catalog is unavailable.')}</div>`
     }
     return html`
       <section class="policy-card">
@@ -768,14 +771,14 @@ export class MnPhanesControlEditor extends LitElement {
                   ${channel.categoryName ? `${channel.categoryName} · ` : ''}${channel.kind} · ${channel.channelId}
                 </span>
                 <span class="channel-state">
-                  ${admitted ? 'Admitted when ingestion is enabled' : 'Excluded from backfill, live events, mentions, and contexts'}
+                  ${admitted ? t('Admitted when ingestion is enabled') : t('Excluded from backfill, live events, mentions, and contexts')}
                 </span>
               </span>
             </label>
           `
         })}
       </div>
-      ${channels.length === 0 ? html`<div class="empty">No configured channels match that filter.</div>` : nothing}
+      ${channels.length === 0 ? html`<div class="empty">${t('No configured channels match that filter.')}</div>` : nothing}
     `
   }
 
@@ -787,7 +790,7 @@ export class MnPhanesControlEditor extends LitElement {
     const admittedChannelCount = this.policyDraft?.enabled ? configuredChannelCount - excluded.size : 0
     const surfaceHeader = this.workspaceSurface ? html`
       <header class="surface-header">
-        <h1>Phanes control</h1>
+        <h1>${t('Phanes control')}</h1>
         <p>
           Edit Phanes’s AgentPresentationCatalog and InteractionFlows, then decide which Discord channels
           the ingestion workflow may admit. Every publication is revision-checked, sealed as Meaningful Objects,
@@ -814,7 +817,7 @@ export class MnPhanesControlEditor extends LitElement {
           <input
             class="search"
             type="search"
-            placeholder="Filter copy by key or text…"
+            placeholder=${t('Filter copy by key or text…')}
             .value=${this.filter}
             @input=${(event: Event) => {
               this.filter = (event.target as HTMLInputElement).value
@@ -825,7 +828,7 @@ export class MnPhanesControlEditor extends LitElement {
           <input
             class="search"
             type="search"
-            placeholder="Filter channels by name, category, or ID…"
+            placeholder=${t('Filter channels by name, category, or ID…')}
             .value=${this.channelFilter}
             @input=${(event: Event) => {
               this.channelFilter = (event.target as HTMLInputElement).value
@@ -837,10 +840,10 @@ export class MnPhanesControlEditor extends LitElement {
           ${icon('refresh-cw', { size: 14 })} Reload
         </button>
         ${this.mode === 'operations' ? nothing : html`
-          <button ?disabled=${!this.activeDirty || this.saving} @click=${this.discard}>Discard</button>
+          <button ?disabled=${!this.activeDirty || this.saving} @click=${this.discard}>${t('Discard')}</button>
           <button class="primary" ?disabled=${!this.activeDirty || this.saving} @click=${() => void this.save()}>
             ${this.saving ? icon('loader-circle', { size: 14, class: 'mn-icon-spin' }) : icon('save', { size: 14 })}
-            ${this.saving ? 'Publishing…' : this.mode === 'channels' ? 'Publish ingestion policy' : 'Publish revision'}
+            ${this.saving ? 'Publishing…' : this.mode === 'channels' ? t('Publish ingestion policy') : t('Publish revision')}
           </button>
         `}
       </div>
@@ -849,15 +852,15 @@ export class MnPhanesControlEditor extends LitElement {
       <div class="status">
         <span class="revision">Policy r${this.ingestion.policy.revision}</span>
         <span class="revision">Catalog r${this.ingestion.catalog.revision}</span>
-        <strong>${this.policyDraft.enabled ? 'Ingestion enabled' : 'Ingestion disabled'}</strong>
+        <strong>${this.policyDraft.enabled ? t('Ingestion enabled') : t('Ingestion disabled')}</strong>
         <span>${admittedChannelCount} / ${configuredChannelCount} configured channels admitted</span>
-        ${this.policyDirty ? html`<strong>Unpublished edits</strong>` : nothing}
+        ${this.policyDirty ? html`<strong>${t('Unpublished edits')}</strong>` : nothing}
       </div>
     ` : this.loaded ? html`
       <div class="status">
         <span class="revision">Document r${this.loaded.revision}</span>
         <span>${this.loaded.bundle.object.version.slice(0, 23)}…</span>
-        ${this.dirty ? html`<strong>Unpublished edits</strong>` : nothing}
+        ${this.dirty ? html`<strong>${t('Unpublished edits')}</strong>` : nothing}
       </div>
     ` : null
     const notices = html`
@@ -871,7 +874,7 @@ export class MnPhanesControlEditor extends LitElement {
         ${toolbar}
         ${status}
         ${notices}
-        <div class="empty">Loading Phanes controls…</div>
+        <div class="empty">${t('Loading Phanes controls…')}</div>
       </div>
     `
     if (!this.draft) {
@@ -881,7 +884,7 @@ export class MnPhanesControlEditor extends LitElement {
           ${toolbar}
           ${status}
           ${notices}
-          <div class="empty">The Phanes control graph is unavailable to this account.</div>
+          <div class="empty">${t('The Phanes control graph is unavailable to this account.')}</div>
         </div>
       `
     }
@@ -932,7 +935,7 @@ export class MnPhanesControlEditor extends LitElement {
                 </div>
               </section>
             `)}
-            ${visible.length === 0 ? html`<div class="empty">No message copy matches that filter.</div>` : nothing}
+            ${visible.length === 0 ? html`<div class="empty">${t('No message copy matches that filter.')}</div>` : nothing}
           </div>
         </div>
       `
@@ -964,7 +967,7 @@ export class MnPhanesControlEditor extends LitElement {
         </div>
         <textarea
           class="raw-editor"
-          aria-label="Complete Phanes control JSON"
+          aria-label=${t('Complete Phanes control JSON')}
           spellcheck="false"
           .value=${this.rawDraft}
           @input=${(event: Event) => this.updateRaw((event.target as HTMLTextAreaElement).value)}

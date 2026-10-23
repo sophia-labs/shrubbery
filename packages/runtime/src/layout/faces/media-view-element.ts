@@ -18,6 +18,7 @@
  * renders content. It is not a block inside a document; it is a top-level
  * pane over a durable blob resource, full stop.
  */
+import { LocaleController, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, type TemplateResult } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 
@@ -42,6 +43,8 @@ export function inferMediaViewKind(mimeType: string, filename: string): MediaVie
 
 @customElement('sh-media-view')
 export class ShMediaView extends LitElement {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     :host {
       display: flex;
@@ -118,9 +121,9 @@ export class ShMediaView extends LitElement {
   }
 
   private _body(): TemplateResult | typeof nothing {
-    if (this.status === 'idle' || this.status === 'loading') return this._state('Loading…')
+    if (this.status === 'idle' || this.status === 'loading') return this._state(t('Loading…'))
     if (this.status === 'error') return this._state(this.error || 'This file could not be loaded.', 'danger')
-    if (!this.src) return this._state('No file available.')
+    if (!this.src) return this._state(t('No file available.'))
 
     const kind = this._kind()
     if (kind === 'image') {
@@ -136,7 +139,7 @@ export class ShMediaView extends LitElement {
   }
 
   render(): TemplateResult {
-    return html`<div class="stage" role="region" aria-label="Media viewer">${this._body()}</div>`
+    return html`<div class="stage" role="region" aria-label=${t('Media viewer')}>${this._body()}</div>`
   }
 }
 

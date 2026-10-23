@@ -1,3 +1,5 @@
+import { localeSource, t } from '@shrubbery/nucleus'
+import { setLanguage } from '@shrubbery/runtime'
 import type { HostedBilling } from './hosted-billing.js'
 import { SELF_HOST_GUIDE_ACTION, TAKE_HOME_ACTION, type HostedTakeHome } from './hosted-take-home.js'
 import type { BillingCreditsPort } from './add-credits.js'
@@ -238,19 +240,19 @@ function editorMaterialFrom(preferences: PreferenceState): EditorMaterial {
  * nothing: the skin and the editor material decide.
  */
 export const EDITOR_FONTS = {
-  default: { label: 'Skin default', stack: null },
+  default: { get label() { return t('Skin default') }, stack: null },
   literata: { label: 'Literata', stack: "'Literata Variable', 'Literata', Georgia, serif" },
   'source-sans': { label: 'Source Sans', stack: "'Source Sans 3 Variable', 'Source Sans 3', -apple-system, sans-serif" },
 } as const satisfies Record<string, { label: string, stack: string | null }>
 
 /** The measure of the text itself, before the sheet's own padding. */
 export const LINE_WIDTHS = {
-  default: { label: 'Default', width: null },
-  narrow: { label: 'Narrow', width: '560px' },
-  medium: { label: 'Medium', width: '680px' },
-  wide: { label: 'Wide', width: '840px' },
+  default: { get label() { return t('Default') }, width: null },
+  narrow: { get label() { return t('Narrow') }, width: '560px' },
+  medium: { get label() { return t('Medium') }, width: '680px' },
+  wide: { get label() { return t('Wide') }, width: '840px' },
   // Larger than any window: the sheet's min(100%, ...) caps it to the pane.
-  full: { label: 'Full width', width: '10000px' },
+  full: { get label() { return t('Full width') }, width: '10000px' },
 } as const satisfies Record<string, { label: string, width: string | null }>
 
 export const TEXT_SIZES = ['90', '100', '110', '125', '140'] as const
@@ -405,26 +407,35 @@ export class DefaultOrganismSettingsService implements OrganismSettingsService {
     const sections: MnSettingsSection[] = [
       section('account', 'Account', 'Profile, authentication, and account state.', {
         metrics: [
-          { id: 'identity', label: 'Identity', value: account?.email || account?.username || this.options.userEmail || this.options.userName || (local ? 'Local user' : 'Signed-in account') },
-          { id: 'runtime', label: 'Runtime', value: this.options.runtimeMode, tone: local ? 'neutral' : 'accent' },
+          { id: 'identity', get label() { return t('Identity') }, value: account?.email || account?.username || this.options.userEmail || this.options.userName || (local ? 'Local user' : 'Signed-in account') },
+          { id: 'runtime', get label() { return t('Runtime') }, value: this.options.runtimeMode, tone: local ? 'neutral' : 'accent' },
         ],
         actions: local || this.actionUnavailable('sign-out')
           ? []
-          : [{ id: 'sign-out', label: 'Sign out', description: 'End the current hosted session.', variant: 'danger' }],
+          : [{ id: 'sign-out', get label() { return t('Sign out') }, get description() { return t('End the current hosted session.') }, variant: 'danger' }],
       }),
       section('appearance', 'Appearance', 'Skin, theme, how documents read, and accessibility preferences.', {
         selects: [
-          { id: 'theme', label: 'Theme', value: themePreferenceFrom(p), options: [{ value: 'system', label: 'System' }, { value: 'light', label: 'Light' }, { value: 'dark', label: 'Dark' }] },
+          {
+            id: 'language',
+            get label() { return t('Language') },
+            get value() { return localeSource.get() },
+            options: [
+              { value: 'en', label: 'English' },
+              { value: 'ja', label: '日本語' },
+            ],
+          },
+          { id: 'theme', get label() { return t('Theme') }, value: themePreferenceFrom(p), options: [{ value: 'system', get label() { return t('System') } }, { value: 'light', get label() { return t('Light') } }, { value: 'dark', get label() { return t('Dark') } }] },
           {
             id: 'skin',
-            label: 'Skin',
+            get label() { return t('Skin') },
             value: visualIdentitySkinFrom(p),
             options: GARDEN_SITE_BUNDLE.appearance.skins.map((value) => ({ value, label: SKIN_LABELS[value] })),
           },
           {
             id: 'editorMaterial',
-            label: 'Editor canvas',
-            description: 'Choose a continuous canvas, a quiet physical page, or full old-school Word skeuomorphism.',
+            get label() { return t('Editor canvas') },
+            get description() { return t('Choose a continuous canvas, a quiet physical page, or full old-school Word skeuomorphism.') },
             value: editorMaterialFrom(p),
             options: GARDEN_SITE_BUNDLE.appearance.editorMaterials.map((value) => ({
               value,
@@ -437,79 +448,79 @@ export class DefaultOrganismSettingsService implements OrganismSettingsService {
           },
           {
             id: 'editorFont',
-            label: 'Editor font',
-            description: 'The face for documents. The rest of the app keeps its own.',
+            get label() { return t('Editor font') },
+            get description() { return t('The face for documents. The rest of the app keeps its own.') },
             value: editorTypeFrom(p).editorFont,
             options: Object.entries(EDITOR_FONTS).map(([value, font]) => ({ value, label: font.label })),
           },
           {
             id: 'lineWidth',
-            label: 'Line width',
-            description: 'How long a line of text runs before it wraps.',
+            get label() { return t('Line width') },
+            get description() { return t('How long a line of text runs before it wraps.') },
             value: editorTypeFrom(p).lineWidth,
             options: Object.entries(LINE_WIDTHS).map(([value, width]) => ({ value, label: width.label })),
           },
           {
             id: 'textSize',
-            label: 'Text size',
-            description: 'The size of text in documents.',
+            get label() { return t('Text size') },
+            get description() { return t('The size of text in documents.') },
             value: editorTypeFrom(p).textSize,
             options: TEXT_SIZES.map((value) => ({ value, label: `${value}%` })),
           },
         ],
         toggles: [
-          { id: 'reducedMotion', label: 'Reduce motion', checked: p.reducedMotion === true },
-          { id: 'reducedTransparency', label: 'Reduce transparency', description: 'Use solid menus and floating controls.', checked: p.reducedTransparency === true },
+          { id: 'reducedMotion', get label() { return t('Reduce motion') }, checked: p.reducedMotion === true },
+          { id: 'reducedTransparency', get label() { return t('Reduce transparency') }, get description() { return t('Use solid menus and floating controls.') }, checked: p.reducedTransparency === true },
           {
             id: 'valueGutter',
-            label: 'Value markers beside the text',
-            description: 'Show each block\u2019s importance and valence as a faint row of marks beside its first line, with a button to renew a rating. Off keeps the strip at the right edge.',
+            get label() { return t('Value markers beside the text') },
+            get description() { return t('Show each block’s importance and valence as a faint row of marks beside its first line, with a button to renew a rating. Off keeps the strip at the right edge.') },
             checked: p.valueGutter === true,
           },
         ],
       }),
       section('interface', 'Interface', 'Workspace chrome behavior.', {
         toggles: [
-          { id: 'panelLabels', label: 'Show panel labels', checked: p.panelLabels === true },
+          { id: 'panelLabels', get label() { return t('Show panel labels') }, checked: p.panelLabels === true },
           {
             id: 'rightPanelOnLaunch',
-            label: 'Open the right panel on launch',
-            description: 'The right rail can still be opened and closed at any time; this is only what it does when the window opens.',
+            get label() { return t('Open the right panel on launch') },
+            get description() { return t('The right rail can still be opened and closed at any time; this is only what it does when the window opens.') },
             checked: p.rightPanelOnLaunch !== false,
           },
         ],
       }),
       section('billing', 'Billing', 'Plan and subscription controls.', {
-        metrics: [{ id: 'plan', label: 'Plan', value: local ? 'Local' : 'Hosted' }],
-        actions: [{ id: 'manage-billing', label: 'Manage billing', disabled: local || this.actionUnavailable('manage-billing') }],
+        metrics: [{ id: 'plan', get label() { return t('Plan') }, value: local ? 'Local' : 'Hosted' }],
+        actions: [{ id: 'manage-billing', get label() { return t('Manage billing') }, disabled: local || this.actionUnavailable('manage-billing') }],
       }),
       section('usage', 'Usage', 'Runtime and storage usage summaries.', {
         metrics: [
-          { id: 'runtime', label: 'Execution', value: local ? 'On device' : 'Cloud' },
-          { id: 'storage', label: 'Graph storage', value: local ? 'Local profile' : 'Durable cloud cell' },
+          { id: 'runtime', get label() { return t('Execution') }, value: local ? 'On device' : 'Cloud' },
+          { id: 'storage', get label() { return t('Graph storage') }, value: local ? 'Local profile' : 'Durable cloud cell' },
         ],
-        actions: [{ id: 'refresh-usage', label: 'Refresh usage', disabled: this.actionUnavailable('refresh-usage') }],
+        actions: [{ id: 'refresh-usage', get label() { return t('Refresh usage') }, disabled: this.actionUnavailable('refresh-usage') }],
       }),
       section('history', 'History', 'Snapshots, restore points, and document time travel.', {
         actions: this.actionUnavailable('open-history')
           ? []
-          : [{ id: 'open-history', label: 'Open document history' }],
+          : [{ id: 'open-history', get label() { return t('Open document history') } }],
         notes: ['Document history is scoped to the active graph and document.'],
       }),
       section('graph-ops', 'Graph Ops', 'Export, import, duplicate, and maintain graphs.', {
         actions: [
-          { id: 'duplicate-graph', label: 'Duplicate graph', disabled: this.actionUnavailable('duplicate-graph') },
-          { id: 'export-graph', label: 'Export graph', disabled: this.actionUnavailable('export-graph') },
-          { id: 'import-graph', label: 'Import graph', disabled: this.actionUnavailable('import-graph') },
+          { id: 'duplicate-graph', get label() { return t('Duplicate graph') }, disabled: this.actionUnavailable('duplicate-graph') },
+          { id: 'export-graph', get label() { return t('Export graph') }, disabled: this.actionUnavailable('export-graph') },
+          { id: 'import-graph', get label() { return t('Import graph') }, disabled: this.actionUnavailable('import-graph') },
         ],
         jobs: [],
       }),
       section('imports', 'Imports', 'Bring documents and knowledge archives into Garden.', {
         actions: [
-          { id: 'import-files', label: 'Import files', disabled: this.actionUnavailable('import-files') },
-          { id: 'import-obsidian', label: 'Import Obsidian vault', disabled: this.actionUnavailable('import-obsidian') },
-          { id: 'import-notion', label: 'Import Notion archive', disabled: this.actionUnavailable('import-notion') },
-          { id: 'import-roam', label: 'Import Roam archive', disabled: this.actionUnavailable('import-roam') },
+          { id: 'import-files', get label() { return t('Import files') }, disabled: this.actionUnavailable('import-files') },
+          { id: 'import-obsidian', get label() { return t('Import Obsidian vault') }, disabled: this.actionUnavailable('import-obsidian') },
+          { id: 'import-notion', get label() { return t('Import Notion archive') }, disabled: this.actionUnavailable('import-notion') },
+          { id: 'import-roam', get label() { return t('Import Roam archive') }, disabled: this.actionUnavailable('import-roam') },
         ],
       }),
       section('api-keys', 'AI Provider Keys', 'Agent-inference provider credentials. Secret values are write-only and never reflected into component properties.', {
@@ -526,12 +537,12 @@ export class DefaultOrganismSettingsService implements OrganismSettingsService {
       }),
       section('api-mcp', 'API & MCP', 'Loopback or gateway endpoints used by external agents.', {
         metrics: [
-          { id: 'api-base', label: 'API base', value: apiBaseUrl },
-          { id: 'mcp-url', label: 'MCP endpoint', value: mcpUrl },
+          { id: 'api-base', get label() { return t('API base') }, value: apiBaseUrl },
+          { id: 'mcp-url', get label() { return t('MCP endpoint') }, value: mcpUrl },
         ],
         actions: [
-          ...(!this.actionUnavailable('copy-api-url') ? [{ id: 'copy-api-url', label: 'Copy API URL' }] : []),
-          ...(!this.actionUnavailable('copy-mcp-url') ? [{ id: 'copy-mcp-url', label: 'Copy MCP URL' }] : []),
+          ...(!this.actionUnavailable('copy-api-url') ? [{ id: 'copy-api-url', get label() { return t('Copy API URL') } }] : []),
+          ...(!this.actionUnavailable('copy-mcp-url') ? [{ id: 'copy-mcp-url', get label() { return t('Copy MCP URL') } }] : []),
         ] satisfies MnSettingsSection['actions'],
       }),
       ...(this.phanesControl ? [section(
@@ -548,7 +559,7 @@ export class DefaultOrganismSettingsService implements OrganismSettingsService {
           label: 'OpenRouter',
           provider: 'openrouter',
           configured: this.providerStatus.openrouter,
-          description: 'Used for local chat and image generation; the value stays outside graph and browser state.',
+          get description() { return t('Used for local chat and image generation; the value stays outside graph and browser state.') },
         }] : [],
         notes: !local ? [] : hasProviderSecrets && this.providerSecrets
           ? [`The OpenRouter key is stored in the ${this.providerSecrets.storageLabel}.`]
@@ -556,13 +567,13 @@ export class DefaultOrganismSettingsService implements OrganismSettingsService {
       }),
       section('experimental', 'Experimental', 'Opt into unfinished Garden capabilities.', {
         toggles: [
-          { id: 'experimentalFeatures', label: 'Experimental features', checked: p.experimentalFeatures === true },
-          { id: 'diagnostics', label: 'Extended diagnostics', checked: p.diagnostics === true },
+          { id: 'experimentalFeatures', get label() { return t('Experimental features') }, checked: p.experimentalFeatures === true },
+          { id: 'diagnostics', get label() { return t('Extended diagnostics') }, checked: p.diagnostics === true },
         ],
       }),
       section('privacy', 'Privacy', 'Telemetry and local-data controls.', {
-        toggles: [{ id: 'analytics', label: 'Anonymous product analytics', checked: p.analytics === true }],
-        actions: [{ id: 'clear-local-cache', label: 'Clear local cache', variant: 'danger', disabled: this.actionUnavailable('clear-local-cache') }],
+        toggles: [{ id: 'analytics', get label() { return t('Anonymous product analytics') }, checked: p.analytics === true }],
+        actions: [{ id: 'clear-local-cache', get label() { return t('Clear local cache') }, variant: 'danger', disabled: this.actionUnavailable('clear-local-cache') }],
         notes: [local ? 'Graph content remains in the local Garden profile.' : 'Hosted graph content is stored in the graph’s durable cloud cell.'],
       }),
     ]
@@ -591,7 +602,7 @@ export class DefaultOrganismSettingsService implements OrganismSettingsService {
       userEmail: account?.email ?? this.options.userEmail ?? '',
       sections: (this.options.operations?.decorateSections(accountSections) ?? accountSections)
         .map(section => section.id === 'usage' && this.usageExplorer
-          ? { id: 'usage', title: 'Usage', description: 'Explore recorded inference events and historical coverage.', wide: true, contentSlot: 'usage-explorer' }
+          ? { id: 'usage', get title() { return t('Usage') }, get description() { return t('Explore recorded inference events and historical coverage.') }, wide: true, contentSlot: 'usage-explorer' }
           : !local && this.options.billing ? this.options.billing.decorate(section) : section),
     }
   }
@@ -603,6 +614,7 @@ export class DefaultOrganismSettingsService implements OrganismSettingsService {
   }
 
   async select(detail: MnSettingsSelectChangeDetail): Promise<void> {
+    if (detail.settingId === 'language') setLanguage(detail.value, this.options.storage ?? null)
     if (this.options.localAi?.handlesSelect(detail.settingId)) {
       await this.options.localAi.select(detail.settingId, detail.value)
       return

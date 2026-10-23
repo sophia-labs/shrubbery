@@ -1,3 +1,4 @@
+import { LocaleController, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, type PropertyValues } from 'lit'
 import { customElement, property, state } from 'lit/decorators.js'
 import {
@@ -18,6 +19,8 @@ import { feeNote } from './billing-copy.js'
  */
 @customElement('mn-add-credits')
 export class AddCreditsView extends LitElement {
+  protected readonly _locale = new LocaleController(this)
+
   @property({ attribute: false }) port: BillingCreditsPort | null = null
   /** An amount to open on (the refusal banner's link carries one). Unusable amounts are ignored. */
   @property({ attribute: false }) preselect: number | null = null
@@ -127,25 +130,25 @@ export class AddCreditsView extends LitElement {
     const notice = port.notice()
     return html`
       <section class="panel" data-add-credits aria-labelledby="add-credits-title">
-        <h3 id="add-credits-title">Add credits</h3>
-        ${notice ? html`<aside class="notice" data-credits-notice role="note" aria-label="About credits">
+        <h3 id="add-credits-title">${t('Add credits')}</h3>
+        ${notice ? html`<aside class="notice" data-credits-notice role="note" aria-label=${t('About credits')}>
           <h4>${notice.title}</h4>
           ${notice.paragraphs.map(paragraph => html`<p>${paragraph}</p>`)}
         </aside>` : nothing}
         <p class="fine" data-fee-note>${feeNote(port.feePercent())}</p>
-        <div class="presets" role="group" aria-label="Amount">
+        <div class="presets" role="group" aria-label=${t('Amount')}>
           ${TOPUP_PRESETS_USD.map(amount => html`<button type="button" class="preset" data-amount=${String(amount)} aria-pressed=${this.selected === amount ? 'true' : 'false'} @click=${() => this.choose(amount)}>$${amount}</button>`)}
         </div>
         <label class="custom">
           <span class="dollar" aria-hidden="true">$</span>
-          <input data-custom-amount type="text" inputmode="numeric" autocomplete="off" placeholder="Other amount" aria-label="Other amount in dollars" .value=${this.customText} @input=${(event: Event) => this.typed((event.target as HTMLInputElement).value)}>
+          <input data-custom-amount type="text" inputmode="numeric" autocomplete="off" placeholder=${t('Other amount')} aria-label=${t('Other amount in dollars')} .value=${this.customText} @input=${(event: Event) => this.typed((event.target as HTMLInputElement).value)}>
         </label>
         ${problem
           ? html`<p class="error" role="alert" data-amount-error>${problem}</p>`
           : html`<p class="hint">Whole dollars, $${TOPUP_MIN_USD} to $${TOPUP_MAX_USD}.</p>`}
-        <button type="button" class="primary" data-add-credits-submit ?disabled=${amountUsd === null || pending} @click=${() => this.submit(amountUsd)}>${pending ? 'Opening checkout…' : amountUsd === null ? 'Add credits' : `Add $${amountUsd} in credits`}</button>
+        <button type="button" class="primary" data-add-credits-submit ?disabled=${amountUsd === null || pending} @click=${() => this.submit(amountUsd)}>${pending ? 'Opening checkout…' : amountUsd === null ? t('Add credits') : `Add $${amountUsd} in credits`}</button>
         ${error ? html`<p class="error" role="alert" data-checkout-error>${error}</p>` : nothing}
-        <p class="fine">You will pay on Stripe's secure checkout page, then come back here.</p>
+        <p class="fine">${t('You will pay on Stripe\'s secure checkout page, then come back here.')}</p>
       </section>
     `
   }

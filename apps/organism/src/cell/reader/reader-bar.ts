@@ -14,6 +14,7 @@
  *   `mn-editor-search-input` { value } · `mn-editor-search-keydown` { keyboardEvent } · `mn-editor-search-prev|next|close`
  *     (the find box speaks the editor toolbar's events, so the editor host needs nothing new)
  */
+import { LocaleController, t } from '@shrubbery/nucleus'
 import { LitElement, html, nothing, type PropertyValues, type TemplateResult } from 'lit'
 import { customElement, property, query } from 'lit/decorators.js'
 import type { MenuEntry, MenuSelectDetail } from '@shrubbery/nucleus'
@@ -33,6 +34,8 @@ export interface ReaderBarFind {
 
 @customElement('mn-reader-bar')
 export class MnReaderBar extends LitElement {
+  protected readonly _locale = new LocaleController(this)
+
   static override styles = [
     READER_TOKENS,
     READER_BAR_STYLES,
@@ -110,9 +113,9 @@ export class MnReaderBar extends LitElement {
 
   protected override render(): TemplateResult {
     const find = this.find
-    return html`<header class="bar" role="toolbar" aria-label="Reader">
+    return html`<header class="bar" role="toolbar" aria-label=${t('Reader')}>
         <div class="bar-start">
-          <button type="button" class="btn" aria-label="Contents and pages" title="Contents and pages" aria-pressed=${this.sidebarPressed ? 'true' : 'false'}
+          <button type="button" class="btn" aria-label=${t('Contents and pages')} title=${t('Contents and pages')} aria-pressed=${this.sidebarPressed ? 'true' : 'false'}
             ?disabled=${this.sidebarDisabled} style=${this.noSidebar ? 'visibility:hidden' : ''} tabindex=${this.noSidebar ? '-1' : '0'}
             @click=${() => this.say('rd-bar-sidebar')}>${icon('sidebar')}</button>
           <div class="title"><b>${this.title}</b>${this.author ? html`<small>${this.author}</small>` : nothing}</div>
@@ -120,29 +123,29 @@ export class MnReaderBar extends LitElement {
         <div class="loc"><slot name="location">${this.status ? html`<span class="status" role="status">${this.status}</span>` : nothing}</slot></div>
         <div class="bar-end">
           <slot name="tools"></slot>
-          <button type="button" class="btn" aria-label="Find" title="Find (⌘F)" aria-pressed=${this.findPressed ? 'true' : 'false'} ?disabled=${this.findDisabled}
+          <button type="button" class="btn" aria-label=${t('Find')} title=${t('Find (⌘F)')} aria-pressed=${this.findPressed ? 'true' : 'false'} ?disabled=${this.findDisabled}
             data-search-open @click=${() => this.say('rd-bar-find', { open: !this.findPressed })}>${icon('search')}</button>
           <slot name="tools-end"></slot>
           ${this.viewToggle ? html`<span class="sep"></span>
-            <div class="seg" role="group" aria-label="View">
-              <button type="button" aria-pressed=${this.view === 'original' ? 'true' : 'false'} title="The original"
-                @click=${() => { if (this.view !== 'original') this.say('mn-editor-original-view-toggle', {}) }}>Original</button>
-              <button type="button" aria-pressed=${this.view === 'text' ? 'true' : 'false'} title="The text made from it"
-                @click=${() => { if (this.view !== 'text') this.say('mn-editor-original-view-toggle', {}) }}>Text</button>
+            <div class="seg" role="group" aria-label=${t('View')}>
+              <button type="button" aria-pressed=${this.view === 'original' ? 'true' : 'false'} title=${t('The original')}
+                @click=${() => { if (this.view !== 'original') this.say('mn-editor-original-view-toggle', {}) }}>${t('Original')}</button>
+              <button type="button" aria-pressed=${this.view === 'text' ? 'true' : 'false'} title=${t('The text made from it')}
+                @click=${() => { if (this.view !== 'text') this.say('mn-editor-original-view-toggle', {}) }}>${t('Text')}</button>
             </div>` : nothing}
-          <button type="button" class="btn" aria-label="More" title="More" aria-haspopup="menu" data-more @click=${(e: MouseEvent) => this.openMenu(e)}>${icon('more')}</button>
+          <button type="button" class="btn" aria-label=${t('More')} title=${t('More')} aria-haspopup="menu" data-more @click=${(e: MouseEvent) => this.openMenu(e)}>${icon('more')}</button>
         </div>
         ${this.progress !== null ? html`<div class="bar-progress" style=${`width:${(this.progress * 100).toFixed(2)}%`}></div>` : nothing}
       </header>
       ${this.error ? html`<p class="bar-error" role="alert">${this.error}</p>` : nothing}
       ${find?.open ? html`<div class="find-pop" role="search">
-        <input type="search" autocomplete="off" spellcheck="false" placeholder="Find" aria-label="Find" data-search-input .value=${find.query}
+        <input type="search" autocomplete="off" spellcheck="false" placeholder=${t('Find')} aria-label=${t('Find')} data-search-input .value=${find.query}
           @input=${(e: Event) => this.say('mn-editor-search-input', { value: (e.target as HTMLInputElement).value })}
           @keydown=${(e: KeyboardEvent) => this.say('mn-editor-search-keydown', { keyboardEvent: e })} />
         <span class="count" data-search-count aria-live="polite">${find.query ? `${find.count > 0 ? find.index + 1 : 0} / ${find.count}` : ''}</span>
-        <button type="button" class="btn" aria-label="Previous match" ?disabled=${find.count === 0} @click=${() => this.say('mn-editor-search-prev')}>${icon('up')}</button>
-        <button type="button" class="btn" aria-label="Next match" ?disabled=${find.count === 0} @click=${() => this.say('mn-editor-search-next')}>${icon('down')}</button>
-        <button type="button" class="btn" aria-label="Close find" @click=${() => this.say('mn-editor-search-close')}>${icon('x')}</button>
+        <button type="button" class="btn" aria-label=${t('Previous match')} ?disabled=${find.count === 0} @click=${() => this.say('mn-editor-search-prev')}>${icon('up')}</button>
+        <button type="button" class="btn" aria-label=${t('Next match')} ?disabled=${find.count === 0} @click=${() => this.say('mn-editor-search-next')}>${icon('down')}</button>
+        <button type="button" class="btn" aria-label=${t('Close find')} @click=${() => this.say('mn-editor-search-close')}>${icon('x')}</button>
       </div>` : nothing}
       <mn-context-menu class="more" @mn-select=${(e: CustomEvent<MenuSelectDetail>) => this.onSelect(e)}></mn-context-menu>
       <mn-context-menu class="ctx" @mn-select=${(e: CustomEvent<MenuSelectDetail>) => this.onContextSelect(e)}></mn-context-menu>`

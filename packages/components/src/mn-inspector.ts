@@ -8,6 +8,7 @@
  * as composed intents.
  */
 
+import { LocaleController, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, unsafeCSS, type TemplateResult } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 import { classMap } from 'lit/directives/class-map.js'
@@ -121,6 +122,8 @@ function modifiersFrom(event: MouseEvent | KeyboardEvent): MnInspectorModifiers 
 
 @customElement('mn-inspector')
 export class MnInspector extends SkinAware(LitElement) {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     ${unsafeCSS(iconStyles)}
 
@@ -515,8 +518,8 @@ export class MnInspector extends SkinAware(LitElement) {
   private renderNoSelection(): TemplateResult {
     return html`
       <div class="empty" data-empty-state="nothing-selected">
-        <div class="empty-title">Nothing selected</div>
-        <div>Select a document, block, wire, comment, or workspace to inspect it.</div>
+        <div class="empty-title">${t('Nothing selected')}</div>
+        <div>${t('Select a document, block, wire, comment, or workspace to inspect it.')}</div>
       </div>
     `
   }
@@ -525,7 +528,7 @@ export class MnInspector extends SkinAware(LitElement) {
     const chips = identity.chips ?? []
     return html`
       <section class="section" data-section="identity">
-        <div class="section-title">${icon('info', { size: 12 })}<span>Identity</span></div>
+        <div class="section-title">${icon('info', { size: 12 })}<span>${t('Identity')}</span></div>
         <div class="identity-card">
           <div class="identity-head">
             <div class="identity-icon">${icon(identity.icon ?? 'info', { size: 18 })}</div>
@@ -563,12 +566,12 @@ export class MnInspector extends SkinAware(LitElement) {
     const total = this.relationCount(safeRelations)
     const relationContent =
       safeRelations.scope === 'inactive'
-        ? html`<div class="relations-lazy">Open this document to see its connections.</div>`
+        ? html`<div class="relations-lazy">${t('Open this document to see its connections.')}</div>`
         : total === 0
           ? html`
               <div class="empty" data-empty-state="no-relations">
-                <div class="empty-title">No relations</div>
-                <div>This object has no wires, backlinks, or comments yet.</div>
+                <div class="empty-title">${t('No relations')}</div>
+                <div>${t('This object has no wires, backlinks, or comments yet.')}</div>
               </div>
             `
           : groups
@@ -578,7 +581,7 @@ export class MnInspector extends SkinAware(LitElement) {
       <section class="section" data-section="relations">
         <div class="section-title">
           ${icon('git-branch', { size: 12 })}
-          <span>Relations</span>
+          <span>${t('Relations')}</span>
           ${total > 0 ? html`<span class="count">${total}</span>` : nothing}
         </div>
         ${relationContent}
@@ -615,12 +618,12 @@ export class MnInspector extends SkinAware(LitElement) {
     const actions = this.actions
     return html`
       <section class="section" data-section="actions">
-        <div class="section-title">${icon('zap', { size: 12 })}<span>Actions</span></div>
+        <div class="section-title">${icon('zap', { size: 12 })}<span>${t('Actions')}</span></div>
         ${actions.length === 0
           ? html`
               <div class="empty" data-empty-state="no-actions">
-                <div class="empty-title">No actions</div>
-                <div>No actions are available for this selection.</div>
+                <div class="empty-title">${t('No actions')}</div>
+                <div>${t('No actions are available for this selection.')}</div>
               </div>
             `
           : html`<div class="actions-list">
@@ -673,14 +676,14 @@ export class MnInspector extends SkinAware(LitElement) {
       <header class="header">
         <div class="header-left">
           <span class="header-icon">${icon('info', { size: 14 })}</span>
-          <span class="header-title">Inspector</span>
+          <span class="header-title">${t('Inspector')}</span>
         </div>
         ${this.showClose
           ? html`<button
               type="button"
               class="close-btn"
-              title="Close inspector"
-              aria-label="Close inspector"
+              title=${t('Close inspector')}
+              aria-label=${t('Close inspector')}
               @click=${() => this.close()}
             >${icon('x', { size: 14 })}</button>`
           : nothing}

@@ -12,6 +12,7 @@
  * on the API; a throw inside `onInitialize` unmounts the tree but leaves a live API over an empty container, so the
  * first draw happens on the next frame.
  */
+import { LocaleController, localeSource, t } from '@shrubbery/nucleus'
 import { adoptStyleSheet, styleRootOf } from '@shrubbery/nucleus'
 import { css, html, LitElement, nothing, type PropertyValues } from 'lit'
 import type * as Y from 'yjs'
@@ -222,6 +223,8 @@ export function flushOpenWhiteboards(): void {
 }
 
 export class ShWhiteboard extends LitElement {
+  protected readonly _locale = new LocaleController(this)
+
   static override properties = { page: { attribute: false }, presenceLine: { state: true }, notice: { state: true }, editingTitle: { state: true } }
   declare page: WhiteboardPageOptions | null
   declare presenceLine: string
@@ -231,6 +234,8 @@ export class ShWhiteboard extends LitElement {
   private mountedKey = ''
   private generation = 0
   private root: { unmount(): void } | null = null
+  private renderCanvas?: () => void
+  private canvasLocale = localeSource.get()
   private binding: WhiteboardBinding | null = null
   private api: ExcalidrawApiLike | null = null
   private awareness: AwarenessLike | null = null
@@ -291,8 +296,8 @@ export class ShWhiteboard extends LitElement {
     return html`
       <header>
         ${this.editingTitle && !page.readOnly
-          ? html`<input class="title" .value=${page.title} aria-label="Whiteboard title" @keydown=${this.onTitleKey} @blur=${this.onTitleBlur} />`
-          : html`<button class="title" title=${page.readOnly ? page.title : 'Rename'} @click=${() => { if (!page.readOnly && page.onRename) { this.editingTitle = true } }}>${page.title || 'Untitled whiteboard'}</button>`}
+          ? html`<input class="title" .value=${page.title} aria-label=${t('Whiteboard title')} @keydown=${this.onTitleKey} @blur=${this.onTitleBlur} />`
+          : html`<button class="title" title=${page.readOnly ? page.title : t('Rename')} @click=${() => { if (!page.readOnly && page.onRename) { this.editingTitle = true } }}>${page.title || t('Untitled whiteboard')}</button>`}
         ${this.notice ? html`<span class="notice" role="status">${this.notice}</span>` : nothing}
         <span class="presence" role="status" aria-live="polite" data-testid="whiteboard-presence">${this.presenceLine}</span>
       </header>
@@ -300,7 +305,7 @@ export class ShWhiteboard extends LitElement {
         <div class="canvas"></div>
         <div class="rings"></div>
         ${page.status === 'error' ? html`<div class="state" role="alert">Could not open this whiteboard. ${page.error ?? ''}</div>` : nothing}
-        ${page.status === 'loading' ? html`<div class="state">Opening the whiteboard...</div>` : nothing}
+        ${page.status === 'loading' ? html`<div class="state">${t('Opening the whiteboard...')}</div>` : nothing}
       </div>`
   }
 
@@ -325,6 +330,10 @@ export class ShWhiteboard extends LitElement {
 
   override updated(changed: PropertyValues): void {
     super.updated(changed)
+    if (this.canvasLocale !== localeSource.get()) {
+      this.canvasLocale = localeSource.get()
+      this.renderCanvas?.()
+    }
     if (this.editingTitle) this.renderRoot.querySelector<HTMLInputElement>('input.title')?.focus()
     const page = this.page
     const key = page && page.status !== 'error' && page.provider ? `${page.graphId}/${page.documentId}/${page.readOnly ? 'ro' : 'rw'}` : ''
@@ -342,6 +351,7 @@ export class ShWhiteboard extends LitElement {
   }
 
   private unmount(): void {
+    this.renderCanvas = undefined
     this.generation += 1
     this.mountedKey = ''
     if (this.binding) mountedBindings.delete(this.binding)
@@ -455,6 +465,7 @@ export class ShWhiteboard extends LitElement {
     }
     const props: Record<string, unknown> = {
       key,
+      langCode: localeSource.get() === 'ja' ? 'ja-JP' : 'en',
       initialData: {
         elements: initial,
         // Transparent, so the pane's Sophia surface shows through. Excalidraw's dark theme inverts the canvas
@@ -492,7 +503,11 @@ export class ShWhiteboard extends LitElement {
     }
     const reactRoot = runtime.createRoot(container)
     this.root = reactRoot
-    reactRoot.render(runtime.createElement(runtime.Excalidraw, props, this.mainMenu(runtime), this.commandPalette(runtime, barDeps)))
+    this.renderCanvas = () => {
+      props.langCode = localeSource.get() === 'ja' ? 'ja-JP' : 'en'
+      reactRoot.render(runtime.createElement(runtime.Excalidraw, props, this.mainMenu(runtime), this.commandPalette(runtime, barDeps)))
+    }
+    this.renderCanvas()
 
     this.awarenessListener = () => this.updateCollaborators()
     awareness.on('change', this.awarenessListener)
@@ -526,7 +541,7 @@ export class ShWhiteboard extends LitElement {
     // Ctrl+K (and the properties panel's link button) open our picker instead of Excalidraw's web-address popup.
     api.registerAction?.({
       name: 'hyperlink',
-      label: 'Link…',
+      get label() { return t('Link…') },
       keywords: ['link', 'document', 'object'],
       trackEvent: false,
       perform: (elements: readonly WbElement[], appState: Record<string, any>) => {
@@ -553,7 +568,7 @@ export class ShWhiteboard extends LitElement {
     }
     const items = [
       {
-        label: 'Add card…',
+        get label() { return t('Add card…') },
         category: 'Links',
         keywords: ['card', 'object', 'document', 'embed'],
         viewMode: false,
@@ -561,7 +576,7 @@ export class ShWhiteboard extends LitElement {
         perform: () => { void addCard(deps) },
       },
       {
-        label: 'Link shape…',
+        get label() { return t('Link shape…') },
         category: 'Links',
         keywords: ['link', 'document', 'object'],
         viewMode: false,
@@ -575,7 +590,7 @@ export class ShWhiteboard extends LitElement {
         },
       },
       {
-        label: 'Make wire…',
+        get label() { return t('Make wire…') },
         category: 'Links',
         keywords: ['wire', 'predicate', 'arrow', 'connect'],
         viewMode: false,

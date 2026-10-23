@@ -36,6 +36,7 @@
  * render-workspace-island.test.ts.)
  */
 
+import { t } from '@shrubbery/nucleus'
 import {
   type AppId,
   DEFAULT_FILE_PANE_GROUPING,
@@ -1988,8 +1989,8 @@ function landmarkRoleFor(role: RegionRole): string | null {
 }
 
 function landmarkLabelFor(role: RegionRole): string | null {
-  if (role === 'sidebar') return 'Workspace'
-  if (role === 'right') return 'Secondary panels'
+  if (role === 'sidebar') return t('Workspace')
+  if (role === 'right') return t('Secondary panels')
   return null
 }
 
@@ -2005,7 +2006,7 @@ function renderSidebarPanel(sidebar: RenderWorkspaceOptions['sidebar']): Templat
     .selectedIds=${sidebar?.selectedIds ?? null}
     .activeId=${sidebar?.activeId ?? null}
     .showHeaderActions=${sidebar?.showHeaderActions ?? true}
-    .searchPlaceholder=${sidebar?.searchPlaceholder ?? 'Search'}
+    .searchPlaceholder=${sidebar?.searchPlaceholder ?? t('Search')}
     .presentation=${sidebar?.presentation ?? 'tree'}
     .sort=${sidebar?.sort ?? DEFAULT_FILE_PANE_SORT}
     .grouping=${sidebar?.grouping ?? DEFAULT_FILE_PANE_GROUPING}
@@ -2216,15 +2217,15 @@ export function renderWorkflowPlan(plan: WorkflowPlanOptions): TemplateResult {
     <style>${WORKFLOW_PLAN_STYLE}</style>
     <sh-workflow-scene .plan=${plan} ?inert=${Boolean(plan.focus)} aria-hidden=${plan.focus ? 'true' : 'false'}></sh-workflow-scene>
     ${plan.focus ? html`<sh-workflow-focus .plan=${plan}></sh-workflow-focus>` : nothing}
-    <div class="wfp-pill" role="group" aria-label="Run">
+    <div class="wfp-pill" role="group" aria-label=${t('Run')}>
       ${pill.running ? html`<span class="spin" aria-hidden="true"></span>` : nothing}
       <span class="words" role="status" aria-live="polite" data-tone=${pill.tone} title=${pill.words}
         @click=${() => { if (pill.tone === 'invalid') plan.onSelect?.(null) }}>${pill.words}</span>
       ${publish ? html`<button data-quiet ?disabled=${publish.status === 'publishing'} @click=${() => plan.onPublish?.(publish.destination)}>${publish.status === 'publishing' ? 'Publishing…' : `Publish ${publish.count}`}</button>` : nothing}
-      ${pill.running && plan.onStop ? html`<button data-quiet ?disabled=${plan.run?.status === 'stopping'} title="Stop this run: its agents end now"
-        @click=${() => plan.onStop?.()}>${plan.run?.status === 'stopping' ? 'Stopping…' : 'Stop'}</button>` : nothing}
-      <button ?disabled=${!canRun} title=${plan.digest ? `Approve and run this version (${plan.digest.slice(0, 19)}…)` : 'Approve and run this version'}
-        @click=${() => plan.onRun?.()}>${pill.running ? 'Running' : plan.run ? 'Run again' : 'Run'}</button>
+      ${pill.running && plan.onStop ? html`<button data-quiet ?disabled=${plan.run?.status === 'stopping'} title=${t('Stop this run: its agents end now')}
+        @click=${() => plan.onStop?.()}>${plan.run?.status === 'stopping' ? 'Stopping…' : t('Stop')}</button>` : nothing}
+      <button ?disabled=${!canRun} title=${plan.digest ? `Approve and run this version (${plan.digest.slice(0, 19)}…)` : t('Approve and run this version')}
+        @click=${() => plan.onRun?.()}>${pill.running ? 'Running' : plan.run ? t('Run again') : t('Run')}</button>
     </div>
   </section>`
 }
@@ -2263,9 +2264,9 @@ function renderWhiteboardPage(page: WhiteboardPageOptions): TemplateResult {
 function renderObjectPage(page: ObjectPageOptions): TemplateResult {
   const model = page.status === 'ready' ? page.model ?? null : null
   const back = page.back ?? null
-  return html`<section class="objp" data-surface="object-page" aria-label=${model ? `${model.classLabel}: ${model.title}` : 'Object'}>
+  return html`<section class="objp" data-surface="object-page" aria-label=${model ? `${model.classLabel}: ${model.title}` : t('Object')}>
     <style>${OBJECT_PAGE_STYLE}</style>
-    <div class="objp-bar" role="navigation" aria-label="Where this object is">
+    <div class="objp-bar" role="navigation" aria-label=${t('Where this object is')}>
       ${back ? html`<button class="up" title=${`Back to ${back.label}`} aria-label=${`Back to ${back.label}`} @click=${() => back.onBack()}>←</button>` : nothing}
       <div class="objp-crumbs">
         ${back ? html`<button @click=${() => back.onBack()}>${back.label}</button><span class="sep">/</span>` : nothing}
@@ -2276,10 +2277,10 @@ function renderObjectPage(page: ObjectPageOptions): TemplateResult {
       ${model
         ? html`<sh-object-view slot="pane" .model=${model} graph-id=${page.graphId} .usedIn=${page.usedIn ?? null} .documentTitles=${page.documentTitles ?? null}></sh-object-view>`
         : page.status === 'absent'
-          ? html`<div class="objp-state" role="note"><p><strong>Not in this graph.</strong> Nothing in ${page.graphId} says anything about this object.</p><p><code>${page.iri}</code></p></div>`
+          ? html`<div class="objp-state" role="note"><p><strong>${t('Not in this graph.')}</strong> Nothing in ${page.graphId} says anything about this object.</p><p><code>${page.iri}</code></p></div>`
           : page.status === 'error'
-            ? html`<div class="objp-state" role="alert"><p><strong>Could not read it.</strong> ${page.error ?? ''}</p><p><code>${page.iri}</code></p></div>`
-            : html`<div class="objp-state">Reading the object…</div>`}
+            ? html`<div class="objp-state" role="alert"><p><strong>${t('Could not read it.')}</strong> ${page.error ?? ''}</p><p><code>${page.iri}</code></p></div>`
+            : html`<div class="objp-state">${t('Reading the object…')}</div>`}
     </div></div>
   </section>`
 }
@@ -2495,15 +2496,15 @@ function renderParkedDocumentRow(
       : nothing}
     ${parkedOperationSummary(row.operations)}
     <div style="display:flex;gap:var(--mn-space-2);margin-top:var(--mn-space-2);">
-      <button type="button" data-parked-action="view" @click=${() => options.onView?.(row.recoveryKey)}>View</button>
-      <button type="button" data-parked-action="export" @click=${() => options.onExport?.(row.recoveryKey)}>Export</button>
+      <button type="button" data-parked-action="view" @click=${() => options.onView?.(row.recoveryKey)}>${t('View')}</button>
+      <button type="button" data-parked-action="export" @click=${() => options.onExport?.(row.recoveryKey)}>${t('Export')}</button>
       ${row.canReapply
         ? html`<button type="button" data-parked-action="reapply"
-            @click=${() => options.onReapply?.([row.recoveryKey])}>Reapply</button>`
+            @click=${() => options.onReapply?.([row.recoveryKey])}>${t('Reapply')}</button>`
         : html`<span data-parked-reapply-unavailable style="color:var(--mn-color-text-muted);font-size:var(--mn-text-xs);align-self:center;">
             ${row.reason === 'deleted'
-              ? 'Nothing to reapply this into — the document is gone.'
-              : 'Reapply is only offered when a replacement exists.'}
+              ? t('Nothing to reapply this into — the document is gone.')
+              : t('Reapply is only offered when a replacement exists.')}
           </span>`}
     </div>
   </li>`
@@ -2521,12 +2522,12 @@ function renderParkedWork(options: ParkedWorkOptions): TemplateResult {
     data-parked-work
     data-parked-work-graph=${model.graphId}
     role="region"
-    aria-label="Parked work"
+    aria-label=${t('Parked work')}
     style="padding:var(--mn-space-4);overflow:auto;height:100%;box-sizing:border-box;"
   >
     <div style="display:flex;align-items:baseline;justify-content:space-between;gap:var(--mn-space-3);">
       <div>
-        <h2 style="margin:0;font-size:var(--mn-text-lg);">Parked work</h2>
+        <h2 style="margin:0;font-size:var(--mn-text-lg);">${t('Parked work')}</h2>
         <p style="margin:var(--mn-space-1) 0 0 0;color:var(--mn-color-text-muted);font-size:var(--mn-text-sm);">
           Work you did in a previous life of ${model.graphTitle}. It is safe here, and it is not in the graph.
         </p>
@@ -2534,16 +2535,16 @@ function renderParkedWork(options: ParkedWorkOptions): TemplateResult {
       <div style="display:flex;gap:var(--mn-space-2);">
         ${!empty
           ? html`<button type="button" data-parked-action="export-all"
-              @click=${() => options.onExport?.(null)}>Export all parked work</button>`
+              @click=${() => options.onExport?.(null)}>${t('Export all parked work')}</button>`
           : nothing}
-        <button type="button" data-parked-action="close" @click=${() => options.onClose?.()}>Close</button>
+        <button type="button" data-parked-action="close" @click=${() => options.onClose?.()}>${t('Close')}</button>
       </div>
     </div>
 
     ${empty
       ? html`<div data-parked-work-empty style="margin-top:var(--mn-space-6);text-align:center;color:var(--mn-color-text-muted);">
-          <p style="font-size:var(--mn-text-md);margin:0;">Nothing is parked</p>
-          <p style="font-size:var(--mn-text-sm);margin:var(--mn-space-1) 0 0 0;">Every change you made has reached this graph.</p>
+          <p style="font-size:var(--mn-text-md);margin:0;">${t('Nothing is parked')}</p>
+          <p style="font-size:var(--mn-text-sm);margin:var(--mn-space-1) 0 0 0;">${t('Every change you made has reached this graph.')}</p>
         </div>`
       : html`
         <ul data-parked-document-list style="list-style:none;margin:var(--mn-space-4) 0 0 0;padding:0;">
@@ -2607,7 +2608,7 @@ function renderDocHistoryOverlay(docHistory: DocHistoryOptions | null | undefine
       style="position:fixed;inset:0;z-index:var(--mn-z-modal, 1400);display:flex;background:rgba(20,18,16,0.55);"
     >
       <mn-doc-history-panel
-        .title=${docHistory.title ?? 'Version History'}
+        .title=${docHistory.title ?? t('Version History')}
         .subtitle=${docHistory.subtitle ?? ''}
         .status=${docHistory.status}
         .error=${docHistory.error ?? ''}
@@ -3088,17 +3089,17 @@ function renderPanelEdgeControls(
       ${panelLayout.onLeftExpandedChange ? html`<button
         type="button"
         data-panel-mode=${expanded ? 'normal' : 'expanded'}
-        aria-label=${expanded ? 'Return to normal width' : 'Expand sidebar'}
+        aria-label=${expanded ? t('Return to normal width') : t('Expand sidebar')}
         aria-expanded=${expanded ? 'true' : 'false'}
-        title=${expanded ? 'Return to normal width' : 'Expand sidebar'}
+        title=${expanded ? t('Return to normal width') : t('Expand sidebar')}
         @click=${() => panelLayout.onLeftExpandedChange?.(!expanded)}
       ><span aria-hidden="true">${expanded ? '‹' : '›'}</span></button>` : nothing}
       ${panelLayout.onLeftCollapsedChange ? html`<button
         type="button"
         data-panel-mode="collapsed"
-        aria-label="Collapse sidebar"
+        aria-label=${t('Collapse sidebar')}
         aria-expanded="true"
-        title="Collapse sidebar"
+        title=${t('Collapse sidebar')}
         @click=${() => panelLayout.onLeftCollapsedChange?.(true)}
       ><span aria-hidden="true">«</span></button>` : nothing}
     </div>`
@@ -3109,9 +3110,9 @@ function renderPanelEdgeControls(
       class="panel-edge-btn"
       data-panel-controls="right"
       data-panel-mode="collapsed"
-      aria-label="Close right panel"
+      aria-label=${t('Close right panel')}
       aria-expanded="true"
-      title="Close panel"
+      title=${t('Close panel')}
       @click=${() => panelLayout.onRightCollapsedChange?.(true)}
     ><span aria-hidden="true">»</span></button>`
   }
@@ -3628,9 +3629,9 @@ function renderSurfaceToc(
     <button
       class="toc-btn"
       type="button"
-      aria-label="Table of contents"
+      aria-label=${t('Table of contents')}
       aria-expanded=${open ? 'true' : 'false'}
-      title="Table of contents"
+      title=${t('Table of contents')}
       @click=${() => group.onTocToggle?.({ paneId: pane.id })}
     >${surfaceTocIcon()}<span class="toc-btn-label">${label || 'Untitled'}</span><span aria-hidden="true">▾</span></button>
     ${open ? html`<div class="toc-dropdown" popover="manual" role="menu">
@@ -3702,7 +3703,7 @@ function renderSurfacePaneHeader(
       class="pane-command"
       data-pane-back=${pane.id}
       aria-label=${`Go back in ${pane.title}`}
-      title=${surfaceEventTitle(pane.capabilities.navigateDisabledReason, 'Go back')}
+      title=${surfaceEventTitle(pane.capabilities.navigateDisabledReason, t('Go back'))}
       ?disabled=${!pane.canGoBack}
       @click=${() => group.onNavigate?.({ paneId: pane.id, direction: 'back' })}
     >←</button>
@@ -3710,7 +3711,7 @@ function renderSurfacePaneHeader(
       class="pane-command"
       data-pane-forward=${pane.id}
       aria-label=${`Go forward in ${pane.title}`}
-      title=${surfaceEventTitle(pane.capabilities.navigateDisabledReason, 'Go forward')}
+      title=${surfaceEventTitle(pane.capabilities.navigateDisabledReason, t('Go forward'))}
       ?disabled=${!pane.canGoForward}
       @click=${() => group.onNavigate?.({ paneId: pane.id, direction: 'forward' })}
     >→</button>
@@ -3725,7 +3726,7 @@ function renderSurfacePaneHeader(
       class="pane-command"
       data-pane-open=${pane.id}
       aria-label=${`Open a document in ${pane.title}`}
-      title=${surfaceEventTitle(pane.capabilities.openDisabledReason, 'Open a document in this pane')}
+      title=${surfaceEventTitle(pane.capabilities.openDisabledReason, t('Open a document in this pane'))}
       ?disabled=${!pane.capabilities.openDocument}
       @click=${() => group.onOpen?.({ paneId: pane.id, placement: 'active', reason: 'choose-document', activate: true })}
     >⌘O</button>
@@ -3741,8 +3742,8 @@ function renderSurfacePaneHeader(
     ${pane.position === 'secondary' ? html`<button
       class="pane-command"
       data-pane-close=${pane.id}
-      aria-label="Close secondary pane"
-      title=${surfaceEventTitle(pane.capabilities.closeDisabledReason, 'Close secondary pane')}
+      aria-label=${t('Close secondary pane')}
+      title=${surfaceEventTitle(pane.capabilities.closeDisabledReason, t('Close secondary pane'))}
       ?disabled=${!pane.capabilities.close}
       @click=${() => group.onClose?.({ paneId: pane.id, reason: 'pane-command' })}
     >×</button>` : nothing}
@@ -3792,12 +3793,12 @@ function renderSurfacePaneEditor(
       .ttsAvailable=${editor?.ttsAvailable ?? false}
     ></sh-editor-host>
     ${pane.current.kind === 'home' ? html`<div class="surface-pane-empty" data-pane-home=${pane.id}>
-      <span>${pane.position === 'primary' ? 'Choose a document to begin.' : 'A second path through the garden.'}</span>
+      <span>${pane.position === 'primary' ? t('Choose a document to begin.') : t('A second path through the garden.')}</span>
       <button
         class="empty-open"
         ?disabled=${!pane.capabilities.openDocument}
         @click=${() => group.onOpen?.({ paneId: pane.id, placement: 'active', reason: 'choose-document', activate: true })}
-      >Open a document</button>
+      >${t('Open a document')}</button>
     </div>` : nothing}
   </div>`
 }
@@ -4500,7 +4501,7 @@ function assembleWorkspaceSurface(
           kind: 'pane-editor',
           pane: {
             id: 'center-primary', position: 'primary', current: homeLocation(graphId), back: [], forward: [],
-            active: true, title: 'Home', canGoBack: false, canGoForward: false,
+            active: true, get title() { return t('Home') }, canGoBack: false, canGoForward: false,
             capabilities: { openDocument: false, navigate: false, close: false },
           },
           group: opts.centerPanes,
@@ -4664,12 +4665,12 @@ function surfaceDividerPolicy(
     // A fragment split is an ORDINARY engine split: draggable within the
     // engine's own default bounds; its settle points persist to the
     // fragment's ux:layoutJson (see the model's fragment ratio handler).
-    return { enabled: true, label: 'Resize layout fragment', minBasisPoints: 100, maxBasisPoints: 9900 }
+    return { enabled: true, get label() { return t('Resize layout fragment') }, minBasisPoints: 100, maxBasisPoints: 9900 }
   }
   if (kind.kind === 'center-panes') {
     return {
       enabled: kind.group.projection.capabilities.resize,
-      label: 'Resize document panes',
+      get label() { return t('Resize document panes') },
       minBasisPoints: Math.round(kind.group.projection.dividerMinPercent * 100),
       maxBasisPoints: Math.round(kind.group.projection.dividerMaxPercent * 100),
     }
@@ -4682,7 +4683,7 @@ function surfaceDividerPolicy(
     const max = Math.max(min, Math.min(500, size - rightWidth - 402))
     return {
       enabled: true,
-      label: 'Resize sidebar',
+      get label() { return t('Resize sidebar') },
       minBasisPoints: basisPoints(min / size),
       maxBasisPoints: basisPoints(max / size),
     }
@@ -4693,7 +4694,7 @@ function surfaceDividerPolicy(
     const max = Math.max(min, Math.min(500, size - 400))
     return {
       enabled: true,
-      label: 'Resize right panel',
+      get label() { return t('Resize right panel') },
       minBasisPoints: basisPoints(1 - max / size),
       maxBasisPoints: basisPoints(1 - min / size),
     }
@@ -4995,7 +4996,7 @@ function renderWorkspaceSurfaceFrame(
         .tier=${opts.tts.tier}
         .speed=${opts.tts.speed}
         .speeds=${opts.tts.speeds ?? [0.75, 1, 1.25, 1.5, 2]}
-        .tiers=${opts.tts.tiers ?? [{ value: 'local', label: 'Browser voice' }]}
+        .tiers=${opts.tts.tiers ?? [{ value: 'local', get label() { return t('Browser voice') } }]}
         @mn-tts-action=${(event: Event) => opts.tts?.onAction?.(customDetail<WorkspaceTtsActionDetail>(event))}
       ></mn-tts-player>`
     : nothing
@@ -5004,7 +5005,7 @@ function renderWorkspaceSurfaceFrame(
         type="button"
         class="collapse-rail"
         data-panel-restore="left"
-        aria-label="Expand sidebar"
+        aria-label=${t('Expand sidebar')}
         aria-expanded="false"
         @click=${() => opts.panelLayout?.onLeftCollapsedChange?.(false)}
       ><span aria-hidden="true">»</span></button>`
@@ -5014,7 +5015,7 @@ function renderWorkspaceSurfaceFrame(
         type="button"
         class="collapse-rail right-rail"
         data-panel-restore="right"
-        aria-label="Open right panel"
+        aria-label=${t('Open right panel')}
         aria-expanded="false"
         @click=${() => opts.panelLayout?.onRightCollapsedChange?.(false)}
       ><span aria-hidden="true">«</span></button>`
@@ -5342,7 +5343,7 @@ export function renderWorkspaceTemplate(
         .tier=${tts.tier}
         .speed=${tts.speed}
         .speeds=${tts.speeds ?? [0.75, 1, 1.25, 1.5, 2]}
-        .tiers=${tts.tiers ?? [{ value: 'local', label: 'Browser voice' }]}
+        .tiers=${tts.tiers ?? [{ value: 'local', get label() { return t('Browser voice') } }]}
         @mn-tts-action=${(event: Event) => tts.onAction?.(customDetail<WorkspaceTtsActionDetail>(event))}
       ></mn-tts-player>`
     : nothing
@@ -5351,7 +5352,7 @@ export function renderWorkspaceTemplate(
         type="button"
         class="collapse-rail"
         data-panel-restore="left"
-        aria-label="Expand sidebar"
+        aria-label=${t('Expand sidebar')}
         aria-expanded="false"
         @click=${() => panelLayout.onLeftCollapsedChange?.(false)}
       ><span aria-hidden="true">»</span></button>`
@@ -5361,7 +5362,7 @@ export function renderWorkspaceTemplate(
         type="button"
         class="collapse-rail right-rail"
         data-panel-restore="right"
-        aria-label="Open right panel"
+        aria-label=${t('Open right panel')}
         aria-expanded="false"
         @click=${() => panelLayout.onRightCollapsedChange?.(false)}
       ><span aria-hidden="true">«</span></button>`

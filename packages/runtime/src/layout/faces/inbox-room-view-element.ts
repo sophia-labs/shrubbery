@@ -16,6 +16,7 @@
  * Kind rules are reproduced here token-driven (shadow roots do not see
  * kind.css — object-card-view-element.ts's own header).
  */
+import { LocaleController, localeSource, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, type TemplateResult } from 'lit'
 import { customElement, property, state } from 'lit/decorators.js'
 import type { InboxGate, InboxLetter, InboxReading, InboxReturn } from '../../despacho/inbox-reading.js'
@@ -37,7 +38,7 @@ function formatWhen(iso: string | null): string {
   if (!iso) return ''
   const date = new Date(iso)
   if (Number.isNaN(date.getTime())) return iso
-  return new Intl.DateTimeFormat('en', { dateStyle: 'medium', timeStyle: 'short' }).format(date)
+  return new Intl.DateTimeFormat(localeSource.get(), { dateStyle: 'medium', timeStyle: 'short' }).format(date)
 }
 
 function tail(iri: string): string {
@@ -48,6 +49,8 @@ const WORD_LABELS: Readonly<Record<string, string>> = { yes: 'Yes', no: 'No', de
 
 @customElement('sh-inbox-room-view')
 export class ShInboxRoomView extends LitElement {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     :host {
       display: flex;
@@ -271,9 +274,9 @@ export class ShInboxRoomView extends LitElement {
     if (!vs) return nothing
     switch (vs.phase) {
       case 'dry-run':
-        return html`<p class="verb-state" data-verb-phase="dry-run">Asking the cell to check the reading (nothing written yet)…</p>`
+        return html`<p class="verb-state" data-verb-phase="dry-run">${t('Asking the cell to check the reading (nothing written yet)…')}</p>`
       case 'apply':
-        return html`<p class="verb-state" data-verb-phase="apply">The check passed. Writing your reading…</p>`
+        return html`<p class="verb-state" data-verb-phase="apply">${t('The check passed. Writing your reading…')}</p>`
       case 'refused':
         return html`<p class="verb-state" data-tone="danger" data-verb-phase="refused">Refused at ${vs.at}: ${vs.message}</p>`
       case 'applied':
@@ -289,7 +292,7 @@ export class ShInboxRoomView extends LitElement {
       <a href=${this.focusHref(account.forCuenta)}>${account.forTitle ?? tail(account.forCuenta)}</a>
       <span class="act mn-kind" data-kind="affordance">
         <button class="read" type="button" @click=${() => this._read(account.iri)} ?disabled=${!this.canAct || busy || done}>
-          ${done ? 'Read' : 'Mark read'}
+          ${done ? 'Read' : t('Mark read')}
         </button>
       </span>
       <div class="meta">
@@ -306,44 +309,44 @@ export class ShInboxRoomView extends LitElement {
     const seats = reading.seats.map((s) => this.seatTitles.get(s) ?? tail(s)).join(', ')
     return html`<div class="room">
       <div class="eyebrow mn-kind" data-kind="identity">
-        <span class="kind">inbox</span>
+        <span class="kind">${t('inbox')}</span>
         <span>for ${reading.owner}</span>
         ${seats ? html`<span>· convenes ${seats}</span>` : nothing}
         ${reading.reader ? html`<span>· reading as ${reading.reader}</span>` : html`<span>· no viewer identity: returns cannot be cleared here</span>`}
       </div>
-      <h1 class="title mn-kind" data-kind="identity">What waits on you</h1>
+      <h1 class="title mn-kind" data-kind="identity">${t('What waits on you')}</h1>
       <div class="counts mn-kind" data-kind="metric">
         <span><strong>${reading.counts.gates}</strong> ${reading.counts.gates === 1 ? 'gate' : 'gates'} awaiting your word${reading.counts.gates > 0 ? html` (<strong>${reading.counts.ready}</strong> ready)` : nothing}</span>
         <span><strong>${reading.counts.letters}</strong> unanswered</span>
         <span><strong>${reading.counts.returns}</strong> ${reading.counts.returns === 1 ? 'return' : 'returns'} to read</span>
       </div>
       <section aria-labelledby="gates-heading">
-        <h2 id="gates-heading">Awaiting your word</h2>
+        <h2 id="gates-heading">${t('Awaiting your word')}</h2>
         ${reading.gates.length === 0
-          ? html`<p class="empty">Nothing waits on your word.</p>`
+          ? html`<p class="empty">${t('Nothing waits on your word.')}</p>`
           : html`<ul class="rows">${reading.gates.map((g) => this._gate(g))}</ul>`}
       </section>
       <section aria-labelledby="letters-heading">
-        <h2 id="letters-heading">Unanswered</h2>
-        <p class="note">Questions and requests to the seats you convene with no reply and no acknowledgement in the register.</p>
+        <h2 id="letters-heading">${t('Unanswered')}</h2>
+        <p class="note">${t('Questions and requests to the seats you convene with no reply and no acknowledgement in the register.')}</p>
         ${reading.letters.length === 0
-          ? html`<p class="empty">Every question and request has been answered or acknowledged.</p>`
+          ? html`<p class="empty">${t('Every question and request has been answered or acknowledged.')}</p>`
           : html`<ul class="rows">${reading.letters.map((l) => this._letter(l))}</ul>`}
       </section>
       <section aria-labelledby="returns-heading">
-        <h2 id="returns-heading">Returns to read</h2>
-        <p class="note">Accounts rendered by others. Marking one read records your own dated reading; nothing else clears it.</p>
+        <h2 id="returns-heading">${t('Returns to read')}</h2>
+        <p class="note">${t('Accounts rendered by others. Marking one read records your own dated reading; nothing else clears it.')}</p>
         ${reading.returns.length === 0
-          ? html`<p class="empty">You have read every return.</p>`
+          ? html`<p class="empty">${t('You have read every return.')}</p>`
           : html`<ul class="rows">${reading.returns.map((r) => this._return(r))}</ul>`}
       </section>
     </div>`
   }
 
   private _body(): TemplateResult {
-    if (this.status === 'loading') return this._state('Opening your inbox…')
+    if (this.status === 'loading') return this._state(t('Opening your inbox…'))
     if (this.status === 'error') return this._state(this.error || 'The inbox could not be opened.', 'danger')
-    if (!this.reading) return this._state('Nothing to show.')
+    if (!this.reading) return this._state(t('Nothing to show.'))
     return this._room(this.reading)
   }
 

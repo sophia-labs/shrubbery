@@ -13,6 +13,7 @@
  * string.
  */
 
+import { t } from './i18n/index.js'
 export interface EditorShortcut {
   readonly id: string
   readonly label: string
@@ -34,30 +35,30 @@ const HOST = 'runtime/src/editor-host.ts'
 
 export const EDITOR_SHORTCUTS: readonly EditorShortcut[] = [
   // Text (TipTap defaults)
-  { id: 'editor.bold', label: 'Bold', category: 'Text', shortcut: 'Mod+B' },
-  { id: 'editor.italic', label: 'Italic', category: 'Text', shortcut: 'Mod+I' },
-  { id: 'editor.underline', label: 'Underline', category: 'Text', shortcut: 'Mod+U' },
-  { id: 'editor.strike', label: 'Strikethrough', category: 'Text', shortcut: 'Mod+Shift+S' },
-  { id: 'editor.code', label: 'Inline code', category: 'Text', shortcut: 'Mod+E' },
-  { id: 'editor.highlight', label: 'Highlight', category: 'Text', shortcut: 'Mod+Shift+H' },
+  { id: 'editor.bold', get label() { return t('Bold') }, category: 'Text', shortcut: 'Mod+B' },
+  { id: 'editor.italic', get label() { return t('Italic') }, category: 'Text', shortcut: 'Mod+I' },
+  { id: 'editor.underline', get label() { return t('Underline') }, category: 'Text', shortcut: 'Mod+U' },
+  { id: 'editor.strike', get label() { return t('Strikethrough') }, category: 'Text', shortcut: 'Mod+Shift+S' },
+  { id: 'editor.code', get label() { return t('Inline code') }, category: 'Text', shortcut: 'Mod+E' },
+  { id: 'editor.highlight', get label() { return t('Highlight') }, category: 'Text', shortcut: 'Mod+Shift+H' },
   { id: 'editor.hard-break', label: 'Line break inside a block', category: 'Text', shortcut: 'Shift+Enter' },
-  { id: 'editor.undo', label: 'Undo', category: 'Text', shortcut: 'Mod+Z' },
-  { id: 'editor.redo', label: 'Redo', category: 'Text', shortcut: 'Mod+Shift+Z' },
+  { id: 'editor.undo', get label() { return t('Undo') }, category: 'Text', shortcut: 'Mod+Z' },
+  { id: 'editor.redo', get label() { return t('Redo') }, category: 'Text', shortcut: 'Mod+Shift+Z' },
 
   // Blocks (TipTap defaults, plus typed starts)
-  { id: 'editor.paragraph', label: 'Paragraph', category: 'Blocks', shortcut: 'Mod+Alt+0' },
-  { id: 'editor.heading-1', label: 'Heading 1', category: 'Blocks', shortcut: 'Mod+Alt+1' },
-  { id: 'editor.heading-2', label: 'Heading 2', category: 'Blocks', shortcut: 'Mod+Alt+2' },
-  { id: 'editor.heading-3', label: 'Heading 3', category: 'Blocks', shortcut: 'Mod+Alt+3' },
-  { id: 'editor.quote', label: 'Quote', category: 'Blocks', shortcut: 'Mod+Shift+B' },
-  { id: 'editor.code-block', label: 'Code block', category: 'Blocks', shortcut: 'Mod+Alt+C' },
+  { id: 'editor.paragraph', get label() { return t('Paragraph') }, category: 'Blocks', shortcut: 'Mod+Alt+0' },
+  { id: 'editor.heading-1', get label() { return t('Heading 1') }, category: 'Blocks', shortcut: 'Mod+Alt+1' },
+  { id: 'editor.heading-2', get label() { return t('Heading 2') }, category: 'Blocks', shortcut: 'Mod+Alt+2' },
+  { id: 'editor.heading-3', get label() { return t('Heading 3') }, category: 'Blocks', shortcut: 'Mod+Alt+3' },
+  { id: 'editor.quote', get label() { return t('Quote') }, category: 'Blocks', shortcut: 'Mod+Shift+B' },
+  { id: 'editor.code-block', get label() { return t('Code block') }, category: 'Blocks', shortcut: 'Mod+Alt+C' },
   { id: 'editor.bullet', label: 'Bulleted item (type at the start)', category: 'Blocks', shortcut: '- ' },
   { id: 'editor.numbered', label: 'Numbered item (type at the start)', category: 'Blocks', shortcut: '1. ' },
   { id: 'editor.task', label: 'Task (type at the start)', category: 'Blocks', shortcut: '[ ] ' },
   { id: 'editor.slash', label: 'Insert menu (type at the start or after a space)', category: 'Blocks', shortcut: '/' },
-  { id: 'editor.align-center', label: 'Align center', category: 'Blocks', shortcut: 'Mod+Shift+E' },
-  { id: 'editor.align-right', label: 'Align right', category: 'Blocks', shortcut: 'Mod+Shift+R' },
-  { id: 'editor.align-justify', label: 'Justify', category: 'Blocks', shortcut: 'Mod+Shift+J' },
+  { id: 'editor.align-center', get label() { return t('Align center') }, category: 'Blocks', shortcut: 'Mod+Shift+E' },
+  { id: 'editor.align-right', get label() { return t('Align right') }, category: 'Blocks', shortcut: 'Mod+Shift+R' },
+  { id: 'editor.align-justify', get label() { return t('Justify') }, category: 'Blocks', shortcut: 'Mod+Shift+J' },
 
   // Outline
   { id: 'editor.indent', label: 'Indent', category: 'Outline', shortcut: 'Tab', binding: 'Tab', source: OUTLINER },
@@ -65,10 +66,10 @@ export const EDITOR_SHORTCUTS: readonly EditorShortcut[] = [
   { id: 'editor.fold', label: 'Fold or unfold children', category: 'Outline', shortcut: 'Mod+.', binding: 'Mod-.', source: OUTLINER },
   { id: 'editor.collapse', label: 'Collapse block', category: 'Outline', shortcut: 'Mod+ArrowUp', binding: 'Mod-ArrowUp', source: OUTLINER },
   { id: 'editor.expand', label: 'Expand block', category: 'Outline', shortcut: 'Mod+ArrowDown', binding: 'Mod-ArrowDown', source: OUTLINER },
-  { id: 'editor.move-up', label: 'Move block up', category: 'Outline', shortcut: 'Alt+Shift+ArrowUp', binding: 'Alt-Shift-ArrowUp', source: OUTLINER },
-  { id: 'editor.move-down', label: 'Move block down', category: 'Outline', shortcut: 'Alt+Shift+ArrowDown', binding: 'Alt-Shift-ArrowDown', source: OUTLINER },
-  { id: 'editor.zoom-in', label: 'Zoom into block', category: 'Outline', shortcut: 'Mod+Shift+ArrowRight', binding: 'Mod-Shift-ArrowRight', source: ZOOM },
-  { id: 'editor.zoom-out', label: 'Zoom out', category: 'Outline', shortcut: 'Mod+Shift+ArrowLeft', binding: 'Mod-Shift-ArrowLeft', source: ZOOM },
+  { id: 'editor.move-up', get label() { return t('Move block up') }, category: 'Outline', shortcut: 'Alt+Shift+ArrowUp', binding: 'Alt-Shift-ArrowUp', source: OUTLINER },
+  { id: 'editor.move-down', get label() { return t('Move block down') }, category: 'Outline', shortcut: 'Alt+Shift+ArrowDown', binding: 'Alt-Shift-ArrowDown', source: OUTLINER },
+  { id: 'editor.zoom-in', get label() { return t('Zoom into block') }, category: 'Outline', shortcut: 'Mod+Shift+ArrowRight', binding: 'Mod-Shift-ArrowRight', source: ZOOM },
+  { id: 'editor.zoom-out', get label() { return t('Zoom out') }, category: 'Outline', shortcut: 'Mod+Shift+ArrowLeft', binding: 'Mod-Shift-ArrowLeft', source: ZOOM },
   { id: 'editor.select-block', label: 'Select the block (then Shift+↑/↓ to extend)', category: 'Outline', shortcut: 'Escape', binding: 'Escape', source: BLOCK_SELECTION },
 
   // Wires and links
@@ -80,6 +81,6 @@ export const EDITOR_SHORTCUTS: readonly EditorShortcut[] = [
   { id: 'editor.tag', label: 'Tag (type at the start or after a space)', category: 'Wires and links', shortcut: '#' },
 
   // Find and annotate (editor-host's own key handler)
-  { id: 'editor.find', label: 'Find in document', category: 'Find and annotate', shortcut: 'Mod+F', binding: "key === 'f'", source: HOST },
+  { id: 'editor.find', get label() { return t('Find in document') }, category: 'Find and annotate', shortcut: 'Mod+F', binding: "key === 'f'", source: HOST },
   { id: 'editor.footnote', label: 'Insert footnote', category: 'Find and annotate', shortcut: 'Mod+Shift+F', binding: "key === 'f'", source: HOST },
 ]

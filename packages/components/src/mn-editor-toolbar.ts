@@ -6,6 +6,7 @@
  * sole owner of the live editor/search behavior.
  */
 
+import { LocaleController, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, type PropertyValues } from 'lit'
 import { customElement, property, state } from 'lit/decorators.js'
 import { SkinAware } from './skin-aware.js'
@@ -127,6 +128,8 @@ let editorToolbarInstance = 0
 
 @customElement('mn-editor-toolbar')
 export class MnEditorToolbar extends SkinAware(LitElement) {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     :host {
       display: flex;
@@ -771,7 +774,7 @@ export class MnEditorToolbar extends SkinAware(LitElement) {
   }
 
   private fontFamilyEntries(): MenuEntry[] {
-    const entries: MenuEntry[] = [{ id: '', label: 'Default', checked: this.fontFamily === '' }]
+    const entries: MenuEntry[] = [{ id: '', get label() { return t('Default') }, checked: this.fontFamily === '' }]
     for (const category of ['sans', 'serif', 'mono'] as const) {
       const families = this.fontFamilies.filter((family) => family.category === category)
       if (families.length === 0) continue
@@ -790,13 +793,13 @@ export class MnEditorToolbar extends SkinAware(LitElement) {
 
   private fontSizeEntries(): MenuEntry[] {
     return [
-      { id: '', label: 'Default', checked: this.fontSize === '' },
+      { id: '', get label() { return t('Default') }, checked: this.fontSize === '' },
       ...this.fontSizes.map((size) => ({ id: size.value, label: size.label, checked: this.fontSize === size.value })),
     ]
   }
 
   private fontSizeLabel(): string {
-    if (!this.fontSize) return 'Size'
+    if (!this.fontSize) return t('Size')
     return this.fontSizes.find((size) => size.value === this.fontSize)?.label ?? 'Size'
   }
 
@@ -951,11 +954,11 @@ export class MnEditorToolbar extends SkinAware(LitElement) {
   private renderCompactPrimaryToolbar() {
     const fs = this.formatState
     return html`
-      <div class="compact-primary-toolbar" role="toolbar" aria-label="Common editor actions">
+      <div class="compact-primary-toolbar" role="toolbar" aria-label=${t('Common editor actions')}>
         <mn-icon-button
           data-compact-history-command="undo"
           .icon=${'undo-2'}
-          .label=${'Undo'}
+          .label=${t('Undo')}
           .size=${'lg'}
           .keepFocus=${true}
           @click=${() => this.emitDetail<MnEditorHistoryDetail>('mn-editor-history', { command: 'undo' })}
@@ -963,7 +966,7 @@ export class MnEditorToolbar extends SkinAware(LitElement) {
         <mn-icon-button
           data-compact-history-command="redo"
           .icon=${'redo-2'}
-          .label=${'Redo'}
+          .label=${t('Redo')}
           .size=${'lg'}
           .keepFocus=${true}
           @click=${() => this.emitDetail<MnEditorHistoryDetail>('mn-editor-history', { command: 'redo' })}
@@ -971,7 +974,7 @@ export class MnEditorToolbar extends SkinAware(LitElement) {
         <mn-icon-button
           data-compact-format-command="bold"
           .icon=${'bold'}
-          .label=${'Bold'}
+          .label=${t('Bold')}
           .size=${'lg'}
           .pressed=${fs.bold}
           .keepFocus=${true}
@@ -980,7 +983,7 @@ export class MnEditorToolbar extends SkinAware(LitElement) {
         <mn-icon-button
           data-compact-format-command="italic"
           .icon=${'italic'}
-          .label=${'Italic'}
+          .label=${t('Italic')}
           .size=${'lg'}
           .pressed=${fs.italic}
           .keepFocus=${true}
@@ -989,7 +992,7 @@ export class MnEditorToolbar extends SkinAware(LitElement) {
         <mn-icon-button
           data-compact-tools-toggle
           .icon=${'sliders-horizontal'}
-          .label=${'More formatting tools'}
+          .label=${t('More formatting tools')}
           .size=${'lg'}
           .expanded=${this.compactToolsOpen}
           .controls=${'mn-editor-more-tools'}
@@ -1017,12 +1020,12 @@ export class MnEditorToolbar extends SkinAware(LitElement) {
           data-compact-open=${String(compactCapable && this.compactToolsOpen)}
           role=${compactCapable && this.compactToolsOpen ? 'dialog' : nothing}
           aria-modal=${compactCapable && this.compactToolsOpen ? 'true' : nothing}
-          aria-label=${compactCapable && this.compactToolsOpen ? 'Formatting tools' : nothing}
+          aria-label=${compactCapable && this.compactToolsOpen ? t('Formatting tools') : nothing}
           @keydown=${this.onCompactToolsKeyDown}
         >
           <div class="compact-sheet-header">
-            <span class="compact-sheet-title">Formatting tools</span>
-            <button class="compact-sheet-done" type="button" @click=${this.closeCompactTools}>Done</button>
+            <span class="compact-sheet-title">${t('Formatting tools')}</span>
+            <button class="compact-sheet-done" type="button" @click=${this.closeCompactTools}>${t('Done')}</button>
           </div>
           <div
             class="toolbar-scroll-shell"
@@ -1035,7 +1038,7 @@ export class MnEditorToolbar extends SkinAware(LitElement) {
               class="toolbar-scroll-control start"
               data-toolbar-scroll="start"
               .icon=${'chevron-left'}
-              .label=${'Scroll toolbar left'}
+              .label=${t('Scroll toolbar left')}
               .size=${'sm'}
               .disabled=${this.toolbarAtStart}
               .keepFocus=${true}
@@ -1046,7 +1049,7 @@ export class MnEditorToolbar extends SkinAware(LitElement) {
               class="toolbar-scroll-control end"
               data-toolbar-scroll="end"
               .icon=${'chevron-right'}
-              .label=${'Scroll toolbar right'}
+              .label=${t('Scroll toolbar right')}
               .size=${'sm'}
               .disabled=${this.toolbarAtEnd}
               .keepFocus=${true}
@@ -1062,18 +1065,18 @@ export class MnEditorToolbar extends SkinAware(LitElement) {
     return this.renderScrollableToolbar(false, html`
       <mn-toolbar
         class="toolbar"
-        label="Original file tools"
+        label=${t('Original file tools')}
         variant="compact"
         @mousedown=${this.onToolbarMouseDown}
         @scroll=${this.onToolbarScroll}
       >
-        <mn-toolbar-group label="Reader">
+        <mn-toolbar-group label=${t('Reader')}>
           <mn-button
             data-original-view-toggle
             variant="secondary"
             size="sm"
             .icon=${'file-text'}
-            .label=${'Document View'}
+            .label=${t('Document View')}
             .keepFocus=${true}
             @click=${() => this.emitEmpty('mn-editor-original-view-toggle')}
           ></mn-button>
@@ -1083,25 +1086,25 @@ export class MnEditorToolbar extends SkinAware(LitElement) {
               class="original-view-note"
               data-original-annotation-shown
               role="status"
-            >Comments and highlights from Document View are shown here. To add one, return to Document View.</span>`
+            >${t('Comments and highlights from Document View are shown here. To add one, return to Document View.')}</span>`
           : html`<span
               class="original-view-note"
               data-original-annotation-unavailable
               role="status"
-            >To add highlights or comments, return to Document View. Source-region highlights are read-only.</span>`}
+            >${t('To add highlights or comments, return to Document View. Source-region highlights are read-only.')}</span>`}
         <span class="toolbar-spacer" aria-hidden="true"></span>
-        <mn-toolbar-group label="Annotations">
+        <mn-toolbar-group label=${t('Annotations')}>
           <mn-icon-button
             data-original-highlight-unavailable
             .icon=${'highlighter'}
-            .label=${'Highlight unavailable in original-file view'}
+            .label=${t('Highlight unavailable in original-file view')}
             .size=${'sm'}
             .disabled=${true}
           ></mn-icon-button>
           <mn-icon-button
             data-original-comment-unavailable
             .icon=${'message-square'}
-            .label=${'Comment unavailable in original-file view'}
+            .label=${t('Comment unavailable in original-file view')}
             .size=${'sm'}
             .disabled=${true}
           ></mn-icon-button>
@@ -1136,7 +1139,7 @@ export class MnEditorToolbar extends SkinAware(LitElement) {
           class="toolbar-scroll-control start"
           data-toolbar-scroll="start"
           .icon=${'chevron-left'}
-          .label=${'Scroll toolbar left'}
+          .label=${t('Scroll toolbar left')}
           .size=${'sm'}
           .disabled=${this.toolbarAtStart}
           .keepFocus=${true}
@@ -1144,14 +1147,14 @@ export class MnEditorToolbar extends SkinAware(LitElement) {
         ></mn-icon-button>
         <mn-toolbar
           class="toolbar"
-          label="Read-only document tools"
+          label=${t('Read-only document tools')}
           variant="compact"
           data-make-editable-status=${this.makeEditableStatus}
           data-make-editable-error=${this.makeEditableError || nothing}
           @mousedown=${this.onToolbarMouseDown}
           @scroll=${this.onToolbarScroll}
         >
-          <mn-toolbar-group label=${activationConflict || this.activationPending ? 'Document synchronization' : 'Imported document'}>
+          <mn-toolbar-group label=${activationConflict || this.activationPending ? t('Document synchronization') : t('Imported document')}>
             <span
               data-read-only-badge
               data-activation-pending=${String(this.activationPending)}
@@ -1164,7 +1167,7 @@ export class MnEditorToolbar extends SkinAware(LitElement) {
                   variant="secondary"
                   size="sm"
                   .icon=${'unlock'}
-                  .label=${saving ? 'Making editable…' : 'Make Editable'}
+                  .label=${saving ? t('Making editable…') : t('Make Editable')}
                   .disabled=${saving}
                   .keepFocus=${true}
                   @click=${() => this.emitEmpty('mn-editor-make-editable')}
@@ -1175,22 +1178,22 @@ export class MnEditorToolbar extends SkinAware(LitElement) {
                   variant="secondary"
                   size="sm"
                   .icon=${'eye'}
-                  .label=${'View Original'}
+                  .label=${t('View Original')}
                   .keepFocus=${true}
                   @click=${() => this.emitEmpty('mn-editor-original-view-toggle')}
                 ></mn-button>`
               : nothing}
           </mn-toolbar-group>
           <span class="toolbar-spacer" aria-hidden="true"></span>
-          <mn-toolbar-group label="Playback">
+          <mn-toolbar-group label=${t('Playback')}>
             <mn-icon-button
               data-tts-command
               .icon=${this.ttsStatus === 'idle' ? 'volume-2' : 'stop'}
               .label=${!this.ttsAvailable
-                ? 'Read aloud unavailable in this browser'
+                ? t('Read aloud unavailable in this browser')
                 : this.ttsStatus === 'idle'
-                  ? 'Read aloud from cursor · Shift+click for beginning'
-                  : 'Stop reading'}
+                  ? t('Read aloud from cursor · Shift+click for beginning')
+                  : t('Stop reading')}
               .size=${'sm'}
               .pressed=${this.ttsStatus !== 'idle'}
               .disabled=${!this.ttsAvailable}
@@ -1203,7 +1206,7 @@ export class MnEditorToolbar extends SkinAware(LitElement) {
           class="toolbar-scroll-control end"
           data-toolbar-scroll="end"
           .icon=${'chevron-right'}
-          .label=${'Scroll toolbar right'}
+          .label=${t('Scroll toolbar right')}
           .size=${'sm'}
           .disabled=${this.toolbarAtEnd}
           .keepFocus=${true}
@@ -1227,12 +1230,12 @@ export class MnEditorToolbar extends SkinAware(LitElement) {
     return this.renderScrollableToolbar(true, html`
       <mn-toolbar
         class="toolbar"
-        label="Editor formatting"
+        label=${t('Editor formatting')}
         variant="compact"
         @mousedown=${this.onToolbarMouseDown}
         @scroll=${this.onToolbarScroll}
         >
-        <mn-toolbar-group label="Type" divider>
+        <mn-toolbar-group label=${t('Type')} divider>
           <mn-dropdown-button
             data-font-family-select
             .label=${this.fontFamilyLabel()}
@@ -1253,11 +1256,11 @@ export class MnEditorToolbar extends SkinAware(LitElement) {
           ></mn-dropdown-button>
         </mn-toolbar-group>
 
-        <mn-toolbar-group label="Inline formatting" divider>
+        <mn-toolbar-group label=${t('Inline formatting')} divider>
           <mn-icon-button
             data-format-command="bold"
             .icon=${'bold'}
-            .label=${'Bold'}
+            .label=${t('Bold')}
             .size=${'sm'}
             .pressed=${fs.bold}
             .keepFocus=${true}
@@ -1266,7 +1269,7 @@ export class MnEditorToolbar extends SkinAware(LitElement) {
           <mn-icon-button
             data-format-command="italic"
             .icon=${'italic'}
-            .label=${'Italic'}
+            .label=${t('Italic')}
             .size=${'sm'}
             .pressed=${fs.italic}
             .keepFocus=${true}
@@ -1275,7 +1278,7 @@ export class MnEditorToolbar extends SkinAware(LitElement) {
           <mn-icon-button
             data-format-command="strike"
             .icon=${'strikethrough'}
-            .label=${'Strikethrough'}
+            .label=${t('Strikethrough')}
             .size=${'sm'}
             .pressed=${fs.strike}
             .keepFocus=${true}
@@ -1284,7 +1287,7 @@ export class MnEditorToolbar extends SkinAware(LitElement) {
           <mn-icon-button
             data-format-command="code"
             .icon=${'code'}
-            .label=${'Inline code'}
+            .label=${t('Inline code')}
             .size=${'sm'}
             .pressed=${fs.code}
             .keepFocus=${true}
@@ -1293,7 +1296,7 @@ export class MnEditorToolbar extends SkinAware(LitElement) {
           <mn-icon-button
             data-format-command="highlight"
             .icon=${'highlight'}
-            .label=${'Highlight'}
+            .label=${t('Highlight')}
             .size=${'sm'}
             .pressed=${fs.highlight}
             .keepFocus=${true}
@@ -1302,7 +1305,7 @@ export class MnEditorToolbar extends SkinAware(LitElement) {
           <mn-icon-button
             data-footnote-command
             .icon=${'footnote'}
-            .label=${'Footnote'}
+            .label=${t('Footnote')}
             .size=${'sm'}
             .shortcut=${'Mod+Shift+F'}
             .keepFocus=${true}
@@ -1320,7 +1323,7 @@ export class MnEditorToolbar extends SkinAware(LitElement) {
           <mn-icon-button
             data-comment-command
             .icon=${'message-square'}
-            .label=${'Add comment'}
+            .label=${t('Add comment')}
             .size=${'sm'}
             .shortcut=${'Mod+Shift+.'}
             .keepFocus=${true}
@@ -1329,7 +1332,7 @@ export class MnEditorToolbar extends SkinAware(LitElement) {
           <mn-icon-button
             data-wikilink-command
             .icon=${'link'}
-            .label=${'Wiki link'}
+            .label=${t('Wiki link')}
             .size=${'sm'}
             .keepFocus=${true}
             @click=${() => this.emitEmpty('mn-editor-wikilink-open')}
@@ -1337,25 +1340,25 @@ export class MnEditorToolbar extends SkinAware(LitElement) {
           <mn-icon-button
             data-document-wire-command
             .icon=${'wire'}
-            .label=${'Wire document'}
+            .label=${t('Wire document')}
             .size=${'sm'}
             .keepFocus=${true}
             @click=${(event: MouseEvent) => this.emitModifierIntent('mn-editor-document-wire-request', event)}
           ></mn-icon-button>
         </mn-toolbar-group>
 
-        <mn-toolbar-group label="Block formatting" divider>
+        <mn-toolbar-group label=${t('Block formatting')} divider>
           <mn-icon-button
             data-clear-formatting-command
             .icon=${'plain-text'}
-            .label=${'Clear formatting'}
+            .label=${t('Clear formatting')}
             .size=${'sm'}
             .keepFocus=${true}
             @click=${() => this.emitEmpty('mn-editor-clear-formatting')}
           ></mn-icon-button>
           <mn-dropdown-button
             data-block-select
-            title="Block type"
+            title=${t('Block type')}
             .label=${this.blockTypeLabel()}
             .entries=${this.blockTypeEntries()}
             .selectedId=${this.blockType}
@@ -1365,11 +1368,11 @@ export class MnEditorToolbar extends SkinAware(LitElement) {
           ></mn-dropdown-button>
           <mn-button
             data-table-command
-            aria-label="Insert or remove table"
+            aria-label=${t('Insert or remove table')}
             variant="toolbar"
             size="xs"
             .icon=${'table'}
-            .label=${'Table'}
+            .label=${t('Table')}
             .pressed=${this.inTable}
             .keepFocus=${true}
             @click=${() => this.emitEmpty('mn-editor-table-toggle')}
@@ -1377,18 +1380,18 @@ export class MnEditorToolbar extends SkinAware(LitElement) {
           <mn-icon-button
             data-image-command
             .icon=${'image-plus'}
-            .label=${'Insert image'}
+            .label=${t('Insert image')}
             .size=${'sm'}
             .keepFocus=${true}
             @click=${() => this.emitEmpty('mn-editor-image-insert')}
           ></mn-icon-button>
         </mn-toolbar-group>
 
-        <mn-toolbar-group label="Text alignment" divider>
+        <mn-toolbar-group label=${t('Text alignment')} divider>
           <mn-icon-button
             data-align-command="left"
             .icon=${'align-left'}
-            .label=${'Align left'}
+            .label=${t('Align left')}
             .size=${'sm'}
             .pressed=${this.textAlign === 'left'}
             .keepFocus=${true}
@@ -1397,7 +1400,7 @@ export class MnEditorToolbar extends SkinAware(LitElement) {
           <mn-icon-button
             data-align-command="center"
             .icon=${'align-center'}
-            .label=${'Align center'}
+            .label=${t('Align center')}
             .size=${'sm'}
             .pressed=${this.textAlign === 'center'}
             .keepFocus=${true}
@@ -1406,7 +1409,7 @@ export class MnEditorToolbar extends SkinAware(LitElement) {
           <mn-icon-button
             data-align-command="right"
             .icon=${'align-right'}
-            .label=${'Align right'}
+            .label=${t('Align right')}
             .size=${'sm'}
             .pressed=${this.textAlign === 'right'}
             .keepFocus=${true}
@@ -1414,11 +1417,11 @@ export class MnEditorToolbar extends SkinAware(LitElement) {
           ></mn-icon-button>
         </mn-toolbar-group>
 
-        <mn-toolbar-group label="Edit history" divider>
+        <mn-toolbar-group label=${t('Edit history')} divider>
           <mn-icon-button
             data-version-history-open
             .icon=${'clock'}
-            .label=${'Version history'}
+            .label=${t('Version history')}
             .shortcut=${'Mod+Shift+H'}
             .size=${'sm'}
             .keepFocus=${true}
@@ -1427,7 +1430,7 @@ export class MnEditorToolbar extends SkinAware(LitElement) {
           <mn-icon-button
             data-history-command="undo"
             .icon=${'undo-2'}
-            .label=${'Undo'}
+            .label=${t('Undo')}
             .size=${'sm'}
             .keepFocus=${true}
             @click=${() => this.emitDetail<MnEditorHistoryDetail>('mn-editor-history', { command: 'undo' })}
@@ -1435,7 +1438,7 @@ export class MnEditorToolbar extends SkinAware(LitElement) {
           <mn-icon-button
             data-history-command="redo"
             .icon=${'redo-2'}
-            .label=${'Redo'}
+            .label=${t('Redo')}
             .size=${'sm'}
             .keepFocus=${true}
             @click=${() => this.emitDetail<MnEditorHistoryDetail>('mn-editor-history', { command: 'redo' })}
@@ -1451,12 +1454,12 @@ export class MnEditorToolbar extends SkinAware(LitElement) {
               data-activation-durability=${this.activationDurability}
               role="status"
             >${this.activationDurability === 'failed'
-              ? 'Offline · Local save failed'
+              ? t('Offline · Local save failed')
               : this.activationDurability === 'pending'
-              ? 'Saving locally…'
+              ? t('Saving locally…')
               : this.activationState === 'offline-dirty'
-                ? 'Offline · Saved locally'
-                : 'Offline · Ready'}</span>`
+                ? t('Offline · Saved locally')
+                : t('Offline · Ready')}</span>`
           : nothing}
 
         <div class="search-anchor">
@@ -1464,7 +1467,7 @@ export class MnEditorToolbar extends SkinAware(LitElement) {
             ? html`<mn-icon-button
                 data-original-view-toggle
                 .icon=${'eye'}
-                .label=${'View Original'}
+                .label=${t('View Original')}
                 .size=${'sm'}
                 .keepFocus=${true}
                 @click=${() => this.emitEmpty('mn-editor-original-view-toggle')}
@@ -1474,10 +1477,10 @@ export class MnEditorToolbar extends SkinAware(LitElement) {
             data-tts-command
             .icon=${this.ttsStatus === 'idle' ? 'volume-2' : 'stop'}
             .label=${!this.ttsAvailable
-              ? 'Read aloud unavailable in this browser'
+              ? t('Read aloud unavailable in this browser')
               : this.ttsStatus === 'idle'
-                ? 'Read aloud from cursor · Shift+click for beginning'
-                : 'Stop reading'}
+                ? t('Read aloud from cursor · Shift+click for beginning')
+                : t('Stop reading')}
             .shortcut=${this.ttsStatus === 'idle' ? 'Mod+L' : 'Mod+Alt+L'}
             .size=${'sm'}
             .pressed=${this.ttsStatus !== 'idle'}
@@ -1488,7 +1491,7 @@ export class MnEditorToolbar extends SkinAware(LitElement) {
           <mn-icon-button
             data-shortcuts-open
             .icon=${'help-circle'}
-            .label=${'Keyboard shortcuts'}
+            .label=${t('Keyboard shortcuts')}
             .shortcut=${'Mod+/'}
             .size=${'sm'}
             .keepFocus=${true}
@@ -1497,7 +1500,7 @@ export class MnEditorToolbar extends SkinAware(LitElement) {
           <mn-icon-button
             data-search-open
             .icon=${'search'}
-            .label=${this.searchOpen ? 'Close find' : 'Find in document'}
+            .label=${this.searchOpen ? t('Close find') : t('Find in document')}
             .size=${'sm'}
             .pressed=${this.searchOpen}
             .keepFocus=${true}
@@ -1515,7 +1518,7 @@ export class MnEditorToolbar extends SkinAware(LitElement) {
                       type="search"
                       autocomplete="off"
                       spellcheck="false"
-                      placeholder="Find"
+                      placeholder=${t('Find')}
                       .value=${this.searchQuery}
                       @input=${this.onSearchInput}
                       @keydown=${this.onSearchKeyDown}
@@ -1525,7 +1528,7 @@ export class MnEditorToolbar extends SkinAware(LitElement) {
                       <mn-icon-button
                         data-search-prev
                         .icon=${'chevron-left'}
-                        .label=${'Previous match'}
+                        .label=${t('Previous match')}
                         .size=${'sm'}
                         .disabled=${!hasResults}
                         @click=${() => this.emitEmpty('mn-editor-search-prev')}
@@ -1533,7 +1536,7 @@ export class MnEditorToolbar extends SkinAware(LitElement) {
                       <mn-icon-button
                         data-search-next
                         .icon=${'chevron-right'}
-                        .label=${'Next match'}
+                        .label=${t('Next match')}
                         .size=${'sm'}
                         .disabled=${!hasResults}
                         @click=${() => this.emitEmpty('mn-editor-search-next')}
@@ -1541,7 +1544,7 @@ export class MnEditorToolbar extends SkinAware(LitElement) {
                       <mn-icon-button
                         data-search-close
                         .icon=${'close'}
-                        .label=${'Close find'}
+                        .label=${t('Close find')}
                         .size=${'sm'}
                         @click=${() => this.emitEmpty('mn-editor-search-close')}
                       ></mn-icon-button>
@@ -1556,7 +1559,7 @@ export class MnEditorToolbar extends SkinAware(LitElement) {
                       type="text"
                       autocomplete="off"
                       spellcheck="false"
-                      placeholder="Replace"
+                      placeholder=${t('Replace')}
                       .value=${this.replaceQuery}
                       @input=${this.onReplaceInput}
                       @keydown=${this.onReplaceKeyDown}
@@ -1566,7 +1569,7 @@ export class MnEditorToolbar extends SkinAware(LitElement) {
                         data-replace-current
                         variant="secondary"
                         size="xs"
-                        .label=${'Replace'}
+                        .label=${t('Replace')}
                         .disabled=${!hasResults}
                         @click=${() => this.emitEmpty('mn-editor-replace-current')}
                       ></mn-button>
@@ -1574,7 +1577,7 @@ export class MnEditorToolbar extends SkinAware(LitElement) {
                         data-replace-all
                         variant="secondary"
                         size="xs"
-                        .label=${'All'}
+                        .label=${t('All')}
                         .disabled=${!hasResults}
                         @click=${() => this.emitEmpty('mn-editor-replace-all')}
                       ></mn-button>

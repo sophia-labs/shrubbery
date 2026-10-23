@@ -1,4 +1,5 @@
 /** Read-only, deliberately non-operational Agent Session family display. */
+import { LocaleController, t } from '@shrubbery/nucleus'
 import { css, html, LitElement, nothing, type TemplateResult } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 
@@ -97,6 +98,8 @@ export function shortAgentSessionId(value: string): string {
 
 @customElement('sh-agent-session-family-view')
 export class ShAgentSessionFamilyView extends LitElement {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     :host {
       display: flex;
@@ -243,16 +246,16 @@ export class ShAgentSessionFamilyView extends LitElement {
     const fault = materialization.faultKind === null
       ? nothing
       : html`<span class="state fault-state ${materialization.recoverable ? 'warning' : 'alert'}">
-          <span class="label">fault </span>${materialization.faultKind.replaceAll('_', ' ')}
+          <span class="label">${t('fault')} </span>${materialization.faultKind.replaceAll('_', ' ')}
           <span aria-hidden="true"> · </span>${materialization.recoverable ? 'recoverable' : 'terminal'}
         </span>`
     return html`<div class=${className}>
-      <span class="state generation-state"><span class="label">generation </span><span class="number">${materialization.generation}</span></span>
-      <span class="state materialization-state"><span class="label">materialization </span>${materialization.state}</span>
-      <span class="state worker-state"><span class="label">worker </span>${materialization.workerState}</span>
+      <span class="state generation-state"><span class="label">${t('generation')} </span><span class="number">${materialization.generation}</span></span>
+      <span class="state materialization-state"><span class="label">${t('materialization')} </span>${materialization.state}</span>
+      <span class="state worker-state"><span class="label">${t('worker')} </span>${materialization.workerState}</span>
       ${materialization.kernelState === null
         ? nothing
-        : html`<span class="state kernel-state"><span class="label">kernel </span>${materialization.kernelState}</span>`}
+        : html`<span class="state kernel-state"><span class="label">${t('kernel')} </span>${materialization.kernelState}</span>`}
       ${fault}
     </div>`
   }
@@ -292,14 +295,14 @@ export class ShAgentSessionFamilyView extends LitElement {
                   allocation ${budget.allocationState.replaceAll('_', ' ')}
                 </span>`
               : nothing}
-            ${allocationOverage ? html`<span class="status alert allocation-overage">cost overage</span>` : nothing}
+            ${allocationOverage ? html`<span class="status alert allocation-overage">${t('cost overage')}</span>` : nothing}
           </div>
         </div>
         <div class="runtime">
           ${budget
-            ? html`<div><span class="label">runtime </span>${budget.runtimeKind}</div>`
-            : html`<div class="minor">No admission allocation projected.</div>`}
-          <div class="minor">depth <span class="number">${child.depth}</span></div>
+            ? html`<div><span class="label">${t('runtime')} </span>${budget.runtimeKind}</div>`
+            : html`<div class="minor">${t('No admission allocation projected.')}</div>`}
+          <div class="minor">${t('depth')} <span class="number">${child.depth}</span></div>
           ${this.materialization(child.materialization)}
         </div>
         <div class="allocation">
@@ -321,42 +324,42 @@ export class ShAgentSessionFamilyView extends LitElement {
   }
 
   render(): TemplateResult {
-    if (this.status === 'loading') return html`<section class="family"><div class="loading">Loading Agent Session family…</div></section>`
+    if (this.status === 'loading') return html`<section class="family"><div class="loading">${t('Loading Agent Session family…')}</div></section>`
     if (this.status === 'error' || !this.family) {
-      return html`<section class="family"><div class="error">${this.error || 'This Agent Session family could not be loaded.'}</div></section>`
+      return html`<section class="family"><div class="error">${this.error || t('This Agent Session family could not be loaded.')}</div></section>`
     }
     const family = this.family
     const account = family.budgetAccount
     return html`
-      <section class="family" aria-label="Agent Session family">
+      <section class="family" aria-label=${t('Agent Session family')}>
         <header>
-          <h2>Agent Session family</h2>
+          <h2>${t('Agent Session family')}</h2>
           <span class="status parent-session-state ${this.sessionTone(family.parentState)}">session ${family.parentState}</span>
           <span class="summary">${family.children.length} ${family.children.length === 1 ? 'child' : 'children'}</span>
         </header>
         ${family.parentMaterialization
-          ? html`<div class="ledger parent-materialization" aria-label="Parent materialization">
+          ? html`<div class="ledger parent-materialization" aria-label=${t('Parent materialization')}>
               ${this.materialization(family.parentMaterialization, 'states parent-states')}
             </div>`
           : nothing}
-        <div class="ledger" aria-label="Parent admission ledger">
-          <span class="ledger-metric"><span class="label">accepted</span><span class="number">${account.directAcceptedChildren} / ${account.maxChildren}</span></span>
-          <span class="ledger-metric"><span class="label">active</span><span class="number">${account.occupiedChildren} / ${account.maxConcurrentChildren}</span></span>
+        <div class="ledger" aria-label=${t('Parent admission ledger')}>
+          <span class="ledger-metric"><span class="label">${t('accepted')}</span><span class="number">${account.directAcceptedChildren} / ${account.maxChildren}</span></span>
+          <span class="ledger-metric"><span class="label">${t('active')}</span><span class="number">${account.occupiedChildren} / ${account.maxConcurrentChildren}</span></span>
           <span class="ledger-metric">
-            <span class="label">cost</span>
-            <span class="number">${account.budgetCostSpentUsdMicros}</span><span>spent</span>
+            <span class="label">${t('cost')}</span>
+            <span class="number">${account.budgetCostSpentUsdMicros}</span><span>${t('spent')}</span>
             <span aria-hidden="true">·</span>
-            <span class="number">${account.budgetCostReservedUsdMicros}</span><span>reserved</span>
+            <span class="number">${account.budgetCostReservedUsdMicros}</span><span>${t('reserved')}</span>
             <span aria-hidden="true">·</span>
-            <span class="number">${account.budgetCostRemainingUsdMicros}</span><span>remaining /</span>
+            <span class="number">${account.budgetCostRemainingUsdMicros}</span><span>${t('remaining /')}</span>
             <span class="number">${account.budgetCostMaxUsdMicros}</span><span>µUSD</span>
           </span>
-          ${account.budgetAccountExhausted ? html`<span class="status alert account-exhausted">exhausted</span>` : nothing}
-          <span class="ledger-revision">ledger rev <span class="number">${account.budgetAccountRevision}</span></span>
+          ${account.budgetAccountExhausted ? html`<span class="status alert account-exhausted">${t('exhausted')}</span>` : nothing}
+          <span class="ledger-revision">${t('ledger rev')} <span class="number">${account.budgetAccountRevision}</span></span>
         </div>
         <div class="rows">
           ${family.children.length === 0
-            ? html`<div class="empty">No child sessions registered.</div>`
+            ? html`<div class="empty">${t('No child sessions registered.')}</div>`
             : family.children.map((child) => this.childRow(child))}
         </div>
       </section>

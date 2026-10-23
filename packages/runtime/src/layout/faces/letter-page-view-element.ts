@@ -12,6 +12,7 @@
  * Dumb about data (renders an already-folded `LetterReading`); kinds stamped
  * from the nucleus DisplayKind register; stage stamped `data-stance="dispatch"`.
  */
+import { LocaleController, localeSource, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, type TemplateResult } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 import type { LetterParty, LetterReading, LetterRef } from '../../despacho/letter-reading.js'
@@ -30,11 +31,13 @@ function formatWhen(iso: string | null): string {
   if (!iso) return ''
   const date = new Date(iso)
   if (Number.isNaN(date.getTime())) return iso
-  return new Intl.DateTimeFormat('en', { dateStyle: 'medium', timeStyle: 'short' }).format(date)
+  return new Intl.DateTimeFormat(localeSource.get(), { dateStyle: 'medium', timeStyle: 'short' }).format(date)
 }
 
 @customElement('sh-letter-page-view')
 export class ShLetterPageView extends LitElement {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     :host {
       display: flex;
@@ -224,7 +227,7 @@ export class ShLetterPageView extends LitElement {
       <div class="eyebrow mn-kind" data-kind="identity">
         <span class="kind">${reading.kind ? KIND_LABELS[reading.kind] ?? reading.kind : 'letter'}</span>
         ${reading.at ? html`<span>${formatWhen(reading.at)}</span>` : nothing}
-        ${reading.acks.length === 0 ? html`<span class="mn-kind" data-kind="state">unacknowledged</span>` : nothing}
+        ${reading.acks.length === 0 ? html`<span class="mn-kind" data-kind="state">${t('unacknowledged')}</span>` : nothing}
       </div>
       <div class="parties mn-kind" data-kind="reference">${this._party(reading.from, 'from')}<span class="arrow">→</span>${this._party(reading.to, 'to')}</div>
       ${reading.excerpt ? html`<p class="excerpt mn-kind" data-kind="prose"><a href=${this.focusHref(reading.subject)}>${reading.excerpt}</a></p>` : nothing}
@@ -241,10 +244,10 @@ export class ShLetterPageView extends LitElement {
       <h1 class="parties mn-kind" data-kind="reference">${this._party(reading.from, 'from')}<span class="arrow">→</span>${this._party(reading.to, 'to')}</h1>
       ${reading.excerpt
         ? html`<p class="excerpt mn-kind" data-kind="prose">${reading.excerpt}</p>`
-        : html`<p class="excerpt muted">No excerpt was carried for this letter; the body is in the repository below.</p>`}
+        : html`<p class="excerpt muted">${t('No excerpt was carried for this letter; the body is in the repository below.')}</p>`}
       ${reading.replyTo
         ? html`<section class="thread mn-kind" data-kind="reference" aria-labelledby="answers-heading">
-            <h2 id="answers-heading">Answers</h2>
+            <h2 id="answers-heading">${t('Answers')}</h2>
             <ul>${this._ref(reading.replyTo, 'parent')}</ul>
           </section>`
         : nothing}
@@ -255,18 +258,18 @@ export class ShLetterPageView extends LitElement {
           </section>`
         : nothing}
       <section class="acks mn-kind" data-kind="state" aria-labelledby="acks-heading">
-        <h2 id="acks-heading">Acknowledgement</h2>
+        <h2 id="acks-heading">${t('Acknowledgement')}</h2>
         ${reading.acks.length > 0
           ? html`<ul>
               ${reading.acks.map(
-                (ack) => html`<li data-ack=${ack.iri}>acknowledged by <a href=${this.focusHref(ack.actor.iri)}>${ack.actor.title ?? ack.actor.iri}</a><span class="muted">${formatWhen(ack.at)}</span></li>`,
+                (ack) => html`<li data-ack=${ack.iri}>${t('acknowledged by')} <a href=${this.focusHref(ack.actor.iri)}>${ack.actor.title ?? ack.actor.iri}</a><span class="muted">${formatWhen(ack.at)}</span></li>`,
               )}
             </ul>`
-          : html`<p class="muted" data-acks="none">Not yet acknowledged by its recipient.</p>`}
+          : html`<p class="muted" data-acks="none">${t('Not yet acknowledged by its recipient.')}</p>`}
       </section>
       <section class="provenance mn-kind" data-kind="reference" aria-labelledby="prov-heading">
-        <h2 id="prov-heading">Provenance</h2>
-        <div>The body lives in the sophia repository; the graph carries this excerpt, the path and the digest.</div>
+        <h2 id="prov-heading">${t('Provenance')}</h2>
+        <div>${t('The body lives in the sophia repository; the graph carries this excerpt, the path and the digest.')}</div>
         ${reading.bodyPath ? html`<div data-body-path=${reading.bodyPath}>${reading.bodyPath}</div>` : nothing}
         ${reading.bodySha256 ? html`<div>sha256 ${reading.bodySha256}</div>` : nothing}
         ${reading.messageId ? html`<div>register id ${reading.messageId}</div>` : nothing}
@@ -279,10 +282,10 @@ export class ShLetterPageView extends LitElement {
   }
 
   private _body(): TemplateResult {
-    if (this.status === 'loading') return this._state('Opening the letter…')
+    if (this.status === 'loading') return this._state(t('Opening the letter…'))
     if (this.status === 'error') return this._state(this.error || 'This letter could not be opened.', 'danger')
     const reading = this.reading
-    if (!reading) return this._state('Nothing to show.')
+    if (!reading) return this._state(t('Nothing to show.'))
     if (!reading.found) return this._state(`No record in this graph for ${reading.subject}.`, 'danger')
     if (!reading.isLetter) return this._state(`${reading.subject} is not a letter of the Demi register.`, 'danger')
     return this.mode === 'entry' ? this._entry(reading) : this._chapter(reading)

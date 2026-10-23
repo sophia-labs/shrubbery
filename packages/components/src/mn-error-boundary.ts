@@ -4,6 +4,7 @@
  * Pure display component: the host decides what failed and handles recovery
  * intents. The component renders the error state and optional diagnostics.
  */
+import { LocaleController, localizeLabel, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, unsafeCSS } from 'lit'
 import { customElement, property, state } from 'lit/decorators.js'
 import { icon, iconStyles } from './icons.js'
@@ -12,6 +13,8 @@ export type MnErrorBoundaryVariant = 'error' | 'warning' | 'not-found' | 'networ
 
 @customElement('mn-error-boundary')
 export class MnErrorBoundary extends LitElement {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     ${unsafeCSS(iconStyles)}
 
@@ -262,7 +265,7 @@ export class MnErrorBoundary extends LitElement {
         </div>
 
         <h1 class="title">${this.defaultTitle()}</h1>
-        <p class="message">${this.message}</p>
+        <p class="message">${localizeLabel(this.message)}</p>
 
         ${this.showDetails && this.errorStack ? html`
           <div class="error-details">
@@ -272,7 +275,7 @@ export class MnErrorBoundary extends LitElement {
               aria-expanded=${this.detailsExpanded}
             >
               ${icon('code', { size: 14 })}
-              ${this.detailsExpanded ? 'Hide' : 'Show'} Error Details
+              ${this.detailsExpanded ? 'Hide' : t('Show')} Error Details
             </button>
 
             ${this.detailsExpanded ? html`

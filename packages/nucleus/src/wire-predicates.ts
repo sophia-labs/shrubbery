@@ -5,6 +5,7 @@
  * read labels, picker UI, and future panel surfaces use one source of truth.
  */
 
+import { localizeLabel, t } from './i18n/index.js'
 export interface PredicateDef {
   readonly uri: string
   readonly label: string
@@ -25,43 +26,43 @@ export const DEFAULT_WIRE_PREDICATE_URI = `${MNEMO_NS}${DEFAULT_WIRE_PREDICATE_N
 export const PREDICATE_GROUPS: Readonly<Record<string, PredicateCategoryDef>> = {
   Ground: {
     icon: 'circle',
-    description: 'What makes B real or possible?',
+    get description() { return t('What makes B real or possible?') },
     predicates: [
       {
         uri: `${MNEMO_NS}grounds`,
-        label: 'grounds',
-        description: 'A provides the material or experiential foundation that keeps B from being empty abstraction',
+        get label() { return t('grounds') },
+        get description() { return t('A provides the material or experiential foundation that keeps B from being empty abstraction') },
       },
-      { uri: `${MNEMO_NS}requires`, label: 'requires', description: 'B cannot exist or function without A' },
-      { uri: `${MNEMO_NS}enables`, label: 'enables', description: 'A creates the conditions for B to be possible' },
-      { uri: `${MNEMO_NS}exemplifies`, label: 'exemplifies', description: 'A is a concrete instance that makes B real' },
+      { uri: `${MNEMO_NS}requires`, get label() { return t('requires') }, get description() { return t('B cannot exist or function without A') } },
+      { uri: `${MNEMO_NS}enables`, get label() { return t('enables') }, get description() { return t('A creates the conditions for B to be possible') } },
+      { uri: `${MNEMO_NS}exemplifies`, get label() { return t('exemplifies') }, get description() { return t('A is a concrete instance that makes B real') } },
     ],
   },
   Critique: {
     icon: 'scale',
-    description: 'What does A say about B?',
+    get description() { return t('What does A say about B?') },
     predicates: [
-      { uri: `${MNEMO_NS}supports`, label: 'supports', description: 'A provides evidence or argument for B' },
-      { uri: `${MNEMO_NS}contradicts`, label: 'contradicts', description: 'A opposes or undermines B' },
-      { uri: `${MNEMO_NS}qualifies`, label: 'qualifies', description: 'A modifies, limits, or adds nuance to B' },
+      { uri: `${MNEMO_NS}supports`, get label() { return t('supports') }, get description() { return t('A provides evidence or argument for B') } },
+      { uri: `${MNEMO_NS}contradicts`, get label() { return t('contradicts') }, get description() { return t('A opposes or undermines B') } },
+      { uri: `${MNEMO_NS}qualifies`, get label() { return t('qualifies') }, get description() { return t('A modifies, limits, or adds nuance to B') } },
     ],
   },
   Genesis: {
     icon: 'zap',
-    description: 'How does A give rise to B?',
+    get description() { return t('How does A give rise to B?') },
     predicates: [
-      { uri: `${MNEMO_NS}flowsInto`, label: 'flows into', description: 'A continues into or transforms into B' },
-      { uri: `${MNEMO_NS}produces`, label: 'produces', description: 'A brought B into existence' },
-      { uri: `${MNEMO_NS}intensifiesWith`, label: 'intensifies with', description: 'A and B amplify each other through contact' },
+      { uri: `${MNEMO_NS}flowsInto`, get label() { return t('flows into') }, get description() { return t('A continues into or transforms into B') } },
+      { uri: `${MNEMO_NS}produces`, get label() { return t('produces') }, get description() { return t('A brought B into existence') } },
+      { uri: `${MNEMO_NS}intensifiesWith`, get label() { return t('intensifies with') }, get description() { return t('A and B amplify each other through contact') } },
     ],
   },
   Structure: {
     icon: 'layers',
-    description: 'How are A and B ordered or arranged?',
+    get description() { return t('How are A and B ordered or arranged?') },
     predicates: [
-      { uri: `${MNEMO_NS}contains`, label: 'contains', description: 'A spatially or structurally includes B' },
-      { uri: `${MNEMO_NS}precedes`, label: 'precedes', description: 'A comes before B in time or sequence' },
-      { uri: `${MNEMO_NS}consequenceOf`, label: 'consequence of', description: 'B is an effect or result of A' },
+      { uri: `${MNEMO_NS}contains`, get label() { return t('contains') }, get description() { return t('A spatially or structurally includes B') } },
+      { uri: `${MNEMO_NS}precedes`, get label() { return t('precedes') }, get description() { return t('A comes before B in time or sequence') } },
+      { uri: `${MNEMO_NS}consequenceOf`, get label() { return t('consequence of') }, get description() { return t('B is an effect or result of A') } },
     ],
   },
 }
@@ -78,7 +79,7 @@ export const LEGACY_PREDICATE_LABELS: Readonly<Record<string, string>> = {
 
 export function getAllWirePredicates(): readonly PredicateDef[] {
   return [
-    { uri: DEFAULT_WIRE_PREDICATE_URI, label: 'is related to', description: 'General association' },
+    { uri: DEFAULT_WIRE_PREDICATE_URI, get label() { return t('is related to') }, get description() { return t('General association') } },
     ...Object.values(PREDICATE_GROUPS).flatMap((category) => category.predicates),
   ]
 }
@@ -91,13 +92,13 @@ export function normalizeWirePredicateUri(predicate: string): string {
 
 export function getWirePredicateLabel(predicate: string): string {
   const uri = normalizeWirePredicateUri(predicate)
-  if (uri === DEFAULT_WIRE_PREDICATE_URI) return 'is related to'
+  if (uri === DEFAULT_WIRE_PREDICATE_URI) return t('is related to')
 
   const known = getAllWirePredicates().find((p) => p.uri === uri)
   if (known) return known.label
 
   const legacy = LEGACY_PREDICATE_LABELS[uri]
-  if (legacy) return legacy
+  if (legacy) return localizeLabel(legacy)
 
   const local = uri.startsWith(MNEMO_NS) ? uri.slice(MNEMO_NS.length) : uri.split(/[\/#]/).pop() ?? uri
   return local

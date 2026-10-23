@@ -11,6 +11,7 @@
  * `sh-being-intent` event (`bubbles`, `composed`) that the host handles. No level, no mood, no rarity.
  */
 
+import { LocaleController, t } from '@shrubbery/nucleus'
 import { agentMark } from '@shrubbery/nucleus/kinds'
 import { type BeingFace, beingFacts, sittingsWords } from '@shrubbery/nucleus/object-faces'
 import { css, html, LitElement, nothing } from 'lit'
@@ -29,6 +30,8 @@ export const BEING_MARK_STYLES = css`
 `
 
 export class ShBeingMark extends LitElement {
+  protected readonly _locale = new LocaleController(this)
+
   static override properties = {
     agentId: { type: String, attribute: 'agent-id' },
     name: { type: String },
@@ -51,11 +54,13 @@ export class ShBeingMark extends LitElement {
     if (!this.agentId) return nothing
     const mark = agentMark(this.agentId)
     return html`<span class="mark" style=${`--agent-color:${mark.color};--being-mark-size:${this.size}px`}
-      role="img" aria-label=${`${this.name || 'A being'}, mark ${mark.colorName}`} title=${mark.colorName}>${(this.name || '?').slice(0, 1).toLocaleUpperCase()}</span>`
+      role="img" aria-label=${t('being.mark', { name: this.name || t('A being'), color: mark.colorName })} title=${mark.colorName}>${(this.name || '?').slice(0, 1).toLocaleUpperCase()}</span>`
   }
 }
 
 export class ShBeingFace extends LitElement {
+  protected readonly _locale = new LocaleController(this)
+
   static override properties = { face: { attribute: false }, variant: { type: String } }
   declare face: BeingFace | null
   declare variant: 'card' | 'line'
@@ -86,13 +91,13 @@ export class ShBeingFace extends LitElement {
     const mark = html`<sh-being-mark agent-id=${face.agentId} name=${face.name} .size=${this.variant === 'line' ? 20 : 44}></sh-being-mark>`
     if (this.variant === 'line') {
       return html`<div class="line" title=${face.iri}>${mark}<span class="name">${face.name}</span>
-        <span class="count">${face.sittings > 0 ? sittingsWords(face.sittings) : ''}${face.failed ? html`, <span class="bad">${face.failed} failed</span>` : nothing}</span></div>`
+        <span class="count">${face.sittings > 0 ? sittingsWords(face.sittings) : ''}${face.failed ? html`, <span class="bad">${t('being.failed', { count: face.failed })}</span>` : nothing}</span></div>`
     }
     const facts = beingFacts(face)
     return html`<div class="card" data-agent=${face.agentId}>${mark}
       <div class="who">
         <div class="name" title=${face.iri}>${face.name}</div>
-        ${facts.length ? html`<div class="facts">${facts.map((fact) => html`<span class=${/ failed$/.test(fact) ? 'bad' : ''}>${fact}</span>`)}</div>` : nothing}
+        ${facts.length ? html`<div class="facts">${facts.map((fact) => html`<span class=${fact === t('being.failed', { count: face.failed }) ? 'bad' : ''}>${fact}</span>`)}</div>` : nothing}
       </div></div>`
   }
 }

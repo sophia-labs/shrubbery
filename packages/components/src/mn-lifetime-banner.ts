@@ -13,6 +13,7 @@
  * anything: the host supplies an honest `state` and handles both intents.
  */
 
+import { LocaleController, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, unsafeCSS, type TemplateResult } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 import { SkinAware } from './skin-aware.js'
@@ -61,7 +62,7 @@ const BUSY_LABEL = "Loading this graph's current life…"
 
 /** FB-7/8/9/10 — the parked-counts line. Never both zero without saying so. */
 function countsLine(documents: number, operations: number): string {
-  if (documents <= 0 && operations <= 0) return 'Nothing of yours was waiting.'
+  if (documents <= 0 && operations <= 0) return t('Nothing of yours was waiting.')
   const parts: string[] = []
   if (documents > 0) parts.push(`${documents} parked document${documents === 1 ? '' : 's'}`)
   if (operations > 0) parts.push(`${operations} unsent change${operations === 1 ? '' : 's'}`)
@@ -70,6 +71,8 @@ function countsLine(documents: number, operations: number): string {
 
 @customElement('mn-lifetime-banner')
 export class MnLifetimeBanner extends SkinAware(LitElement) {
+  protected readonly _locale = new LocaleController(this)
+
   static styles = css`
     ${unsafeCSS(iconStyles)}
 
@@ -290,7 +293,7 @@ export class MnLifetimeBanner extends SkinAware(LitElement) {
             : nothing}
           ${state.testimony
             ? html`<details class="banner-disclosure">
-                <summary>What the server said</summary>
+                <summary>${t('What the server said')}</summary>
                 <div class="testimony">${state.testimony}</div>
               </details>`
             : nothing}
