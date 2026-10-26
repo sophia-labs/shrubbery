@@ -356,6 +356,11 @@ export interface SourceMirrorStorage {
   commitMirror(record: CommittedSourceMirror): Promise<void>
   putOutbox(record: SourceOutboxRecord): Promise<void>
   listOutbox(mirrorKey: string): Promise<readonly SourceOutboxRecord[]>
+  /**
+   * Remove one mirror and its outbox. Only for a graph the person discards on purpose: a workspace saved on this
+   * device that the cloud never created. Absent on stores that cannot forget.
+   */
+  discardMirror?(mirrorKey: string): Promise<void>
 }
 
 export type SourceMirrorPhase =
@@ -2125,5 +2130,10 @@ export class MemorySourceMirrorStorage implements SourceMirrorStorage {
 
   async listOutbox(mirrorKey: string): Promise<readonly SourceOutboxRecord[]> {
     return [...this.outbox.values()].filter(record => record.mirrorKey === mirrorKey)
+  }
+
+  async discardMirror(mirrorKey: string): Promise<void> {
+    this.mirrors.delete(mirrorKey)
+    for (const [key, record] of this.outbox) if (record.mirrorKey === mirrorKey) this.outbox.delete(key)
   }
 }

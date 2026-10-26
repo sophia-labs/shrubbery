@@ -7,7 +7,7 @@
  * makes at-least-once delivery converge after a lost acknowledgement.
  */
 
-import { classifySourceFault, retryable } from './source-fault.js'
+import { classifySourceFault, retryable, type SourceFaultCode } from './source-fault.js'
 
 export type GraphLifecycleIntentKind = 'create' | 'delete'
 export type GraphLifecycleIntentStatus = 'pending' | 'applied' | 'conflict'
@@ -25,11 +25,15 @@ export interface GraphLifecycleIntent {
   readonly updatedAt: number
   readonly attempts: number
   readonly error?: string
+  /** The authority's classified reason for the last refusal (e.g. `quota_exceeded`), when it gave one. */
+  readonly errorCode?: SourceFaultCode
 }
 
 export interface GraphLifecycleStorage {
   putGraphLifecycleIntent(intent: GraphLifecycleIntent): Promise<void>
   listGraphLifecycleIntents(userId: string): Promise<readonly GraphLifecycleIntent[]>
+  /** Forget one intent by key (a discarded local creation). Absent: discard is refused. */
+  deleteGraphLifecycleIntent?(key: string): Promise<void>
 }
 
 export interface GraphLifecycleTransport {
@@ -101,6 +105,15 @@ function intentKey(userId: string, operationId: string): string {
  */
 function conflictError(error: unknown): boolean {
   return retryable(classifySourceFault(error).code) === false
+}
+
+/**
+ * A create refused because the account is at its workspace limit (`403 quota_exceeded`) cannot succeed by being
+ * sent again: it waits, retained, for the person to Retry (once the limit is raised) or Discard. Before this it
+ * stayed `pending` and was retried on every Home load. Elsewhere quota keeps its default (transient) disposition.
+ */
+function refusedCreate(intent: GraphLifecycleIntent, code: SourceFaultCode | null): boolean {
+  return intent.kind === 'create' && code === 'quota_exceeded'
 }
 
 export class GraphLifecycleManager {
@@ -185,18 +198,56 @@ export class GraphLifecycleManager {
             updatedAt: this.now(),
             attempts: intent.attempts + 1,
             error: undefined,
+            errorCode: undefined,
           })
         } catch (error) {
+          const code = classifySourceFault(error).code
           await this.replace({
             ...intent,
-            status: conflictError(error) ? 'conflict' : 'pending',
+            status: conflictError(error) || refusedCreate(intent, code) ? 'conflict' : 'pending',
             updatedAt: this.now(),
             attempts: intent.attempts + 1,
             error: error instanceof Error ? error.message : String(error),
+            errorCode: code ?? undefined,
           })
         }
       }
       return this.records()
+    })
+  }
+
+  /**
+   * Ask again for a refused or unconfirmed create (the person pressed Retry, e.g. after the workspace limit was
+   * raised): it becomes `pending` with its identity unchanged; the caller flushes.
+   */
+  async retry(operationId: string): Promise<GraphLifecycleIntent> {
+    return this.serialize(async () => {
+      const intent = this.intents.find(candidate => candidate.operationId === operationId)
+      if (!intent || intent.kind !== 'create' || intent.status === 'applied') {
+        throw new Error('GraphLifecycle: only a create that has not been applied can be retried')
+      }
+      const next: GraphLifecycleIntent = { ...intent, status: 'pending', updatedAt: this.now(), error: undefined, errorCode: undefined }
+      await this.replace(next)
+      return next
+    })
+  }
+
+  /**
+   * Forget a create the cloud never applied (the person discards the workspace). The caller removes its local
+   * data; an applied create is a real graph and is deleted, never discarded.
+   */
+  async discard(operationId: string): Promise<GraphLifecycleIntent> {
+    return this.serialize(async () => {
+      const intent = this.intents.find(candidate => candidate.operationId === operationId)
+      if (!intent || intent.kind !== 'create' || intent.status === 'applied') {
+        throw new Error('GraphLifecycle: only a create that has not been applied can be discarded')
+      }
+      if (!this.options.storage.deleteGraphLifecycleIntent) {
+        throw new Error('GraphLifecycle: this storage cannot discard an intent')
+      }
+      await this.options.storage.deleteGraphLifecycleIntent(intent.key)
+      this.intents = this.intents.filter(candidate => candidate.key !== intent.key)
+      return intent
     })
   }
 
@@ -253,5 +304,9 @@ export class MemoryGraphLifecycleStorage implements GraphLifecycleStorage {
 
   async listGraphLifecycleIntents(userId: string): Promise<readonly GraphLifecycleIntent[]> {
     return [...this.intents.values()].filter(intent => intent.userId === userId)
+  }
+
+  async deleteGraphLifecycleIntent(key: string): Promise<void> {
+    this.intents.delete(key)
   }
 }

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  GatewayHttpError,
   GraphLifecycleManager,
   MemoryGraphLifecycleStorage,
   type GraphLifecycleTransport,
@@ -19,6 +20,8 @@ class Transport implements GraphLifecycleTransport {
    *  OQ-C5): this file's transport predates this work and is a literal
    *  object throwing literal strings, not the real `McpSourceSyncTransport`. */
   bareHttp409Delete = false
+  /** The account is at its workspace limit: every create is refused `403 quota_exceeded`. */
+  atQuota = false
 
   async createGraph(request: {
     readonly graphId: string
@@ -27,6 +30,10 @@ class Transport implements GraphLifecycleTransport {
     readonly operationId: string
   }) {
     this.creates.push(request.operationId)
+    if (this.atQuota) {
+      // The gateway's real refusal (POST /graphs, 403), through the real error class.
+      throw new GatewayHttpError('POST', 'https://gateway.test/graphs', 403, '{"error":"graph quota exceeded","code":"quota_exceeded"}')
+    }
     if (this.loseNextCreateAcknowledgement) {
       this.loseNextCreateAcknowledgement = false
       throw new Error('connection closed after commit')
@@ -153,5 +160,53 @@ describe('graph lifecycle outbox', () => {
       title: 'Offline graph',
     })).rejects.toThrow('operationId must be')
     expect(storage.intents.size).toBe(0)
+  })
+
+  it('keeps a create refused at the workspace limit, refused and retained, until Retry or Discard', async () => {
+    const storage = new MemoryGraphLifecycleStorage()
+    const transport = new Transport()
+    transport.atQuota = true
+    const manager = new GraphLifecycleManager({ userId: 'vera', storage, transport })
+    await manager.open()
+    await manager.enqueueCreate({
+      graphId: 'test-50398592',
+      graphIncarnation: '5b102b7a-0a64-45a5-a629-ad94b7d20eb7',
+      operationId: 'graph:create:quota',
+      title: 'Test',
+    })
+    await manager.flush()
+    expect(manager.records()[0]).toMatchObject({ status: 'conflict', errorCode: 'quota_exceeded', attempts: 1 })
+    // Refused is final: a later flush (every Home load) does not send it again.
+    await manager.flush()
+    expect(transport.creates).toEqual(['graph:create:quota'])
+    expect(storage.intents.size).toBe(1)
+
+    // Retry, once the limit is raised: the same identity, pending, then applied.
+    transport.atQuota = false
+    await expect(manager.retry('graph:create:quota')).resolves.toMatchObject({ status: 'pending', errorCode: undefined })
+    await manager.flush()
+    expect(manager.records()[0]).toMatchObject({ status: 'applied', attempts: 2 })
+    expect(transport.creates).toEqual(['graph:create:quota', 'graph:create:quota'])
+    await expect(manager.discard('graph:create:quota')).rejects.toThrow('not been applied')
+  })
+
+  it('discards a refused local creation, and only that one', async () => {
+    const storage = new MemoryGraphLifecycleStorage()
+    const transport = new Transport()
+    transport.atQuota = true
+    const manager = new GraphLifecycleManager({ userId: 'vera', storage, transport })
+    await manager.open()
+    for (const [operationId, graphIncarnation] of [
+      ['graph:create:a', '5b102b7a-0a64-45a5-a629-ad94b7d20eb7'],
+      ['graph:create:b', '6c213c8b-1b75-46b6-b73a-be05c8e31fc8'],
+    ] as const) {
+      await manager.enqueueCreate({ graphId: operationId.slice(-1), graphIncarnation, operationId, title: 'T' })
+    }
+    await manager.flush()
+    await manager.discard('graph:create:a')
+    expect(manager.records().map(intent => intent.operationId)).toEqual(['graph:create:b'])
+    expect([...storage.intents.values()].map(intent => intent.operationId)).toEqual(['graph:create:b'])
+    const cold = new GraphLifecycleManager({ userId: 'vera', storage, transport })
+    expect((await cold.open()).map(intent => intent.operationId)).toEqual(['graph:create:b'])
   })
 })
