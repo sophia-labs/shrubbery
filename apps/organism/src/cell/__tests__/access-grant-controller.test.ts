@@ -29,7 +29,7 @@ function accessBackend(seed: readonly GatewayAccessGrant[]) {
   const links = new Map<string, Record<string, unknown>>()
   /** The gateway's directory: the one email with a confirmed account, and the names it knows. */
   const directory = new Map([['ada@example.test', { principal: 'user:ada', name: 'Ada Reader' }]])
-  const people = new Map<string, { name?: string; email?: string }>([['user:editor-2', { name: 'Eddie Editor', email: 'editor@example.test' }]])
+  const people = new Map<string, { name?: string; email?: string }>()
   const invitations = new Map<string, Record<string, unknown>>()
   let publicLink: Record<string, unknown> | null = null
   const fetch: typeof globalThis.fetch = vi.fn(async (input, init = {}) => {
@@ -120,6 +120,8 @@ function accessBackend(seed: readonly GatewayAccessGrant[]) {
     get publicLink() { return publicLink },
     failNext(action: string, code: number) { failure = { action, code } },
     leaveGrantUnconfirmed() { staleGrant = true },
+    /** What the directory knows about someone with access (get_sharing's `person`). */
+    name(userId: string, person: { name?: string; email?: string }) { people.set(userId, person) },
   }
 }
 
@@ -426,7 +428,8 @@ describe('OrganismAccessGrantController', () => {
     }
 
     it('names people from the sharing view and keeps the owner first', async () => {
-      const { controller } = ownerSetup()
+      const { backend, controller } = ownerSetup()
+      backend.name('user:editor-2', { name: 'Eddie Editor', email: 'editor@example.test' })
       await controller.open()
       await settle()
       const grants = controller.snapshot()!.grants
