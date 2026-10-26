@@ -1089,7 +1089,7 @@ export interface WorkspaceQuickClipOptions {
 export type WorkspaceAccessRole = 'viewer' | 'editor' | 'owner'
 export type WorkspaceAccessCurrentRole = WorkspaceAccessRole | 'unknown'
 export type WorkspaceAccessStatus = 'idle' | 'loading' | 'ready' | 'error'
-export type WorkspaceAccessBusyAction = 'add' | 'role' | 'remove' | 'refresh'
+export type WorkspaceAccessBusyAction = 'add' | 'role' | 'remove' | 'refresh' | 'leave'
 
 export interface WorkspaceAccessGrant {
   readonly userId: string
@@ -1219,6 +1219,10 @@ export interface WorkspaceAccessOptions {
   readonly onInvite?: (detail: WorkspaceAccessInviteDetail) => void
   readonly onInvitationCancel?: (detail: WorkspaceAccessInvitationCancelDetail) => void
   readonly onGeneralAccessChange?: (detail: WorkspaceGeneralAccessChangeDetail) => void
+  /** True on a graph someone shared with this account: the dialog offers "Leave this graph". */
+  readonly canLeave?: boolean
+  /** Leave the graph (the host confirms first). */
+  readonly onLeave?: () => void
 }
 
 export type WorkspaceTtsStatus = 'idle' | 'loading' | 'playing' | 'paused'
@@ -3044,6 +3048,7 @@ function renderChromeSurface(
         opts.chrome.access?.onInvitationCancel?.(customDetail<WorkspaceAccessInvitationCancelDetail>(event))}
       @mn-access-general-change=${(event: Event) =>
         opts.chrome.access?.onGeneralAccessChange?.(customDetail<WorkspaceGeneralAccessChangeDetail>(event))}
+      @mn-access-leave=${() => opts.chrome.access?.onLeave?.()}
       @mn-workspace-refresh=${() => opts.chrome.onWorkspaceRefresh?.()}
       @mn-workspace-select=${(event: Event) =>
         opts.chrome.onWorkspaceSelect?.(customDetail<{ workspace: WorkspaceSummary }>(event).workspace)}

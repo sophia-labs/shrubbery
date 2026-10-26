@@ -10,6 +10,7 @@ import { t, type ConfirmOpts } from '@shrubbery/nucleus'
 import {
   accessEmail,
   accessUserPrincipal,
+  leaveRefusalMessage,
   publicViewUrl,
   shareLinkUrl,
   type ControlMintedShareLink,
@@ -55,6 +56,8 @@ export interface AccessGrantGateway {
   cancelInvitation?(graphId: string, invitationId: string): Promise<void>
   /** "Anyone with the link can view"; revoked with revokeShareLink. */
   createPublicLink?(graphId: string, request?: ControlPublicLinkCreate): Promise<ControlPublicLink>
+  /** Leave a graph someone shared with this account. Absent: the dialog offers no Leave. */
+  leaveGraph?(graphId: string): Promise<void>
 }
 
 type SharingGateway = Required<Pick<AccessGrantGateway, 'sharing' | 'setEveryoneAccess' | 'createShareLink' | 'revokeShareLink'>>
@@ -82,6 +85,10 @@ export interface AccessGrantScope {
   /** The signed-in person's name and email: the owner's own row, and who an invitation note is from. */
   readonly currentUserName?: string
   readonly currentUserEmail?: string
+  /** The graph's owner (`user:<sub>`): the graph's address names it, since ids are unique only per owner. */
+  readonly owner?: string
+  /** After leaving: the graph is no longer this account's to open (the host goes Home and reads the catalog). */
+  readonly onLeft?: () => void
 }
 
 export interface OrganismAccessGrantControllerOptions {
@@ -176,9 +183,64 @@ export class OrganismAccessGrantController {
     return (this.options.linkOrigin?.() ?? globalThis.location?.origin ?? '').replace(/\/+$/u, '')
   }
 
-  /** The graph's own address: it opens for people with access (and asks anyone else to sign in). */
+  /**
+   * The graph's own address: it opens for people with access (and asks anyone else to sign in). It names the
+   * owner, since whoever opens it may hold a graph with the same id.
+   */
   private graphUrl(scope: AccessGrantScope): string {
-    return `${this.origin()}/g/${encodeURIComponent(scope.graphId)}`
+    const owner = scope.owner?.trim()
+    return `${this.origin()}/g/${encodeURIComponent(scope.graphId)}${owner ? `?owner=${encodeURIComponent(owner)}` : ''}`
+  }
+
+  /** A graph someone shared with this account, through a gateway that can leave it. */
+  private canLeave(): boolean {
+    return (this.currentRole === 'viewer' || this.currentRole === 'editor')
+      && typeof this.scope?.gateway.leaveGraph === 'function'
+  }
+
+  /**
+   * Leave a graph someone shared with this account, after a confirm. Refused for access that comes only through
+   * everyone signed in (the gateway says why); on success the host goes Home.
+   */
+  async leave(): Promise<void> {
+    const scope = this.scope
+    if (!scope || this.destroyed || this.busyAction || !this.canLeave()) return
+    // Every render re-sets the scope (a fresh object for the same graph), so "still this graph" is the gateway
+    // and the graph id, not the object.
+    const sameGraph = (): boolean => !this.destroyed
+      && this.scope?.gateway === scope.gateway && this.scope.graphId === scope.graphId
+    const name = scope.graphTitle || scope.graphId
+    let confirmed = false
+    try {
+      confirmed = await scope.ui.confirm({
+        title: t('sharing.leaveTitle', { name }),
+        message: t('sharing.leaveMessage'),
+        confirmLabel: t('sharing.leaveConfirm'),
+        cancelLabel: t('Cancel'),
+      })
+    } catch (error) {
+      if (!sameGraph()) return
+      this.error = errorMessage(error)
+      this.requestRender()
+      return
+    }
+    if (!confirmed || !sameGraph() || this.busyAction) return
+    this.busyAction = 'leave'
+    this.error = null
+    this.notice = null
+    this.requestRender()
+    try {
+      await scope.gateway.leaveGraph!(scope.graphId)
+      if (this.destroyed) return
+      this.busyAction = null
+      this.requestRender()
+      ;(this.scope ?? scope).onLeft?.()
+    } catch (error) {
+      if (!sameGraph()) return
+      this.busyAction = null
+      this.error = leaveRefusalMessage(error)
+      this.requestRender()
+    }
   }
 
   private inviteMessage(scope: AccessGrantScope, email: string): string {
@@ -818,6 +880,8 @@ export class OrganismAccessGrantController {
       onInvite: (detail: WorkspaceAccessInviteDetail) => { void this.invite(detail) },
       onInvitationCancel: (detail: WorkspaceAccessInvitationCancelDetail) => { void this.cancelInvitation(detail) },
       onGeneralAccessChange: (detail: WorkspaceGeneralAccessChangeDetail) => { void this.setGeneralAccess(detail) },
+      canLeave: this.canLeave(),
+      onLeave: () => { void this.leave() },
     })
   }
 

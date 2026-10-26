@@ -394,3 +394,29 @@ describe('mn-access-manager', () => {
     })
   })
 })
+
+describe('leaving a graph someone shared', () => {
+  it('offers Leave to a Viewer or Editor the host lets leave, and asks the host to do it', async () => {
+    const element = await mount(model({ currentRole: 'viewer', grants: [], canLeave: true }))
+    const root = await open(element)
+    const leave = root.querySelector<HTMLButtonElement>('.leave')!
+    expect(leave.textContent?.trim()).toBe('Leave this graph')
+    let asked = 0
+    element.addEventListener('mn-access-leave', () => { asked += 1 })
+    leave.click()
+    expect(asked).toBe(1)
+
+    element.model = model({ currentRole: 'viewer', grants: [], canLeave: true, busyAction: 'leave' })
+    await element.updateComplete
+    expect(root.querySelector<HTMLButtonElement>('.leave')!.disabled).toBe(true)
+    expect(root.querySelector('.leave')?.textContent?.trim()).toBe('Leaving…')
+  })
+
+  it('never offers Leave to the owner, nor where the host cannot leave', async () => {
+    const owner = await open(await mount(model({ canLeave: true })))
+    expect(owner.querySelector('.leave')).toBeNull()
+    document.body.replaceChildren()
+    const editor = await open(await mount(model({ currentRole: 'editor', grants: [] })))
+    expect(editor.querySelector('.leave')).toBeNull()
+  })
+})

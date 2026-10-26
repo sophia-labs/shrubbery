@@ -662,6 +662,7 @@ function hostedAccessFeature<TContract>(): ShellFeature<TContract> {
       }
       const graphCrumb = snapshot.chrome?.breadcrumbs?.find(item => item.kind === 'graph')
       const active = ensure(context)
+      const accessOwner = graphOwnerOf(contract as unknown as FeatureContract, context.graphId)
       let identity = ''
       try { identity = contract.auth.snapshot?.().identity?.trim() ?? '' } catch { identity = '' }
       active.setScope({
@@ -672,15 +673,18 @@ function hostedAccessFeature<TContract>(): ShellFeature<TContract> {
         currentUserId,
         roleHint: workspace?.role ?? 'unknown',
         ...(identity.includes('@') ? { currentUserEmail: identity } : identity ? { currentUserName: identity } : {}),
+        ...(accessOwner ? { owner: accessOwner } : {}),
+        // Left: the graph is gone from this account. Home reads the catalog afresh on its own page.
+        onLeft: () => { globalThis.location?.assign('/home') },
       })
       // Home's Share button lands on `/g/<id>?access=1`: open the dialog once the graph's tree is in.
       if (
         accessOpenRequested(context.location)
-        && autoOpenedGraphId !== context.graphId
+        && autoOpenedGraphId !== activeKey
         && workspace
         && snapshot.sidebar?.status === 'ready'
       ) {
-        autoOpenedGraphId = context.graphId
+        autoOpenedGraphId = activeKey
         active.requestOpen()
         try {
           const history = globalThis.history

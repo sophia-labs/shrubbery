@@ -729,6 +729,12 @@ export class GatewayTransport {
     await this.accessControl.cancelInvitation(graphId, invitationId)
   }
 
+  /** Leave a graph another account shared with this one; the directory forgets its owner binding. */
+  async leaveGraph(graphId: string): Promise<void> {
+    await this.accessControl.leave(graphId)
+    if (!this.routeOwner) this.graphOwners.delete(graphId)
+  }
+
   /** "Anyone with the link can view": create (or return the live) public link. Revoke it with revokeShareLink. */
   async createPublicLink(graphId: string, request?: ControlPublicLinkCreate): Promise<ControlPublicLink> {
     return this.accessControl.createPublicLink(graphId, request)

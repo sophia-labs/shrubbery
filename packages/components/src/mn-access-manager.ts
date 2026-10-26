@@ -32,7 +32,7 @@ import { icon, iconStyles } from './icons.js'
 export type MnAccessRole = 'viewer' | 'editor' | 'owner'
 export type MnAccessCurrentRole = MnAccessRole | 'unknown'
 export type MnAccessStatus = 'idle' | 'loading' | 'ready' | 'error'
-export type MnAccessBusyAction = 'add' | 'role' | 'remove' | 'refresh'
+export type MnAccessBusyAction = 'add' | 'role' | 'remove' | 'refresh' | 'leave'
 
 export interface MnAccessGrant {
   readonly userId: string
@@ -153,6 +153,8 @@ export interface MnAccessManagerModel {
   readonly inviteResult?: MnAccessInviteResult | null
   /** A new value opens the dialog (the host asks, e.g. Home's Share button). */
   readonly openRequest?: number | null
+  /** A graph someone shared with this account (Viewer or Editor): offer "Leave this graph" (`mn-access-leave`). */
+  readonly canLeave?: boolean
 }
 
 export interface MnAccessAddDetail {
@@ -726,6 +728,27 @@ export class MnAccessManager extends SkinAware(LitElement) {
       margin: 0 0 var(--mn-space-2, 6px);
     }
 
+    /* Someone else's graph: leave it (the host confirms). */
+    .leave-row {
+      display: flex;
+      margin-block-start: var(--mn-space-3, 8px);
+    }
+    .leave {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--mn-space-2, 6px);
+      min-height: 28px;
+      padding: 0 var(--mn-space-3, 8px);
+      border: 1px solid var(--mn-color-border-default, #d1d5db);
+      border-radius: var(--mn-radius-control, 5px);
+      background: var(--mn-color-surface-base, #fff);
+      color: var(--mn-color-text-danger, #b42318);
+      cursor: pointer;
+      font-size: var(--mn-text-xs, 12px);
+      font-weight: 650;
+    }
+    .leave:disabled { cursor: default; opacity: 0.6; }
+
     .footer {
       display: flex;
       align-items: center;
@@ -1216,6 +1239,21 @@ export class MnAccessManager extends SkinAware(LitElement) {
     </div>`
   }
 
+  /** Viewers and Editors of someone else's graph may leave it; the host asks before it does. */
+  private renderLeave(model: MnAccessManagerModel) {
+    if (!model.canLeave || model.currentRole === 'owner') return nothing
+    const leaving = model.busyAction === 'leave'
+    return html`<div class="leave-row">
+      <button
+        class="leave"
+        type="button"
+        ?disabled=${Boolean(model.busyAction)}
+        aria-busy=${leaving ? 'true' : 'false'}
+        @click=${() => this.emit('mn-access-leave')}
+      >${icon('arrow-left', { size: 14 })}<span>${leaving ? t('sharing.leaving') : t('sharing.leave')}</span></button>
+    </div>`
+  }
+
   private renderFooter(model: MnAccessManagerModel) {
     if (!model.memberLinkUrl) return nothing
     return html`<div class="footer">
@@ -1262,6 +1300,7 @@ export class MnAccessManager extends SkinAware(LitElement) {
       ${this.renderAddPeople()}
       ${owner || model.grants.length > 0 ? this.renderPeople(model) : nothing}
       ${this.renderSharing(model)}
+      ${this.renderLeave(model)}
       ${this.renderFooter(model)}
     </div>`
   }

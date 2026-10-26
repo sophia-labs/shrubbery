@@ -565,3 +565,69 @@ describe('OrganismAccessGrantController', () => {
     })
   })
 })
+
+describe('leaving a graph someone shared', () => {
+  function leaveGateway(answer: (args: Record<string, unknown>) => unknown) {
+    const calls: Array<{ path: string; name: string; args: Record<string, unknown> }> = []
+    const fetch = (async (input: RequestInfo | URL, init: RequestInit = {}) => {
+      const url = new URL(String(input))
+      const body = JSON.parse(String(init.body ?? 'null'))
+      calls.push({ path: url.pathname, name: body.params.name, args: body.params.arguments })
+      return Response.json({ jsonrpc: '2.0', id: body.id, ...answer(body.params.arguments) as object })
+    }) as typeof globalThis.fetch
+    // Another owner's graph: the transport scoped to that owner, as the page's contract has it.
+    const gateway = new GatewayTransport({ gatewayBaseUrl: 'https://gateway.test/root', auth: new TestAuth(), fetch }).forOwner('user:idle')
+    return { gateway, calls }
+  }
+
+  it('offers Leave to a Viewer, confirms, calls leave_graph with the owner, then hands back to the host', async () => {
+    const { gateway, calls } = leaveGateway(() => ({ result: { structuredContent: { left: true }, isError: false } }))
+    const confirms: string[] = []
+    const left: string[] = []
+    const controller = new OrganismAccessGrantController({ requestRender: () => undefined })
+    // The shell sets a fresh scope object on every render, the confirm dialog's included.
+    const ui = { confirm: async (options: { title?: unknown }) => { confirms.push(String(options.title)); controller.setScope(scope()); return true } }
+    const scope = () => ({
+      gateway,
+      ui,
+      graphId: 'onboarding',
+      graphTitle: 'Onboarding',
+      currentUserId: 'user:owner-1',
+      roleHint: 'viewer' as const,
+      owner: 'user:idle',
+      onLeft: () => left.push('home'),
+    })
+    controller.setScope(scope())
+    expect(controller.snapshot()).toMatchObject({ canLeave: true, memberLinkUrl: expect.stringContaining('/g/onboarding?owner=user%3Aidle') })
+    await controller.leave()
+    expect(confirms).toEqual(['Leave “Onboarding”?'])
+    expect(calls).toEqual([{ path: '/root/control/mcp', name: 'leave_graph', args: { owner: 'user:idle', graphId: 'onboarding' } }])
+    expect(left).toEqual(['home'])
+  })
+
+  it('shows the gateway\'s reason when leaving is refused, and stays', async () => {
+    const reason = 'You can view this graph because it is shared with everyone signed in; there is nothing to leave.'
+    const { gateway } = leaveGateway(() => ({ error: { code: -32009, message: reason } }))
+    const left: string[] = []
+    const controller = new OrganismAccessGrantController({ requestRender: () => undefined })
+    controller.setScope({
+      gateway, ui: { confirm: async () => true }, graphId: 'onboarding', graphTitle: 'Onboarding',
+      currentUserId: 'user:owner-1', roleHint: 'editor', onLeft: () => left.push('home'),
+    })
+    await controller.leave()
+    expect(controller.snapshot()).toMatchObject({ error: reason, busyAction: null, canLeave: true })
+    expect(left).toEqual([])
+  })
+
+  it('never offers Leave to the owner, and does nothing without a confirm', async () => {
+    const { gateway, calls } = leaveGateway(() => ({ result: { structuredContent: { left: true }, isError: false } }))
+    const controller = new OrganismAccessGrantController({ requestRender: () => undefined })
+    controller.setScope({ gateway, ui: { confirm: async () => false }, graphId: 'onboarding', graphTitle: 'O', currentUserId: 'user:owner-1', roleHint: 'viewer' })
+    await controller.leave()
+    expect(calls).toEqual([])
+    controller.setScope({ gateway, ui: { confirm: async () => true }, graphId: 'mine', graphTitle: 'M', currentUserId: 'user:owner-1', roleHint: 'owner' })
+    expect(controller.snapshot()?.canLeave).toBe(false)
+    await controller.leave()
+    expect(calls).toEqual([])
+  })
+})
