@@ -281,7 +281,13 @@ export interface SourceSyncTransport {
 
 export interface SourceMirrorIdentity {
   readonly userId: string
+  /** The real graph id: what the authority is asked for and what its bundles must name. */
   readonly graphId: string
+  /**
+   * The graph's local key when it is not the bare id: another account's graph (`localGraphKey`). Storage is filed
+   * under it, so such a graph never reads or writes the mirror of the account's own graph with the same id.
+   */
+  readonly localKey?: string
 }
 
 export interface CommittedSourceMirror {
@@ -467,7 +473,7 @@ export interface SourceMirrorSubscription {
 
 export function sourceMirrorKey(identity: SourceMirrorIdentity): string {
   const userId = nonEmpty(identity.userId, 'userId')
-  const graphId = nonEmpty(identity.graphId, 'graphId')
+  const graphId = nonEmpty(identity.localKey ?? identity.graphId, 'graphId')
   return `${encodeURIComponent(userId)}\u001f${encodeURIComponent(graphId)}`
 }
 
