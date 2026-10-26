@@ -560,6 +560,7 @@ export class MnGardenHome extends SkinAware(LitElement) {
     const time = relativeTime(workspace.lastOpenedAt)
     const busy = this.busyGraphId === workspace.graphId
     const disabled = Boolean(workspace.disabled) || Boolean(workspace.localCreation) || busy
+    const shared = workspace.role !== 'owner' ? workspace.ownerName?.trim() || '' : ''
     return html`
       <li>
         <article class="graph-card" data-graph-id=${workspace.graphId}>
@@ -582,24 +583,25 @@ export class MnGardenHome extends SkinAware(LitElement) {
                 ${path.map(segment => html`<code>${segment}</code>`)}
               </div>
             ` : nothing}
-            ${(count || time) ? html`
+            ${(count || time || shared) ? html`
               <div class="graph-testimony">
+                ${shared ? html`<span class="shared-by">${t('sharing.sharedBy', { name: shared })}</span>` : nothing}
                 ${count ? html`<span>${count}</span>` : nothing}
                 ${time ? html`<span>Opened ${time}</span>` : nothing}
               </div>
             ` : nothing}
           </div>
           <div class="graph-actions">
-            <button
+            ${workspace.role === 'owner' ? html`<button
               class="access"
               type="button"
               ?disabled=${busy || Boolean(workspace.localCreation)}
-              aria-label=${workspace.role === 'owner' ? `Manage access to ${title}` : `View people in ${title}`}
+              aria-label=${t('sharing.shareGraph', { name: title })}
               @click=${() => this.emit('mn-garden-home-manage-access', { workspace })}
             >
               ${icon('share', { size: 14 })}
-              <span>${workspace.role === 'owner' ? 'Share' : t('People')}</span>
-            </button>
+              <span>${t('sharing.share')}</span>
+            </button>` : nothing}
           </div>
           ${workspace.localCreation ? html`
             <p class="disabled-reason" title=${workspace.localCreation.error ?? ''}>
@@ -615,21 +617,33 @@ export class MnGardenHome extends SkinAware(LitElement) {
     `
   }
 
+  /** Your graphs, then the graphs other people share with you (any role short of Owner). */
   private renderCatalog() {
+    const own = this.workspaces.filter(workspace => workspace.role === 'owner')
+    const shared = this.workspaces.filter(workspace => workspace.role !== 'owner')
     return html`
       <section aria-labelledby="garden-all-heading">
         <div class="section-heading">
-          <h2 id="garden-all-heading">${t('All graphs')}</h2>
-          <span class="section-count">${this.workspaces.length}</span>
+          <h2 id="garden-all-heading">${shared.length > 0 ? t('sharing.yourGraphs') : t('All graphs')}</h2>
+          <span class="section-count">${own.length}</span>
         </div>
-        ${this.workspaces.length > 0
-          ? html`<ol class="graph-list">${this.workspaces.map(workspace => this.renderGraph(workspace))}</ol>`
+        ${own.length > 0
+          ? html`<ol class="graph-list">${own.map(workspace => this.renderGraph(workspace))}</ol>`
           : html`
               <div class="side-card">
                 <p>${t('You do not have any graphs yet. Plant one to begin.')}</p>
               </div>
             `}
       </section>
+      ${shared.length > 0 ? html`
+        <section aria-labelledby="garden-shared-heading" data-section="shared">
+          <div class="section-heading">
+            <h2 id="garden-shared-heading">${t('sharing.sharedWithMe')}</h2>
+            <span class="section-count">${shared.length}</span>
+          </div>
+          <ol class="graph-list">${shared.map(workspace => this.renderGraph(workspace))}</ol>
+        </section>
+      ` : nothing}
     `
   }
 

@@ -128,6 +128,38 @@ describe('mn-garden-home', () => {
     expect(active.textContent).toContain('Opening Morse Garden')
   })
 
+  it('lists graphs shared with me apart, with who shared them and the role; only owners get Share', async () => {
+    const element = await mount({ workspaces: [
+      { graphId: 'mine', title: 'Mine', role: 'owner', cellState: 'running' },
+      { graphId: 'shared-v', title: 'Standard', role: 'viewer', cellState: 'running', ownerName: 'Vera' },
+      { graphId: 'shared-e', title: 'Seminar', role: 'editor', cellState: 'stopped', ownerName: 'Lucy' },
+    ] })
+    const root = element.shadowRoot!
+    const opened: MnGardenHomeWorkspaceDetail[] = []
+    element.addEventListener('mn-garden-home-open-graph', event => opened.push((event as CustomEvent<MnGardenHomeWorkspaceDetail>).detail))
+
+    expect(root.querySelector('#garden-all-heading')?.textContent).toBe('Your graphs')
+    expect(root.querySelector('#garden-shared-heading')?.textContent).toBe('Shared with me')
+    const shared = root.querySelector('[data-section="shared"]')!
+    expect([...shared.querySelectorAll('.graph-card')].map(card => card.getAttribute('data-graph-id'))).toEqual(['shared-v', 'shared-e'])
+    const viewer = shared.querySelector<HTMLElement>('[data-graph-id="shared-v"]')!
+    expect(viewer.querySelector('.shared-by')?.textContent).toBe('Shared by Vera')
+    expect(viewer.querySelector<HTMLElement & { label: string }>('mn-badge')?.label).toBe('Viewer')
+    expect(viewer.querySelector('.access')).toBeNull()
+    expect(shared.querySelector('[data-graph-id="shared-e"] .shared-by')?.textContent).toBe('Shared by Lucy')
+
+    const mine = root.querySelector<HTMLElement>('[data-graph-id="mine"]')!
+    expect(mine.querySelector('.shared-by')).toBeNull()
+    expect(mine.querySelector('.access')?.getAttribute('aria-label')).toBe('Share Mine')
+    expect(mine.querySelector('.access')?.textContent?.trim()).toBe('Share')
+
+    // A Viewer card opens, like any other.
+    const open = viewer.querySelector<HTMLButtonElement>('.open-graph')!
+    expect(open.disabled).toBe(false)
+    open.click()
+    expect(opened.map(detail => detail.workspace.graphId)).toEqual(['shared-v'])
+  })
+
   it('requests one empty graph and reflects host-controlled creation state', async () => {
     const element = await mount()
     const root = element.shadowRoot!

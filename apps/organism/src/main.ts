@@ -12618,19 +12618,15 @@ function hostedGardenHomeWorkspaces(
   graphs: readonly HostedWorkspaceInfo[],
   recency: Readonly<Record<string, number>>,
 ): readonly GardenHomeWorkspaceSummary[] {
+  // A Viewer graph opens read-only (viewer-mode); Home lists it under Shared with me, with who shared it.
   return graphs.map(graph => ({
     graphId: graph.graphId,
     title: graph.title,
     role: graph.role,
     cellState: graph.cellState,
+    ...(graph.ownerName ? { ownerName: graph.ownerName } : {}),
     ...(graph.localCreation ? { localCreation: graph.localCreation } : {}),
     lastOpenedAt: recency[graph.graphId] ?? null,
-    ...(graph.role === 'viewer'
-      ? {
-          disabled: true,
-          disabledReason: 'This graph is viewer-only; the full Garden workspace still requires editor access.',
-        }
-      : {}),
   }))
 }
 
