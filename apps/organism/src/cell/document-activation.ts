@@ -18,6 +18,8 @@ import {
   type CrdtProviderLifecycle,
   type ReactiveSource,
 } from '@shrubbery/nucleus'
+import { createIdlePersist } from './idle-persist.js'
+import { perfSpan } from './perf-marks.js'
 
 export type DocumentCacheAuthority = 'snapshot' | 'live' | 'offline'
 export type DocumentRenderSource = 'memory' | 'indexeddb' | 'snapshot' | 'live'
@@ -218,7 +220,15 @@ export interface DocumentActivationManagerOptions {
   readonly schemaVersion?: number
   readonly maxMemoryEntries?: number
   readonly maxMemoryBytes?: number
+  /**
+   * Quiet time before a LIVE-authority snapshot is written (every update restarts it). Offline-authority
+   * edits are never deferred. 0 writes on a plain 0 ms timer, with no idle step.
+   */
   readonly persistDebounceMs?: number
+  /** A continuously edited document is written at most this long after its first unwritten update. */
+  readonly persistMaxWaitMs?: number
+  /** Once quiet, wait for browser idle but no longer than this (requestIdleCallback `timeout`). */
+  readonly persistIdleTimeoutMs?: number
   readonly validationRetryMs?: number
   readonly now?: () => number
   readonly navigationStorage?: Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>
@@ -445,10 +455,12 @@ export class IndexedDbDocumentActivationStorage implements DocumentActivationSto
   async put(record: DocumentCacheRecord): Promise<void> {
     const db = await this.open()
     const transaction = db.transaction(CACHE_STORE_NAME, 'readwrite')
-    const update = record.update.buffer.slice(
-      record.update.byteOffset,
-      record.update.byteOffset + record.update.byteLength,
-    ) as ArrayBuffer
+    const view = record.update
+    // The structured clone is the one copy IndexedDB makes; slice first only when the view is a window
+    // onto a larger buffer (it would clone the whole buffer otherwise).
+    const update = (view.byteOffset === 0 && view.byteLength === view.buffer.byteLength
+      ? view.buffer
+      : view.buffer.slice(view.byteOffset, view.byteOffset + view.byteLength)) as ArrayBuffer
     transaction.objectStore(CACHE_STORE_NAME).put({ ...record, update })
     await idbTransaction(transaction)
   }
@@ -759,9 +771,14 @@ export class DocumentActivationCache {
     }
   }
 
-  async put(record: DocumentCacheRecord): Promise<void> {
-    this.remember(record)
-    await this.storage.put(copyRecord(record))
+  /**
+   * `owned: true` promises the caller built `record.update` for this write and will not touch it again
+   * (a fresh `Y.encodeStateAsUpdate`). The resident copy and the storage write then share that one buffer
+   * instead of each taking a defensive copy; reads still copy out.
+   */
+  async put(record: DocumentCacheRecord, options: { readonly owned?: boolean } = {}): Promise<void> {
+    this.remember(record, options.owned === true)
+    await this.storage.put(options.owned === true ? record : copyRecord(record))
   }
 
   async putRecovery(record: DocumentRecoveryRecord): Promise<void> {
@@ -830,12 +847,12 @@ export class DocumentActivationCache {
     }
   }
 
-  private remember(record: DocumentCacheRecord): void {
+  private remember(record: DocumentCacheRecord, owned = false): void {
     this.forget(record.key)
     // An unusually large document remains available from persistent storage,
     // but it cannot defeat the independent resident-memory budget.
     if (record.update.byteLength > this.maxMemoryBytes) return
-    const resident = copyRecord(record)
+    const resident = owned ? record : copyRecord(record)
     this.memory.set(record.key, resident)
     this.memoryBytes += resident.update.byteLength
     while (
@@ -918,6 +935,8 @@ export class DocumentActivationManager {
   private readonly fetchSnapshot: DocumentActivationManagerOptions['fetchSnapshot']
   private readonly schemaVersion: number
   private readonly persistDebounceMs: number
+  private readonly persistMaxWaitMs: number
+  private readonly persistIdleTimeoutMs: number
   private readonly validationRetryMs: number
   private readonly now: () => number
   private readonly navigationStorage: DocumentActivationManagerOptions['navigationStorage']
@@ -956,7 +975,9 @@ export class DocumentActivationManager {
     this.fetchUpdate = options.fetchUpdate
     this.fetchSnapshot = options.fetchSnapshot
     this.schemaVersion = options.schemaVersion ?? 1
-    this.persistDebounceMs = options.persistDebounceMs ?? 120
+    this.persistDebounceMs = options.persistDebounceMs ?? 1500
+    this.persistMaxWaitMs = options.persistMaxWaitMs ?? 10_000
+    this.persistIdleTimeoutMs = options.persistIdleTimeoutMs ?? 1_000
     this.validationRetryMs = Math.max(25, options.validationRetryMs ?? 500)
     this.now = options.now ?? Date.now
     this.navigationStorage = options.navigationStorage ?? this.defaultNavigationStorage()
@@ -1115,7 +1136,20 @@ export class DocumentActivationManager {
     let lastSyncRevision = synchronized ? revision : -1
     let incarnation: string | null = null
     let cacheAuthority: DocumentCacheAuthority = 'snapshot'
-    let persistTimer: ReturnType<typeof setTimeout> | null = null
+    const endOpenSpan = perfSpan('document.open')
+    const endSettleSpan = perfSpan('document.settle')
+    // Last state written (or being written): lets a persist that would write identical bytes under the
+    // same authority and incarnation be skipped instead of re-encoding the whole document.
+    let lastPersistKey: string | null = null
+    // Counts EVERY change to the Y.Doc, including updates applied from the cache or a validated snapshot
+    // (`revision` deliberately ignores those: it counts user and remote edits for the sync bookkeeping).
+    let docVersion = 0
+    const persist = createIdlePersist<DocumentCacheAuthority>({
+      quietMs: this.persistDebounceMs,
+      maxWaitMs: this.persistMaxWaitMs,
+      idleTimeoutMs: this.persistIdleTimeoutMs,
+      run: authority => { void queuePersist(authority) },
+    })
     let validationRetryTimer: ReturnType<typeof setTimeout> | null = null
     const validationAbort = new AbortController()
     let resolveRenderable!: () => void
@@ -1167,6 +1201,7 @@ export class DocumentActivationManager {
         renderSource: source,
         conflict: null,
       })
+      endOpenSpan({ source })
       this.emit({
         type: 'renderable',
         key: normalized,
@@ -1196,8 +1231,13 @@ export class DocumentActivationManager {
       if (this.fetchSnapshot && !incarnation && authority === 'live') {
         return writeChain
       }
+      // Nothing new since the last write under the same authority and incarnation: nothing to encode.
+      const persistKey = `${docVersion}|${authority}|${incarnation ?? ''}`
+      if (persistKey === lastPersistKey) return writeChain
+      lastPersistKey = persistKey
       cacheAuthority = authority
       const generation = ++writeGeneration
+      const endPersistSpan = perfSpan('document.cache.persist')
       const record = this.record(
         normalized,
         Y.encodeStateAsUpdate(doc),
@@ -1213,7 +1253,9 @@ export class DocumentActivationManager {
           || conflicted
         ) return
         try {
-          await this.cache.put(record)
+          // The encoded update is fresh and owned by this record: no defensive copies on the way in.
+          await this.cache.put(record, { owned: true })
+          endPersistSpan({ bytes: record.update.byteLength })
           if (
             this.scopeEpoch !== activationEpoch
             || this.tombstones.has(encoded)
@@ -1227,6 +1269,7 @@ export class DocumentActivationManager {
             activationState.set({ ...latest, durability: 'durable' })
           }
         } catch (error) {
+          if (lastPersistKey === persistKey) lastPersistKey = null
           if (generation === writeGeneration) {
             const latest = activationState.source.get()
             activationState.set({ ...latest, durability: 'failed' })
@@ -1239,19 +1282,17 @@ export class DocumentActivationManager {
 
     const schedulePersist = (authority: DocumentCacheAuthority): void => {
       if (disposed || conflicted || this.tombstones.has(encoded)) return
-      if (persistTimer) clearTimeout(persistTimer)
       if (authority === 'offline') {
-        persistTimer = null
+        // Offline edits may exist nowhere else: never deferred.
+        persist.cancel()
         void queuePersist(authority)
         return
       }
-      persistTimer = setTimeout(() => {
-        persistTimer = null
-        void queuePersist(authority)
-      }, Math.max(0, this.persistDebounceMs))
+      persist.schedule(authority)
     }
 
     const onUpdate = (_update: Uint8Array, origin: unknown): void => {
+      docVersion += 1
       if (origin === CACHE_APPLY_ORIGIN) return
       revision += 1
       // On an uncached first open, the provider's initial remote update can
@@ -1279,8 +1320,7 @@ export class DocumentActivationManager {
       validationAbort.abort(reason)
       if (validationRetryTimer) clearTimeout(validationRetryTimer)
       validationRetryTimer = null
-      if (persistTimer) clearTimeout(persistTimer)
-      persistTimer = null
+      persist.cancel()
       let recoveryKey: string | undefined
       // C6 fix (master §3 Slice 8, WS3 §8.3): `rendered` alone missed a
       // binding that took offline edits and never painted — `dirtySinceSync`
@@ -1372,6 +1412,7 @@ export class DocumentActivationManager {
       if (syncedEventEmitted) return
       syncedEventEmitted = true
       const syncedAt = this.now()
+      endSettleSpan()
       this.emit({
         type: 'synced',
         key: normalized,
@@ -1579,18 +1620,30 @@ export class DocumentActivationManager {
     // Keep a rejection from the cache path observed even when live sync wins.
     void cacheReady
 
+    const writePendingNow = (): void => {
+      if (persist.take() !== null) void queuePersist(synchronized ? 'live' : 'offline')
+    }
+
     const flush = async (): Promise<void> => {
-      if (persistTimer) {
-        clearTimeout(persistTimer)
-        persistTimer = null
-        void queuePersist(synchronized ? 'live' : 'offline')
-      }
+      writePendingNow()
       while (true) {
         const observed = writeChain
         await observed
-        if (observed === writeChain && !persistTimer) return
+        if (observed === writeChain && !persist.pending) return
       }
     }
+
+    // A hidden or closing page may never get its idle callback: write what is pending now. (The edits of a
+    // synced document are on the cell already; an offline edit was never deferred. This keeps the cache from
+    // lagging a reload by up to the quiet window.)
+    const onPageHidden = (event?: Event): void => {
+      // `pagehide` is always a departure (the page may still report 'visible' while it fires).
+      if (event?.type !== 'pagehide' && typeof document !== 'undefined' && document.visibilityState !== 'hidden') return
+      writePendingNow()
+    }
+    const pageTarget = typeof globalThis.addEventListener === 'function' ? globalThis : null
+    pageTarget?.addEventListener('pagehide', onPageHidden)
+    if (typeof document !== 'undefined') document.addEventListener('visibilitychange', onPageHidden)
 
     return {
       whenRenderable,
@@ -1604,10 +1657,11 @@ export class DocumentActivationManager {
         validationAbort.abort('disposed')
         if (validationRetryTimer) clearTimeout(validationRetryTimer)
         validationRetryTimer = null
-        if (persistTimer) {
-          clearTimeout(persistTimer)
-          persistTimer = null
-        }
+        persist.cancel()
+        pageTarget?.removeEventListener('pagehide', onPageHidden)
+        if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', onPageHidden)
+        endOpenSpan({ disposed: true })
+        endSettleSpan({ disposed: true })
         if (rendered && !conflicted && (synchronized || dirtySinceSync)) {
           void queuePersist(synchronized ? 'live' : 'offline')
         }
