@@ -52,7 +52,7 @@ function assertIri(iri: string, what: string): string {
 export function runsQuery(limit = 200): string {
   const n = Math.max(1, Math.min(500, Math.trunc(limit)))
   return `${BENCH_PREFIX}
-SELECT ?run ?runId ?label ?startedAt ?gitRev ?suite ?tier ?mode ?load ?rss ?isBaseline WHERE {
+SELECT ?run ?runId ?label ?startedAt ?gitRev ?suite ?tier ?mode ?loadAvg ?rss ?isBaseline WHERE {
   GRAPH ?g {
     ?run bench:runId ?runId ;
          bench:startedAt ?startedAt .
@@ -61,7 +61,7 @@ SELECT ?run ?runId ?label ?startedAt ?gitRev ?suite ?tier ?mode ?load ?rss ?isBa
     OPTIONAL { ?run bench:suite ?suite }
     OPTIONAL { ?run bench:tier ?tier }
     OPTIONAL { ?run bench:mode ?mode }
-    OPTIONAL { ?run bench:loadBefore1m ?load }
+    OPTIONAL { ?run bench:loadBefore1m ?loadAvg }
     OPTIONAL { ?run bench:rssPeakMB ?rss }
     OPTIONAL { ?run bench:isBaseline ?isBaseline }
   }
@@ -230,7 +230,7 @@ export function mapRunRows(rows: readonly PlainRow[]): BenchRunSummary[] {
       suite: row.suite ?? '',
       tier: row.tier ?? '',
       mode: row.mode ?? '',
-      loadBefore1m: num(row.load),
+      loadBefore1m: num(row.loadAvg),
       rssPeakMB: num(row.rss),
       isBaseline: bool(row.isBaseline),
     })
@@ -363,9 +363,9 @@ export function mapSeriesRows(rows: readonly PlainRow[]): BenchSeriesPoint[] {
   return points.sort((a, b) => timeOf(a.startedAt) - timeOf(b.startedAt) || (a.runId < b.runId ? -1 : 1))
 }
 
-/** The x-axis label of a point: its git revision, else its label, else the run id's tail. */
+/** The x-axis label of a point: its git revision, else its label, else the run id after its timestamp. */
 export function seriesLabel(point: BenchSeriesPoint): string {
-  return point.gitRev || point.label || point.runId.slice(-12)
+  return point.gitRev || point.label || point.runId.replace(/^\d{8}T\d{6}Z-/, '') || point.runId
 }
 
 // ── compare ─────────────────────────────────────────────────────────────────────────────────────────────────────────

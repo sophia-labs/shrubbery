@@ -64,7 +64,7 @@ describe('queries', () => {
 describe('mapRunRows', () => {
   it('maps, orders newest first, dedupes by run id and reads the baseline flag', () => {
     const runs = mapRunRows([
-      { run: 'urn:r1', runId: 'r1', label: 'baseline', startedAt: '2026-10-25T02:00:00.000Z', gitRev: 'aaa', suite: 'standard', tier: 'm', isBaseline: 'true', load: '2.1', rss: '910' },
+      { run: 'urn:r1', runId: 'r1', label: 'baseline', startedAt: '2026-10-25T02:00:00.000Z', gitRev: 'aaa', suite: 'standard', tier: 'm', isBaseline: 'true', loadAvg: '2.1', rss: '910' },
       { run: 'urn:r2', runId: 'r2', startedAt: '2026-10-25T04:30:00.000Z', isBaseline: 'false' },
       { run: 'urn:r1', runId: 'r1', startedAt: '2026-10-25T02:00:00.000Z' },
       { runId: '', startedAt: 'x' },
@@ -180,7 +180,7 @@ describe('kind filter', () => {
 })
 
 describe('series and the chart', () => {
-  const rows = [
+  const rows: Array<Record<string, string>> = [
     { runId: 'r3', startedAt: '2026-10-25T04:30:00Z', gitRev: 'e4f', p50: '4566', p95: '5700' },
     { runId: 'r1', startedAt: '2026-10-25T02:00:00Z', gitRev: '019', p50: '9711', p95: '12000' },
     { runId: 'r2', startedAt: '2026-10-25T03:15:00Z', label: 'lease-split', p50: '7802' },
@@ -192,11 +192,11 @@ describe('series and the chart', () => {
     expect(points.map((p) => p.runId)).toEqual(['r1', 'r2', 'r3'])
     expect(points[1]!.p95Ms).toBeNull()
   })
-  it('labels the x axis by git revision, then label, then the run id tail', () => {
+  it('labels the x axis by git revision, then label, then the run id after its timestamp', () => {
     const [a, b] = mapSeriesRows(rows)
     expect(seriesLabel(a!)).toBe('019')
     expect(seriesLabel(b!)).toBe('lease-split')
-    expect(seriesLabel({ ...a!, gitRev: '', label: '', runId: '20261025T020000Z-baseline' })).toBe('0000Z-baseline')
+    expect(seriesLabel({ ...a!, gitRev: '', label: '', runId: '20261025T020000Z-baseline' })).toBe('baseline')
   })
   it('niceCeil rounds up to 1, 2, 5 times a power of ten', () => {
     expect([niceCeil(0), niceCeil(0.7), niceCeil(1.2), niceCeil(3), niceCeil(9650), niceCeil(12000)]).toEqual([1, 1, 2, 5, 10000, 20000])
@@ -210,7 +210,8 @@ describe('series and the chart', () => {
     expect(g.xs[0]).toBe(g.plot.left)
     expect(g.xs[2]).toBe(g.plot.right)
     expect(g.xs[1]).toBeCloseTo((g.plot.left + g.plot.right) / 2, 6)
-    expect(g.p50[0]!.y).toBeGreaterThan(g.p50[2]!.y)
+    // SVG y grows downward: the higher value (run 1, 9711 ms) must sit higher, i.e. at the smaller y
+    expect(g.p50[0]!.y).toBeLessThan(g.p50[2]!.y)
     expect(g.yTicks[0]).toMatchObject({ value: 0, y: g.plot.bottom })
     expect(chartGeometry([points[0]!]).xs[0]).toBeCloseTo(((52 + (640 - 16)) / 2), 6)
     expect(chartGeometry([]).p50).toEqual([])
