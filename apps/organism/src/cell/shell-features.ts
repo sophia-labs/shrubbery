@@ -112,7 +112,14 @@ interface FeatureContract {
   readonly gateway?: {
     readonly gatewayBaseUrl: string
     graphs(): Promise<unknown>
+    /** The owner a graph call routes to (GatewayTransport.ownerOf). */
+    ownerOf?(graphId: string): string | undefined
   } & Partial<ApiKeyGatewayRootTransport>
+}
+
+/** The owner the contract routes this graph to, or undefined (unknown, or ambiguous: the check then refuses). */
+function graphOwnerOf(contract: FeatureContract | null, graphId: string): string | undefined {
+  try { return contract?.gateway?.ownerOf?.(graphId) } catch { return undefined }
 }
 
 const phanesControlApis = new WeakMap<object, PhanesControlApi>()
@@ -389,6 +396,7 @@ function settingsFeature<TContract>(): ShellFeature<TContract> {
             canWrite: runtimeMode === 'hosted' ? () => hostedGraphSettingsWritable(
               operationsContract.auth, context.graphId,
               () => contract?.gateway?.graphs() ?? Promise.resolve([]),
+              graphOwnerOf(contract, context.graphId),
             ) : undefined,
           })
         : undefined
@@ -644,7 +652,9 @@ function hostedAccessFeature<TContract>(): ShellFeature<TContract> {
           },
         }
       }
-      const workspace = snapshot.chrome?.workspaces?.find(item => item.graphId === context.graphId)
+      // By key: the open graph is the active workspace, and another owner's graph may share its id.
+      const activeKey = snapshot.chrome?.activeWorkspaceId || context.graphId
+      const workspace = snapshot.chrome?.workspaces?.find(item => (item.key || item.graphId) === activeKey)
       if (workspace?.localCreation) {
         // A local Owner placeholder is not hosted grant-management authority.
         controller?.setScope(null)

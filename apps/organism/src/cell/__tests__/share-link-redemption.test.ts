@@ -51,7 +51,7 @@ describe('share link landing', () => {
       replaceUrl: url => { urls.push(url.href); expect(bodies.length).toBeLessThanOrEqual(1) },
     })
     expect(urls[0]).toBe('https://garden.test/')
-    expect(urls[1]).toBe('https://garden.test/?graph=sophia-standard')
+    expect(urls[1]).toBe('https://garden.test/?graph=sophia-standard&owner=user%3Avera')
     expect(urls.join(' ')).not.toContain('shr_')
     expect(landing).toEqual({ kind: 'joined', graphId: 'sophia-standard', owner: 'user:vera', role: 'editor' })
     expect(bodies).toEqual([{
@@ -66,13 +66,22 @@ describe('share link landing', () => {
     const urls: string[] = []
     const joined = await redeemShareLinkFromLocation({ location: new URL(`https://garden.test/#share=${TOKEN}`), gateway: viewer.gateway, replaceUrl: url => urls.push(url.href) })
     expect(joined).toEqual({ kind: 'joined', graphId: 'sophia-standard', owner: 'user:vera', role: 'viewer' })
-    expect(urls).toEqual(['https://garden.test/', 'https://garden.test/?graph=sophia-standard'])
+    expect(urls).toEqual(['https://garden.test/', 'https://garden.test/?graph=sophia-standard&owner=user%3Avera'])
     expect(urls.join(' ')).not.toContain('shr_')
     // The landing then opens that graph: the entry route no longer refuses a Viewer.
     await expect(resolveHostedEntry({
       location: new URL(urls[1]),
       loadGraphs: async () => [{ graphId: 'sophia-standard', title: 'Standard', role: 'viewer', cellState: 'running' }],
     })).resolves.toEqual({ kind: 'graph', graphId: 'sophia-standard' })
+    // The landing names the owner: an account that has its own `sophia-standard` lands in the joined one.
+    await expect(resolveHostedEntry({
+      location: new URL(urls[1]),
+      self: 'user:me',
+      loadGraphs: async () => [
+        { graphId: 'sophia-standard', owner: 'user:me', title: 'Mine', role: 'owner', cellState: 'running' },
+        { graphId: 'sophia-standard', owner: 'user:vera', title: 'Standard', role: 'viewer', cellState: 'running' },
+      ],
+    })).resolves.toEqual({ kind: 'graph', graphId: 'sophia-standard', owner: 'user:vera' })
     const toast = showShareLinkLanding(document, joined!)
     expect(toast.getAttribute('data-share-link-landing')).toBe('joined')
     expect(toast.type).toBe('success')

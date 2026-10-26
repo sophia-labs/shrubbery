@@ -165,21 +165,25 @@ export function centerPanesSessionStorageKey(graphId: string): string {
 export class CenterPanesSessionRepository {
   constructor(private readonly storage: CenterPanesSessionStorage | null) {}
 
-  load(graphId: string): CenterPanesState | null {
+  /**
+   * `storageKey` is the graph's local key when it differs from its id (another account's graph, see
+   * `localGraphKey`); panes are still validated against the real `graphId` their locations carry.
+   */
+  load(graphId: string, storageKey: string = graphId): CenterPanesState | null {
     if (!this.storage) return null
     try {
-      const raw = this.storage.getItem(centerPanesSessionStorageKey(graphId))
+      const raw = this.storage.getItem(centerPanesSessionStorageKey(storageKey))
       return raw === null ? null : decodeCenterPanesSession(raw, graphId)
     } catch {
       return null
     }
   }
 
-  save(graphId: string, state: CenterPanesState): boolean {
+  save(graphId: string, state: CenterPanesState, storageKey: string = graphId): boolean {
     if (!this.storage) return false
     try {
       this.storage.setItem(
-        centerPanesSessionStorageKey(graphId),
+        centerPanesSessionStorageKey(storageKey),
         encodeCenterPanesSession(graphId, state),
       )
       return true

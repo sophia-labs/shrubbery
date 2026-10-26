@@ -2163,6 +2163,7 @@ export const en = {
   'sharing.creating': 'Creating…',
   'sharing.emailLabel': 'Email address',
   'sharing.emailPlaceholder': 'name@example.com',
+  'sharing.fromOwner': '{title} · from {name}',
   'sharing.generalPublicNotice': 'Anyone with the link can now view this graph.',
   'sharing.generalRestrictedNotice': 'Only people with access can open this graph now.',
   'sharing.generalSignedInNotice': 'Anyone signed in to Sophia can now view this graph.',

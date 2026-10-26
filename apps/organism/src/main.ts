@@ -602,6 +602,7 @@ import {
   type OrganismOpsHealthService,
 } from './cell/app-routes.js'
 import {
+  gardenGraphHref,
   gardenGraphLocation,
   gardenGraphPath,
   type OrganismGardenHomeService,
@@ -686,6 +687,12 @@ import {
   type SourceOutboxRecord,
   type ResolveCurrentIntent,
 } from '@shrubbery/source'
+import {
+  graphRefOwner,
+  localGraphKey,
+  parseLocalGraphKey,
+  type GraphRef,
+} from '@shrubbery/source/graph-ref'
 import {
   createHostedGatewayContract,
   type HostedGatewayContract,
@@ -825,6 +832,62 @@ let hostedGraphsStatus: 'idle' | 'loading' | 'ready' | 'error' = 'idle'
 let hostedGraphsError = ''
 let hostedDirectoryReadId = 0
 let hostedWorkspaceBusyId = ''
+/**
+ * The owner of the open hosted graph when it is another account's (`user:<sub>`); null for the account's own
+ * graph and in every local mode. Fixed for the page's lifetime: opening a graph of another owner is a page
+ * navigation, so one page never holds two graphs with the same id, and `currentGraphId` (the real id, what every
+ * wire call and graph IRI uses) is unambiguous within it. Every local key goes through `graphKeyFor`.
+ */
+let currentGraphOwner: string | null = null
+/** One contract per other owner: its graph calls route to that owner and its caches are owner-qualified. */
+const hostedOwnerContracts = new Map<string, HostedGatewayContract>()
+
+/** The signed-in hosted account (a subject or principal); '' outside hosted mode. */
+function hostedSelf(): string {
+  return hostedGatewayContract?.auth.userId().trim() ?? ''
+}
+
+/** The local key of a graph of the current page's owner (the bare id for the account's own graphs). */
+function graphKeyFor(graphId: string, owner: string | null = currentGraphOwner): string {
+  return owner ? localGraphKey({ owner, graphId }, hostedSelf()) : graphId
+}
+
+function currentGraphKey(): string {
+  return graphKeyFor(currentGraphId)
+}
+
+/** A directory row as a ref: owner null when it is the account's own graph. */
+function hostedGraphRef(graph: { readonly graphId: string; readonly owner?: string | null }): GraphRef {
+  return { owner: graphRefOwner(graph.owner, hostedSelf()), graphId: graph.graphId }
+}
+
+function hostedGraphKey(graph: { readonly graphId: string; readonly owner?: string | null }): string {
+  return localGraphKey(hostedGraphRef(graph), hostedSelf())
+}
+
+/** The open graph's directory row, by owner and id (an id alone may name two graphs). */
+function currentHostedGraph(): HostedWorkspaceInfo | undefined {
+  const key = currentGraphKey()
+  return hostedGraphs.find(graph => hostedGraphKey(graph) === key)
+}
+
+/** The account's own contract for null, else the one contract for that owner's graphs. */
+function hostedContractForOwner(owner: string | null): HostedGatewayContract | null {
+  const own = hostedGatewayContract
+  if (!own || deploymentConfig.mode !== 'hosted') return null
+  const scoped = graphRefOwner(owner, own.auth.userId())
+  if (!scoped) return own
+  let contract = hostedOwnerContracts.get(scoped)
+  if (!contract) {
+    contract = createHostedGatewayContract({
+      gatewayBaseUrl: deploymentConfig.gatewayBaseUrl,
+      auth: own.auth,
+      routeOwner: scoped,
+    })
+    hostedOwnerContracts.set(scoped, contract)
+  }
+  return contract
+}
 
 // 6) SHELL-SIDE: the live Emporium vocab-catalogue store + the DOM views built
 //    from the GENERALIZED iter-4a components (mn-card/mn-chip/mn-badge). lit's
@@ -1199,11 +1262,13 @@ const panelLayoutStorage = browserSessionStorage()
 const filePaneController = new FilePaneController(panelLayoutStorage)
 const centerPanesSessionRepository = new CenterPanesSessionRepository(panelLayoutStorage)
 let centerPanesSessionGraphId = currentGraphId
+/** The local key the pane session is stored under (the graph's owner and id; see graphKeyFor). */
+let centerPanesSessionKey = currentGraphId
 const centerPanesController = new CenterPanesController({ graphId: currentGraphId })
 const restoredInitialCenterPanes = centerPanesSessionRepository.load(currentGraphId)
 if (restoredInitialCenterPanes) centerPanesController.replaceState(restoredInitialCenterPanes)
 centerPanesController.subscribe((state) => {
-  centerPanesSessionRepository.save(centerPanesSessionGraphId, state)
+  centerPanesSessionRepository.save(centerPanesSessionGraphId, state, centerPanesSessionKey)
 })
 let documentSwitcherTargetPaneId: CenterPaneId | null = null
 let documentSwitcherPlacement: 'active' | 'split' = 'active'
@@ -2858,12 +2923,28 @@ if (import.meta.env.DEV) {
   })
 }
 
+/**
+ * Hosted: a link into another graph id. This page holds one owner's graphs (see currentGraphOwner); a graph that
+ * is listed only under another owner (the account's own first) opens as a page of its own. True when it did.
+ */
+function openGraphOfAnotherOwner(graphId: string): boolean {
+  if (deploymentConfig.mode !== 'hosted' || graphId === currentGraphId) return false
+  const rows = hostedGraphs.filter(graph => graph.graphId === graphId)
+  if (rows.length === 0 || rows.some(graph => hostedGraphRef(graph).owner === currentGraphOwner)) return false
+  const target = rows.find(graph => hostedGraphRef(graph).owner === null) ?? (rows.length === 1 ? rows[0] : undefined)
+  if (!target) return false
+  const ref = hostedGraphRef(target)
+  navigateToGardenGraph(ref.graphId, false, ref.owner)
+  return true
+}
+
 async function openExcalidrawLinkedNode(target: SceneLinkTarget): Promise<void> {
   if (target.kind === 'document') {
     await openDocumentFromShell({ graphId: target.graphId, documentId: target.id })
     return
   }
   if (target.graphId !== currentGraphId) {
+    if (openGraphOfAnotherOwner(target.graphId)) return
     sourceSelect.value = 'CELL_LIVE'
     cellGraphId.value = target.graphId
     // Same rule as openDocumentFromShell: only a null store is a genuine mode
@@ -5195,7 +5276,7 @@ async function openDailyNoteByDate(rawDateKey: string): Promise<void> {
       if (!stillCurrent) return
     }
     await openCellDocument(result.documentId)
-    if (result.created) homeActivityStore.markCreated(graphId, result.documentId)
+    if (result.created) homeActivityStore.markCreated(graphKeyFor(graphId), result.documentId)
     ok(`${result.created ? 'created and opened' : 'opened'} daily note ${dateKey}`)
   } catch (e) {
     err(`daily-note open error:\n${e instanceof Error ? e.message : String(e)}`)
@@ -5382,7 +5463,7 @@ async function handleQuickClipRequest(detail: WorkspaceQuickClipRequestDetail): 
       || currentGraphId !== graphId
       || sourceSelect.value !== 'CELL_LIVE'
     ) return
-    homeActivityStore.markCreated(graphId, result.documentId)
+    homeActivityStore.markCreated(graphKeyFor(graphId), result.documentId)
     if (!(await refreshAfterSidebarMutation(activeStore, graphId))) return
     if (requestId !== quickClipRequestId) return
     quickClipStatus = 'complete'
@@ -5648,7 +5729,7 @@ async function createDocumentFromSidebar(
         throw new SidebarMutationRejectedError('The workspace changed before the new document could be checked.')
       }
       await openCellDocument(created.documentId)
-      homeActivityStore.markCreated(graphId, created.documentId)
+      homeActivityStore.markCreated(graphKeyFor(graphId), created.documentId)
     },
     isReflected: () => Boolean(
       createdDocumentId
@@ -5677,7 +5758,7 @@ async function createWorkflowFromSidebar(title: string, parentId: string | null 
         throw new SidebarMutationRejectedError('The workspace changed before the new workflow could be checked.')
       }
       openWorkflowDocument(created.documentId)
-      homeActivityStore.markCreated(graphId, created.documentId)
+      homeActivityStore.markCreated(graphKeyFor(graphId), created.documentId)
     },
     isReflected: () => Boolean(createdDocumentId && sidebarNodeById(createdDocumentId)?.label === title),
     reflectedMessage: `${title} is present in the current files.`,
@@ -5703,7 +5784,7 @@ async function createWhiteboardFromSidebar(title: string, parentId: string | nul
         throw new SidebarMutationRejectedError('The workspace changed before the new whiteboard could be checked.')
       }
       openWhiteboardDocument(created.documentId)
-      homeActivityStore.markCreated(graphId, created.documentId)
+      homeActivityStore.markCreated(graphKeyFor(graphId), created.documentId)
     },
     isReflected: () => Boolean(createdDocumentId && sidebarNodeById(createdDocumentId)?.label === title),
     reflectedMessage: `${title} is present in the current files.`,
@@ -6226,9 +6307,12 @@ function activeVisitor(): VisitorState | null {
 
 /** The hosted graph is shared with this account as a Viewer: it opens read-only everywhere (see viewer-mode). */
 function hostedViewerGraph(graphId: string = currentGraphId): boolean {
-  return deploymentConfig.mode === 'hosted' && hostedGraphs.find(graph => graph.graphId === graphId)?.role === 'viewer'
+  if (deploymentConfig.mode !== 'hosted') return false
+  const key = graphKeyFor(graphId)
+  return hostedGraphs.find(graph => hostedGraphKey(graph) === key)?.role === 'viewer'
 }
 
+/** By graph key: an owner's graph and the account's own graph with the same id are probed apart. */
 const viewerRoomsChecked = new Set<string>()
 
 /**
@@ -6236,9 +6320,10 @@ const viewerRoomsChecked = new Set<string>()
  * the cell's `/health` (as the gateway does) once per graph, and say in words that it is not there yet.
  */
 async function announceViewerRooms(graphId: string): Promise<void> {
-  const gateway = hostedGatewayContract?.gateway
-  if (!gateway || viewerRoomsChecked.has(graphId)) return
-  viewerRoomsChecked.add(graphId)
+  const gateway = hostedContractForOwner(currentGraphOwner)?.gateway
+  const key = graphKeyFor(graphId)
+  if (!gateway || viewerRoomsChecked.has(key)) return
+  viewerRoomsChecked.add(key)
   const support = await probeViewerRooms(() => gateway.getJson(graphId, '/health'))
   if (support !== 'unsupported' || currentGraphId !== graphId) return
   placeNoticeLazy().say(msg('sharing.viewerRoomsUnsupported'), 'info')
@@ -8807,7 +8892,7 @@ function homeDocumentsFromSidebar(): HomeDocumentSource[] {
 }
 
 function currentGraphTitle(): string {
-  return hostedGraphs.find(graph => graph.graphId === currentGraphId)?.title || currentGraphId
+  return currentHostedGraph()?.title || currentGraphId
 }
 
 interface SalienceWriteAccess {
@@ -8831,7 +8916,7 @@ function currentSalienceWriteAccess(): SalienceWriteAccess {
     return { writable: false, reason: 'Ratings are online-only; reconnect to the cell before rating.' }
   }
   if (deploymentConfig.mode === 'hosted') {
-    const role = hostedGraphs.find(graph => graph.graphId === currentGraphId)?.role
+    const role = currentHostedGraph()?.role
     if (role !== 'editor' && role !== 'owner') {
       return { writable: false, reason: 'Rating requires Editor access to this graph.' }
     }
@@ -8870,7 +8955,7 @@ function salienceEditorDocumentAccess(): EditorDocumentAccess {
 }
 
 function currentHomeOptions(): NonNullable<RenderWorkspaceOptions['home']> {
-  const projection = homeActivityStore.project(currentGraphId, homeDocumentsFromSidebar())
+  const projection = homeActivityStore.project(currentGraphId, homeDocumentsFromSidebar(), { storageKey: currentGraphKey() })
   return {
     status: currentSidebarStatus === 'error'
       ? 'error'
@@ -8886,15 +8971,19 @@ function currentHomeOptions(): NonNullable<RenderWorkspaceOptions['home']> {
       void openDocumentFromShell({ graphId: document.graphId, documentId: document.documentId })
     },
     onPinDocument: (document: WorkspaceHomeDocument, pinned: boolean) => {
-      homeActivityStore.setPinned(document.graphId, document.documentId, pinned)
+      homeActivityStore.setPinned(graphKeyFor(document.graphId), document.documentId, pinned)
       rerenderCurrentSource()
     },
   }
 }
 
 function workspaceSummaries(): WorkspaceSummary[] {
-  // Viewer workspaces open read-only (viewer-mode); none is disabled for its role.
-  return hostedGraphs.map(graph => ({ ...graph }))
+  // Viewer workspaces open read-only (viewer-mode); none is disabled for its role. Another owner's graph carries
+  // its owner-qualified key, so the picker tells it from the account's own graph with the same id.
+  return hostedGraphs.map(graph => {
+    const key = hostedGraphKey(graph)
+    return { ...graph, ...(key !== graph.graphId ? { key } : {}) }
+  })
 }
 
 /**
@@ -9213,6 +9302,8 @@ function currentRoomMirror(contract: OrganismCellContract): RoomMirror {
         dumper: mcpRoomMirrorDumper(contract.rawMcp),
         liveRest: contract.rest,
         userId: () => contract.auth.userId() || 'anonymous',
+        // Another owner's contract files its stored copies under owner-qualified keys.
+        ...(contract.graphKey ? { graphKey: contract.graphKey } : {}),
         onChange: (changedGraphId, state) => {
           if (roomMirrorFor !== holder || store?.contract !== contract || changedGraphId !== currentGraphId) return
           roomMirrorStamp.sync(roomMirrorStampShown ? state : null, () => { void holder.mirror.sync(currentGraphId) })
@@ -9648,7 +9739,7 @@ function bindFilesShell(): FilesShell | null {
   if (!shell || !filesClient) return null
   const discovery = filesDiscovery.state(filesClient, currentGraphId)
   const hosted = deploymentConfig.mode === 'hosted'
-  const graph = hosted ? hostedGraphs.find(row => row.graphId === currentGraphId) : null
+  const graph = hosted ? currentHostedGraph() ?? null : null
   // Folder-view records are keyed by the graph's directory owner: the owner the gateway route names, else the
   // directory's, else (a directory without owners) the signed-in person, so positions always save. Local: one owner.
   const owner = hosted ? routedGraphOwner(currentGraphId) ?? graph?.owner?.trim() ?? hostedAuthSession?.userId() ?? 'unknown-owner' : 'local'
@@ -9763,7 +9854,7 @@ function renderConfig(config: WorkspaceConfig, app: string | undefined): string 
   config = withFlowWorkspace(config, flowAppEnabled(import.meta.env))
   const fragments = currentFragmentOptions(config)
   const shellContext = currentShellContext()
-  const filePaneState = filePaneController.snapshot(currentGraphId)
+  const filePaneState = filePaneController.snapshot(currentGraphKey())
   const filePaneLive = sourceSelect.value === 'CELL_LIVE' && store !== null
   // A Viewer's tree offers nothing that writes (the shell refuses it too, see viewer-mode).
   const filePaneWritable = filePaneLive && !hostedViewerGraph()
@@ -9824,10 +9915,11 @@ function renderConfig(config: WorkspaceConfig, app: string | undefined): string 
         workspaces: workspaceSummaries(),
         workspaceStatus: hostedGraphsStatus,
         workspaceError: hostedGraphsError,
-        activeWorkspaceId: currentGraphId,
+        // Workspaces are keyed by owner and id (see hostedGraphKey); the active one is this page's graph.
+        activeWorkspaceId: currentGraphKey(),
         workspaceBusyId: hostedWorkspaceBusyId,
         onWorkspaceRefresh: () => { void refreshHostedGraphs() },
-        onWorkspaceSelect: (workspace: WorkspaceSummary) => { void switchHostedWorkspace(workspace.graphId) },
+        onWorkspaceSelect: (workspace: WorkspaceSummary) => { void switchHostedWorkspace(workspaceRef(workspace)) },
         onWorkspaceCreate: () => { void createHostedWorkspace() },
         onWorkspaceDelete: (workspace: WorkspaceSummary) => { void deleteHostedWorkspace(workspace) },
       } : {}),
@@ -9864,20 +9956,20 @@ function renderConfig(config: WorkspaceConfig, app: string | undefined): string 
         rerenderCurrentSource()
       },
       onSelectionChange: (detail: FilePaneSelectionDetail) => {
-        filePaneController.setSelection(currentGraphId, detail)
+        filePaneController.setSelection(currentGraphKey(), detail)
         currentSidebarSelectedId = detail.ids.at(-1) ?? null
         rerenderCurrentSource()
       },
       onSortChange: (detail: FilePaneSortChangeDetail) => {
-        filePaneController.setSort(currentGraphId, detail.sort)
+        filePaneController.setSort(currentGraphKey(), detail.sort)
         rerenderCurrentSource()
       },
       onGroupingChange: (detail: FilePaneGroupingChangeDetail) => {
-        filePaneController.setGrouping(currentGraphId, detail.grouping)
+        filePaneController.setGrouping(currentGraphKey(), detail.grouping)
         rerenderCurrentSource()
       },
       onColumnPathChange: (detail: FilePaneColumnPathChangeDetail) => {
-        filePaneController.setColumnPath(currentGraphId, detail)
+        filePaneController.setColumnPath(currentGraphKey(), detail)
         rerenderCurrentSource()
       },
       onNodeIntent: (detail: SidebarNodeDetail) => {
@@ -10877,7 +10969,9 @@ async function followWorkspaceChange(
 
 
 function buildCellStore(graphId: string): OrganismSessionStore {
-  const contract: OrganismCellContract = deploymentContract ?? createLocalGardendContract()
+  // Hosted: the contract of the page's owner (the account's own, or the one for another owner's graphs).
+  const contract: OrganismCellContract = hostedContractForOwner(currentGraphOwner)
+    ?? deploymentContract ?? createLocalGardendContract()
   return createSessionStore({ contract, graphId })
 }
 
@@ -11058,7 +11152,7 @@ function buildShellChatService(contract: OrganismCellContract): ChatService {
         // The empowered chat: what the person has open travels with every turn, and their role on the
         // workspace says what the chat may do here (the gateway's graph list).
         contextRefs: () => currentChatContextRefs(),
-        role: () => workspaceRoleOf(hostedGraphs, currentGraphId),
+        role: () => workspaceRoleOf(hostedGraphs.filter(graph => hostedGraphKey(graph) === currentGraphKey()), currentGraphId),
       },
     })
   }
@@ -11183,7 +11277,8 @@ function startCellMode(): void {
   stopWorkspaceFollow?.()
   stopWorkspaceFollow = null
   const graphId = cellGraphId.value.trim() || 'organism-dev'
-  const restoreMuxSession = store === null || centerPanesSessionGraphId !== graphId
+  // A graph is its owner and id: the page's owner is fixed (see currentGraphOwner), so the key decides.
+  const restoreMuxSession = store === null || centerPanesSessionKey !== graphKeyFor(graphId)
   // Every call replaces the store, including manual refresh of the same
   // graph. Retire the old timer before constructing its successor.
   if (stopPoll) {
@@ -11196,7 +11291,7 @@ function startCellMode(): void {
   currentArtifactHtmlPreview?.dispose()
   currentArtifactHtmlPreview = null
   // A graph (re)build invalidates any open editor claim (different cell/graph).
-  if (graphId !== currentGraphId) {
+  if (graphKeyFor(graphId) !== currentGraphKey()) {
     store?.contract.documentActivation.cancelPreparation()
     resetQuickClip(true, false)
     openDocId = null
@@ -11375,10 +11470,12 @@ function centerPaneLocationForDocument(graphId: string, documentId: string): Cen
 }
 
 function activateCenterPanesSession(graphId: string): void {
-  if (centerPanesSessionGraphId === graphId) return
+  const key = graphKeyFor(graphId)
+  if (centerPanesSessionKey === key && centerPanesSessionGraphId === graphId) return
   centerPanesSessionGraphId = graphId
+  centerPanesSessionKey = key
   centerPanesController.replaceState(
-    centerPanesSessionRepository.load(graphId) ?? createCenterPanesState({ graphId }),
+    centerPanesSessionRepository.load(graphId, key) ?? createCenterPanesState({ graphId }),
   )
 }
 
@@ -11405,7 +11502,7 @@ function activateDocumentSurface(
   currentDailyNotePopover = null
   cellDocId.value = docId
   openDocId = docId
-  homeActivityStore.markOpened(currentGraphId, docId)
+  homeActivityStore.markOpened(currentGraphKey(), docId)
   store.contract.documentActivation.rememberNavigation({
     userId: store.contract.auth.userId(),
     graphId: currentGraphId,
@@ -11497,6 +11594,7 @@ async function openDocumentFromShell(
   const documentId = detail.documentId.trim()
   const graphId = detail.graphId.trim() || currentGraphId
   if (!documentId) return
+  if (openGraphOfAnotherOwner(graphId)) return
 
   if (documentId.startsWith('zot-')) {
     if (sourceSelect.value === 'EMPORIUM_LIVE') stopEmporiumMode()
@@ -11771,7 +11869,17 @@ async function chatSaveTargets(): Promise<readonly SaveTarget[]> {
   const activeStore = store
   if (!activeStore) throw new Error('Open a workspace first.')
   if (deploymentConfig.mode === 'hosted' && hostedGatewayContract) {
-    return saveTargetsOf(await refreshHostedGraphs(false))
+    // A target is named by its graph key: another owner's graph with one of our ids is a separate target.
+    const graphs = await refreshHostedGraphs(false)
+    return saveTargetsOf(graphs.map(graph => {
+      const key = hostedGraphKey(graph)
+      const title = graph.title || graph.graphId
+      return {
+        ...graph,
+        graphId: key,
+        title: key !== graph.graphId && graph.ownerName ? msg('sharing.fromOwner', { title, name: graph.ownerName }) : title,
+      }
+    }))
   }
   return saveTargetsOf(localGardenHomeWorkspaces(await activeStore.contract.rest.graphs(), {}))
 }
@@ -11779,12 +11887,14 @@ async function chatSaveTargets(): Promise<readonly SaveTarget[]> {
 async function saveChatConversation(request: SaveToGardenRequest): Promise<SaveToGardenResult> {
   const activeStore = store
   if (!activeStore) throw new Error('Open a workspace first.')
-  // Hosted: the raw gateway client, so a save while offline fails honestly instead of being parked.
-  const mcp: SaveConversationMcp = deploymentConfig.mode === 'hosted' && hostedGatewayContract
-    ? hostedGatewayContract.rawMcp
+  // Hosted: the raw gateway client, so a save while offline fails honestly instead of being parked. The target
+  // is a graph key: its owner's contract carries the save, with the graph's real id.
+  const target = deploymentConfig.mode === 'hosted' && hostedGatewayContract ? workspaceRef({ graphId: request.workspaceId, key: request.workspaceId }) : null
+  const mcp: SaveConversationMcp = target
+    ? hostedContractForOwner(target.owner)!.rawMcp
     : callToolFromToolsCall(activeStore.contract.mcp)
   const { documentIds } = await saveConversationToGarden(mcp, {
-    workspaceId: request.workspaceId,
+    workspaceId: target?.graphId ?? request.workspaceId,
     title: request.title,
     markdown: request.markdown,
   })
@@ -12463,7 +12573,7 @@ function navigateToSettings(
   focusReturn: HTMLElement | null = null,
   graphId: string | null = sourceSelect.value === 'CELL_LIVE' ? currentGraphId : null,
 ): void {
-  const target = settingsNavigationUrl(new URL(window.location.href), graphId)
+  const target = settingsNavigationUrl(new URL(window.location.href), graphId, graphId === currentGraphId ? currentGraphOwner : null)
   if (section) target.hash = section
   openSettingsAt(target, focusReturn)
 }
@@ -12630,15 +12740,20 @@ function hostedGardenHomeWorkspaces(
   recency: Readonly<Record<string, number>>,
 ): readonly GardenHomeWorkspaceSummary[] {
   // A Viewer graph opens read-only (viewer-mode); Home lists it under Shared with me, with who shared it.
-  return graphs.map(graph => ({
-    graphId: graph.graphId,
-    title: graph.title,
-    role: graph.role,
-    cellState: graph.cellState,
-    ...(graph.ownerName ? { ownerName: graph.ownerName } : {}),
-    ...(graph.localCreation ? { localCreation: graph.localCreation } : {}),
-    lastOpenedAt: recency[graph.graphId] ?? null,
-  }))
+  // Each card is keyed by owner and id: the account's own `onboarding` and one shared with it are two cards.
+  return graphs.map(graph => {
+    const key = hostedGraphKey(graph)
+    return {
+      graphId: graph.graphId,
+      ...(key !== graph.graphId ? { key } : {}),
+      title: graph.title,
+      role: graph.role,
+      cellState: graph.cellState,
+      ...(graph.ownerName ? { ownerName: graph.ownerName } : {}),
+      ...(graph.localCreation ? { localCreation: graph.localCreation } : {}),
+      lastOpenedAt: recency[key] ?? null,
+    }
+  })
 }
 
 function localGardenHomeWorkspaces(
@@ -12695,14 +12810,19 @@ function lifecycleUuid(): string {
   return randomUUID()
 }
 
-function navigateToGardenGraph(graphId: string, access = false): void {
-  markGardenGraphOpened(graphId)
-  const path = gardenGraphPath(graphId)
-  const params = new URLSearchParams()
-  if (new URL(window.location.href).searchParams.get('source') === 'cell') params.set('source', 'cell')
-  if (access) params.set('access', '1')
-  const query = params.toString()
-  window.location.assign(query ? `${path}?${query}` : path)
+/** Open a graph by owner and id (owner null: the account's own). A page load: one page holds one owner's graph. */
+function navigateToGardenGraph(graphId: string, access = false, owner: string | null = null): void {
+  markGardenGraphOpened(graphKeyFor(graphId, owner))
+  const params: Record<string, string> = {}
+  if (new URL(window.location.href).searchParams.get('source') === 'cell') params.source = 'cell'
+  if (access) params.access = '1'
+  window.location.assign(gardenGraphHref({ graphId, owner }, params))
+}
+
+/** A Home or picker summary back to its graph: the summary's key names the owner when it is not the account. */
+function workspaceRef(workspace: { readonly graphId: string; readonly key?: string }): GraphRef {
+  const ref = workspace.key ? parseLocalGraphKey(workspace.key) : { owner: null, graphId: workspace.graphId }
+  return { owner: graphRefOwner(ref.owner, hostedSelf()), graphId: ref.graphId || workspace.graphId }
 }
 
 async function startHostedGardenTour(): Promise<void> {
@@ -12780,12 +12900,15 @@ function createGardenHomeService(contract: OrganismCellContract): OrganismGarden
             .filter(intent => intent.kind === 'delete' && intent.status !== 'conflict')
             .map(intent => intent.graphId),
         )
-        const merged = workspaces.filter(workspace => !hidden.has(workspace.graphId))
+        // Deletes are the account's own: they hide only its own graph of that id.
+        const merged = workspaces.filter(workspace => workspace.key || !hidden.has(workspace.graphId))
         workspaces = merged
         hostedGatewayContract.sourceMirror.backgroundFlushGraphLifecycle()
         for (const workspace of workspaces) {
           if (!workspace.disabled && !workspace.localCreation && workspace.role !== 'viewer') {
-            hostedGatewayContract.sourceMirror.backgroundSync(workspace.graphId)
+            // Each through its owner's contract: another owner's copy is filed under its own keys.
+            const ref = workspaceRef(workspace)
+            hostedContractForOwner(ref.owner)?.sourceMirror.backgroundSync(ref.graphId)
           }
         }
       } else {
@@ -12798,10 +12921,12 @@ function createGardenHomeService(contract: OrganismCellContract): OrganismGarden
       }
     },
     openGraph(workspace) {
-      navigateToGardenGraph(workspace.graphId)
+      const ref = workspaceRef(workspace)
+      navigateToGardenGraph(ref.graphId, false, ref.owner)
     },
     manageAccess(workspace) {
-      navigateToGardenGraph(workspace.graphId, true)
+      const ref = workspaceRef(workspace)
+      navigateToGardenGraph(ref.graphId, true, ref.owner)
     },
     async create() {
       const title = await promptForText({
@@ -12934,11 +13059,14 @@ async function prepareHostedDeployment(config: HostedDeploymentConfig): Promise<
   hostedAuthSession = auth
   hostedEvidenceService = createHostedEvidenceService({
     gatewayBaseUrl: config.gatewayBaseUrl,
-    graphBaseUrl: graphId => contract.gateway.graphBaseUrl(graphId),
+    // The page's graph routes through its owner's contract (another account's graph may share an id with ours).
+    graphBaseUrl: graphId => (hostedContractForOwner(currentGraphOwner) ?? contract).gateway.graphBaseUrl(graphId),
     token: () => auth.token(),
   })
   hostedGatewayContract = contract
   deploymentContract = contract
+  for (const scoped of hostedOwnerContracts.values()) scoped.crdt.destroyAll()
+  hostedOwnerContracts.clear()
   stopHostedAuthRefresh?.()
   stopHostedAuthRefresh = auth.startAutoRefresh({
     onError: error => err(`Cognito token refresh failed; retrying:\n${error instanceof Error ? error.message : String(error)}`),
@@ -12966,9 +13094,14 @@ function currentFocus(): string | null {
   }
 }
 
-function persistHostedGraphSelection(graphId: string): void {
-  markGardenGraphOpened(graphId)
-  try { window.sessionStorage.setItem('shrubbery.organism.active-graph', graphId) } catch { /* best effort */ }
+/**
+ * Remember the open graph: its local key (the bare id for the account's own, so earlier sessions' selections
+ * still match) and its address, `?graph=<id>` or `/g/<id>`, with `owner=user:<sub>` for another account's graph.
+ */
+function persistHostedGraphSelection(graphId: string, owner: string | null = currentGraphOwner): void {
+  const key = graphKeyFor(graphId, owner)
+  markGardenGraphOpened(key)
+  try { window.sessionStorage.setItem('shrubbery.organism.active-graph', key) } catch { /* best effort */ }
   try {
     const url = new URL(window.location.href)
     const graphLocation = gardenGraphLocation(url)
@@ -12979,6 +13112,8 @@ function persistHostedGraphSelection(graphId: string): void {
       url.searchParams.set('graph', graphId)
     }
     url.searchParams.delete('graph_id')
+    if (owner) url.searchParams.set('owner', owner)
+    else url.searchParams.delete('owner')
     window.history.replaceState(window.history.state, '', url)
   } catch { /* the live selection remains authoritative */ }
 }
@@ -13040,7 +13175,8 @@ async function refreshHostedGraphs(rerender = true): Promise<readonly HostedWork
     ensureCurrent()
     const retainedCreations = new Map(mergeHostedWorkspaceCreations([], lifecycle.records())
       .map(graph => [graph.graphId, graph]))
-    const previousCatalog = new Map(hostedGraphs.map(graph => [graph.graphId, graph]))
+    // The offline rows are the account's own mirrors, so each looks up its own graph's row (key = bare id).
+    const previousCatalog = new Map(hostedGraphs.map(graph => [hostedGraphKey(graph), graph]))
     const rows = Array.isArray(offline)
       ? offline
       : offline && typeof offline === 'object' && Array.isArray((offline as { graphs?: unknown }).graphs)
@@ -13101,11 +13237,16 @@ async function selectHostedEntry(preference?: StarterStartupPreference | null): 
   if (preference && !preference.isCurrent()) {
     throw new Error('The account or destination changed before starter selection. Open your workspaces to continue.')
   }
+  // The stored selection is a graph key (owner and id); the starter check only asks whether it is still listed.
   const storedGraphId = storedHostedGraphId()
-  const preferredGraphId = confirmedStarterPreference(preference, graphs, storedGraphId)
+  const storedListed = graphs.some(graph => hostedGraphKey(graph) === storedGraphId)
+  const preferredGraphId = confirmedStarterPreference(
+    preference, graphs, storedListed ? parseLocalGraphKey(storedGraphId).graphId : '',
+  )
   const entry = await resolveHostedEntry({
     location: window.location,
     storedGraphId: preferredGraphId ?? storedGraphId,
+    self: hostedSelf(),
     loadGraphs: async () => graphs,
   })
   if (preferredGraphId && !preference?.isCurrent()) {
@@ -13113,24 +13254,38 @@ async function selectHostedEntry(preference?: StarterStartupPreference | null): 
   }
   if (entry.kind === 'home') return entry
   const { graphId } = entry
+  // Another owner's graph: this page's graph contract is that owner's, for its whole lifetime.
+  currentGraphOwner = entry.owner ?? null
+  if (currentGraphOwner) deploymentContract = hostedContractForOwner(currentGraphOwner)
   cellGraphId.value = graphId
   currentGraphId = graphId
   persistHostedGraphSelection(graphId)
   return entry
 }
 
-async function switchHostedWorkspace(graphId: string): Promise<void> {
+async function switchHostedWorkspace(ref: GraphRef): Promise<void> {
   if (!hostedGatewayContract || deploymentConfig.mode !== 'hosted') return
-  const graph = hostedGraphs.find(item => item.graphId === graphId)
+  const { graphId } = ref
+  const owner = graphRefOwner(ref.owner, hostedSelf())
+  const key = localGraphKey({ owner, graphId }, hostedSelf())
+  const graph = hostedGraphs.find(item => hostedGraphKey(item) === key)
   if (!graph) {
     hostedGraphsError = `Workspace "${graphId}" is no longer available.`
     hostedGraphsStatus = 'error'
     rerenderCurrentSource()
     return
   }
-  if (graphId === currentGraphId && store) return
+  if (key === currentGraphKey() && store) return
+  if (owner !== currentGraphOwner) {
+    // Another owner's graph, or back to the account's own from one: a page of its own. One page never holds
+    // two owners' graphs, so nothing on screen for one can be taken for the other's (their ids may be equal).
+    hostedWorkspaceBusyId = key
+    rerenderCurrentSource()
+    navigateToGardenGraph(graphId, false, owner)
+    return
+  }
 
-  hostedWorkspaceBusyId = graphId
+  hostedWorkspaceBusyId = key
   hostedGraphsError = ''
   rerenderCurrentSource()
   try {
@@ -13174,7 +13329,7 @@ async function createHostedWorkspace(): Promise<void> {
     )
     const graph = await confirmHostedWorkspaceCreation(intent, () => refreshHostedGraphs(false))
     hostedGatewayContract.sourceMirror.backgroundFlushGraphLifecycle()
-    await switchHostedWorkspace(graph.graphId)
+    await switchHostedWorkspace({ owner: null, graphId: graph.graphId })
     ok(`created and selected workspace "${graph.title || graph.graphId}"`)
   } catch (error) {
     hostedGraphsStatus = 'error'
@@ -13188,8 +13343,10 @@ async function createHostedWorkspace(): Promise<void> {
 
 async function deleteHostedWorkspace(workspace: WorkspaceSummary): Promise<void> {
   if (!hostedGatewayContract || workspace.role !== 'owner') return
-  const replacement = hostedGraphs.find(graph => graph.graphId !== workspace.graphId && graph.role !== 'viewer')
-  if (workspace.graphId === currentGraphId && !replacement) {
+  // The account's own graph (only an owner deletes): its key is its bare id.
+  const deletedKey = localGraphKey(workspaceRef(workspace), hostedSelf())
+  const replacement = hostedGraphs.find(graph => hostedGraphKey(graph) !== deletedKey && graph.role !== 'viewer')
+  if (deletedKey === currentGraphKey() && !replacement) {
     hostedGraphsStatus = 'error'
     hostedGraphsError = 'Create another editable workspace before deleting the active workspace.'
     rerenderCurrentSource()
@@ -13202,7 +13359,7 @@ async function deleteHostedWorkspace(workspace: WorkspaceSummary): Promise<void>
     variant: 'danger',
   })
   if (!confirmed) return
-  hostedWorkspaceBusyId = workspace.graphId
+  hostedWorkspaceBusyId = deletedKey
   if (store) rerenderCurrentSource()
   try {
     const mirror = await hostedGatewayContract.sourceMirror.open(workspace.graphId)
@@ -13222,15 +13379,15 @@ async function deleteHostedWorkspace(workspace: WorkspaceSummary): Promise<void>
     const reconciled = await lifecycle.flush()
     const intent = reconciled.find(record => record.operationId === operationId)
     if (intent?.status === 'conflict') throw new Error(intent.error ?? 'Graph deletion conflicted.')
-    homeActivityStore.removeGraph(workspace.graphId)
+    homeActivityStore.removeGraph(deletedKey)
     const remaining = intent?.status === 'applied'
       ? await refreshHostedGraphs(false)
-      : hostedGraphs.filter(graph => graph.graphId !== workspace.graphId)
-    if (currentGraphId === workspace.graphId) {
+      : hostedGraphs.filter(graph => hostedGraphKey(graph) !== deletedKey)
+    if (currentGraphKey() === deletedKey) {
       const replacement = remaining.find(graph => graph.role !== 'viewer' && graph.cellState === 'running')
         ?? remaining.find(graph => graph.role !== 'viewer')
       if (!replacement) throw new Error('Workspace deleted, but no editable workspace remains. Create a new workspace to continue.')
-      await switchHostedWorkspace(replacement.graphId)
+      await switchHostedWorkspace(hostedGraphRef(replacement))
     }
     ok(`deleted workspace "${workspace.title || workspace.graphId}"`)
   } catch (error) {
@@ -13630,5 +13787,6 @@ window.addEventListener('beforeunload', () => {
   shellFeatureHost.destroy()
   stopHostedAuthRefresh?.()
   hostedGatewayContract?.crdt.destroyAll()
+  for (const scoped of hostedOwnerContracts.values()) scoped.crdt.destroyAll()
   observatoryFreshnessAttachment.dispose()
 })

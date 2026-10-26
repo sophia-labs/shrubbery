@@ -23,7 +23,9 @@ import { PopoverController } from './popover.js'
 import {
   projectWorkspaceCatalog,
   workspaceActionCapability,
+  workspaceDisambiguatedTitle,
   workspaceDisplayPath,
+  workspaceKey,
   workspaceLifecycleLabel,
   workspaceLifetimeLabel,
 } from './mn-workspace-selector-model.js'
@@ -41,7 +43,9 @@ import type {
 export {
   projectWorkspaceCatalog,
   workspaceActionCapability,
+  workspaceDisambiguatedTitle,
   workspaceDisplayPath,
+  workspaceKey,
   workspaceLifecycleLabel,
   workspaceLifetimeLabel,
 } from './mn-workspace-selector-model.js'
@@ -64,8 +68,12 @@ export type {
 
 const ENABLED_CREATE: MnWorkspaceActionCapability = Object.freeze({ available: true })
 
-function titleFor(workspace: MnWorkspaceSummary): string {
-  return workspace.title.trim() || workspace.graphId
+/** The listed title: another owner's graph that shares a name or id with a listed one reads "… · from <name>". */
+function titleFor(workspace: MnWorkspaceSummary, all: readonly MnWorkspaceSummary[] = []): string {
+  return workspaceDisambiguatedTitle(
+    workspace, all, workspace.title.trim() || workspace.graphId,
+    (title, name) => t('sharing.fromOwner', { title, name }),
+  )
 }
 
 function roleLabel(role: MnWorkspaceRole): string {
@@ -591,7 +599,7 @@ export class MnWorkspaceSelector extends SkinAware(LitElement) {
     if (this.pendingGraphId && changed.has('status') && this.status === 'error') {
       this.pendingGraphId = ''
     }
-    if (this.pendingGraphId && changed.has('workspaces') && !this.workspaces.some(workspace => workspace.graphId === this.pendingGraphId)) {
+    if (this.pendingGraphId && changed.has('workspaces') && !this.workspaces.some(workspace => workspaceKey(workspace) === this.pendingGraphId)) {
       this.pendingGraphId = ''
     }
   }
@@ -614,7 +622,7 @@ export class MnWorkspaceSelector extends SkinAware(LitElement) {
   }
 
   private active(): MnWorkspaceSummary | undefined {
-    return this.workspaces.find(workspace => workspace.graphId === this.activeGraphId)
+    return this.workspaces.find(workspace => workspaceKey(workspace) === this.activeGraphId)
   }
 
   private setOpen(open: boolean): void {
@@ -650,7 +658,7 @@ export class MnWorkspaceSelector extends SkinAware(LitElement) {
         this.actionGraphId = ''
         void this.updateComplete.then(() => {
           const button = Array.from(this.shadowRoot?.querySelectorAll<HTMLButtonElement>('.more') ?? [])
-            .find(candidate => candidate.dataset.graphId === graphId)
+            .find(candidate => candidate.dataset.workspaceKey === graphId)
           button?.focus()
         })
       } else {
@@ -675,12 +683,12 @@ export class MnWorkspaceSelector extends SkinAware(LitElement) {
 
   private select(workspace: MnWorkspaceSummary): void {
     if (workspace.disabled || workspace.localCreation) return
-    if (workspace.graphId === this.activeGraphId) {
+    if (workspaceKey(workspace) === this.activeGraphId) {
       this.closeAndRestoreFocus()
       return
     }
     if (this.busyGraphId || this.pendingGraphId) return
-    this.pendingGraphId = workspace.graphId
+    this.pendingGraphId = workspaceKey(workspace)
     this.emit('mn-workspace-select', { workspace } satisfies MnWorkspaceDetail)
   }
 
@@ -693,11 +701,11 @@ export class MnWorkspaceSelector extends SkinAware(LitElement) {
 
   private toggleActions(event: Event, workspace: MnWorkspaceSummary): void {
     event.stopPropagation()
-    this.actionGraphId = this.actionGraphId === workspace.graphId ? '' : workspace.graphId
+    this.actionGraphId = this.actionGraphId === workspaceKey(workspace) ? '' : workspaceKey(workspace)
     if (!this.actionGraphId) return
     void this.updateComplete.then(() => {
       const menu = Array.from(this.shadowRoot?.querySelectorAll<HTMLElement>('.action-menu') ?? [])
-        .find(candidate => candidate.dataset.graphId === workspace.graphId)
+        .find(candidate => candidate.dataset.workspaceKey === workspaceKey(workspace))
       menu?.querySelector<HTMLButtonElement>('.action-item:not(:disabled)')?.focus()
     })
   }
@@ -740,9 +748,10 @@ export class MnWorkspaceSelector extends SkinAware(LitElement) {
   }
 
   private renderCatalogItem(workspace: MnWorkspaceSummary, disabledIndex: number) {
-    const title = titleFor(workspace)
-    const active = workspace.graphId === this.activeGraphId
-    const pending = workspace.graphId === this.pendingGraphId
+    const title = titleFor(workspace, this.workspaces)
+    const key = workspaceKey(workspace)
+    const active = key === this.activeGraphId
+    const pending = key === this.pendingGraphId
     const operationBusy = Boolean(this.busyGraphId || this.pendingGraphId)
     const disabled = Boolean(workspace.disabled) || Boolean(workspace.localCreation) || (operationBusy && !active)
     const disabledReason = workspace.localCreation
@@ -760,6 +769,7 @@ export class MnWorkspaceSelector extends SkinAware(LitElement) {
     return html`<div
       class="row"
       data-graph-id=${workspace.graphId}
+      data-workspace-key=${key}
       data-role=${workspace.role}
       data-pending=${String(pending)}
       data-lifetime=${workspace.lifetime?.kind ?? nothing}
@@ -787,13 +797,14 @@ export class MnWorkspaceSelector extends SkinAware(LitElement) {
         class="more"
         type="button"
         data-graph-id=${workspace.graphId}
+        data-workspace-key=${key}
         aria-label=${`More actions for ${title}`}
         aria-haspopup="menu"
-        aria-expanded=${this.actionGraphId === workspace.graphId ? 'true' : 'false'}
+        aria-expanded=${this.actionGraphId === key ? 'true' : 'false'}
         ?disabled=${Boolean(this.busyGraphId)}
         @click=${(event: Event) => this.toggleActions(event, workspace)}
       >${icon('more-horizontal', { size: 15 })}</button>` : nothing}
-      ${this.actionGraphId === workspace.graphId ? html`<div class="action-menu" role="menu" data-graph-id=${workspace.graphId} aria-label=${`Actions for ${title}`}>
+      ${this.actionGraphId === key ? html`<div class="action-menu" role="menu" data-graph-id=${workspace.graphId} data-workspace-key=${key} aria-label=${`Actions for ${title}`}>
         ${actions.map(action => {
           const capability = workspaceActionCapability(workspace, action)
           const disabledReason = capability.disabledReason || (this.busyGraphId ? 'Another workspace operation is in progress.' : '')
@@ -814,15 +825,15 @@ export class MnWorkspaceSelector extends SkinAware(LitElement) {
 
   private renderProgress() {
     if (this.pendingGraphId) {
-      const target = this.workspaces.find(workspace => workspace.graphId === this.pendingGraphId)
-      return html`<div class="progress" role="status" aria-live="polite">${icon('loader-circle', { size: 13, class: 'spin' })}<span>Switching to ${target ? titleFor(target) : this.pendingGraphId}…</span></div>`
+      const target = this.workspaces.find(workspace => workspaceKey(workspace) === this.pendingGraphId)
+      return html`<div class="progress" role="status" aria-live="polite">${icon('loader-circle', { size: 13, class: 'spin' })}<span>Switching to ${target ? titleFor(target, this.workspaces) : this.pendingGraphId}…</span></div>`
     }
     if (this.busyGraphId === '__create__') {
       return html`<div class="progress" role="status" aria-live="polite">${icon('loader-circle', { size: 13, class: 'spin' })}<span>${t('Creating workspace…')}</span></div>`
     }
     if (this.busyGraphId) {
-      const target = this.workspaces.find(workspace => workspace.graphId === this.busyGraphId)
-      return html`<div class="progress" role="status" aria-live="polite">${icon('loader-circle', { size: 13, class: 'spin' })}<span>Updating ${target ? titleFor(target) : 'workspace'}…</span></div>`
+      const target = this.workspaces.find(workspace => workspaceKey(workspace) === this.busyGraphId)
+      return html`<div class="progress" role="status" aria-live="polite">${icon('loader-circle', { size: 13, class: 'spin' })}<span>Updating ${target ? titleFor(target, this.workspaces) : 'workspace'}…</span></div>`
     }
     return nothing
   }
@@ -886,7 +897,7 @@ export class MnWorkspaceSelector extends SkinAware(LitElement) {
   render() {
     if (this.embedded) return this.renderEmbedded()
     const active = this.active()
-    const label = active ? titleFor(active) : 'Select Workspace'
+    const label = active ? titleFor(active, this.workspaces) : 'Select Workspace'
     const switching = Boolean(this.pendingGraphId)
     return html`
       <button

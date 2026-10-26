@@ -62,6 +62,21 @@ export function gardenGraphPath(graphId: string): string {
   return `/g/${encodeURIComponent(graph)}`
 }
 
+/**
+ * A graph's address: `/g/<id>` for the account's own graph (every existing link keeps working), and
+ * `/g/<id>?owner=user:<sub>` for another account's, since ids are unique only per owner.
+ */
+export function gardenGraphHref(
+  graph: { readonly graphId: string; readonly owner?: string | null },
+  params: Readonly<Record<string, string>> = {},
+): string {
+  const query = new URLSearchParams()
+  if (graph.owner?.trim()) query.set('owner', graph.owner.trim())
+  for (const [name, value] of Object.entries(params)) query.set(name, value)
+  const search = query.toString()
+  return search ? `${gardenGraphPath(graph.graphId)}?${search}` : gardenGraphPath(graph.graphId)
+}
+
 const EMPTY_SNAPSHOT: OrganismGardenHomeSnapshot = Object.freeze({
   account: Object.freeze({ userId: '', displayName: 'Garden account' }),
   workspaces: Object.freeze([]),
@@ -151,7 +166,7 @@ export function mountGardenHomeRoute(
     workspace: MnWorkspaceSummary,
     effect: () => void | Promise<void>,
   ): Promise<void> => {
-    busyGraphId = workspace.graphId
+    busyGraphId = workspace.key || workspace.graphId
     error = ''
     render()
     try {

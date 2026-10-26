@@ -10,6 +10,7 @@
     "./gateway": "./src/gateway/index.ts",
     "./gardend": "./src/gardend/gardend-source.ts",
     "./access-control": "./src/gateway/control-access.ts",
+    "./graph-ref": "./src/gateway/graph-ref.ts",
     "./features": "./src/features.ts",
     "./node": "./src/node/index.ts",
     "./emporium": "./src/emporium/index.ts",

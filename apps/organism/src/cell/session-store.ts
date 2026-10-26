@@ -80,6 +80,11 @@ export interface CellRestClient extends RestClient {
 /** Any cell-backed contract with the concrete named-graph dump primitive. */
 export interface CellContract extends ShrubberyContract {
   readonly restConcrete: CellRestClient
+  /**
+   * The local key this contract files a graph under (`localGraphKey`): absent or the bare id for the account's
+   * own graphs, owner-qualified in the contract of another account's graphs. Local caches use it; the wire never.
+   */
+  readonly graphKey?: (graphId: string) => string
 }
 
 /** A single live-read result (config + provenance). */
@@ -375,6 +380,8 @@ export function workspaceConfigStore<C extends CellContract>(store: SessionStore
 export function createSessionStore<C extends CellContract>(opts: SessionStoreOptions<C>): SessionStore<C> {
   const { contract, graphId } = opts
   const offlineStorage = opts.offlineStorage ?? defaultCellConfigReadStorage()
+  // The offline config copy is filed under the graph's local key: another owner's same-id graph is not this one.
+  const cacheGraphKey = contract.graphKey?.(graphId) ?? graphId
   let activationUserId = contract.auth?.userId?.() ?? 'local-organism'
   let authEpoch = 0
   let state: SessionStoreState = { status: 'idle', read: null, error: null }
@@ -471,7 +478,7 @@ export function createSessionStore<C extends CellContract>(opts: SessionStoreOpt
       // transaction churn the profiler found.
       if (state.read?.nt !== read.nt) {
         try {
-          await mutateCache(isCurrentRefresh, () => offlineStorage.put(refreshUserId, graphId, read))
+          await mutateCache(isCurrentRefresh, () => offlineStorage.put(refreshUserId, cacheGraphKey, read))
         } catch {
           // Live authority remains usable if local persistence is unavailable.
         }
@@ -484,7 +491,7 @@ export function createSessionStore<C extends CellContract>(opts: SessionStoreOpt
       // failure may activate a previously validated, user/graph-scoped read.
       if (!(e instanceof CellConfigContentError)) {
         try {
-          const cached = await offlineStorage.get(refreshUserId, graphId)
+          const cached = await offlineStorage.get(refreshUserId, cacheGraphKey)
           if (!isCurrentRefresh()) return
           if (cached) {
             const compatibility = withLegacyDefaultInteractionEdges(cached.config, parseNT(cached.nt))
@@ -503,7 +510,7 @@ export function createSessionStore<C extends CellContract>(opts: SessionStoreOpt
               })
               return
             }
-            await mutateCache(isCurrentRefresh, () => offlineStorage.delete(refreshUserId, graphId))
+            await mutateCache(isCurrentRefresh, () => offlineStorage.delete(refreshUserId, cacheGraphKey))
             if (!isCurrentRefresh()) return
           }
         } catch {

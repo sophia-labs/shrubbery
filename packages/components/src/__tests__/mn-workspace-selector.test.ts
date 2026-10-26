@@ -168,6 +168,30 @@ describe('mn-workspace-selector', () => {
     expect(root.querySelector('.trigger-label')?.textContent).toBe('Shared Notes')
   })
 
+  it('lists the account\'s own graph and a same-id one shared with it apart, active and selected by key', async () => {
+    const theirsKey = 'onboarding\u001fuser:idle'
+    const element = await mount(selector => {
+      selector.status = 'ready'
+      selector.activeGraphId = theirsKey
+      selector.workspaces = [
+        { graphId: 'onboarding', title: 'Onboarding', role: 'owner', cellState: 'running' },
+        { graphId: 'onboarding', key: theirsKey, title: 'Onboarding', role: 'editor', cellState: 'running', ownerName: 'idle' },
+      ]
+    })
+    const selected: MnWorkspaceSummary[] = []
+    element.addEventListener('mn-workspace-select', event => selected.push((event as CustomEvent).detail.workspace))
+    const root = await open(element)
+    expect(root.querySelector('.trigger-label')?.textContent).toBe('Onboarding · from idle')
+    const rows = [...root.querySelectorAll<HTMLElement>('.row')]
+    expect(rows.map(row => row.dataset.workspaceKey)).toEqual(['onboarding', theirsKey])
+    expect(rows.map(row => row.querySelector('.select')?.getAttribute('aria-selected'))).toEqual(['false', 'true'])
+    expect(rows.map(row => row.querySelector('.name')?.textContent)).toEqual(['Onboarding', 'Onboarding · from idle'])
+    rows[0]!.querySelector<HTMLButtonElement>('.select')!.click()
+    await element.updateComplete
+    expect(selected.map(workspace => workspace.key ?? workspace.graphId)).toEqual(['onboarding'])
+    expect(root.querySelector('.progress')?.textContent).toContain('Switching to Onboarding')
+  })
+
   it('emits only explicit typed management intents and preserves legacy delete/create events', async () => {
     const explicit: readonly MnWorkspaceSummary[] = [
       {

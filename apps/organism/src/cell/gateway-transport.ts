@@ -34,6 +34,7 @@ import {
   type ControlShareWithEmailResult,
   type ControlSharingState,
 } from '@shrubbery/source/access-control'
+import { ownerPrincipal } from '@shrubbery/source/graph-ref'
 import type { MnWorkspaceLifetimeState } from '@shrubbery/components'
 
 export type GatewayGraphRole = 'viewer' | 'editor' | 'owner'
@@ -117,6 +118,11 @@ export interface GatewayTransportOptions {
   readonly activationTimeoutMs?: number
   /** Activation polling cadence. Defaults to 500ms; zero is useful in tests. */
   readonly activationPollIntervalMs?: number
+  /**
+   * Route every graph call to this owner (`user:<sub>`): the transport for another account's graphs, one per owner
+   * (see `forOwner`). Unset, a graph id routes through the account's directory, the account's own graph first.
+   */
+  readonly routeOwner?: string
 }
 
 function apiKeyInteger(value: unknown): number | null {
@@ -560,6 +566,7 @@ export class GatewayTransport {
   private nextId = 1
   private readonly accessControl = createControlAccessClient({
     resolveOwner: async (graphId: string) => {
+      if (this.routeOwner) return this.routeOwner
       if (!this.graphOwners.has(graphId)) await this.graphs()
       const owner = this.graphOwners.get(graphId)
       if (owner === null) throw new Error('Access graph identity is ambiguous across owners')
@@ -568,20 +575,43 @@ export class GatewayTransport {
     },
     request: body => this.requestJson('POST', `${this.gatewayBaseUrl}/control/mcp`, body),
   })
+  /** The one owner this transport routes every graph to, when it serves another account's graphs. */
+  readonly routeOwner: string | null
 
   constructor(private readonly options: GatewayTransportOptions) {
     this.gatewayBaseUrl = normalizeGatewayBaseUrl(options.gatewayBaseUrl)
     const fetchImpl = options.fetch ?? globalThis.fetch
     if (typeof fetchImpl !== 'function') throw new Error('GatewayTransport requires fetch')
     this.fetchImpl = fetchImpl.bind(globalThis) as typeof fetch
+    this.routeOwner = options.routeOwner?.trim() ? accessUserPrincipal(ownerPrincipal(options.routeOwner)) : null
   }
 
-  graphBaseUrl(graphId: string): string {
+  /**
+   * A transport for one other account's graphs: every graph call goes to `/o/{owner}/g/{id}`, whatever the
+   * directory says about the id, so a graph id that both this account and that owner hold never routes to the
+   * wrong one. Shares this transport's authentication and fetch.
+   */
+  forOwner(owner: string): GatewayTransport {
+    return new GatewayTransport({ ...this.options, routeOwner: owner })
+  }
+
+  /**
+   * The owner a graph call is routed to: this transport's route owner; else an explicit binding; else the
+   * directory, where the account's own graph of that id wins and a single other owner is used as is. Undefined
+   * when nothing is known (the legacy unqualified route). Throws when the directory holds the id under several
+   * other owners and none is this account: only an owner-scoped transport can open those.
+   */
+  ownerOf(graphId: string): string | undefined {
+    if (this.routeOwner) return this.routeOwner
     const owner = this.graphOwners.get(graphId)
     if (owner === null) {
       throw new Error(`Gateway graph id '${graphId}' is ambiguous across owners`)
     }
-    return gatewayGraphBaseUrl(this.gatewayBaseUrl, graphId, owner)
+    return owner
+  }
+
+  graphBaseUrl(graphId: string): string {
+    return gatewayGraphBaseUrl(this.gatewayBaseUrl, graphId, this.ownerOf(graphId))
   }
 
   /** Bind a trusted host's exact owner; never derive access authority from the caller. */
@@ -602,20 +632,24 @@ export class GatewayTransport {
 
   /** Replace ordinary routing hints from a validated, current account directory. */
   adoptGraphDirectory(graphs: readonly GatewayGraphInfo[]): void {
+    const self = ownerPrincipal(this.options.auth.userId())
     const owners = new Map<string, string | null>()
     for (const graph of graphs) {
       if (!graph.owner) continue
-      if (!owners.has(graph.graphId)) {
+      const prior = owners.get(graph.graphId)
+      // The account's own graph keeps its id: another owner's same-id graph is opened through forOwner.
+      if (prior === undefined || graph.owner === self) {
         owners.set(graph.graphId, graph.owner)
         continue
       }
-      if (owners.get(graph.graphId) !== graph.owner) owners.set(graph.graphId, null)
+      if (prior !== self && prior !== graph.owner) owners.set(graph.graphId, null)
     }
     for (const [graphId, owner] of this.explicitGraphOwners) owners.set(graphId, owner)
     this.graphOwners = owners
   }
 
   async createGraph(request: GatewayCreateGraphRequest = {}): Promise<GatewayCreatedGraph> {
+    if (this.routeOwner) throw new Error('A new graph is always the account\'s own; create it through the account\'s transport.')
     const graphId = request.graphId?.trim()
     const title = request.title?.trim()
     const graphIncarnation = request.graphIncarnation?.trim()
@@ -631,6 +665,8 @@ export class GatewayTransport {
   }
 
   async deleteGraph(graphId: string, request?: GatewayDeleteGraphRequest): Promise<void> {
+    // DELETE /graphs/{id} names the caller's own graph of that id: never send it for another owner's.
+    if (this.routeOwner) throw new Error('Only the owner deletes a graph; this transport serves another account\'s graphs.')
     const id = graphId.trim()
     if (!id) throw new Error('Gateway graph id must not be empty')
     const query = request

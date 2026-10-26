@@ -33,6 +33,8 @@ import type {
   MnMobileTabs,
   MnMobileWorkspaceDetail,
 } from '@shrubbery/components'
+import { workspaceDisambiguatedTitle } from '@shrubbery/components'
+import { t } from '@shrubbery/nucleus'
 import type {
   RenderWorkspaceOptions,
   SidebarNode,
@@ -1127,8 +1129,9 @@ export class OrganismMobileShellController<TContract = unknown> {
   }
 
   private selectWorkspace(graphId: string): void {
+    // The mobile list names workspaces by key: another owner's graph may share an id with one of ours.
     const workspace = this.snapshot.chrome?.workspaces
-      ?.find(candidate => candidate.graphId === graphId)
+      ?.find(candidate => (candidate.key || candidate.graphId) === graphId)
     if (!workspace || workspace.disabled) return
     this.snapshot.chrome?.onWorkspaceSelect?.(workspace)
   }
@@ -1373,7 +1376,9 @@ export class OrganismMobileShellController<TContract = unknown> {
     }
     this.fileList!.nodes = mobileNodes
     this.fileList!.expandedFolderIds = [...this.expandedFolders]
-    this.fileList!.activeGraphId = this.context.graphId
+    // The list names workspaces by key (see below); the open graph's recents carry the same key.
+    const activeKey = this.snapshot.chrome?.activeWorkspaceId || this.context.graphId
+    this.fileList!.activeGraphId = activeKey
     this.fileList!.currentGraphTitle = graphTitle(
       this.context as ShellContext<unknown>,
       this.snapshot,
@@ -1389,7 +1394,8 @@ export class OrganismMobileShellController<TContract = unknown> {
       title: document.title,
       timestamp: document.timestamp ?? undefined,
       readOnly: document.readOnly,
-      graphId: document.graphId,
+      // Home's recents are the open graph's: the same key the workspace list marks active.
+      graphId: document.graphId === this.context!.graphId ? activeKey : document.graphId,
     }))
     // The shell's sidebar projection is already an offline-capable snapshot.
     // Keep it usable while the live provider reconnects; `synced=false` is only
@@ -1400,9 +1406,9 @@ export class OrganismMobileShellController<TContract = unknown> {
       title: graphTitle(this.context as ShellContext<unknown>, this.snapshot),
       role: 'owner',
       cellState: 'running',
-    }]).map(workspace => ({
-      graphId: workspace.graphId,
-      title: workspace.title,
+    }]).map((workspace, _index, all) => ({
+      graphId: workspace.key || workspace.graphId,
+      title: workspaceDisambiguatedTitle(workspace, all, workspace.title || workspace.graphId, (title, name) => t('sharing.fromOwner', { title, name })),
       disabled: workspace.disabled,
       disabledReason: workspace.disabledReason,
     }))

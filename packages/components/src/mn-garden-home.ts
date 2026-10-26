@@ -13,7 +13,7 @@ import { LitElement, css, html, nothing, unsafeCSS } from 'lit'
 import { customElement, property } from 'lit/decorators.js'
 import { SkinAware } from './skin-aware.js'
 import { icon, iconStyles } from './icons.js'
-import { workspaceDisplayPath } from './mn-workspace-selector-model.js'
+import { workspaceDisambiguatedTitle, workspaceDisplayPath, workspaceKey } from './mn-workspace-selector-model.js'
 import type {
   MnWorkspaceRole,
   MnWorkspaceSummary,
@@ -51,8 +51,12 @@ export interface MnGardenHomeIntentDetailMap {
   readonly 'mn-garden-home-account': MnGardenHomeAccountDetail
 }
 
-function workspaceTitle(workspace: MnWorkspaceSummary): string {
-  return workspace.title.trim() || workspace.graphId
+/** The card title; another owner's graph that shares a name or id with a listed one reads "… · from <name>". */
+function workspaceTitle(workspace: MnWorkspaceSummary, all: readonly MnWorkspaceSummary[] = []): string {
+  return workspaceDisambiguatedTitle(
+    workspace, all, workspace.title.trim() || workspace.graphId,
+    (title, name) => t('sharing.fromOwner', { title, name }),
+  )
 }
 
 function roleLabel(role: MnWorkspaceRole): string {
@@ -481,7 +485,7 @@ export class MnGardenHome extends SkinAware(LitElement) {
   }
 
   private openGraph(workspace: MnWorkspaceSummary): void {
-    if (workspace.disabled || workspace.localCreation || this.busyGraphId === workspace.graphId) return
+    if (workspace.disabled || workspace.localCreation || this.busyGraphId === workspaceKey(workspace)) return
     this.emit('mn-garden-home-open-graph', { workspace })
   }
 
@@ -527,20 +531,21 @@ export class MnGardenHome extends SkinAware(LitElement) {
         <ol class="recent-list">
           ${workspaces.map(workspace => {
             const time = relativeTime(workspace.lastOpenedAt)
-            const busy = this.busyGraphId === workspace.graphId
+            const busy = this.busyGraphId === workspaceKey(workspace)
+            const title = workspaceTitle(workspace, this.workspaces)
             return html`
               <li>
                 <button
                   class="recent-card"
                   type="button"
                   ?disabled=${busy || Boolean(workspace.localCreation)}
-                  title=${workspace.localCreation ? t('Retry cloud confirmation before opening this workspace.') : workspaceTitle(workspace)}
+                  title=${workspace.localCreation ? t('Retry cloud confirmation before opening this workspace.') : title}
                   aria-busy=${busy ? 'true' : 'false'}
                   @click=${() => this.openGraph(workspace)}
                 >
                   <span class="recent-glyph" aria-hidden="true">${icon('book-open', { size: 17 })}</span>
                   <span class="recent-copy">
-                    <span class="recent-title">${workspaceTitle(workspace)}</span>
+                    <span class="recent-title">${title}</span>
                     <span class="recent-meta">${busy ? t('Opening…') : time ? `Opened ${time}` : roleLabel(workspace.role)}</span>
                   </span>
                   <span class="arrow" aria-hidden="true">${icon('arrow-right', { size: 16 })}</span>
@@ -554,16 +559,16 @@ export class MnGardenHome extends SkinAware(LitElement) {
   }
 
   private renderGraph(workspace: MnWorkspaceSummary) {
-    const title = workspaceTitle(workspace)
+    const title = workspaceTitle(workspace, this.workspaces)
     const path = workspaceDisplayPath(workspace)
     const count = memberLabel(workspace.memberCount)
     const time = relativeTime(workspace.lastOpenedAt)
-    const busy = this.busyGraphId === workspace.graphId
+    const busy = this.busyGraphId === workspaceKey(workspace)
     const disabled = Boolean(workspace.disabled) || Boolean(workspace.localCreation) || busy
     const shared = workspace.role !== 'owner' ? workspace.ownerName?.trim() || '' : ''
     return html`
       <li>
-        <article class="graph-card" data-graph-id=${workspace.graphId}>
+        <article class="graph-card" data-graph-id=${workspace.graphId} data-workspace-key=${workspaceKey(workspace)}>
           <div class="graph-main">
             <div class="graph-heading">
               <h3>

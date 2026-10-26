@@ -62,6 +62,9 @@ export async function redeemShareLinkFromLocation(options: ShareLinkLandingOptio
     const target = new URL(cleaned.href)
     target.searchParams.set('graph', joined.graphId)
     target.searchParams.delete('graph_id')
+    // A joined graph is another account's (redeeming one's own link is refused): name its owner, since the
+    // account may hold a graph with the same id.
+    target.searchParams.set('owner', joined.owner)
     options.replaceUrl(target)
     return { kind: 'joined', graphId: joined.graphId, owner: joined.owner, role: joined.role }
   } catch (error) {

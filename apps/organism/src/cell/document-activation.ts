@@ -717,11 +717,29 @@ export class MemoryDocumentActivationStorage implements DocumentActivationStorag
   }
 }
 
-export function defaultDocumentActivationStorage(): DocumentActivationStorage {
+/**
+ * `scope` is '' for the account's own graphs (the one database every earlier release used) and another owner's
+ * `graphKeySuffix` for that owner's graphs: their cached documents live in a database of their own, so a
+ * same-id graph of the account's can never be served from them, nor they from it.
+ */
+export function defaultDocumentActivationStorage(scope = ''): DocumentActivationStorage {
   const factory = typeof globalThis.indexedDB === 'object' ? globalThis.indexedDB : undefined
   return factory
-    ? new IndexedDbDocumentActivationStorage(factory)
+    ? new IndexedDbDocumentActivationStorage(factory, `${CACHE_DB_NAME}${scope}`)
     : new MemoryDocumentActivationStorage()
+}
+
+/** The navigation hint store for one owner scope ('' = the account's own graphs, unchanged keys). */
+export function scopedNavigationStorage(
+  storage: Pick<Storage, 'getItem' | 'setItem' | 'removeItem'> | undefined,
+  scope: string,
+): Pick<Storage, 'getItem' | 'setItem' | 'removeItem'> | undefined {
+  if (!storage || !scope) return storage
+  return {
+    getItem: key => storage.getItem(`${key}${scope}`),
+    setItem: (key, value) => storage.setItem(`${key}${scope}`, value),
+    removeItem: key => storage.removeItem(`${key}${scope}`),
+  }
 }
 
 /** Memory front plus persistent backing, with an independent in-memory bound. */

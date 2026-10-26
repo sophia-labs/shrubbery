@@ -73,6 +73,12 @@ export interface SourceMirrorRuntimeOptions {
   readonly documentActivation: DocumentActivationManager
   readonly storage?: SourceMirrorStorage & GraphLifecycleStorage
   readonly graphLifecycleTransport?: GraphLifecycleTransport
+  /**
+   * The local key a graph is filed under (`localGraphKey`): the bare id for the account's own graphs (the
+   * default), owner-qualified in the runtime of another account's graphs. Storage and read identities use it;
+   * the authority is always asked for the real id.
+   */
+  readonly graphKey?: (graphId: string) => string
 }
 
 class MemorySourceRuntimeStorage implements SourceMirrorStorage, GraphLifecycleStorage {
@@ -1000,7 +1006,7 @@ export class SourceMirrorRuntime {
     const identity = JSON.stringify([
       entry.userId,
       this.options.auth.isAuthenticated(),
-      graphId,
+      this.graphKey(graphId),
       state.graphIncarnation,
       state.epoch,
       state.fenced ? 'fenced' : state.complete ? 'complete' : 'live',
@@ -1061,8 +1067,9 @@ export class SourceMirrorRuntime {
     const key = this.entryKey(userId, normalizedGraph)
     let entry = this.entries.get(key)
     if (!entry) {
+      const localKey = this.graphKey(normalizedGraph)
       const manager = new SourceMirrorManager({
-        identity: { userId, graphId: normalizedGraph },
+        identity: { userId, graphId: normalizedGraph, ...(localKey !== normalizedGraph ? { localKey } : {}) },
         storage: this.storage,
         transport: this.transport,
       })
@@ -1071,6 +1078,10 @@ export class SourceMirrorRuntime {
       this.entries.set(key, entry)
     }
     return entry
+  }
+
+  private graphKey(graphId: string): string {
+    return this.options.graphKey?.(graphId) ?? graphId
   }
 
   private entryKey(userId: string, graphId: string): string {

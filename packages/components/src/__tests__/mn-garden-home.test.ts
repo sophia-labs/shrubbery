@@ -160,6 +160,31 @@ describe('mn-garden-home', () => {
     expect(opened.map(detail => detail.workspace.graphId)).toEqual(['shared-v'])
   })
 
+  it('lists the account\'s own graph and a same-id graph shared with it as two cards, told apart by owner', async () => {
+    const theirs: MnWorkspaceSummary = {
+      graphId: 'onboarding', key: 'onboarding\u001fuser:idle', title: 'Onboarding', role: 'editor', cellState: 'running', ownerName: 'idle',
+    }
+    const mine: MnWorkspaceSummary = { graphId: 'onboarding', title: 'Onboarding', role: 'owner', cellState: 'running' }
+    const element = await mount({ workspaces: [mine, theirs] })
+    const root = element.shadowRoot!
+    const opened: MnGardenHomeWorkspaceDetail[] = []
+    element.addEventListener('mn-garden-home-open-graph', event => opened.push((event as CustomEvent<MnGardenHomeWorkspaceDetail>).detail))
+    const cards = [...root.querySelectorAll<HTMLElement>('.graph-card')]
+    expect(cards.map(card => card.dataset.workspaceKey)).toEqual(['onboarding', 'onboarding\u001fuser:idle'])
+    expect(cards.map(card => card.querySelector('.open-graph')?.textContent?.trim())).toEqual(['Onboarding', 'Onboarding · from idle'])
+
+    // Busy is by key: opening theirs leaves the account's own card alone.
+    element.busyGraphId = 'onboarding\u001fuser:idle'
+    await element.updateComplete
+    expect(cards[0]!.querySelector<HTMLButtonElement>('.open-graph')!.disabled).toBe(false)
+    expect(cards[1]!.querySelector<HTMLButtonElement>('.open-graph')!.disabled).toBe(true)
+    element.busyGraphId = null
+    await element.updateComplete
+    cards[1]!.querySelector<HTMLButtonElement>('.open-graph')!.click()
+    cards[0]!.querySelector<HTMLButtonElement>('.open-graph')!.click()
+    expect(opened.map(detail => detail.workspace)).toEqual([theirs, mine])
+  })
+
   it('requests one empty graph and reflects host-controlled creation state', async () => {
     const element = await mount()
     const root = element.shadowRoot!

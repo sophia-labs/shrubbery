@@ -91,6 +91,8 @@ export async function hostedGraphSettingsWritable(
   auth: CapabilityAuth,
   graphId: string,
   graphs: () => Promise<unknown>,
+  /** The graph's owner when known: an id alone may name the account's graph and another owner's. */
+  owner?: string,
 ): Promise<boolean> {
   const subject = auth.userId()
   const token = auth.token()
@@ -98,7 +100,7 @@ export async function hostedGraphSettingsWritable(
   try {
     const rows = await graphs()
     if (!Array.isArray(rows) || subject !== auth.userId() || token !== auth.token()) return false
-    const matching = rows.filter(row => record(row) && row.graphId === graphId)
+    const matching = rows.filter(row => record(row) && row.graphId === graphId && (!owner || row.owner === owner))
     return matching.length === 1 && (matching[0].role === 'owner' || matching[0].role === 'editor')
   } catch { return false }
 }

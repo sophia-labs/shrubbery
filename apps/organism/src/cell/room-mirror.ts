@@ -206,6 +206,11 @@ export interface RoomMirrorOptions {
   readonly dumper: RoomMirrorDumper
   readonly liveRest: RestClient
   readonly userId: () => string
+  /**
+   * The graph's local key (`localGraphKey`): the bare id for the account's own graphs (the default), owner-
+   * qualified for another account's. Stored copies and the query-service identity use it; dumps ask for the id.
+   */
+  readonly graphKey?: (graphId: string) => string
   readonly storage?: RoomMirrorStorage
   /** Called after any state change (status, sync, stats). The shell re-renders on it. */
   readonly onChange?: (graphId: string, state: RoomMirrorState) => void
@@ -405,6 +410,10 @@ export class RoomMirror {
     return entry
   }
 
+  private graphKey(graphId: string): string {
+    return this.options.graphKey?.(graphId) ?? graphId
+  }
+
   private publish(entry: RoomEntry): void {
     this.options.onChange?.(entry.graphId, this.snapshot(entry))
   }
@@ -424,7 +433,7 @@ export class RoomMirror {
         const userId = this.options.userId()
         const restored = new Map<string, RoomMirrorGraphRecord>()
         for (const graphIri of this.graphIrisFor(graphId)) {
-          const record = await this.storage.read(userId, graphId, graphIri).catch(() => null)
+          const record = await this.storage.read(userId, this.graphKey(graphId), graphIri).catch(() => null)
           if (record) restored.set(graphIri, record)
         }
         if (restored.size === this.graphIrisFor(graphId).length) {
@@ -464,7 +473,7 @@ export class RoomMirror {
         const next = new Map(entry.records)
         for (const record of dumped) next.set(record.graphIri, record)
         await this.install(entry, next, { restored: false, syncMs: this.now() - started })
-        for (const record of dumped) await this.storage.write(userId, graphId, record).catch(() => {})
+        for (const record of dumped) await this.storage.write(userId, this.graphKey(graphId), record).catch(() => {})
       } catch (error) {
         entry.status = entry.store ? 'ready' : 'error'
         entry.error = error instanceof Error ? error.message : String(error)
@@ -568,7 +577,7 @@ export class RoomMirror {
   queryService(graphId: string): QueryBlockService | null {
     const entry = this.entries.get(graphId)
     if (!entry || !entry.store || entry.status === 'error') return null
-    const identity = `${this.options.userId()}\u001f${graphId}\u001f${entry.epoch}`
+    const identity = `${this.options.userId()}\u001f${this.graphKey(graphId)}\u001f${entry.epoch}`
     if (entry.service?.identity === identity) return entry.service.service
     const mirrored = new Set(this.graphIrisFor(graphId))
     const live = this.options.liveRest

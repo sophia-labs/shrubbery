@@ -1,4 +1,5 @@
 import type { GraphLifecycleIntent, GraphLifecycleManager } from '@shrubbery/source'
+import { ownerPrincipal } from '@shrubbery/source/graph-ref'
 import type { GatewayGraphInfo } from './gateway-transport.js'
 
 export interface LocalWorkspaceCreation {
@@ -36,9 +37,10 @@ export async function confirmHostedWorkspaceCreation(
   loadDirectory: () => Promise<readonly HostedWorkspaceInfo[]>,
 ): Promise<HostedWorkspaceInfo> {
   if (intent.status !== 'applied') throw new Error(unconfirmedWorkspaceMessage(intent))
-  const matches = (await loadDirectory()).filter(graph => graph.graphId === intent.graphId)
+  // A create is the account's own graph; another owner's graph with the same id is a different graph.
+  const owner = ownerPrincipal(intent.userId)
+  const matches = (await loadDirectory()).filter(graph => graph.graphId === intent.graphId && graph.owner === owner)
   const graph = matches.length === 1 ? matches[0] : undefined
-  const owner = intent.userId.startsWith('user:') ? intent.userId : `user:${intent.userId}`
   if (!graph || graph.localCreation || graph.role !== 'owner' || graph.owner !== owner) {
     throw new Error('Cloud creation was accepted, but the directory has not confirmed the new workspace yet. Local work is retained; refresh the workspace list before opening it.')
   }
@@ -51,7 +53,11 @@ export function mergeHostedWorkspaceCreations(
   intents: readonly GraphLifecycleIntent[],
 ): readonly HostedWorkspaceInfo[] {
   const result: HostedWorkspaceInfo[] = [...graphs]
-  const present = new Set(graphs.map(graph => graph.graphId))
+  // Creates are the account's own graphs: only its own rows (or rows with no owner) answer for one. A graph
+  // someone shares with the same id must not hide a local creation.
+  const own = (graph: GatewayGraphInfo): boolean => !graph.owner
+    || intents.some(intent => intent.kind === 'create' && ownerPrincipal(intent.userId) === graph.owner)
+  const present = new Set(graphs.filter(own).map(graph => graph.graphId))
   const deleted = new Set(intents.filter(intent => intent.kind === 'delete' && intent.status !== 'conflict')
     .map(intent => `${intent.graphId}\u001f${intent.graphIncarnation}`))
   for (const intent of intents) {

@@ -47,9 +47,12 @@ import { GatewayProviderSecretStore } from './gateway-provider-secret-store.js'
 import type { ProviderSecretStore } from './provider-secret-store.js'
 import {
   DocumentActivationManager,
+  defaultDocumentActivationStorage,
+  scopedNavigationStorage,
   type DocumentActivationStorage,
 } from './document-activation.js'
-import { SourceMirrorRuntime } from './source-mirror-runtime.js'
+import { graphKeySuffix, localGraphKey } from '@shrubbery/source/graph-ref'
+import { SourceMirrorRuntime, type SourceMirrorRuntimeOptions } from './source-mirror-runtime.js'
 
 class HostedGatewayRuntimeModeProvider implements RuntimeModeProvider {
   constructor(private readonly gateway: GatewayTransport) {}
@@ -259,6 +262,17 @@ export interface HostedGatewayContractOptions {
   readonly crdtResyncInterval?: number
   readonly confirmPresenter?: ConfirmPresenter
   readonly documentActivationStorage?: DocumentActivationStorage
+  /**
+   * Build the contract for ANOTHER account's graphs (`user:<sub>`): every graph call routes to that owner, and
+   * every local cache (offline mirror, document cache, navigation hint) is filed under owner-qualified keys, so
+   * the account's own graph with the same id is never read, written or opened in its place. Such a contract
+   * never creates or deletes graphs (creates are always the account's own).
+   */
+  readonly routeOwner?: string
+  /** Navigation hint storage; defaults to the browser's localStorage. */
+  readonly navigationStorage?: Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>
+  /** The offline mirror store; defaults to IndexedDB (one store for every owner: keys keep them apart). */
+  readonly sourceMirrorStorage?: SourceMirrorRuntimeOptions['storage']
 }
 
 export interface HostedGatewayContract extends ShrubberyContract {
@@ -275,6 +289,10 @@ export interface HostedGatewayContract extends ShrubberyContract {
   readonly providerSecrets: ProviderSecretStore
   readonly documentActivation: DocumentActivationManager
   readonly sourceMirror: SourceMirrorRuntime
+  /** The owner every graph call goes to when this contract serves another account's graphs; else null. */
+  readonly routeOwner: string | null
+  /** The local key this contract files a graph under: the bare id for the account's own, owner-qualified else. */
+  readonly graphKey: (graphId: string) => string
 }
 
 export function createHostedGatewayContract(
@@ -284,12 +302,22 @@ export function createHostedGatewayContract(
     gatewayBaseUrl: options.gatewayBaseUrl,
     auth: options.auth,
     fetch: options.fetch,
+    ...(options.routeOwner ? { routeOwner: options.routeOwner } : {}),
   })
+  const routeOwner = gateway.routeOwner
+  const graphKey = (graphId: string): string => routeOwner
+    ? localGraphKey({ owner: routeOwner, graphId }, options.auth.userId())
+    : graphId
+  // '' for the account's own graphs: the same databases and keys as every earlier release.
+  const storageScope = routeOwner ? graphKeySuffix(routeOwner, options.auth.userId()) : ''
   const liveRest = new HostedGatewayRestClient(gateway)
   const rawMcp = new HostedGatewayMcpClient(gateway)
   let sourceMirror: SourceMirrorRuntime | null = null
   const documentActivation = new DocumentActivationManager({
-    storage: options.documentActivationStorage,
+    storage: options.documentActivationStorage ?? (storageScope ? defaultDocumentActivationStorage(storageScope) : undefined),
+    ...(storageScope || options.navigationStorage ? {
+      navigationStorage: scopedNavigationStorage(options.navigationStorage ?? browserLocalStorage(), storageScope),
+    } : {}),
     fetchSnapshot: async (graphId, documentId, request) =>
       sourceMirror?.documentSnapshot(graphId, documentId)
       ?? await liveRest.documentSnapshot(graphId, documentId, request),
@@ -307,9 +335,11 @@ export function createHostedGatewayContract(
     caller: rawMcp,
     auth: options.auth,
     documentActivation,
-    graphLifecycleTransport: gateway,
+    ...(options.sourceMirrorStorage ? { storage: options.sourceMirrorStorage } : {}),
+    // Graph creates and deletes are the account's own: another owner's contract carries no lifecycle.
+    ...(routeOwner ? { graphKey } : { graphLifecycleTransport: gateway }),
   })
-  sourceMirror.backgroundFlushGraphLifecycle()
+  if (!routeOwner) sourceMirror.backgroundFlushGraphLifecycle()
   const mcp = sourceMirror.wrapMcpClient(rawMcp)
   let activationUserId = options.auth.userId()
   options.auth.onChange(() => {
@@ -354,5 +384,15 @@ export function createHostedGatewayContract(
     providerSecrets: new GatewayProviderSecretStore(gateway),
     documentActivation,
     sourceMirror,
+    routeOwner,
+    graphKey,
+  }
+}
+
+function browserLocalStorage(): Pick<Storage, 'getItem' | 'setItem' | 'removeItem'> | undefined {
+  try {
+    return typeof globalThis.localStorage === 'object' ? globalThis.localStorage : undefined
+  } catch {
+    return undefined
   }
 }

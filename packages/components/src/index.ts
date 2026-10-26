@@ -185,6 +185,8 @@ export {
 } from './mn-quick-clip.js'
 export {
   MnWorkspaceSelector,
+  workspaceDisambiguatedTitle,
+  workspaceKey,
   type MnWorkspaceCellState,
   type MnWorkspaceDetail,
   type MnWorkspaceLifetimeState,

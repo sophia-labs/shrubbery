@@ -2165,6 +2165,7 @@ export const ja = {
   'sharing.creating': '作成しています…',
   'sharing.emailLabel': 'メールアドレス',
   'sharing.emailPlaceholder': 'メールアドレスを入力',
+  'sharing.fromOwner': '{title} · {name} さんから',
   'sharing.generalPublicNotice': 'リンクを知っている全員が、このグラフを閲覧できるようになりました。',
   'sharing.generalRestrictedNotice': 'このグラフを開けるのは、アクセス権のあるユーザーだけになりました。',
   'sharing.generalSignedInNotice': 'Sophiaにログインしている全員が、このグラフを閲覧できるようになりました。',

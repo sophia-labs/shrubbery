@@ -1281,10 +1281,14 @@ export interface WorkspaceLifetimeSummary {
 
 export interface WorkspaceSummary {
   readonly graphId: string
+  /** Owner-qualified identity when another account's graph shares an id with one of this account's (see mn-workspace-selector). */
+  readonly key?: string
   readonly title: string
   readonly role: WorkspaceRole
   readonly cellState: WorkspaceCellState
-  readonly localCreation?: { readonly status: 'pending' | 'conflict'; readonly error?: string }
+  /** Who shared it, on a graph this account does not own. */
+  readonly ownerName?: string | null
+  readonly localCreation?: { readonly status: 'pending' | 'conflict'; readonly error?: string; readonly reason?: 'quota_exceeded' }
   readonly disabled?: boolean
   readonly disabledReason?: string
   /** Present only when the shell's mirror holds work for a life this graph

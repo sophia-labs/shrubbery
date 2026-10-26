@@ -79,8 +79,11 @@ describe('hosted creation acknowledgement and the real catalog consumers', () =>
     expect(mergeHostedWorkspaceCreations([], f.lifecycle.records())[0]?.localCreation).toBeDefined()
     const canonical = { owner: 'user:owner', graphId: request.graphId, title: request.title, role: 'owner' as const, cellState: 'stopped' as const }
     expect(mergeHostedWorkspaceCreations([canonical], f.lifecycle.records())).toEqual([canonical])
+    // A graph someone else shares with the same id is another graph: it neither hides nor stands for ours.
     const sharedCollision = { ...canonical, owner: 'user:someone-else', role: 'viewer' as const }
-    expect(mergeHostedWorkspaceCreations([sharedCollision], f.lifecycle.records())).toEqual([sharedCollision])
+    const merged = mergeHostedWorkspaceCreations([sharedCollision], f.lifecycle.records())
+    expect(merged.map(graph => [graph.owner ?? null, graph.graphId, Boolean(graph.localCreation)]))
+      .toEqual([['user:someone-else', request.graphId, false], [null, request.graphId, true]])
   })
 
   it('waits for a directory reply before permitting either creation caller to navigate', async () => {

@@ -10,6 +10,7 @@ import { mountGardenHomeRoute } from '../garden-home-route.js'
 import { resolveHostedEntry } from '../hosted-entry-route.js'
 import { confirmedStarterPreference, type StarterStartupPreference } from '../new-user-starter-startup.js'
 import type { GatewayGraphInfo } from '../gateway-transport.js'
+import { graphRefOwner, localGraphKey, parseLocalGraphKey } from '@shrubbery/source/graph-ref'
 
 // Execute actual caller functions with bounded synthetic dependencies, without
 // importing main's eager app bootstrap or touching browser/account state.
@@ -37,6 +38,13 @@ function selector(options: { graphs?: readonly GatewayGraphInfo[]; stored?: stri
     storedHostedGraphId: () => options.stored ?? '',
     confirmedStarterPreference, resolveHostedEntry,
     cellGraphId: { value: 'unchanged' }, currentGraphId: 'unchanged', persistHostedGraphSelection: vi.fn(),
+    // main's graph-key helpers, over the real graph-ref functions: the signed-in account owns the starter.
+    hostedSelf: () => 'synthetic-native',
+    hostedGraphKey: (graph: GatewayGraphInfo) => localGraphKey({ owner: graphRefOwner(graph.owner, 'synthetic-native'), graphId: graph.graphId }, 'synthetic-native'),
+    parseLocalGraphKey,
+    currentGraphOwner: null as string | null,
+    deploymentContract: null,
+    hostedContractForOwner: vi.fn(() => null),
   }
   const invoke = actualFunction('selectHostedEntry', context)
   return { context, preference, invoke: () => invoke(preference), stale: () => { current = false } }

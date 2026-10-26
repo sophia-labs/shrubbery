@@ -9,12 +9,14 @@ function localPath(url: URL): string {
  * Credentials remain proxy-owned; only the non-secret graph selector crosses
  * the navigation boundary.
  */
-export function settingsNavigationUrl(current: URL, graphId?: string | null): URL {
+export function settingsNavigationUrl(current: URL, graphId?: string | null, owner?: string | null): URL {
   const next = new URL('/settings', current.origin)
   const graph = graphId?.trim() ?? ''
   if (graph) {
     next.searchParams.set('source', 'cell')
     next.searchParams.set('graph', graph)
+    // Another account's graph is named by its owner too (the account may hold a graph with the same id).
+    if (owner?.trim()) next.searchParams.set('owner', owner.trim())
   }
   const returnTo = current.pathname.replace(/\/+$/, '') === '/settings'
     ? settingsReturnPath(current)

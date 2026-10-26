@@ -143,6 +143,32 @@ export function workspaceActionCapability(
   return action === 'delete' && workspace.role === 'owner' ? AVAILABLE : UNAVAILABLE
 }
 
+/** A workspace's identity among the listed ones: its key when the host gives one, else its graph id. */
+export function workspaceKey(workspace: Pick<MnWorkspaceSummary, 'graphId' | 'key'>): string {
+  return workspace.key || workspace.graphId
+}
+
+/**
+ * Two listed workspaces with the same name or id are told apart by who shared them: another account's reads
+ * "Onboarding · from idle" (the account's own keeps its plain title). `base` is the title the caller shows.
+ */
+export function workspaceDisambiguatedTitle(
+  workspace: MnWorkspaceSummary,
+  all: readonly MnWorkspaceSummary[],
+  base: string,
+  fromOwner: (title: string, name: string) => string,
+): string {
+  const name = workspace.ownerName?.trim()
+  if (!name || workspace.role === 'owner') return base
+  const key = workspaceKey(workspace)
+  const folded = base.trim().toLocaleLowerCase()
+  const clash = all.some(other => workspaceKey(other) !== key && (
+    other.graphId === workspace.graphId
+    || (other.title.trim() || other.graphId).toLocaleLowerCase() === folded
+  ))
+  return clash ? fromOwner(base, name) : base
+}
+
 /** The quiet hierarchy shown under a title. Empty segments never become UI. */
 export function workspaceDisplayPath(workspace: MnWorkspaceSummary): readonly string[] {
   const explicit = workspace.path?.map(segment => segment.trim()).filter(Boolean) ?? []

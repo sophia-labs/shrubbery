@@ -138,9 +138,14 @@ export class HomeActivityStore {
   project(
     graphId: string,
     documents: readonly HomeDocumentSource[],
-    options: { readonly dreamingEnabled?: boolean; readonly dreamJournalId?: string } = {},
+    options: {
+      readonly dreamingEnabled?: boolean
+      readonly dreamJournalId?: string
+      /** The graph's local key when it is not the bare id (another account's graph); activity is filed under it. */
+      readonly storageKey?: string
+    } = {},
   ): HomeProjection {
-    const graph = this.graph(graphId)
+    const graph = this.graph(options.storageKey ?? graphId)
     const byId = new Map(documents.map(document => [document.id, document]))
     const homeDocument = (documentId: string, timestamp?: number): WorkspaceHomeDocument | null => {
       const document = byId.get(documentId)
