@@ -928,6 +928,35 @@ describe('document cache persistence timing', () => {
     }
   })
 
+  it('a failed write is not remembered as written: the next persist of the same state tries again', async () => {
+    vi.useFakeTimers()
+    try {
+      const storage = new CountingStorage()
+      const { doc, activation } = await liveActivation(storage, { persistDebounceMs: 0 })
+      let failing = true
+      const real = storage.put.bind(storage)
+      vi.spyOn(storage, 'put').mockImplementation(async (record) => {
+        if (failing) throw new Error('quota exhausted')
+        return real(record)
+      })
+      doc.getText('body').insert(0, 'q')
+      await vi.advanceTimersByTimeAsync(10)
+      await activation.flush()
+      expect(activation.state.get()).toMatchObject({ durability: 'failed' })
+
+      failing = false
+      const before = storage.puts
+      // Nothing was edited since, but the last attempt failed: closing the document persists the same
+      // state again, and it must not be skipped as already written.
+      activation.dispose()
+      await vi.advanceTimersByTimeAsync(10)
+      expect(storage.puts, 'a write that failed must be retried, not skipped as identical').toBeGreaterThan(before)
+      doc.destroy()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('the cache hands the owned buffer to memory and storage without defensive copies, and still reads out copies', async () => {
     const storage = new MemoryDocumentActivationStorage()
     const cache = new DocumentActivationCache(storage)
