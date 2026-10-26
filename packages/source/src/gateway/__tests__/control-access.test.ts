@@ -3,6 +3,7 @@ import {
   accessEmail,
   accessOwnerFromDirectory,
   createControlAccessClient,
+  leaveRefusalMessage,
   publicTokenFromHash,
   publicViewUrl,
   shareLinkUrl,
@@ -260,5 +261,27 @@ describe('sharing by email, invitations and the public link', () => {
     expect(publicTokenFromHash('')).toBeNull()
     expect(accessEmail(' Ada@Example.Test ')).toBe('ada@example.test')
     expect(() => accessEmail('user:reader')).toThrow()
+  })
+})
+
+describe('leaving a graph someone shared', () => {
+  it('asks leave_graph for the owner and graph, and accepts only {left: true}', async () => {
+    const { client, request } = setup(r => envelope(r, { left: true }))
+    await expect(client.leave('notes')).resolves.toBeUndefined()
+    expect(request.mock.calls.map(call => call[0].params)).toEqual([
+      { name: 'leave_graph', arguments: { owner, graphId: 'notes' } },
+    ])
+    const refused = setup(r => envelope(r, { left: false }))
+    await expect(refused.client.leave('notes')).rejects.toThrow(/acknowledgement/)
+  })
+
+  it('says why a leave was refused: the gateway\'s reason for -32009, plain words for -32004', async () => {
+    const owned = setup(r => ({ jsonrpc: '2.0', id: r.id, error: { code: -32009, message: 'You can view this graph because it is shared with everyone signed in; there is nothing to leave.' } }))
+    const error = await owned.client.leave('notes').catch((caught: unknown) => caught)
+    expect(error).toMatchObject({ code: -32009 })
+    expect(leaveRefusalMessage(error)).toBe('You can view this graph because it is shared with everyone signed in; there is nothing to leave.')
+    const gone = setup(r => ({ jsonrpc: '2.0', id: r.id, error: { code: -32004, message: 'graph not found' } }))
+    expect(leaveRefusalMessage(await gone.client.leave('notes').catch((caught: unknown) => caught)))
+      .toBe('This graph is no longer available, or you have already left it.')
   })
 })

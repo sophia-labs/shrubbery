@@ -21,6 +21,7 @@ export type ControlAccessTool =
   | 'redeem_share_link'
   | 'share_with_email'
   | 'cancel_graph_invitation'
+  | 'leave_graph'
 
 export interface ControlAccessRequest {
   readonly jsonrpc: '2.0'
@@ -338,6 +339,26 @@ function publicLink(value: unknown, owner: string, id: string): ControlPublicLin
   }
 }
 
+/** JSON-RPC codes `leave_graph` refuses with: the owner, or access only through everyone / a link (-32009). */
+export const LEAVE_REFUSED = -32009
+/** The graph is gone, or this account no longer holds a grant on it. */
+export const LEAVE_NOT_FOUND = -32004
+
+/** `leave_graph`'s answer: `{"left": true}`, nothing else. */
+export function leftGraph(value: unknown): true {
+  if (object(value)?.left !== true) throw new Error('Leaving the graph returned no confirmed acknowledgement')
+  return true
+}
+
+/** Words for a refused leave: the gateway's own reason for -32009, a plain one for -32004. */
+export function leaveRefusalMessage(error: unknown): string {
+  if (error instanceof ControlAccessError && error.code === LEAVE_REFUSED && error.message.trim()) return error.message
+  if (error instanceof ControlAccessError && error.code === LEAVE_NOT_FOUND) {
+    return 'This graph is no longer available, or you have already left it.'
+  }
+  return error instanceof Error ? error.message : String(error)
+}
+
 function rows<T>(value: unknown, what: string, parse: (row: unknown) => T): T[] {
   if (value === undefined || value === null) return []
   if (!Array.isArray(value)) throw new Error(`Sharing view returned no ${what} list`)
@@ -502,6 +523,14 @@ export function createControlAccessClient(options: ControlAccessOptions) {
       if (!LINK_ID.test(linkId)) throw new Error('Share link id is invalid')
       const response = await callTool('manage_share_links', id, { action: 'revoke', linkId })
       if (object(response.value)?.revoked !== true) throw new Error('Share link revoke returned no confirmed acknowledgement')
+    },
+    /**
+     * Leave a graph another account shared with this one (a direct Viewer or Editor grant). Refused (-32009) for
+     * the owner and for access that comes only through everyone signed in; -32004 when there is nothing to leave.
+     */
+    async leave(id: string): Promise<void> {
+      const response = await callTool('leave_graph', id, {})
+      leftGraph(response.value)
     },
     /** Join through a link: the caller receives the link's role on its graph. */
     async redeem(rawToken: string): Promise<ControlRedeemedShareLink> {
