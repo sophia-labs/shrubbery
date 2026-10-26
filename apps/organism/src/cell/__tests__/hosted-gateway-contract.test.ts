@@ -138,6 +138,17 @@ describe('GatewayTransport', () => {
     expect(auth.readyCalls).toBe(2)
   })
 
+  it('keeps the owner name of a graph shared with this account', async () => {
+    const network = fetchQueue({ body: [
+      { owner: 'user:vera', ownerName: ' Vera ', graphId: 'shared', title: 'Shared', lifecycleState: 'active', role: 'viewer' },
+      { owner: 'user:me', ownerName: '', graphId: 'mine', title: 'Mine', lifecycleState: 'active', role: 'owner' },
+    ] })
+    const transport = new GatewayTransport({ gatewayBaseUrl: 'https://gateway.test', auth: new MutableAuth(), fetch: network.fetch })
+    const graphs = await transport.graphs()
+    expect(graphs[0]).toMatchObject({ graphId: 'shared', ownerName: 'Vera', role: 'viewer' })
+    expect(graphs[1]).not.toHaveProperty('ownerName')
+  })
+
   it('fails closed when one local graph id is visible under multiple owners', async () => {
     const network = fetchQueue({ body: [
       { owner: 'user:owner-a', graphId: 'notes', title: 'A', lifecycleState: 'active', role: 'viewer' },

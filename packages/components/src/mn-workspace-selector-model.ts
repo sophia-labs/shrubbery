@@ -52,6 +52,8 @@ export interface MnWorkspaceSummary {
   readonly title: string
   readonly role: MnWorkspaceRole
   readonly cellState: MnWorkspaceCellState
+  /** Who shared it: the owner's name on a graph this account does not own (never an email). */
+  readonly ownerName?: string | null
   /** A retained local creation, not a confirmed hosted ACL or cell. */
   readonly localCreation?: { readonly status: 'pending' | 'conflict'; readonly error?: string }
   /** Account-local recency used by entry surfaces; never inferred by Shrubbery. */

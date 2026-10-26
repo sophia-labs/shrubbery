@@ -27,8 +27,11 @@ import {
   accessUserPrincipal,
   createControlAccessClient,
   type ControlMintedShareLink,
+  type ControlPublicLink,
+  type ControlPublicLinkCreate,
   type ControlRedeemedShareLink,
   type ControlShareLinkCreate,
+  type ControlShareWithEmailResult,
   type ControlSharingState,
 } from '@shrubbery/source/access-control'
 import type { MnWorkspaceLifetimeState } from '@shrubbery/components'
@@ -40,6 +43,8 @@ export type GatewayCellState = 'running' | 'stopped'
 export interface GatewayGraphInfo {
   /** Stable typed owner from canonical cloud-2 graph metadata. */
   readonly owner?: string
+  /** The owner's name (never an email) on a graph this account does not own. */
+  readonly ownerName?: string
   /** Canonical gateway generation when the directory supplies it; never inferred. */
   readonly generation?: number
   readonly graphId: string
@@ -402,6 +407,7 @@ function graphInfo(value: unknown, index: number): GatewayGraphInfo {
   }
   const row = value as Record<string, unknown>
   const owner = typeof row.owner === 'string' && row.owner.trim() ? row.owner.trim() : undefined
+  const ownerName = typeof row.ownerName === 'string' && row.ownerName.trim() ? row.ownerName.trim() : undefined
   const lifecycleState = typeof row.lifecycleState === 'string' ? row.lifecycleState : undefined
   const cellState = row.cellState === 'running' || row.cellState === 'stopped'
     ? row.cellState
@@ -423,6 +429,7 @@ function graphInfo(value: unknown, index: number): GatewayGraphInfo {
   }
   return {
     ...(owner ? { owner } : {}),
+    ...(ownerName ? { ownerName } : {}),
     ...(row.generation !== undefined ? { generation: row.generation as number } : {}),
     graphId: row.graphId,
     title: row.title,
@@ -675,6 +682,20 @@ export class GatewayTransport {
 
   async revokeShareLink(graphId: string, linkId: string): Promise<void> {
     await this.accessControl.revokeLink(graphId, linkId)
+  }
+
+  /** Add a person by email: a known account is granted at once, anyone else is invited until they sign in. */
+  async shareWithEmail(graphId: string, email: string, role: 'viewer' | 'editor'): Promise<ControlShareWithEmailResult> {
+    return this.accessControl.shareWithEmail(graphId, email, role)
+  }
+
+  async cancelInvitation(graphId: string, invitationId: string): Promise<void> {
+    await this.accessControl.cancelInvitation(graphId, invitationId)
+  }
+
+  /** "Anyone with the link can view": create (or return the live) public link. Revoke it with revokeShareLink. */
+  async createPublicLink(graphId: string, request?: ControlPublicLinkCreate): Promise<ControlPublicLink> {
+    return this.accessControl.createPublicLink(graphId, request)
   }
 
   /** Join through a share link; the gateway grants the link's role to this account. */
