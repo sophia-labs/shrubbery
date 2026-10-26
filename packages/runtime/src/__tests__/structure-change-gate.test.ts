@@ -2,13 +2,16 @@ import { describe, expect, it } from 'vitest'
 import { createHeadingsChangeGate } from '../structure-change-gate.js'
 import { headingsSignature } from '../editor-host.js'
 
+// Ask the gate while the event is still being dispatched, as the real listeners do:
+// a finished event no longer exposes its path.
 function fire(
+  gate: (event: Event) => boolean,
   from: HTMLElement,
   reason: 'mounted' | 'transaction' | 'selection',
   signature: string | undefined,
-): Event {
-  let seen: Event | null = null
-  const listener = (event: Event): void => { seen = event }
+): boolean {
+  let answer: boolean | null = null
+  const listener = (event: Event): void => { answer = gate(event) }
   document.addEventListener('mn-editor-structure-change', listener)
   from.dispatchEvent(new CustomEvent('mn-editor-structure-change', {
     bubbles: true,
@@ -16,7 +19,7 @@ function fire(
     detail: { reason, activeBlockId: null, headingsSignature: signature },
   }))
   document.removeEventListener('mn-editor-structure-change', listener)
-  return seen!
+  return answer!
 }
 
 describe('headingsSignature', () => {
@@ -37,19 +40,19 @@ describe('createHeadingsChangeGate', () => {
     const two = document.createElement('div')
     document.body.append(one, two)
 
-    expect(gate(fire(one, 'mounted', 'A'))).toBe(true)
-    expect(gate(fire(one, 'transaction', 'A'))).toBe(false)
-    expect(gate(fire(one, 'transaction', 'A'))).toBe(false)
-    expect(gate(fire(one, 'transaction', 'AB'))).toBe(true)
-    expect(gate(fire(one, 'transaction', 'AB'))).toBe(false)
+    expect(fire(gate, one, 'mounted', 'A')).toBe(true)
+    expect(fire(gate, one, 'transaction', 'A')).toBe(false)
+    expect(fire(gate, one, 'transaction', 'A')).toBe(false)
+    expect(fire(gate, one, 'transaction', 'AB')).toBe(true)
+    expect(fire(gate, one, 'transaction', 'AB')).toBe(false)
     // Another editor is tracked independently.
-    expect(gate(fire(two, 'transaction', 'AB'))).toBe(true)
-    expect(gate(fire(two, 'transaction', 'AB'))).toBe(false)
+    expect(fire(gate, two, 'transaction', 'AB')).toBe(true)
+    expect(fire(gate, two, 'transaction', 'AB')).toBe(false)
     // Selection never changes headings; mounting always counts.
-    expect(gate(fire(one, 'selection', 'AB'))).toBe(false)
-    expect(gate(fire(one, 'mounted', 'AB'))).toBe(true)
+    expect(fire(gate, one, 'selection', 'AB')).toBe(false)
+    expect(fire(gate, one, 'mounted', 'AB')).toBe(true)
     // No signature (older editor): assume changed.
-    expect(gate(fire(one, 'transaction', undefined))).toBe(true)
+    expect(fire(gate, one, 'transaction', undefined)).toBe(true)
     one.remove()
     two.remove()
   })

@@ -8,7 +8,7 @@ import { localeSource } from '@shrubbery/nucleus'
 import '../mn-sidebar-panel.js'
 import type { MnSidebarPanel, MnSidebarSection } from '../mn-sidebar-panel.js'
 
-type WithDisplay = MnSidebarPanel & { _displaySections(): MnSidebarSection[] }
+type WithDisplay = Omit<MnSidebarPanel, '_displaySections'> & { _displaySections(): MnSidebarSection[] }
 
 function sections(): MnSidebarSection[] {
   return [{ id: 'documents', label: 'Documents', icon: 'file-text', nodes: [
@@ -18,7 +18,7 @@ function sections(): MnSidebarSection[] {
 }
 
 async function mount(initial: readonly MnSidebarSection[]): Promise<WithDisplay> {
-  const el = document.createElement('mn-sidebar-panel') as WithDisplay
+  const el = document.createElement('mn-sidebar-panel') as unknown as WithDisplay
   el.sections = initial
   document.body.appendChild(el)
   await el.updateComplete

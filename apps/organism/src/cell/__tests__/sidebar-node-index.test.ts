@@ -36,7 +36,7 @@ describe('createSidebarNodeIndex', () => {
     for (let i = 0; i < 500; i += 1) index.find(first, i % 2 ? 'a' : 'b')
     expect(index.builds).toBe(1)
     const second = tree()
-    second[0]!.nodes = [{ id: 'only', label: 'Only', kind: 'document' } as SidebarNode]
+    ;(second[0] as unknown as { nodes: SidebarNode[] }).nodes = [{ id: 'only', label: 'Only', kind: 'document' } as SidebarNode]
     expect(index.find(second, 'a')).toBeNull()
     expect(index.find(second, 'only')?.label).toBe('Only')
     expect(index.builds).toBe(2)
