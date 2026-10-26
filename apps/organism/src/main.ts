@@ -87,6 +87,7 @@ import type {
 // Same source the interpreter installs behavior from — imported here, mounted below.
 import { configEdgesToRelations } from './edge-overlay.js'
 import { ensureActiveChatSession } from './cell/active-chat-session.js'
+import { perfCount, perfSpan } from './cell/perf-marks.js'
 import { chatContextRefs, makeChatArtifactPreviewPort, snapshotBefore, workspaceRoleOf } from './cell/chat-workspace.js'
 import {
   callToolFromToolsCall,
@@ -9671,7 +9672,17 @@ function openFilesRoute(target: { readonly folderId?: string | null; readonly ar
 }
 
 /** Render a config into the host and return a one-line provenance summary. */
+/** Instrumented entry to the shell render (`shrubbery:shell.render` measure; free when unobserved). */
 function renderConfig(config: WorkspaceConfig, app: string | undefined): string {
+  const end = perfSpan('shell.render')
+  try {
+    return renderConfigUntimed(config, app)
+  } finally {
+    end()
+  }
+}
+
+function renderConfigUntimed(config: WorkspaceConfig, app: string | undefined): string {
   const claim = ensureEditorClaim()
   const centerPanesVisible = editorClaims.size > 0 || centerPanesController.state.secondary !== null
   const paneEditorHosts = centerPaneEditorHostOptions()
@@ -10185,6 +10196,7 @@ function loadPreset(name: string): void {
 }
 
 function rerenderCurrentSource(): void {
+  perfCount('shell.render.requests')
   reflectWorkspaceLifetimeAndReapply()
   if (sourceSelect.value === 'CELL_LIVE') {
     if (store) renderCellState(store.getState(), configStore?.get())

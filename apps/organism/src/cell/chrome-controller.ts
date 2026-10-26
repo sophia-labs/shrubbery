@@ -278,7 +278,48 @@ export function projectPresence(awareness: unknown): OrganismChromePresencePerso
     Number(b.isSelf) - Number(a.isSelf) || a.name.localeCompare(b.name) || a.id.localeCompare(b.id))
 }
 
+/**
+ * A cheap signature of everything the workspace chrome shows about presence:
+ * who is here (identity, name, colour, kind, session set, whether a session has
+ * a cursor) and, only while a collaborator is being followed, that collaborator's
+ * cursor position (the follow path scrolls to it after each render). Cursor
+ * movement of anyone else, and of the local client, never changes the signature,
+ * so it never costs a shell render.
+ */
+export function presenceSignature(
+  awareness: unknown,
+  followedClientId: string | null = null,
+): string {
+  const people = projectPresence(awareness)
+  const parts: string[] = []
+  for (const person of people) {
+    parts.push([
+      person.id, person.name, person.color, person.humanId ?? '', person.type,
+      person.sessionCount, person.deviceCount, person.isSelf ? 1 : 0,
+      person.sessions.map(session => [
+        session.awarenessClientId, session.clientId, session.deviceId ?? '',
+        session.connectionEpoch, session.hasCursor ? 1 : 0, session.isLocal ? 1 : 0,
+      ].join(',')).join(';'),
+    ].join('|'))
+  }
+  if (followedClientId) {
+    const source = awarenessLike(awareness)
+    const followed = people
+      .flatMap(person => person.sessions)
+      .filter(session => session.clientId === followedClientId && !session.isLocal)
+    for (const session of followed) {
+      const state = source?.getStates().get(Number(session.awarenessClientId))
+      const cursor = state && typeof state === 'object'
+        ? (state as { cursor?: unknown }).cursor
+        : undefined
+      parts.push(`cursor:${session.awarenessClientId}:${JSON.stringify(cursor ?? null)}`)
+    }
+  }
+  return parts.join('\n')
+}
+
 export class OrganismChromeController {
+  private lastPresenceSignature: string | null = null
   private provider: ProviderHandle | null = null
   private awareness: AwarenessLike | null = null
   private unsubscribeLifecycle: (() => void) | null = null
@@ -289,7 +330,17 @@ export class OrganismChromeController {
   private openPresenceId: string | null = null
   private followedPresenceClientId: string | null = null
   private presenceOverflowOpen = false
-  private readonly onAwarenessChange = (): void => this.requestRender()
+  /**
+   * Awareness fires `change` for every caret move, ours included. Render the
+   * shell only when what the chrome shows about presence actually changed.
+   */
+  private readonly onAwarenessChange = (): void => {
+    if (this.destroyed) return
+    const signature = presenceSignature(this.awareness, this.followedPresenceClientId)
+    if (signature === this.lastPresenceSignature) return
+    this.lastPresenceSignature = signature
+    this.requestRender()
+  }
 
   constructor(private readonly options: OrganismChromeControllerOptions) {}
 
@@ -310,6 +361,7 @@ export class OrganismChromeController {
     this.provider = provider
     this.awareness = awarenessLike(provider?.awareness)
     this.awareness?.on('change', this.onAwarenessChange)
+    this.lastPresenceSignature = null
     this.everSynchronized = false
     if (!provider) {
       this.syncState = 'idle'
@@ -346,6 +398,10 @@ export class OrganismChromeController {
       person.sessions.some(session => session.clientId === this.followedPresenceClientId))) {
       this.followedPresenceClientId = null
     }
+    this.lastPresenceSignature = presenceSignature(
+      this.provider?.awareness,
+      this.followedPresenceClientId,
+    )
     const breadcrumbs: WorkspaceChromeBreadcrumb[] = [{
       id: input.graphId,
       label: input.graphTitle?.trim() || input.graphId,
