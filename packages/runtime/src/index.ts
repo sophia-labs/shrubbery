@@ -256,6 +256,7 @@ export {
 export {
   EDITOR_STRUCTURE_CHANGE_EVENT,
   type EditorStructureChangeDetail,
+  headingsSignature,
   EDITOR_HEADING_IN_VIEW_EVENT,
   type EditorHeadingInViewDetail,
 } from './editor-host.js'
@@ -1104,3 +1105,4 @@ export {
   type WbSelectionBar, type WbSelectionBarDeps, type WbSelectionKind, type WbSidebarNode, type WbTarget, type WbTypedObjects,
   type WbTypedObjectsSource, type WbWireChangedDetail, type WbWireMark,
 } from './whiteboard/index.js'
+export { createHeadingsChangeGate } from './structure-change-gate.js'

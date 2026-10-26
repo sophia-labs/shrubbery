@@ -121,6 +121,20 @@ export const EDITOR_STRUCTURE_CHANGE_EVENT = 'mn-editor-structure-change'
 export interface EditorStructureChangeDetail {
   readonly reason: 'mounted' | 'transaction' | 'selection'
   readonly activeBlockId: string | null
+  /**
+   * A cheap fingerprint of this editor's heading list (id, level, text of each).
+   * Consumers that only render headings (the pane-header TOC, the outline panel)
+   * re-render when it differs from the last one they saw from this editor, not on
+   * every keystroke. Computed once per transaction by the heading observer sync.
+   */
+  readonly headingsSignature?: string
+}
+
+/** Fingerprint of a heading outline; changes when a heading is added, removed, moved, re-levelled or retyped. */
+export function headingsSignature(headings: ReadonlyArray<{ id: string; level: number; text: string }>): string {
+  let out = ''
+  for (const h of headings) out += `${h.id}\u0001${h.level}\u0001${h.text}\u0002`
+  return out
 }
 
 /**
@@ -3030,6 +3044,7 @@ export class ShEditorHost extends LitElement {
   private _outlinerGutterUnsub: (() => void) | null = null
   private _headingObserver: IntersectionObserver | null = null
   private _headingObservedIds: string[] = []
+  private _headingsSignature = ''
   private _headingIntersecting = new Map<string, boolean>()
   private _currentHeadingId: string | null = null
   private _highlightedWireBlockId: string | null = null
@@ -3841,12 +3856,26 @@ export class ShEditorHost extends LitElement {
     this.dispatchEvent(new CustomEvent<EditorStructureChangeDetail>(EDITOR_STRUCTURE_CHANGE_EVENT, {
       bubbles: true,
       composed: true,
-      detail: { reason, activeBlockId: this._activeBlockId() },
+      detail: {
+        reason,
+        activeBlockId: this._activeBlockId(),
+        headingsSignature: this._structureHeadingsSignature(reason),
+      },
     }))
     // Same triggers, different channel: this event carries NO content by design
     // (`{reason, activeBlockId}`), so W14.1's subscribers are armed here and
     // read the document themselves when their window fires.
     this._scheduleContentNotify(reason)
+  }
+
+  private _structureHeadingsSignature(reason: EditorStructureChangeDetail['reason']): string {
+    // 'transaction' just ran _syncHeadingObserver, so the cached value is fresh;
+    // 'selection' cannot change headings; only 'mounted' needs a first read.
+    if (reason === 'mounted') {
+      const editor = this._editor
+      this._headingsSignature = editor ? headingsSignature(liveHeadingOutline(editor as never)) : ''
+    }
+    return this._headingsSignature
   }
 
   private _emitHeadingInViewChange(): void {
@@ -3868,10 +3897,12 @@ export class ShEditorHost extends LitElement {
     const editor = this._editor
     const mount = this.renderRoot?.querySelector('.editor-mount') as HTMLElement | null
     if (!editor || !mount) {
+      this._headingsSignature = ''
       this._teardownHeadingObserver()
       return
     }
     const outline = liveHeadingOutline(editor as never)
+    this._headingsSignature = headingsSignature(outline)
     if (this._readerContentsOpen) this._readerHeadings = outline
     const ids = outline.map((h) => h.id)
     const unchanged = ids.length === this._headingObservedIds.length

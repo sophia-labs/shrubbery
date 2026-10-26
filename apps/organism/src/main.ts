@@ -88,6 +88,8 @@ import type {
 import { configEdgesToRelations } from './edge-overlay.js'
 import { ensureActiveChatSession } from './cell/active-chat-session.js'
 import { perfCount, perfSpan } from './cell/perf-marks.js'
+import { projectDocumentStats } from './cell/chrome-controller.js'
+import { createStructureRefresher } from './cell/structure-refresh.js'
 import { chatContextRefs, makeChatArtifactPreviewPort, snapshotBefore, workspaceRoleOf } from './cell/chat-workspace.js'
 import {
   callToolFromToolsCall,
@@ -116,6 +118,7 @@ import {
   makeGrowCell,
   makeGrowTurnDriver,
   EDITOR_STRUCTURE_CHANGE_EVENT,
+  createHeadingsChangeGate,
   EDITOR_HEADING_IN_VIEW_EVENT,
   type LiveHeadingOutlineEntry,
   SALIENCE_RATE_REQUEST_EVENT,
@@ -7591,19 +7594,29 @@ document.addEventListener('pointerdown', (event: PointerEvent) => {
   syncTocPopover()
 })
 
-let graphProjectionRenderTimer: ReturnType<typeof setTimeout> | null = null
+// A structure change is typing, a caret move or a mount. The shell only follows
+// typing through the heading list (TOC trigger, outline panel), the graph panel
+// and the bottom-bar word count, so a full render runs only when the headings
+// changed (or the graph panel is open); otherwise just the count is refreshed.
+const editorHeadingsChanged = createHeadingsChangeGate()
+const structureRefresher = createStructureRefresher({
+  graphWantsRefresh: () => currentGraphPanelViewMode === 'document' && currentRightPanel === 'graph',
+  outlineWantsRefresh: () => currentLeftPanelMode === 'outline',
+  fullRender: () => rerenderCurrentSource(),
+  refreshStats: () => {
+    const bar = hostEl.querySelector('mn-bottom-bar') as { documentStats?: unknown } | null
+    if (!bar) return
+    const editorHost = hostEl.querySelector('#mn-editor-host') as {
+      liveEditor?: { getText(): string } | null
+    } | null
+    bar.documentStats = projectDocumentStats(editorHost?.liveEditor?.getText() ?? null)
+  },
+})
 document.addEventListener(EDITOR_STRUCTURE_CHANGE_EVENT, ((event: CustomEvent<EditorStructureChangeDetail>) => {
-  const graphWantsRefresh = currentGraphPanelViewMode === 'document' && currentRightPanel === 'graph'
-  const outlineWantsRefresh = currentLeftPanelMode === 'outline'
-  // The pane-header TOC trigger appears/disappears with the heading set, so a
-  // structural edit has to reach the header too — not just the outline panel.
-  const tocWantsRefresh = event.detail?.reason !== 'selection'
-  if (!graphWantsRefresh && !outlineWantsRefresh && !tocWantsRefresh) return
-  if (graphProjectionRenderTimer) clearTimeout(graphProjectionRenderTimer)
-  graphProjectionRenderTimer = setTimeout(() => {
-    graphProjectionRenderTimer = null
-    rerenderCurrentSource()
-  }, event.detail?.reason === 'selection' ? 0 : 140)
+  // Ask the gate for every event (it tracks each editor's last heading list),
+  // even those that end up not rendering.
+  const headingsChanged = editorHeadingsChanged(event)
+  structureRefresher.handle(event.detail?.reason ?? 'transaction', headingsChanged)
 }) as EventListener)
 
 // Scroll-position heading highlight — decoupled from EDITOR_STRUCTURE_CHANGE_EVENT
