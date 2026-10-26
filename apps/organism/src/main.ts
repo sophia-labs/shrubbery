@@ -11263,7 +11263,11 @@ function startCellMode(): void {
       pool: roomPoolFor(nextStore.contract.crdt),
       auth: nextStore.contract.auth,
       graphId,
-      onChange: change => followWorkspaceChange(nextStore, graphId, () => change.expectations()),
+      onChange: change => {
+        // The room is the cell's own "something changed" signal: look at :ux:config once now, quietly.
+        void nextStore.nudge?.()
+        return followWorkspaceChange(nextStore, graphId, () => change.expectations())
+      },
       unavailable: error => err(`the tree cannot follow this workspace's changes: ${error instanceof Error ? error.message : String(error)}`),
     })
   }
