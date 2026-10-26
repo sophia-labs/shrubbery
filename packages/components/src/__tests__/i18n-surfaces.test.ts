@@ -12,6 +12,8 @@ import '../mn-sidebar-panel.js'
 import '../wf-studio-shell.js'
 import '../mn-public-shell.js'
 import '../mn-empty-state.js'
+import '../mn-access-manager.js'
+import '../mn-garden-home.js'
 
 beforeEach(() => localeSource.set('ja'))
 afterEach(() => {
@@ -83,6 +85,33 @@ describe('Japanese visible surfaces', () => {
     const root = await mount(element)
     expect(root.innerHTML).toContain('公開ドキュメント')
     expect(root.innerHTML).toContain('ドキュメントがありません')
+  })
+
+  it('renders the Share dialog, its general access and the View only chip in Japanese', async () => {
+    const element = document.createElement('mn-access-manager')
+    element.model = {
+      graphId: 'g', graphTitle: 'Research Garden', currentRole: 'owner', status: 'ready', grants: [],
+      sharing: { status: 'ready', everyone: false, links: [], generalAccess: 'public', publicLinkUrl: `https://garden.example.test/view#shp_${'P'.repeat(43)}` },
+      memberLinkUrl: 'https://garden.example.test/g/g',
+    }
+    const root = await mount(element)
+    expect(root.textContent).toContain('「Research Garden」を共有')
+    expect(root.textContent).toContain('ユーザーを追加')
+    expect(root.textContent).toContain('アクセスできるユーザー')
+    expect(root.textContent).toContain('リンクを知っている全員が閲覧可能（アカウント不要）')
+    expect(root.textContent).toContain('招待リンク')
+    expect(root.textContent).toContain('リンクをコピー')
+
+    const bar = document.createElement('mn-top-bar')
+    bar.access = { graphId: 'g', graphTitle: 'G', currentRole: 'viewer', status: 'ready', grants: [] }
+    expect((await mount(bar)).textContent).toContain('閲覧のみ')
+
+    const home = document.createElement('mn-garden-home')
+    home.status = 'ready'
+    home.workspaces = [{ graphId: 's', title: 'Standard', role: 'viewer', cellState: 'running', ownerName: 'Vera' }]
+    const homeRoot = await mount(home)
+    expect(homeRoot.textContent).toContain('共有アイテム')
+    expect(homeRoot.textContent).toContain('Vera さんが共有')
   })
 
   it('updates an already open surface and re-subscribes after reconnecting', async () => {
