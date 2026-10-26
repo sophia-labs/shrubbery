@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en" data-skin="garden" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Shrubbery Organism — perf lens harness (bench dashboard + trace waterfall)</title>
+    <style>
+      /* Harness chrome speaks the product's token language: perf-lens-main.ts imports @shrubbery/tokens/tokens.css
+         before anything renders, so every var(--mn-*) below is live and follows the skin/theme toggle. */
+      * { box-sizing: border-box; }
+      html, body { width: 100%; margin: 0; background: var(--mn-color-surface-canvas); }
+      body { color: var(--mn-color-text-primary); font-family: var(--mn-font-chrome, system-ui, sans-serif); }
+      #perf-lens-bar {
+        display: flex; gap: var(--mn-space-2, 8px); align-items: center; flex-wrap: wrap;
+        padding: var(--mn-space-2, 8px) var(--mn-space-4, 16px);
+        background: var(--mn-color-surface-chrome); border-bottom: 1px solid var(--mn-color-border-default);
+        font-size: var(--mn-text-xs, 12px);
+      }
+      #perf-lens-bar button {
+        font: inherit; color: inherit; padding: 3px 8px; cursor: pointer;
+        border: 1px solid var(--mn-color-border-strong); border-radius: var(--mn-radius-sm, 4px);
+        background: var(--mn-color-surface-base);
+      }
+      #perf-lens-bar button[data-active="true"] { background: var(--mn-color-accent); color: var(--mn-color-text-on-accent); border-color: var(--mn-color-accent); }
+      #perf-lens-bar .grow { margin-inline-start: auto; opacity: 0.7; }
+      #bench-root { min-height: 60vh; }
+      #otlp-root { padding: 0 var(--mn-space-4, 16px) var(--mn-space-6, 24px); max-width: 1212px; margin: 0 auto; }
+      #otlp-root h2 { font-size: var(--mn-text-sm, 13px); color: var(--mn-color-text-muted); }
+    </style>
+  </head>
+  <body>
+    <div id="perf-lens-bar" role="toolbar" aria-label="Harness: skin, theme, language">
+      <strong>perf lens harness</strong>
+      <span>fixture: perf-ledger.nt in an in-page Oxigraph store (no gardend)</span>
+      <button type="button" data-skin="garden">garden</button>
+      <button type="button" data-skin="emporium">sophia</button>
+      <button type="button" data-skin="observatory">observatory</button>
+      <button type="button" data-theme-toggle="1">dark</button>
+      <button type="button" data-lang="en">English</button>
+      <button type="button" data-lang="ja">日本語</button>
+      <span class="grow" id="perf-lens-status">loading…</span>
+    </div>
+    <div id="bench-root"></div>
+    <div id="otlp-root">
+      <h2>The same waterfall fed by gardend's OTLP JSON lines (GARDEN_OTEL_FILE shape): the second adapter</h2>
+    </div>
+    <script type="module" src="/src/harness/perf-lens-main.ts"></script>
+  </body>
+</html>
