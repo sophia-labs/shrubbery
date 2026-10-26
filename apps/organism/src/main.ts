@@ -479,6 +479,7 @@ import {
   type SidebarRows,
 } from './cell/sidebar-documents.js'
 import { createCoalescedRunner } from './cell/coalesced-runner.js'
+import { createRenderScheduler, type RenderScheduler } from './cell/render-scheduler.js'
 import { resolveSidebarDrop } from './cell/sidebar-drop.js'
 import {
   ownedDocumentIds,
@@ -7593,14 +7594,14 @@ function centerPaneHeadings(): ReadonlyMap<CenterPaneId, readonly LiveHeadingOut
 
 function handleTocToggle(detail: { readonly paneId: CenterPaneId }): void {
   currentTocOpenPaneId = currentTocOpenPaneId === detail.paneId ? null : detail.paneId
-  rerenderCurrentSource()
+  rerenderNow() // a click: answer in this frame, as before
   syncTocPopover()
 }
 
 function handleTocNavigate(detail: { readonly paneId: CenterPaneId; readonly blockId: string }): void {
   editorHostElementForPane(detail.paneId)?.liveEditor?.focusBlock(detail.blockId)
   currentTocOpenPaneId = null
-  rerenderCurrentSource()
+  rerenderNow() // a click: answer in this frame, as before
   syncTocPopover()
 }
 
@@ -7634,7 +7635,7 @@ document.addEventListener('pointerdown', (event: PointerEvent) => {
   )
   if (insideToc) return
   currentTocOpenPaneId = null
-  rerenderCurrentSource()
+  rerenderNow() // a click: answer in this frame, as before
   syncTocPopover()
 })
 
@@ -10252,8 +10253,21 @@ function loadPreset(name: string): void {
   renderFromEditor()
 }
 
+/**
+ * The shell render, folded: every call marks the shell dirty and one render runs in the next animation
+ * frame (see cell/render-scheduler.ts). ~190 callers keep this name; the few that read the DOM straight
+ * after asking use `rerenderNow()`.
+ */
 function rerenderCurrentSource(): void {
-  perfCount('shell.render.requests')
+  renderScheduler().request()
+}
+
+/** Render the shell now (and drop any pending render). For callers that read the DOM straight after. */
+function rerenderNow(): void {
+  renderScheduler().renderNow()
+}
+
+function renderCurrentSourceNow(): void {
   reflectWorkspaceLifetimeAndReapply()
   if (sourceSelect.value === 'CELL_LIVE') {
     if (store) renderCellState(store.getState(), configStore?.get())
@@ -10262,6 +10276,15 @@ function rerenderCurrentSource(): void {
   } else {
     renderFromEditor()
   }
+}
+
+// Created on first use: function declarations are hoisted, a `const` here would not be.
+let renderSchedulerInstance: RenderScheduler | null = null
+function renderScheduler(): RenderScheduler {
+  renderSchedulerInstance ??= createRenderScheduler(renderCurrentSourceNow, {
+    onRequest: coalesced => perfCount(coalesced ? 'shell.render.coalesced' : 'shell.render.requests'),
+  })
+  return renderSchedulerInstance
 }
 
 localeSource.subscribe(() => rerenderCurrentSource())
