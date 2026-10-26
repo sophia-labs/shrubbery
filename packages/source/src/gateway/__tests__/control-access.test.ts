@@ -1,5 +1,14 @@
 import { describe, expect, it, vi } from 'vitest'
-import { accessOwnerFromDirectory, createControlAccessClient, shareLinkUrl, shareTokenFromHash, type ControlAccessRequest } from '../control-access.js'
+import {
+  accessEmail,
+  accessOwnerFromDirectory,
+  createControlAccessClient,
+  publicTokenFromHash,
+  publicViewUrl,
+  shareLinkUrl,
+  shareTokenFromHash,
+  type ControlAccessRequest,
+} from '../control-access.js'
 
 const owner = 'user:owner'
 const row = { graph: { owner, graphId: 'notes' }, generation: 1, principal: 'user:reader', role: 'viewer', grantedBy: owner, grantedAtMs: 1788678000000 }
@@ -144,5 +153,112 @@ describe('graph sharing contract', () => {
     expect(shareTokenFromHash(`#share=${token}`)).toBe(token)
     expect(shareTokenFromHash('#share=garbage')).toBeNull()
     expect(shareTokenFromHash('')).toBeNull()
+  })
+})
+
+describe('sharing by email, invitations and the public link', () => {
+  const graph = { owner, graphId: 'notes' }
+  const publicToken = `shp_${'P'.repeat(43)}`
+  const publicId = 'c'.repeat(64)
+  const invitationRow = { invitationId: 'inv-1', graph, generation: 1, email: 'ada@example.test', role: 'viewer', invitedBy: owner, createdAtMs: 1788678000000, acceptedBy: null, acceptedAtMs: null }
+
+  it('lists people with their names, tolerating the everyone and public-link rows', async () => {
+    const { client } = setup(r => envelope(r, r.params.name === 'manage_access'
+      ? [row, { ...row, principal: 'everyone:authenticated' }, { ...row, principal: `share:${publicId}` }]
+      : {
+          graph, generation: 1,
+          people: [
+            { ...row, person: { name: 'Ada Reader', email: 'ada@example.test' } },
+            { ...row, principal: 'user:quiet', person: {} },
+            { ...row, principal: 'everyone:authenticated' },
+          ],
+          everyone: null,
+          links: [],
+          invitations: [invitationRow],
+          publicLink: { linkId: publicId, token: publicToken, role: 'viewer', createdAtMs: 1788678000000, live: true },
+        }))
+    await expect(client.list('notes')).resolves.toEqual([
+      { userId: 'user:reader', role: 'viewer', grantedAt: new Date(1788678000000).toISOString(), grantedBy: owner },
+    ])
+    const sharing = await client.sharing('notes')
+    expect(sharing.people.map(person => [person.userId, person.person])).toEqual([
+      ['user:reader', { name: 'Ada Reader', email: 'ada@example.test' }],
+      ['user:quiet', { name: null, email: null }],
+    ])
+    expect(sharing.invitations).toEqual([{
+      invitationId: 'inv-1', email: 'ada@example.test', role: 'viewer', invitedBy: owner,
+      createdAt: new Date(1788678000000).toISOString(), expiresAt: null,
+    }])
+    expect(sharing.publicLink).toEqual({
+      linkId: publicId, token: publicToken, role: 'viewer', createdAt: new Date(1788678000000).toISOString(),
+      expiresAt: null, label: null, live: true,
+    })
+  })
+
+  it('reads an older sharing view without people, invitations or a public link', async () => {
+    const { client } = setup(r => envelope(r, { graph, generation: 1, everyone: null, links: [] }))
+    await expect(client.sharing('notes')).resolves.toMatchObject({ people: [], invitations: [], publicLink: null })
+  })
+
+  it.each([
+    ['an editor public link', { publicLink: { linkId: publicId, token: publicToken, role: 'editor', createdAtMs: 1 } }],
+    ['a public link with a join token', { publicLink: { linkId: publicId, token: `shr_${'B'.repeat(43)}`, role: 'viewer', createdAtMs: 1 } }],
+    ['a foreign invitation', { invitations: [{ ...invitationRow, graph: { owner, graphId: 'other' } }] }],
+    ['duplicate invitations', { invitations: [invitationRow, invitationRow] }],
+  ])('refuses a sharing view with %s', async (_name, extra) => {
+    const { client } = setup(r => envelope(r, { graph, generation: 1, everyone: null, links: [], ...extra }))
+    await expect(client.sharing('notes')).rejects.toBeInstanceOf(Error)
+  })
+
+  it('shares by email: a known account is granted with its name, anyone else is invited', async () => {
+    const granted = setup(r => envelope(r, { outcome: 'granted', grant: { ...row, role: 'editor' }, person: { name: 'Ada Reader', email: 'ada@example.test' } }))
+    await expect(granted.client.shareWithEmail('notes', '  Ada@Example.TEST ', 'editor')).resolves.toEqual({
+      outcome: 'granted',
+      grant: { userId: 'user:reader', role: 'editor', grantedAt: new Date(1788678000000).toISOString(), grantedBy: owner },
+      person: { name: 'Ada Reader', email: 'ada@example.test' },
+    })
+    expect(granted.request.mock.calls[0][0].params).toEqual({
+      name: 'share_with_email', arguments: { owner, graphId: 'notes', email: 'ada@example.test', role: 'editor' },
+    })
+
+    const invited = setup(r => envelope(r, { outcome: 'invited', invitation: invitationRow }))
+    await expect(invited.client.shareWithEmail('notes', 'ada@example.test', 'viewer')).resolves.toMatchObject({
+      outcome: 'invited', invitation: { invitationId: 'inv-1', email: 'ada@example.test', role: 'viewer' },
+    })
+
+    const mismatched = setup(r => envelope(r, { outcome: 'invited', invitation: { ...invitationRow, role: 'editor' } }))
+    await expect(mismatched.client.shareWithEmail('notes', 'ada@example.test', 'viewer')).rejects.toThrow(/acknowledgement/)
+    const neither = setup(r => envelope(r, { outcome: 'pending' }))
+    await expect(neither.client.shareWithEmail('notes', 'ada@example.test', 'viewer')).rejects.toThrow(/neither/)
+
+    const refused = setup(r => envelope(r, {}))
+    await expect(refused.client.shareWithEmail('notes', 'not an email', 'viewer')).rejects.toThrow(/email address/)
+    expect(refused.request).not.toHaveBeenCalled()
+  })
+
+  it('cancels an invitation by id and creates the public link as a Viewer public audience', async () => {
+    const { client, request } = setup(r => envelope(r, r.params.name === 'cancel_graph_invitation'
+      ? { cancelled: true }
+      : { linkId: publicId, graph, generation: 1, role: 'viewer', createdBy: owner, createdAtMs: 1788678000000, token: publicToken }))
+    await client.cancelInvitation('notes', ' inv-1 ')
+    const link = await client.createPublicLink('notes')
+    expect(link).toMatchObject({ linkId: publicId, token: publicToken, role: 'viewer', live: true })
+    expect(request.mock.calls.map(call => call[0].params)).toEqual([
+      { name: 'cancel_graph_invitation', arguments: { owner, graphId: 'notes', invitationId: 'inv-1' } },
+      { name: 'manage_share_links', arguments: { owner, graphId: 'notes', action: 'create', audience: 'public', role: 'viewer' } },
+    ])
+    await expect(client.cancelInvitation('notes', '  ')).rejects.toThrow(/invalid/)
+    expect(request).toHaveBeenCalledTimes(2)
+  })
+
+  it('builds and parses /view public URLs and normalizes emails', () => {
+    expect(publicViewUrl('https://garden.sophia-labs.com/', publicToken)).toBe(`https://garden.sophia-labs.com/view#${publicToken}`)
+    expect(publicTokenFromHash(`#${publicToken}`)).toBe(publicToken)
+    expect(publicTokenFromHash(`#token=${publicToken}`)).toBe(publicToken)
+    expect(publicTokenFromHash(`#shr_${'B'.repeat(43)}`)).toBeNull()
+    expect(publicTokenFromHash('#shp_short')).toBeNull()
+    expect(publicTokenFromHash('')).toBeNull()
+    expect(accessEmail(' Ada@Example.Test ')).toBe('ada@example.test')
+    expect(() => accessEmail('user:reader')).toThrow()
   })
 })

@@ -4,10 +4,12 @@
  *
  * Verified gateway facts (gateway-auth scout, platform-next authz.rs):
  * GET/HEAD/OPTIONS on /g/{id} need Viewer; POST is Viewer-eligible only on
- * the exact allowlist including /api/sparql/query (authz.rs:37); POST
- * /g/{id}/mcp uniformly requires Editor today (the SEAM comment at
- * authz.rs:68-72); anonymous gets /health + signed image URLs only and
- * never spawns cells.
+ * the exact allowlist including /api/sparql/query (authz.rs:37). The
+ * canonical route POST /o/{owner}/g/{id}/mcp admits Viewers and defers to
+ * gardend, which filters `tools/list` and refuses write tools by role
+ * (graph_routes_v1.rs); only the legacy /g/{id}/mcp route still requires
+ * Editor. Anonymous gets /health + signed image URLs only and never spawns
+ * cells.
  *
  * createHostedGatewaySource({ endpoint, owner, graph, auth, readPath = 'sparql',
  * cellQueryRoute? }):
@@ -29,9 +31,9 @@
  *     honest 'protocol' error, never a silent misparse.
  *   - readPath 'mcp' — explicit opt-in: rdf_dump/sparql_query via
  *     POST {graphBaseUrl}/mcp (GatewayTransport.toolsCall). Richest read
- *     (native nt, true named-graph dump) but costs Editor today. For
- *     authoring/operator deployments that knowingly hold an Editor
- *     credential.
+ *     (native nt, true named-graph dump). On the canonical owner route a
+ *     Viewer may call the read tools; the legacy /g/{id}/mcp route still
+ *     costs Editor.
  *
  * Every deployment shape defaults 'sparql'; escalation to 'mcp' is always an
  * explicit boot-config act. describe() returns the package-level
