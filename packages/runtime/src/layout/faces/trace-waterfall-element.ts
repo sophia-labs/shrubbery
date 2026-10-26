@@ -546,7 +546,7 @@ export class ShTraceWaterfall extends LitElement {
         </header>
         ${forest.spanCount === 0
           ? html`<div class="empty">${t('trace.empty')}</div>`
-          : html`${this.mode === 'icicle' ? this.renderIcicle(forest) : this.renderWaterfall(forest)}${this.renderDetail(forest)}${this.renderSelfTop(forest)}`}
+          : html`<div class="trace-body">${this.mode === 'icicle' ? this.renderIcicle(forest) : this.renderWaterfall(forest)}${this.renderDetail(forest)}${this.renderSelfTop(forest)}</div>`}
       </section>
     `
   }

@@ -636,9 +636,12 @@ export class ShBenchDashboard extends LitElement {
                 <th class="num">${t('bench.col.fsyncs')}</th>
               </tr>
             </thead>
-            <tbody>${rows.map((row, i) => html`${row.family && row.family !== rows[i - 1]?.family
-              ? html`<tr class="family" data-family=${row.family}><th colspan="9" scope="rowgroup">${row.family}</th></tr>`
-              : nothing}${this.renderCompareRow(row)}`)}</tbody>
+            <tbody>${rows.flatMap((row, i) => [
+              ...(row.family && row.family !== rows[i - 1]?.family
+                ? [html`<tr class="family" data-family=${row.family}><th colspan="9" scope="rowgroup">${row.family}</th></tr>`]
+                : []),
+              this.renderCompareRow(row),
+            ])}</tbody>
           </table>
         </div>
         <span class="hint">${t('bench.hint')}</span>
@@ -751,7 +754,7 @@ export class ShBenchDashboard extends LitElement {
             ? html`<div class="status" data-tone="error" role="alert">${t('bench.error', { message: this.errorMessage })}</div>`
             : this.status === 'empty'
               ? html`<div class="status">${t('bench.empty')}</div>`
-              : html`${this.renderRuns()}${this.renderCompare()}${this.renderChart()}${this.renderTrace()}`}
+              : html`<div class="body">${this.renderRuns()}${this.renderCompare()}${this.renderChart()}${this.renderTrace()}</div>`}
       </div>
     `
   }
