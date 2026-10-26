@@ -171,6 +171,45 @@ describe('room mirror: sync, local reads, honest fall-through', () => {
     expect(result.rows[0]!.status!.value).toBe('done')
   })
 
+  it('a quiet resync that dumps identical text rebuilds nothing, writes nothing and announces nothing; a changed dump still does all three', async () => {
+    class CountingStorage extends MemoryRoomMirrorStorage {
+      writes = 0
+      override async write(...args: Parameters<MemoryRoomMirrorStorage['write']>): Promise<void> {
+        this.writes += 1
+        return super.write(...args)
+      }
+    }
+    const storage = new CountingStorage()
+    const { mirror, states, setStatus } = fixture({ storage })
+    await mirror.ensureOpen(GRAPH)
+    const service = mirror.queryService(GRAPH)
+    const writes = storage.writes
+    const announced = states.length
+
+    await mirror.sync(GRAPH, undefined, { quiet: true })
+    await mirror.sync(GRAPH, undefined, { quiet: true })
+    expect(states.length, 'no syncing/ready flip for an unchanged resync').toBe(announced)
+    expect(storage.writes, 'no IndexedDB rewrite for an unchanged resync').toBe(writes)
+    expect(mirror.queryService(GRAPH), 'the same store keeps serving').toBe(service)
+    expect(mirror.state(GRAPH).status).toBe('ready')
+
+    setStatus('done')
+    await mirror.sync(GRAPH, undefined, { quiet: true })
+    expect(storage.writes).toBeGreaterThan(writes)
+    expect(states.length).toBeGreaterThan(announced)
+    const result = await mirror.queryService(GRAPH)!.run(GRAPH, `SELECT ?status WHERE { GRAPH <${CUENTAS}> { <${BEAD}> <${CTA}status> ?status } }`)
+    if (result.resultKind !== 'bindings') throw new Error('unreachable')
+    expect(result.rows[0]!.status!.value).toBe('done')
+  })
+
+  it('an explicit (non-quiet) sync still announces syncing then ready', async () => {
+    const { mirror, states } = fixture()
+    await mirror.ensureOpen(GRAPH)
+    const before = states.length
+    await mirror.sync(GRAPH)
+    expect(states.slice(before).map((state) => state.status)).toEqual(['syncing', 'ready'])
+  })
+
   it('restores from storage on the next open, marked as restored, before the live dump lands', async () => {
     const storage = new MemoryRoomMirrorStorage()
     const first = fixture({ storage })
