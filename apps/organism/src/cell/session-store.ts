@@ -271,7 +271,15 @@ export async function loadConfigFromCell(
   graphId: string,
 ): Promise<CellConfigRead> {
   const env = await contract.restConcrete.dumpUxConfig(graphId)
-  const nt = env.data ?? ''
+  return readConfigFromNt(graphId, env.data ?? '')
+}
+
+/**
+ * The parse-and-validate half of {@link loadConfigFromCell}, on the dump text
+ * alone. Split out so a poll can compare the text with the one it already holds
+ * BEFORE paying for it.
+ */
+export function readConfigFromNt(graphId: string, nt: string): CellConfigRead {
   let triples: ReturnType<typeof parseNT>
   try {
     triples = parseNT(nt) // parseNT skips '#' header lines itself
@@ -354,6 +362,12 @@ export interface SessionStore<C extends CellContract = GardendContract> extends 
   /** The live contract the store reads through — the shell uses it to assemble the
    *  EditorServices + open the CRDT provider for the live editor (the editor seam). */
   readonly contract: C
+  /**
+   * Re-read the config now, quietly (poll semantics: no `loading` flash, no
+   * parsing when the dump text is unchanged). The workspace room's updates call
+   * this: a change there is the best signal the cell gives that something moved.
+   */
+  nudge?(): Promise<void>
   /** The graph this store is scoped to. */
   readonly graphId: string
 }
@@ -387,6 +401,7 @@ export function createSessionStore<C extends CellContract>(opts: SessionStoreOpt
   let state: SessionStoreState = { status: 'idle', read: null, error: null }
   const subs = new Set<(s: SessionStoreState) => void>()
   let pollTimer: ReturnType<typeof setInterval> | null = null
+  let stopVisibilityWatch: (() => void) | null = null
   type RefreshRequest = { readonly source: 'manual' | 'poll'; readonly previous: SessionStoreState }
   let latestRefresh: RefreshRequest | null = null
   const inFlight = new Set<RefreshRequest>()
@@ -471,8 +486,24 @@ export function createSessionStore<C extends CellContract>(opts: SessionStoreOpt
       // `set()` comparing answers, the `loading` hop would otherwise be the one
       // change that is real on every single tick.
       if (source !== 'poll') set({ status: 'loading', read: state.read, error: null })
-      const read = await loadConfigFromCell(contract, graphId)
+      const env = await contract.restConcrete.dumpUxConfig(graphId)
       if (!isCurrentRefresh()) return
+      const nt = env.data ?? ''
+      // A poll that finds the dump text it already holds does no parsing,
+      // validating or publishing: the answer cannot differ. (Compare the dump
+      // text, never the transport envelope: its request id changes on every
+      // call.) Only a live, ready read short-circuits; a state restored from
+      // IndexedDB or an error must still go through the full path.
+      if (
+        source === 'poll'
+        && state.status === 'ready'
+        && state.read?.activationSource === 'live'
+        && state.read.nt === nt
+      ) {
+        state = { ...state, read: { ...state.read, readAt: Date.now() } }
+        return
+      }
+      const read = readConfigFromNt(graphId, nt)
       // Only persist a config that actually differs. The cache is a copy of an
       // answer, and rewriting an unchanged answer every 3s is the IndexedDB
       // transaction churn the profiler found.
@@ -539,6 +570,8 @@ export function createSessionStore<C extends CellContract>(opts: SessionStoreOpt
       clearInterval(pollTimer)
       pollTimer = null
     }
+    stopVisibilityWatch?.()
+    stopVisibilityWatch = null
     // Stop automatic publication as well as future ticks. Keep the last
     // actual state, and leave an explicitly requested manual refresh alone.
     if (latestRefresh?.source === 'poll' && inFlight.has(latestRefresh)) {
@@ -550,7 +583,21 @@ export function createSessionStore<C extends CellContract>(opts: SessionStoreOpt
 
   const startPoll = (intervalMs: number): (() => void) => {
     stopPoll()
-    pollTimer = setInterval(() => void refresh('poll'), intervalMs)
+    const hidden = (): boolean =>
+      typeof document !== 'undefined' && document.visibilityState === 'hidden'
+    // A page nobody can see has no use for a config poll (WKWebView keeps
+    // timers running in the background). Skip ticks while hidden and make up
+    // for it with one read the moment the page is visible again.
+    pollTimer = setInterval(() => {
+      if (!hidden()) void refresh('poll')
+    }, intervalMs)
+    if (typeof document !== 'undefined' && typeof document.addEventListener === 'function') {
+      const onVisibility = (): void => {
+        if (!hidden()) void refresh('poll')
+      }
+      document.addEventListener('visibilitychange', onVisibility)
+      stopVisibilityWatch = () => document.removeEventListener('visibilitychange', onVisibility)
+    }
     return stopPoll
   }
 
@@ -562,6 +609,7 @@ export function createSessionStore<C extends CellContract>(opts: SessionStoreOpt
       return () => subs.delete(cb)
     },
     refresh,
+    nudge: () => refresh('poll'),
     startPoll,
     stopPoll,
     contract,

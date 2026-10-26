@@ -27,7 +27,7 @@ const shell = (): WorkspaceConfig => ({ id: 'AgentNotebookWorkspace', label: 'Ag
 
 describe('actual main notebook caller composition', () => {
   it('selects the temporary view before fragment discovery, with every explicit center route represented', () => {
-    const render = source.statements.find((node): node is ts.FunctionDeclaration => ts.isFunctionDeclaration(node) && node.name?.text === 'renderConfig')!
+    const render = source.statements.find((node): node is ts.FunctionDeclaration => ts.isFunctionDeclaration(node) && node.name?.text === 'renderConfigUntimed')!
     const wrapper = callsNamed(render, 'withNotebookWorkspaceShell')
     const fragments = callsNamed(render, 'currentFragmentOptions')
     expect(wrapper).toHaveLength(1)

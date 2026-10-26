@@ -353,6 +353,10 @@ function envelopeFromLocalQuery(store: InstanceType<typeof Oxigraph.Store>, spar
   return { resultType: 'graph', variables: [], rows: [], boolean: null, graph, quadCount: store.size, data: graph, mediaType: 'application/n-quads' }
 }
 
+function pageHidden(): boolean {
+  return typeof document !== 'undefined' && document.visibilityState === 'hidden'
+}
+
 export class RoomMirror {
   private readonly entries = new Map<string, RoomEntry>()
   private readonly storage: RoomMirrorStorage
@@ -445,33 +449,71 @@ export class RoomMirror {
       await this.sync(graphId)
       if (!entry.timer) {
         const pollMs = this.options.pollMs ?? ROOM_MIRROR_POLL_MS
-        if (pollMs > 0) entry.timer = setInterval(() => { void this.sync(graphId) }, pollMs)
+        // The 60 s resync is the SAFETY NET, not the freshness path: own writes go through
+        // touched(), but other writers (agents, other tabs) give this page no signal for the
+        // room's projection graphs, so without a poll a foreign write would never appear.
+        // It is quiet (no `syncing` flip), skips while the page is hidden, and an unchanged
+        // answer rebuilds nothing, writes nothing and renders nothing.
+        if (pollMs > 0) {
+          entry.timer = setInterval(() => {
+            if (!pageHidden()) void this.sync(graphId, undefined, { quiet: true })
+          }, pollMs)
+          this.watchVisibility(pollMs)
+        }
       }
     })()
     return entry.opening
   }
 
   /** Dump every room graph (or just `graphIris`) from the cell and swap the store. Concurrent calls coalesce. */
-  sync(graphId: string, graphIris?: readonly string[]): Promise<void> {
+  sync(graphId: string, graphIris?: readonly string[], options: { readonly quiet?: boolean } = {}): Promise<void> {
     const entry = this.entry(graphId)
     if (entry.syncing) return entry.syncing
-    entry.status = 'syncing'
-    entry.error = null
-    this.publish(entry)
+    // A quiet sync (the background resync) of a mirror that already has a store does not announce
+    // itself: the answer it holds stays valid until the dump says otherwise.
+    const quiet = options.quiet === true && entry.store !== null && entry.status === 'ready'
+    if (!quiet) {
+      entry.status = 'syncing'
+      entry.error = null
+      this.publish(entry)
+    }
     const started = this.now()
     entry.syncing = (async () => {
       try {
         await prepareOxigraph()
         const userId = this.options.userId()
         const targets = graphIris ?? this.graphIrisFor(graphId)
+        let changed = false
         const dumped = await Promise.all(targets.map(async (graphIri) => {
           const envelope = await this.options.dumper.dump(graphId, graphIri)
           const nt = typeof envelope?.data === 'string' ? envelope.data : ''
+          const previous = entry.records.get(graphIri)
+          // Same text as the record we hold: reuse its count and digest (no split, no hash).
+          if (previous && previous.nt === nt) return { ...previous, syncedAt: this.now() }
+          changed = true
           const record: RoomMirrorGraphRecord = { graphIri, nt, quadCount: countTriples(nt), syncedAt: this.now(), digest: contentDigest(nt) }
           return record
         }))
         const next = new Map(entry.records)
         for (const record of dumped) next.set(record.graphIri, record)
+        if (!changed && entry.store && next.size === entry.records.size) {
+          // Nothing moved: keep the store and the stored copies. Only the bookkeeping changes.
+          const wasRestored = entry.restored
+          const wasStatus = entry.status
+          entry.records = next
+          entry.status = 'ready'
+          entry.error = null
+          entry.restored = false
+          entry.syncedAt = Math.max(...[...next.values()].map((record) => record.syncedAt), 0) || null
+          entry.lastSyncMs = this.now() - started
+          // Say so only if the observable state moved (restored copy confirmed live, or a `syncing` flip to undo).
+          if (wasRestored || wasStatus !== 'ready') this.publish(entry)
+          if (wasRestored) {
+            // The restored copy is now confirmed; the stored records only need their fresh timestamps once.
+            for (const record of dumped) await this.storage.write(userId, graphId, record).catch(() => {})
+          }
+          return
+        }
         await this.install(entry, next, { restored: false, syncMs: this.now() - started })
         for (const record of dumped) await this.storage.write(userId, this.graphKey(graphId), record).catch(() => {})
       } catch (error) {
@@ -483,6 +525,23 @@ export class RoomMirror {
       }
     })()
     return entry.syncing
+  }
+
+  private visibilityOff: (() => void) | null = null
+
+  /** One listener for the mirror: on becoming visible, catch up any entry whose last sync is older than a poll period. */
+  private watchVisibility(pollMs: number): void {
+    if (this.visibilityOff || typeof document === 'undefined' || typeof document.addEventListener !== 'function') return
+    const onVisible = (): void => {
+      if (pageHidden()) return
+      for (const entry of this.entries.values()) {
+        if (!entry.timer) continue
+        if (entry.syncedAt !== null && this.now() - entry.syncedAt < pollMs) continue
+        void this.sync(entry.graphId, undefined, { quiet: true })
+      }
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    this.visibilityOff = () => document.removeEventListener('visibilitychange', onVisible)
   }
 
   private async install(entry: RoomEntry, records: Map<string, RoomMirrorGraphRecord>, meta: { readonly restored: boolean; readonly syncMs: number | null }): Promise<void> {
@@ -520,6 +579,8 @@ export class RoomMirror {
   /** Stop every poll and drop every store — the session that owned this mirror is over. Storage is kept for the next visit. */
   closeAll(): void {
     for (const graphId of [...this.entries.keys()]) this.close(graphId)
+    this.visibilityOff?.()
+    this.visibilityOff = null
   }
 
   /**

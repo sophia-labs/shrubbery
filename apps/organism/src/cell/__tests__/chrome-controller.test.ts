@@ -250,11 +250,89 @@ describe('OrganismChromeController', () => {
     expect(controller.snapshot({ graphId: 'graph' }).syncState).toBe('disconnected')
 
     const calls = requestRender.mock.calls.length
+    secondAwareness.states.set(3, { user: { name: 'Third', color: '#333333' } })
     secondAwareness.emit()
     await Promise.resolve()
     expect(requestRender).toHaveBeenCalledTimes(calls + 1)
     controller.destroy()
     expect(secondAwareness.listeners.size).toBe(0)
+  })
+
+  it('renders for presence changes but not for cursor-only moves, ours or anyone else', async () => {
+    const requestRender = vi.fn()
+    const awareness = new TestAwareness()
+    awareness.clientID = 1
+    const controller = new OrganismChromeController({ runtimeMode: 'local', requestRender })
+    awareness.states.set(1, { user: { name: 'Me', color: '#111111' } })
+    awareness.states.set(2, { user: { name: 'Ada', color: '#222222' } })
+    controller.bindProvider(provider(awareness))
+    controller.snapshot({ graphId: 'graph' })
+    await Promise.resolve()
+    requestRender.mockClear()
+
+    // Our own caret appears: hasCursor flips once for the local session.
+    awareness.states.set(1, { user: { name: 'Me', color: '#111111' }, cursor: { anchor: 1, head: 1 } })
+    awareness.emit()
+    await Promise.resolve()
+    expect(requestRender).toHaveBeenCalledTimes(1)
+    controller.snapshot({ graphId: 'graph' })
+    requestRender.mockClear()
+
+    // 200 keystrokes: only the caret position moves.
+    for (let i = 2; i < 202; i += 1) {
+      awareness.states.set(1, { user: { name: 'Me', color: '#111111' }, cursor: { anchor: i, head: i } })
+      awareness.emit()
+    }
+    await Promise.resolve()
+    expect(requestRender).not.toHaveBeenCalled()
+
+    // A join renders; a rename renders; a mere cursor move of Ada does not.
+    awareness.states.set(3, { user: { name: 'Zed', color: '#333333' } })
+    awareness.emit()
+    await Promise.resolve()
+    expect(requestRender).toHaveBeenCalledTimes(1)
+    controller.snapshot({ graphId: 'graph' })
+    awareness.states.set(3, { user: { name: 'Zedd', color: '#333333' } })
+    awareness.emit()
+    await Promise.resolve()
+    expect(requestRender).toHaveBeenCalledTimes(2)
+    controller.snapshot({ graphId: 'graph' })
+    awareness.states.set(2, { user: { name: 'Ada', color: '#222222' }, cursor: { anchor: 3, head: 3 } })
+    awareness.emit()
+    await Promise.resolve()
+    expect(requestRender).toHaveBeenCalledTimes(3) // Ada's first cursor flips hasCursor
+    controller.snapshot({ graphId: 'graph' })
+    awareness.states.set(2, { user: { name: 'Ada', color: '#222222' }, cursor: { anchor: 9, head: 9 } })
+    awareness.emit()
+    await Promise.resolve()
+    expect(requestRender).toHaveBeenCalledTimes(3)
+
+    // Leaving renders.
+    awareness.states.delete(3)
+    awareness.emit()
+    await Promise.resolve()
+    expect(requestRender).toHaveBeenCalledTimes(4)
+    controller.destroy()
+  })
+
+  it('keeps rendering on the followed collaborator cursor so the follow reveal tracks it', async () => {
+    const requestRender = vi.fn()
+    const awareness = new TestAwareness()
+    awareness.clientID = 1
+    const controller = new OrganismChromeController({ runtimeMode: 'local', requestRender })
+    awareness.states.set(1, { user: { name: 'Me', color: '#111111' } })
+    awareness.states.set(2, { user: { name: 'Ada', color: '#222222' }, cursor: { anchor: 1, head: 1 } })
+    controller.bindProvider(provider(awareness))
+    controller.setFollowedPresenceClient('2', true)
+    controller.snapshot({ graphId: 'graph' })
+    await Promise.resolve()
+    requestRender.mockClear()
+
+    awareness.states.set(2, { user: { name: 'Ada', color: '#222222' }, cursor: { anchor: 40, head: 40 } })
+    awareness.emit()
+    await Promise.resolve()
+    expect(requestRender).toHaveBeenCalledTimes(1)
+    controller.destroy()
   })
 
   it('controls inspector/follow state and only updates the real local human profile', async () => {

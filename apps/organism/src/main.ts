@@ -87,6 +87,9 @@ import type {
 // Same source the interpreter installs behavior from — imported here, mounted below.
 import { configEdgesToRelations } from './edge-overlay.js'
 import { ensureActiveChatSession } from './cell/active-chat-session.js'
+import { perfCount, perfSpan } from './cell/perf-marks.js'
+import { projectDocumentStats } from './cell/chrome-controller.js'
+import { createStructureRefresher } from './cell/structure-refresh.js'
 import { chatContextRefs, makeChatArtifactPreviewPort, snapshotBefore, workspaceRoleOf } from './cell/chat-workspace.js'
 import {
   callToolFromToolsCall,
@@ -115,6 +118,7 @@ import {
   makeGrowCell,
   makeGrowTurnDriver,
   EDITOR_STRUCTURE_CHANGE_EVENT,
+  createHeadingsChangeGate,
   EDITOR_HEADING_IN_VIEW_EVENT,
   type LiveHeadingOutlineEntry,
   SALIENCE_RATE_REQUEST_EVENT,
@@ -468,10 +472,15 @@ import {
   handleRegistryDocumentShortcut,
 } from './cell/keyboard-shortcuts.js'
 import {
-  loadSidebarSections,
+  loadSidebarRows,
   sidebarFolderMoveExcludeIds,
   sidebarFolderOptionsFromSections,
+  sidebarSectionsFromRows,
+  type SidebarRows,
 } from './cell/sidebar-documents.js'
+import { createSidebarNodeIndex } from './cell/sidebar-node-index.js'
+import { createCoalescedRunner } from './cell/coalesced-runner.js'
+import { createRenderScheduler, type RenderScheduler } from './cell/render-scheduler.js'
 import { resolveSidebarDrop } from './cell/sidebar-drop.js'
 import {
   ownedDocumentIds,
@@ -2896,20 +2905,10 @@ function excalidrawWorkspaceNodes(): readonly ExcalidrawWorkspaceNode[] {
   return nodes
 }
 
+const sidebarNodeIndex = createSidebarNodeIndex<SidebarNode>()
+
 function sidebarNodeById(id: string): SidebarNode | null {
-  const find = (entries: readonly SidebarNode[]): SidebarNode | null => {
-    for (const node of entries) {
-      if (node.id === id) return node
-      const nested = node.children?.length ? find(node.children) : null
-      if (nested) return nested
-    }
-    return null
-  }
-  for (const section of currentSidebarSections) {
-    const node = find(section.nodes ?? [])
-    if (node) return node
-  }
-  return null
+  return sidebarNodeIndex.find(currentSidebarSections, id)
 }
 
 if (import.meta.env.DEV) {
@@ -5297,11 +5296,43 @@ function sidebarSectionsWithParkedWork(sections: readonly SidebarSection[], grap
   return parked ? [...sections, parked] : sections
 }
 
-async function refreshSidebarSections(): Promise<boolean> {
+/**
+ * The rows the last sidebar read returned, with the store and graph they belong to. Opening a document
+ * only moves the highlight, which needs no query: the tree is rebuilt from these rows.
+ */
+let sidebarRowsCache: { readonly store: OrganismSessionStore; readonly graphId: string; readonly rows: SidebarRows } | null = null
+
+function commitSidebarSections(sections: readonly SidebarSection[], graphId: string): void {
+  // Document-plane pending/parked decoration (master §3 Slice 4). A pure
+  // overlay — folders/artifacts/tags pass through unchanged. Every commit site
+  // decorates, or every sidebar mutation would silently erase every badge.
+  currentSidebarSections = sidebarSectionsWithParkedWork(
+    decorateSidebarSectionsWithSourceState(sections, currentSourceOutboxRecords()),
+    graphId,
+  )
+}
+
+/**
+ * Move the active highlight (and the expanded path to it) by rebuilding the tree from the rows already read.
+ * False when there is nothing trustworthy to rebuild from (no rows for this store and graph, or the open
+ * document is not among them, as for one an agent has just created): the caller then asks the cell.
+ */
+function rebuildSidebarSectionsFromCache(): boolean {
+  const cache = sidebarRowsCache
+  if (!cache || cache.store !== store || cache.graphId !== currentGraphId || sourceSelect.value !== 'CELL_LIVE') return false
+  if (openDocId && !cache.rows.docs.some(doc => doc.id === openDocId)) return false
+  commitSidebarSections(sidebarSectionsFromRows(cache.rows, openDocId, currentSidebarExpandedFolders), cache.graphId)
+  currentSidebarStatus = 'ready'
+  currentSidebarError = ''
+  return true
+}
+
+async function refreshSidebarSectionsNow(): Promise<boolean> {
   if (!store) {
     currentSidebarSections = []
     currentSidebarStatus = 'idle'
     currentSidebarError = ''
+    sidebarRowsCache = null
     latestSidebarRequest++
     if (documentSwitcherEl.open) refreshDocumentSwitcherRows()
     if (sourceSelect.value === 'CELL_LIVE') rerenderCurrentSource()
@@ -5310,23 +5341,24 @@ async function refreshSidebarSections(): Promise<boolean> {
   const activeStore = store
   const requestId = ++latestSidebarRequest
   const graphId = currentGraphId
+  const endSpan = perfSpan('sidebar.refresh')
+  // A refresh of a list already on screen does not blank it or announce itself: the status flips to
+  // 'loading' honestly, but the render waits for the answer. Only a first load renders the spinner.
+  const hadSections = currentSidebarSections.length > 0
   currentSidebarStatus = 'loading'
   currentSidebarError = ''
-  if (sourceSelect.value === 'CELL_LIVE') rerenderCurrentSource()
+  if (sourceSelect.value === 'CELL_LIVE' && !hadSections) rerenderCurrentSource()
   try {
-    const sections = await loadSidebarSections(activeStore.contract.rest, graphId, openDocId, currentSidebarExpandedFolders)
+    const rows = await loadSidebarRows(activeStore.contract.rest, graphId)
     if (
       requestId !== latestSidebarRequest
       || store !== activeStore
       || graphId !== currentGraphId
       || sourceSelect.value !== 'CELL_LIVE'
     ) return false
-    // Document-plane pending/parked decoration (master §3 Slice 4). A pure
-    // overlay — folders/artifacts/tags pass through unchanged.
-    currentSidebarSections = sidebarSectionsWithParkedWork(
-      decorateSidebarSectionsWithSourceState(sections, currentSourceOutboxRecords()),
-      graphId,
-    )
+    sidebarRowsCache = { store: activeStore, graphId, rows }
+    // Built AFTER the answer with the document open NOW, not the one open when the queries began.
+    commitSidebarSections(sidebarSectionsFromRows(rows, openDocId, currentSidebarExpandedFolders), graphId)
     currentSidebarStatus = 'ready'
     currentSidebarError = ''
     void refreshVisitorOwnership(activeStore, graphId)
@@ -5353,7 +5385,24 @@ async function refreshSidebarSections(): Promise<boolean> {
     if (documentSwitcherEl.open) refreshDocumentSwitcherRows()
     err(`sidebar document-list read error:\n${e instanceof Error ? e.message : String(e)}`)
     return false
+  } finally {
+    endSpan({ rows: sidebarRowsCache?.rows.docs.length ?? 0 })
   }
+}
+
+/**
+ * One sidebar read at a time. A request made while one is in flight collapses with every other such request
+ * into a single re-read that starts when the first settles (and sees the state as it is then); a request
+ * for another graph never waits for the first graph's read. (Previously every call started four more
+ * whole-workspace queries, and only the counter discarded the late answers.)
+ */
+const refreshSidebarSectionsCoalesced = createCoalescedRunner(
+  refreshSidebarSectionsNow,
+  () => currentGraphId,
+)
+
+function refreshSidebarSections(): Promise<boolean> {
+  return refreshSidebarSectionsCoalesced()
 }
 
 function liveSidebarMutationStore(action: string): OrganismSessionStore | null {
@@ -5370,23 +5419,14 @@ async function refreshAfterSidebarMutation(activeStore: OrganismSessionStore, gr
   // without making local acceptance wait for an unavailable cell.
   void activeStore.refresh()
   try {
-    const sections = await loadSidebarSections(
-      activeStore.contract.rest,
-      graphId,
-      openDocId,
-      currentSidebarExpandedFolders,
-    )
+    const rows = await loadSidebarRows(activeStore.contract.rest, graphId)
     if (store !== activeStore || currentGraphId !== graphId || sourceSelect.value !== 'CELL_LIVE') return false
     // This mutation owns a post-acceptance projection commit. Invalidate older
     // reads already queued by source-mirror phase notifications, then publish
     // the source+outbox view exactly once.
     latestSidebarRequest += 1
-    // A second, independent call site (master §3 Slice 4) — decorate here
-    // too, or every sidebar mutation would silently erase every badge.
-    currentSidebarSections = sidebarSectionsWithParkedWork(
-      decorateSidebarSectionsWithSourceState(sections, currentSourceOutboxRecords()),
-      graphId,
-    )
+    sidebarRowsCache = { store: activeStore, graphId, rows }
+    commitSidebarSections(sidebarSectionsFromRows(rows, openDocId, currentSidebarExpandedFolders), graphId)
     currentSidebarStatus = 'ready'
     currentSidebarError = ''
     await refreshVisitorOwnership(activeStore, graphId)
@@ -7670,14 +7710,14 @@ function centerPaneHeadings(): ReadonlyMap<CenterPaneId, readonly LiveHeadingOut
 
 function handleTocToggle(detail: { readonly paneId: CenterPaneId }): void {
   currentTocOpenPaneId = currentTocOpenPaneId === detail.paneId ? null : detail.paneId
-  rerenderCurrentSource()
+  rerenderNow() // a click: answer in this frame, as before
   syncTocPopover()
 }
 
 function handleTocNavigate(detail: { readonly paneId: CenterPaneId; readonly blockId: string }): void {
   editorHostElementForPane(detail.paneId)?.liveEditor?.focusBlock(detail.blockId)
   currentTocOpenPaneId = null
-  rerenderCurrentSource()
+  rerenderNow() // a click: answer in this frame, as before
   syncTocPopover()
 }
 
@@ -7711,23 +7751,33 @@ document.addEventListener('pointerdown', (event: PointerEvent) => {
   )
   if (insideToc) return
   currentTocOpenPaneId = null
-  rerenderCurrentSource()
+  rerenderNow() // a click: answer in this frame, as before
   syncTocPopover()
 })
 
-let graphProjectionRenderTimer: ReturnType<typeof setTimeout> | null = null
+// A structure change is typing, a caret move or a mount. The shell only follows
+// typing through the heading list (TOC trigger, outline panel), the graph panel
+// and the bottom-bar word count, so a full render runs only when the headings
+// changed (or the graph panel is open); otherwise just the count is refreshed.
+const editorHeadingsChanged = createHeadingsChangeGate()
+const structureRefresher = createStructureRefresher({
+  graphWantsRefresh: () => currentGraphPanelViewMode === 'document' && currentRightPanel === 'graph',
+  outlineWantsRefresh: () => currentLeftPanelMode === 'outline',
+  fullRender: () => rerenderCurrentSource(),
+  refreshStats: () => {
+    const bar = hostEl.querySelector('mn-bottom-bar') as { documentStats?: unknown } | null
+    if (!bar) return
+    const editorHost = hostEl.querySelector('#mn-editor-host') as {
+      liveEditor?: { getText(): string } | null
+    } | null
+    bar.documentStats = projectDocumentStats(editorHost?.liveEditor?.getText() ?? null)
+  },
+})
 document.addEventListener(EDITOR_STRUCTURE_CHANGE_EVENT, ((event: CustomEvent<EditorStructureChangeDetail>) => {
-  const graphWantsRefresh = currentGraphPanelViewMode === 'document' && currentRightPanel === 'graph'
-  const outlineWantsRefresh = currentLeftPanelMode === 'outline'
-  // The pane-header TOC trigger appears/disappears with the heading set, so a
-  // structural edit has to reach the header too — not just the outline panel.
-  const tocWantsRefresh = event.detail?.reason !== 'selection'
-  if (!graphWantsRefresh && !outlineWantsRefresh && !tocWantsRefresh) return
-  if (graphProjectionRenderTimer) clearTimeout(graphProjectionRenderTimer)
-  graphProjectionRenderTimer = setTimeout(() => {
-    graphProjectionRenderTimer = null
-    rerenderCurrentSource()
-  }, event.detail?.reason === 'selection' ? 0 : 140)
+  // Ask the gate for every event (it tracks each editor's last heading list),
+  // even those that end up not rendering.
+  const headingsChanged = editorHeadingsChanged(event)
+  structureRefresher.handle(event.detail?.reason ?? 'transaction', headingsChanged)
 }) as EventListener)
 
 // Scroll-position heading highlight — decoupled from EDITOR_STRUCTURE_CHANGE_EVENT
@@ -9801,7 +9851,17 @@ function openFilesRoute(target: { readonly folderId?: string | null; readonly ar
 }
 
 /** Render a config into the host and return a one-line provenance summary. */
+/** Instrumented entry to the shell render (`shrubbery:shell.render` measure; free when unobserved). */
 function renderConfig(config: WorkspaceConfig, app: string | undefined): string {
+  const end = perfSpan('shell.render')
+  try {
+    return renderConfigUntimed(config, app)
+  } finally {
+    end()
+  }
+}
+
+function renderConfigUntimed(config: WorkspaceConfig, app: string | undefined): string {
   const claim = ensureEditorClaim()
   const centerPanesVisible = editorClaims.size > 0 || centerPanesController.state.secondary !== null
   const paneEditorHosts = centerPaneEditorHostOptions()
@@ -10327,7 +10387,21 @@ function loadPreset(name: string): void {
   renderFromEditor()
 }
 
+/**
+ * The shell render, folded: every call marks the shell dirty and one render runs in the next animation
+ * frame (see cell/render-scheduler.ts). ~190 callers keep this name; the few that read the DOM straight
+ * after asking use `rerenderNow()`.
+ */
 function rerenderCurrentSource(): void {
+  renderScheduler().request()
+}
+
+/** Render the shell now (and drop any pending render). For callers that read the DOM straight after. */
+function rerenderNow(): void {
+  renderScheduler().renderNow()
+}
+
+function renderCurrentSourceNow(): void {
   reflectWorkspaceLifetimeAndReapply()
   if (sourceSelect.value === 'CELL_LIVE') {
     if (store) renderCellState(store.getState(), configStore?.get())
@@ -10336,6 +10410,15 @@ function rerenderCurrentSource(): void {
   } else {
     renderFromEditor()
   }
+}
+
+// Created on first use: function declarations are hoisted, a `const` here would not be.
+let renderSchedulerInstance: RenderScheduler | null = null
+function renderScheduler(): RenderScheduler {
+  renderSchedulerInstance ??= createRenderScheduler(renderCurrentSourceNow, {
+    onRequest: coalesced => perfCount(coalesced ? 'shell.render.coalesced' : 'shell.render.requests'),
+  })
+  return renderSchedulerInstance
 }
 
 localeSource.subscribe(() => rerenderCurrentSource())
@@ -11384,7 +11467,11 @@ function startCellMode(): void {
       pool: roomPoolFor(nextStore.contract.crdt),
       auth: nextStore.contract.auth,
       graphId,
-      onChange: change => followWorkspaceChange(nextStore, graphId, () => change.expectations()),
+      onChange: change => {
+        // The room is the cell's own "something changed" signal: look at :ux:config once now, quietly.
+        void nextStore.nudge?.()
+        return followWorkspaceChange(nextStore, graphId, () => change.expectations())
+      },
       unavailable: error => err(`the tree cannot follow this workspace's changes: ${error instanceof Error ? error.message : String(error)}`),
     })
   }
@@ -11527,8 +11614,11 @@ function activateDocumentSurface(
   } else {
     currentZoomBlockId = readZoomBlockIdFromUrl()
   }
+  // Opening a document only moves the sidebar highlight: rebuild the tree from the rows already read,
+  // before the render below shows it, and ask the cell only when the document is not among them.
+  const sidebarRebuilt = rebuildSidebarSectionsFromCache()
   renderCellState(store.getState(), configStore?.get())
-  void refreshSidebarSections()
+  if (!sidebarRebuilt) void refreshSidebarSections()
   void refreshWireBundle()
   queueMicrotask(prepareCenterPaneAdjacency)
   void refreshSalienceBundle()

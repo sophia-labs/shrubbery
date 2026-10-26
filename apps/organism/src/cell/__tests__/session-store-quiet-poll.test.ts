@@ -167,4 +167,83 @@ describe('the config poll is quiet when nothing changed', () => {
       vi.useRealTimers()
     }
   })
+
+  describe('while the page is hidden', () => {
+    const setVisibility = (value: 'hidden' | 'visible'): void => {
+      Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => value })
+      document.dispatchEvent(new Event('visibilitychange'))
+    }
+
+    it('asks the cell nothing, and reads once the moment the page is visible again', async () => {
+      vi.useFakeTimers()
+      try {
+        let reads = 0
+        const store = createSessionStore({
+          contract: contractReturning(() => ABSENT, () => { reads += 1 }),
+          graphId: 'g',
+          offlineStorage: noStorage,
+        })
+        await store.refresh()
+        expect(reads).toBe(1)
+
+        const stop = store.startPoll(3000)
+        setVisibility('hidden')
+        for (let tick = 0; tick < 5; tick += 1) await vi.advanceTimersByTimeAsync(3000)
+        expect(reads, 'a hidden page must not poll').toBe(1)
+
+        setVisibility('visible')
+        await vi.advanceTimersByTimeAsync(0)
+        expect(reads, 'one catch-up read on becoming visible').toBe(2)
+        await vi.advanceTimersByTimeAsync(3000)
+        expect(reads, 'and the poll resumes').toBe(3)
+        stop()
+        setVisibility('visible')
+        await vi.advanceTimersByTimeAsync(0)
+        expect(reads, 'stopping the poll also stops listening for visibility').toBe(3)
+      } finally {
+        vi.useRealTimers()
+        Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' })
+      }
+    })
+  })
+
+  it('a poll that sees identical dump text keeps the freshest readAt and wakes nobody', async () => {
+    vi.useFakeTimers()
+    try {
+      const store = createSessionStore({
+        contract: contractReturning(() => ABSENT),
+        graphId: 'g',
+        offlineStorage: noStorage,
+      })
+      await store.refresh()
+      const first = store.get().read
+      const notified = vi.fn()
+      store.subscribe(notified)
+      await vi.advanceTimersByTimeAsync(5000)
+      await store.nudge?.()
+      const second = store.get().read
+      expect(second?.nt).toBe(first?.nt)
+      expect(second?.config).toBe(first?.config) // same parsed object: nothing was re-parsed
+      expect(second?.readAt ?? 0).toBeGreaterThan(first?.readAt ?? 0)
+      expect(notified).not.toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('nudge picks up a real change without a loading flash', async () => {
+    let body = ABSENT
+    const store = createSessionStore({
+      contract: contractReturning(() => body),
+      graphId: 'g',
+      offlineStorage: noStorage,
+    })
+    await store.refresh()
+    const statuses: string[] = []
+    store.subscribe(state => statuses.push(state.status))
+    body = ABSENT + NT
+    await store.nudge?.()
+    expect(store.get().read?.nt).toBe(body)
+    expect(statuses).toEqual(['ready'])
+  })
 })

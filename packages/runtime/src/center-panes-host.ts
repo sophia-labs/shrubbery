@@ -23,6 +23,7 @@ import {
 } from './center-panes-contract.js'
 import { createCenterPanesState, homeLocation, projectCenterPanes } from './center-panes-model.js'
 import type { EditorHostBinding } from './editor-host-binding.js'
+import { createHeadingsChangeGate } from './structure-change-gate.js'
 import {
   EDITOR_STRUCTURE_CHANGE_EVENT,
   type EditorBlockFocusRequest,
@@ -515,7 +516,12 @@ export class ShCenterPanes extends LitElement {
     this._tocPopover.hide()
     this._tocOpenPaneId = null
   }
-  private readonly _onStructureChange = (): void => {
+  private readonly _headingsChanged = createHeadingsChangeGate()
+  private readonly _onStructureChange = (event: Event): void => {
+    // Only a change to some editor's heading list can change what this host
+    // draws from the editor (the TOC trigger and dropdown). Typing in a body
+    // paragraph and caret moves do not.
+    if (!this._headingsChanged(event)) return
     // Headings are read fresh from the live editor handle on every render —
     // this just makes Lit re-render on doc changes, since heading-set/text
     // changes don't touch any @state/@property here. Needed both for the

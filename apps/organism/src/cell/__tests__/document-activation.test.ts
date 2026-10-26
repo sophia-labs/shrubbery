@@ -777,3 +777,196 @@ describe('DocumentActivationManager', () => {
     doc2.destroy()
   })
 })
+
+describe('document cache persistence timing', () => {
+  class CountingStorage extends MemoryDocumentActivationStorage {
+    puts = 0
+    override async put(record: DocumentCacheRecord): Promise<void> {
+      this.puts += 1
+      return super.put(record)
+    }
+  }
+
+  const connected = { connection: 'connected' as const, synchronized: true, shouldConnect: true }
+
+  async function liveActivation(storage: CountingStorage, options: ConstructorParameters<typeof DocumentActivationManager>[0] = {}) {
+    await storage.put(record(KEY, updateWithText('cached')))
+    storage.puts = 0
+    const manager = new DocumentActivationManager({
+      storage,
+      persistDebounceMs: 500,
+      persistMaxWaitMs: 2_000,
+      persistIdleTimeoutMs: 100,
+      ...options,
+    })
+    const lifecycle = lifecycleSource()
+    lifecycle.set(connected)
+    const doc = new Y.Doc()
+    const activation = manager.activateVisible(KEY, doc, Promise.resolve(), lifecycle.source)
+    await vi.advanceTimersByTimeAsync(5_000)
+    await activation.whenRenderable
+    return { manager, doc, activation }
+  }
+
+  it('does not write while typing continues within the quiet window, then writes once, with every edit', async () => {
+    vi.useFakeTimers()
+    try {
+      const storage = new CountingStorage()
+      const { doc, activation } = await liveActivation(storage)
+      const baseline = storage.puts
+      for (let i = 0; i < 10; i += 1) {
+        doc.getText('body').insert(0, 'x')
+        await vi.advanceTimersByTimeAsync(100)
+      }
+      expect(storage.puts, 'no write per word-pause').toBe(baseline)
+      await vi.advanceTimersByTimeAsync(700)
+      expect(storage.puts).toBe(baseline + 1)
+      const stored = await storage.get(documentActivationKey(KEY))
+      const restored = new Y.Doc()
+      Y.applyUpdate(restored, stored!.update)
+      expect(restored.getText('body').toString()).toBe('xxxxxxxxxxcached')
+      restored.destroy()
+      activation.dispose()
+      doc.destroy()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('still writes a document that is edited without pause, within the max wait', async () => {
+    vi.useFakeTimers()
+    try {
+      const storage = new CountingStorage()
+      const { doc, activation } = await liveActivation(storage)
+      const baseline = storage.puts
+      for (let t = 0; t < 3_000; t += 100) {
+        doc.getText('body').insert(0, 'y')
+        await vi.advanceTimersByTimeAsync(100)
+      }
+      expect(storage.puts - baseline).toBeGreaterThanOrEqual(1)
+      expect(storage.puts - baseline).toBeLessThanOrEqual(3)
+      activation.dispose()
+      doc.destroy()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('flush() and pagehide write a pending edit at once, so a reload has it', async () => {
+    vi.useFakeTimers()
+    try {
+      const storage = new CountingStorage()
+      const { doc, activation } = await liveActivation(storage)
+      const baseline = storage.puts
+      doc.getText('body').insert(0, 'A')
+      expect(storage.puts).toBe(baseline)
+      await activation.flush()
+      expect(storage.puts).toBe(baseline + 1)
+
+      doc.getText('body').insert(0, 'B')
+      window.dispatchEvent(new Event('pagehide'))
+      await vi.advanceTimersByTimeAsync(0)
+      expect(storage.puts).toBe(baseline + 2)
+
+      // "Reload": a new manager over the same storage renders BA+cached before any network.
+      activation.dispose()
+      doc.destroy()
+      const reloaded = new DocumentActivationManager({ storage })
+      const next = new Y.Doc()
+      const again = reloaded.activateVisible(KEY, next, new Promise<void>(() => {}))
+      await vi.advanceTimersByTimeAsync(10)
+      await again.whenEditable
+      expect(next.getText('body').toString()).toBe('BAcached')
+      again.dispose()
+      next.destroy()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('an offline edit is never deferred', async () => {
+    vi.useFakeTimers()
+    try {
+      const storage = new CountingStorage()
+      await storage.put(record(KEY, updateWithText('cached')))
+      storage.puts = 0
+      const manager = new DocumentActivationManager({ storage, persistDebounceMs: 5_000 })
+      const lifecycle = lifecycleSource()
+      const doc = new Y.Doc()
+      const activation = manager.activateVisible(KEY, doc, new Promise<void>(() => {}), lifecycle.source)
+      await vi.advanceTimersByTimeAsync(10)
+      await activation.whenEditable
+      storage.puts = 0
+      doc.getText('body').insert(0, 'offline')
+      await vi.advanceTimersByTimeAsync(0)
+      await activation.flush()
+      expect(storage.puts).toBe(1)
+      expect((await storage.get(documentActivationKey(KEY)))?.authority).toBe('offline')
+      activation.dispose()
+      doc.destroy()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('writes identical bytes only once: a persist with nothing new since the last write encodes nothing', async () => {
+    vi.useFakeTimers()
+    try {
+      const storage = new CountingStorage()
+      const { doc, activation } = await liveActivation(storage, { persistDebounceMs: 0 })
+      doc.getText('body').insert(0, 'z')
+      await vi.advanceTimersByTimeAsync(10)
+      const afterEdit = storage.puts
+      await activation.flush()
+      await activation.flush()
+      activation.dispose()
+      await vi.advanceTimersByTimeAsync(10)
+      expect(storage.puts).toBe(afterEdit)
+      doc.destroy()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('a failed write is not remembered as written: the next persist of the same state tries again', async () => {
+    vi.useFakeTimers()
+    try {
+      const storage = new CountingStorage()
+      const { doc, activation } = await liveActivation(storage, { persistDebounceMs: 0 })
+      let failing = true
+      const real = storage.put.bind(storage)
+      vi.spyOn(storage, 'put').mockImplementation(async (record) => {
+        if (failing) throw new Error('quota exhausted')
+        return real(record)
+      })
+      doc.getText('body').insert(0, 'q')
+      await vi.advanceTimersByTimeAsync(10)
+      await activation.flush()
+      expect(activation.state.get()).toMatchObject({ durability: 'failed' })
+
+      failing = false
+      const before = storage.puts
+      // Nothing was edited since, but the last attempt failed: closing the document persists the same
+      // state again, and it must not be skipped as already written.
+      activation.dispose()
+      await vi.advanceTimersByTimeAsync(10)
+      expect(storage.puts, 'a write that failed must be retried, not skipped as identical').toBeGreaterThan(before)
+      doc.destroy()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('the cache hands the owned buffer to memory and storage without defensive copies, and still reads out copies', async () => {
+    const storage = new MemoryDocumentActivationStorage()
+    const cache = new DocumentActivationCache(storage)
+    const owned = record(KEY, updateWithText('owned'))
+    await cache.put(owned, { owned: true })
+    const hit = await cache.get(KEY)
+    expect(hit?.layer).toBe('memory')
+    expect(hit?.record.update).not.toBe(owned.update) // reads copy out
+    expect(Array.from(hit!.record.update)).toEqual(Array.from(owned.update))
+    expect(cache.diagnostics().entries).toBe(1)
+  })
+})
+

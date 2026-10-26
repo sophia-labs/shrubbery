@@ -1,0 +1,70 @@
+# perf-workspace.ux.nt — the seed that makes a graph named `perf` open to the bench dashboard (la Lente, 2026-10-25).
+#
+# The SAME mechanism the `observatory` graph uses (see observatory-workspace.ux.nt): a sux:Workspace whose
+# region-center is rendered by the `sh-layout-dashboard` fragment marker, plus a ux:layoutJson LayoutDocument on the
+# region's sux:fragmentSurface. Here the fragment is ONE leaf: the `bench.dashboard` face (packages/runtime/src/layout/
+# faces/bench-dashboard-face.ts) over resource {kind:graph, graphId:"perf"}. The face reads the ledger with the
+# GRAPH-wrapped SPARQL of bench-model.ts; it writes nothing.
+#
+# APPLY at seed time, not build time, like the Observatory seed: insert these triples into the perf cell's
+# `:ux:config` named graph, urn:mnemosyne:local:graph:perf:ux:config, e.g.
+#   ~/.sophia-mcp/sirin-call.sh perf rdf_load '{"target_graph_iri":"urn:mnemosyne:local:graph:perf:ux:config","data":"<this file>","format":"ntriples"}'
+# (check `rdf_load`'s exact argument names with the tool schema; the mechanism, not the spelling, is the point).
+# Then open the graph: `?graph=perf`.
+#
+# The layout document's `graphId` is the cell's own graph id, "perf". If the ledger graph has another id, change it in
+# BOTH places (the literal's graphId and resource.graphId) or re-author the literal. The workspace config also
+# carries the usual top bar and an optional chat rail.
+<http://sophia.ai/ux#PerfDefault> <http://sophia.ai/ux#hasPanel> <http://sophia.ai/ux#panel-chat> .
+<http://sophia.ai/ux#PerfDefault> <http://sophia.ai/ux#hasRegion> <http://sophia.ai/ux#region-center> .
+<http://sophia.ai/ux#PerfDefault> <http://sophia.ai/ux#hasRegion> <http://sophia.ai/ux#region-right-rail> .
+<http://sophia.ai/ux#PerfDefault> <http://sophia.ai/ux#hasRegion> <http://sophia.ai/ux#region-top-bar> .
+<http://sophia.ai/ux#PerfDefault> <http://sophia.ai/ux#hasRootEntry> <http://sophia.ai/ux#PerfDefault-root-0> .
+<http://sophia.ai/ux#PerfDefault> <http://sophia.ai/ux#hasRootEntry> <http://sophia.ai/ux#PerfDefault-root-1> .
+<http://sophia.ai/ux#PerfDefault> <http://sophia.ai/ux#localId> "PerfDefault" .
+<http://sophia.ai/ux#PerfDefault> <http://sophia.ai/ux#renderedByComponent> "app-shell" .
+<http://sophia.ai/ux#PerfDefault> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://sophia.ai/ux#Workspace> .
+<http://sophia.ai/ux#PerfDefault> <http://www.w3.org/2000/01/rdf-schema#label> "Perf Workspace" .
+<http://sophia.ai/ux#PerfDefault-root-0> <http://sophia.ai/ux#atIndex> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<http://sophia.ai/ux#PerfDefault-root-0> <http://sophia.ai/ux#rootRegion> <http://sophia.ai/ux#region-top-bar> .
+<http://sophia.ai/ux#PerfDefault-root-0> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://sophia.ai/ux#RootEntry> .
+<http://sophia.ai/ux#PerfDefault-root-1> <http://sophia.ai/ux#atIndex> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<http://sophia.ai/ux#PerfDefault-root-1> <http://sophia.ai/ux#rootRegion> <http://sophia.ai/ux#region-center> .
+<http://sophia.ai/ux#PerfDefault-root-1> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://sophia.ai/ux#RootEntry> .
+<http://sophia.ai/ux#panel-chat> <http://sophia.ai/ux#defaultVisible> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<http://sophia.ai/ux#panel-chat> <http://sophia.ai/ux#dockState> "stacked" .
+<http://sophia.ai/ux#panel-chat> <http://sophia.ai/ux#localId> "panel-chat" .
+<http://sophia.ai/ux#panel-chat> <http://sophia.ai/ux#renderedByComponent> "mn-chat-panel" .
+<http://sophia.ai/ux#panel-chat> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://sophia.ai/ux#Panel> .
+<http://sophia.ai/ux#panel-chat> <http://www.w3.org/2000/01/rdf-schema#label> "Chat Panel" .
+<http://sophia.ai/ux#region-center> <http://sophia.ai/ux#childRegion> <http://sophia.ai/ux#region-right-rail> .
+<http://sophia.ai/ux#region-center> <http://sophia.ai/ux#collapsible> "false"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<http://sophia.ai/ux#region-center> <http://sophia.ai/ux#localId> "region-center" .
+<http://sophia.ai/ux#region-center> <http://sophia.ai/ux#order> "2"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<http://sophia.ai/ux#region-center> <http://sophia.ai/ux#renderedByComponent> "sh-layout-dashboard" .
+<http://sophia.ai/ux#region-center> <http://sophia.ai/ux#resizable> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<http://sophia.ai/ux#region-center> <http://sophia.ai/ux#sizeFraction> "0.8"^^<http://www.w3.org/2001/XMLSchema#decimal> .
+<http://sophia.ai/ux#region-center> <http://sophia.ai/ux#splitOrientation> "vertical" .
+<http://sophia.ai/ux#region-center> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://sophia.ai/ux#Region> .
+<http://sophia.ai/ux#region-center> <http://www.w3.org/2000/01/rdf-schema#label> "Center (Bench Dashboard)" .
+<http://sophia.ai/ux#region-right-rail> <http://sophia.ai/ux#collapsible> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<http://sophia.ai/ux#region-right-rail> <http://sophia.ai/ux#docksPanel> <http://sophia.ai/ux#panel-chat> .
+<http://sophia.ai/ux#region-right-rail> <http://sophia.ai/ux#dockState> "stacked" .
+<http://sophia.ai/ux#region-right-rail> <http://sophia.ai/ux#localId> "region-right-rail" .
+<http://sophia.ai/ux#region-right-rail> <http://sophia.ai/ux#order> "3"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<http://sophia.ai/ux#region-right-rail> <http://sophia.ai/ux#resizable> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<http://sophia.ai/ux#region-right-rail> <http://sophia.ai/ux#sizeFraction> "0.2"^^<http://www.w3.org/2001/XMLSchema#decimal> .
+<http://sophia.ai/ux#region-right-rail> <http://sophia.ai/ux#splitOrientation> "vertical" .
+<http://sophia.ai/ux#region-right-rail> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://sophia.ai/ux#Region> .
+<http://sophia.ai/ux#region-right-rail> <http://www.w3.org/2000/01/rdf-schema#label> "Right Rail (Chat)" .
+<http://sophia.ai/ux#region-top-bar> <http://sophia.ai/ux#collapsible> "false"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<http://sophia.ai/ux#region-top-bar> <http://sophia.ai/ux#localId> "region-top-bar" .
+<http://sophia.ai/ux#region-top-bar> <http://sophia.ai/ux#order> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<http://sophia.ai/ux#region-top-bar> <http://sophia.ai/ux#renderedByComponent> "mn-top-bar" .
+<http://sophia.ai/ux#region-top-bar> <http://sophia.ai/ux#resizable> "false"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<http://sophia.ai/ux#region-top-bar> <http://sophia.ai/ux#sizeFraction> "0.04"^^<http://www.w3.org/2001/XMLSchema#decimal> .
+<http://sophia.ai/ux#region-top-bar> <http://sophia.ai/ux#splitOrientation> "horizontal" .
+<http://sophia.ai/ux#region-top-bar> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <http://sophia.ai/ux#Region> .
+<http://sophia.ai/ux#region-top-bar> <http://www.w3.org/2000/01/rdf-schema#label> "Top Bar" .
+<http://sophia.ai/ux#region-center> <http://sophia.ai/ux#fragmentSurface> <urn:sophia:ux:surface:perf-lens> .
+<urn:sophia:ux:surface:perf-lens> <http://mnemosyne.dev/ux#layoutJson> "{\"schemaVersion\":1,\"layoutId\":\"perf-lens-v1\",\"scope\":\"workspace\",\"graphId\":\"perf\",\"rootNodeId\":\"PerfLens\",\"nodes\":{\"PerfLens\":{\"kind\":\"leaf\",\"id\":\"PerfLens\",\"descriptor\":{\"schemaVersion\":1,\"faceId\":\"bench.dashboard\",\"resource\":{\"kind\":\"graph\",\"graphId\":\"perf\"}},\"descriptorRevision\":0}},\"createdAt\":\"2026-10-25T00:00:00.000Z\",\"updatedAt\":\"2026-10-25T00:00:00.000Z\"}" .

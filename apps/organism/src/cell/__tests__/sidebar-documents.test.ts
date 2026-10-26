@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
+  loadSidebarRows,
   loadSidebarSections,
+  sidebarSectionsFromRows,
   sidebarArtifactFromRow,
   sidebarArtifactListSparql,
   sidebarArtifactTree,
@@ -425,5 +427,44 @@ describe('sidebar document projection', () => {
       label: 'pragma',
       count: 2,
     })
+  })
+
+  it('moves the active highlight by rebuilding from rows already read, with no further query', async () => {
+    let queries = 0
+    const rest: SidebarDocumentRest = {
+      async query(_graphId, sparql) {
+        queries += 1
+        if (sparql === sidebarFolderListSparql('graph-a')) {
+          return { rows: [{ folder: '<urn:mnemosyne:local:graph:graph-a:folder:folder-a>', label: '"Folder A"', order: '"1"^^<http://www.w3.org/2001/XMLSchema#integer>', section: '"documents"' }] }
+        }
+        if (sparql === sidebarDocumentListSparql('graph-a')) {
+          return {
+            rows: [
+              { doc: '<urn:mnemosyne:local:document:doc-a>', label: '"A"', parent: '<urn:mnemosyne:local:graph:graph-a:folder:folder-a>', order: '"1"^^<http://www.w3.org/2001/XMLSchema#integer>' },
+              { doc: '<urn:mnemosyne:local:document:doc-b>', label: '"B"', order: '"2"^^<http://www.w3.org/2001/XMLSchema#integer>' },
+            ],
+          }
+        }
+        return { rows: [] }
+      },
+    }
+    const rows = await loadSidebarRows(rest, 'graph-a')
+    expect(queries).toBe(4)
+
+    const first = sidebarSectionsFromRows(rows, 'doc-a')
+    const second = sidebarSectionsFromRows(rows, 'doc-b')
+    expect(queries, 'building a tree is not a read').toBe(4)
+    const flat = (sections: ReturnType<typeof sidebarSectionsFromRows>) => {
+      const out: Array<{ id: string; active?: boolean }> = []
+      const visit = (nodes: ReadonlyArray<{ id: string; active?: boolean; children?: readonly any[] }>): void => {
+        for (const node of nodes) { out.push({ id: node.id, active: node.active }); visit(node.children ?? []) }
+      }
+      visit(sections[0]!.nodes ?? [])
+      return out
+    }
+    expect(flat(first).filter(n => n.active).map(n => n.id)).toEqual(['doc-a'])
+    expect(flat(second).filter(n => n.active).map(n => n.id)).toEqual(['doc-b'])
+    // Same tree either way: only the highlight (and the expanded path to it) differs.
+    expect(flat(first).map(n => n.id).sort()).toEqual(flat(second).map(n => n.id).sort())
   })
 })

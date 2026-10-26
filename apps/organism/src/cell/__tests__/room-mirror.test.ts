@@ -4,7 +4,7 @@
  * N-Triples, and a live-rest spy that records what fell through to the cell.
  * No mocks of the store; the only substitute is the cell's dump transport.
  */
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { RestClient } from '@shrubbery/nucleus'
 import {
   MemoryRoomMirrorStorage,
@@ -169,6 +169,86 @@ describe('room mirror: sync, local reads, honest fall-through', () => {
     const result = await second!.run(GRAPH, `SELECT ?status WHERE { GRAPH <${CUENTAS}> { <${BEAD}> <${CTA}status> ?status } }`)
     if (result.resultKind !== 'bindings') throw new Error('unreachable')
     expect(result.rows[0]!.status!.value).toBe('done')
+  })
+
+  it('a quiet resync that dumps identical text rebuilds nothing, writes nothing and announces nothing; a changed dump still does all three', async () => {
+    class CountingStorage extends MemoryRoomMirrorStorage {
+      writes = 0
+      override async write(...args: Parameters<MemoryRoomMirrorStorage['write']>): Promise<void> {
+        this.writes += 1
+        return super.write(...args)
+      }
+    }
+    const storage = new CountingStorage()
+    const { mirror, states, setStatus } = fixture({ storage })
+    await mirror.ensureOpen(GRAPH)
+    const service = mirror.queryService(GRAPH)
+    const writes = storage.writes
+    const announced = states.length
+
+    await mirror.sync(GRAPH, undefined, { quiet: true })
+    await mirror.sync(GRAPH, undefined, { quiet: true })
+    expect(states.length, 'no syncing/ready flip for an unchanged resync').toBe(announced)
+    expect(storage.writes, 'no IndexedDB rewrite for an unchanged resync').toBe(writes)
+    expect(mirror.queryService(GRAPH), 'the same store keeps serving').toBe(service)
+    expect(mirror.state(GRAPH).status).toBe('ready')
+
+    setStatus('done')
+    await mirror.sync(GRAPH, undefined, { quiet: true })
+    expect(storage.writes).toBeGreaterThan(writes)
+    expect(states.length).toBeGreaterThan(announced)
+    const result = await mirror.queryService(GRAPH)!.run(GRAPH, `SELECT ?status WHERE { GRAPH <${CUENTAS}> { <${BEAD}> <${CTA}status> ?status } }`)
+    if (result.resultKind !== 'bindings') throw new Error('unreachable')
+    expect(result.rows[0]!.status!.value).toBe('done')
+  })
+
+  describe('the background resync (the safety net for foreign writers)', () => {
+    const setVisibility = (value: 'hidden' | 'visible'): void => {
+      Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => value })
+      document.dispatchEvent(new Event('visibilitychange'))
+    }
+    afterEach(() => {
+      vi.useRealTimers()
+      Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' })
+    })
+    const statusOf = async (mirror: RoomMirror): Promise<string> => {
+      const result = await mirror.queryService(GRAPH)!.run(GRAPH, `SELECT ?status WHERE { GRAPH <${CUENTAS}> { <${BEAD}> <${CTA}status> ?status } }`)
+      if (result.resultKind !== 'bindings') throw new Error('unreachable')
+      return result.rows[0]!.status!.value
+    }
+
+    it('shows a write made by someone else on the next tick, skips ticks while hidden, and catches up the moment the page is visible', async () => {
+      vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
+      const { mirror, dumps, setStatus } = fixture({ pollMs: 1000 })
+      await mirror.ensureOpen(GRAPH)
+      expect(await statusOf(mirror)).toBe('open')
+
+      // A foreign write while the page is visible lands on the next tick.
+      setStatus('done')
+      await vi.advanceTimersByTimeAsync(1000)
+      await vi.waitFor(async () => expect(await statusOf(mirror)).toBe('done'))
+
+      // While hidden, ticks fetch nothing.
+      setVisibility('hidden')
+      const seen = dumps.length
+      setStatus('blocked')
+      await vi.advanceTimersByTimeAsync(5000)
+      expect(dumps.length, 'a hidden page must not resync').toBe(seen)
+
+      // Becoming visible catches up at once (the last sync is older than a period), not a tick later.
+      vi.setSystemTime(Date.now() + 5000)
+      setVisibility('visible')
+      await vi.waitFor(async () => expect(await statusOf(mirror)).toBe('blocked'))
+      mirror.closeAll()
+    })
+  })
+
+  it('an explicit (non-quiet) sync still announces syncing then ready', async () => {
+    const { mirror, states } = fixture()
+    await mirror.ensureOpen(GRAPH)
+    const before = states.length
+    await mirror.sync(GRAPH)
+    expect(states.slice(before).map((state) => state.status)).toEqual(['syncing', 'ready'])
   })
 
   it('restores from storage on the next open, marked as restored, before the live dump lands', async () => {
