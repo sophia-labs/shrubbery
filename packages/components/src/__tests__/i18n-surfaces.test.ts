@@ -114,6 +114,25 @@ describe('Japanese visible surfaces', () => {
     expect(homeRoot.textContent).toContain('Vera さんが共有')
   })
 
+  it('renders Leave, a shared same-id graph and the workspace limit in Japanese', async () => {
+    const dialog = document.createElement('mn-access-manager')
+    dialog.embedded = true
+    dialog.model = { graphId: 'g', graphTitle: 'G', currentRole: 'viewer', status: 'ready', grants: [], canLeave: true }
+    expect((await mount(dialog)).textContent).toContain('このグラフから退出')
+
+    const home = document.createElement('mn-garden-home')
+    home.status = 'ready'
+    home.workspaces = [
+      { graphId: 'onboarding', title: 'Onboarding', role: 'owner', cellState: 'running' },
+      { graphId: 'onboarding', key: 'onboarding\u001fuser:idle', title: 'Onboarding', role: 'editor', cellState: 'running', ownerName: 'idle' },
+      { graphId: 'test-1', title: 'Test', role: 'owner', cellState: 'stopped', localCreation: { status: 'conflict', reason: 'quota_exceeded' } },
+    ]
+    const root = await mount(home)
+    expect(root.textContent).toContain('Onboarding · idle さんから')
+    expect(root.textContent).toContain('ワークスペースの上限に達しました')
+    expect(root.textContent).toContain('破棄')
+  })
+
   it('updates an already open surface and re-subscribes after reconnecting', async () => {
     const element = document.createElement('mn-empty-state')
     element.title = 'No documents'

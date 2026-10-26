@@ -10,6 +10,10 @@ import {
   unconfirmedWorkspaceMessage,
 } from '../hosted-workspace-creation.js'
 import { mountGardenHomeRoute } from '../garden-home-route.js'
+import type { AuthProvider, RestClient } from '@shrubbery/nucleus'
+import { SourceMirrorRuntime } from '../source-mirror-runtime.js'
+import { DocumentActivationManager, MemoryDocumentActivationStorage } from '../document-activation.js'
+import { GatewayHttpError } from '../gateway-transport.js'
 
 const request = {
   graphId: 'retained-work', title: 'Retained work',
@@ -149,5 +153,79 @@ describe('hosted creation acknowledgement and the real catalog consumers', () =>
     expect((card.querySelector('.access') as HTMLButtonElement).disabled).toBe(true)
     expect((card.querySelector('.open-graph') as HTMLButtonElement).disabled).toBe(true)
     route.destroy()
+  })
+
+  it('says when the cloud refused a workspace at the limit, then Retry creates it and Discard removes it', async () => {
+    const auth: AuthProvider = {
+      token: () => 'token', userId: () => 'owner', isAuthenticated: () => true,
+      whenReady: async () => {}, onChange: () => () => {},
+    }
+    let atQuota = true
+    const sent: string[] = []
+    const runtime = new SourceMirrorRuntime({
+      liveRest: {} as RestClient,
+      caller: { callTool: async () => { throw new TypeError('offline') } },
+      auth,
+      documentActivation: new DocumentActivationManager({ storage: new MemoryDocumentActivationStorage() }),
+      graphLifecycleTransport: {
+        createGraph: async created => {
+          sent.push(created.operationId)
+          // The gateway's refusal, through the transport's real error class.
+          if (atQuota) throw new GatewayHttpError('POST', 'https://gateway.test/graphs', 403, '{"error":"graph quota exceeded","code":"quota_exceeded"}')
+          return created
+        },
+        deleteGraph: async () => {},
+      },
+    })
+    const refused = await prepareHostedWorkspace(runtime, request)
+    expect(refused).toMatchObject({ status: 'conflict', errorCode: 'quota_exceeded' })
+    expect(unconfirmedWorkspaceMessage(refused)).toContain('You\'ve reached your workspace limit. Delete a workspace, or ask for more.')
+    const lifecycle = await runtime.openGraphLifecycle()
+    // Home loads flush the lifecycle; a refused create is not sent again.
+    await lifecycle.flush()
+    expect(sent).toEqual([request.operationId])
+
+    const host = document.createElement('div')
+    document.body.append(host)
+    const load = vi.fn(async () => ({
+      account: { userId: 'owner', displayName: 'Owner' },
+      workspaces: mergeHostedWorkspaceCreations([], lifecycle.records()),
+    }))
+    const route = mountGardenHomeRoute(host, {
+      load, openGraph: vi.fn(),
+      // main.ts's Home service, as it calls the runtime.
+      retryCreate: async () => { await lifecycle.retry(request.operationId); await lifecycle.flush() },
+      discardCreate: async () => { await runtime.discardLocalCreation(request.operationId) },
+    })
+    await route.ready
+    const home = host.querySelector('mn-garden-home')!
+    await home.updateComplete
+    let card = home.shadowRoot!.querySelector('[data-graph-id="retained-work"]')!
+    expect(card.querySelector('[role="alert"]')?.textContent).toContain('workspace limit')
+    expect(mergeHostedWorkspaceCreations([], lifecycle.records())[0]?.localCreation)
+      .toMatchObject({ status: 'conflict', reason: 'quota_exceeded', operationId: request.operationId })
+
+    // Still at the limit: Retry asks again and the card says so again.
+    card.querySelector<HTMLButtonElement>('.retry-create')!.click()
+    await vi.waitFor(() => expect(load).toHaveBeenCalledTimes(2))
+    expect(sent).toEqual([request.operationId, request.operationId])
+    expect(lifecycle.records()[0]).toMatchObject({ status: 'conflict', errorCode: 'quota_exceeded' })
+
+    // Discard: the intent and the local copy go.
+    expect((await runtime.open(request.graphId)).get().complete).toBe(true)
+    await home.updateComplete
+    card = home.shadowRoot!.querySelector('[data-graph-id="retained-work"]')!
+    card.querySelector<HTMLButtonElement>('.discard-create')!.click()
+    await vi.waitFor(() => expect(load).toHaveBeenCalledTimes(3))
+    expect(lifecycle.records()).toEqual([])
+    expect((await runtime.open(request.graphId)).get().complete).toBe(false)
+    await home.updateComplete
+    expect(home.shadowRoot!.querySelector('[data-graph-id="retained-work"]')).toBeNull()
+    route.destroy()
+
+    // Once the limit is raised, a workspace of that name can be created afresh.
+    atQuota = false
+    const again = await prepareHostedWorkspace(runtime, { ...request, operationId: 'graph:create:two' })
+    expect(again.status).toBe('applied')
   })
 })

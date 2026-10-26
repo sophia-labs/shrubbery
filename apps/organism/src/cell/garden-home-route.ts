@@ -27,6 +27,10 @@ export interface OrganismGardenHomeService {
   /** Explicit host-owned creation/seed action; never called by route load. */
   startOnboarding?(): void | Promise<void>
   openAccount?(account: MnGardenHomeAccount): void | Promise<void>
+  /** Ask the cloud again for a workspace saved here whose creation was refused or is unconfirmed. */
+  retryCreate?(workspace: MnWorkspaceSummary): void | Promise<void>
+  /** Remove a refused local workspace and its local work (the service confirms first). */
+  discardCreate?(workspace: MnWorkspaceSummary): void | Promise<void>
 }
 
 export interface GardenHomeRouteMount {
@@ -139,6 +143,12 @@ export function mountGardenHomeRoute(
         @mn-garden-home-account=${(event: CustomEvent<{ account: MnGardenHomeAccount }>) => {
           void service.openAccount?.(event.detail.account)
         }}
+        @mn-garden-home-retry-create=${(event: CustomEvent<MnGardenHomeWorkspaceDetail>) => {
+          if (service.retryCreate) void runCreationIntent(event.detail.workspace, () => service.retryCreate!(event.detail.workspace))
+        }}
+        @mn-garden-home-discard-create=${(event: CustomEvent<MnGardenHomeWorkspaceDetail>) => {
+          if (service.discardCreate) void runCreationIntent(event.detail.workspace, () => service.discardCreate!(event.detail.workspace))
+        }}
       ></mn-garden-home>
     `, host)
   }
@@ -180,6 +190,31 @@ export function mountGardenHomeRoute(
         busyGraphId = ''
         render()
       }
+    }
+  }
+
+  /** Retry or Discard of a local creation, then the catalog again: the card shows what the cloud now says. */
+  const runCreationIntent = async (
+    workspace: MnWorkspaceSummary,
+    effect: () => void | Promise<void>,
+  ): Promise<void> => {
+    if (destroyed || busyGraphId) return
+    busyGraphId = workspace.key || workspace.graphId
+    render()
+    let failure: string | null = null
+    try {
+      await effect()
+    } catch (intentError) {
+      failure = errorMessage(intentError)
+    }
+    if (destroyed) return
+    busyGraphId = ''
+    await load()
+    if (failure && !destroyed) {
+      // Said beside "New graph", where creation errors live; Home itself stays open.
+      createStatus = 'error'
+      createError = failure
+      render()
     }
   }
 

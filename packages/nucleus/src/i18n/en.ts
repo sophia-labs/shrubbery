@@ -2262,6 +2262,12 @@ export const en = {
   'workflow.stack': 'Stack: {name}',
   'workflow.unfit': '{count} unfit',
   'working…': 'working…',
+  'workspace.discard': 'Discard',
+  'workspace.discardCreateFor': 'Discard {name}',
+  'workspace.discardMessage': '“{name}” was never created in the cloud. Discarding removes it and the work saved for it on this device.',
+  'workspace.discardTitle': 'Discard this workspace?',
+  'workspace.quotaExceeded': 'You\'ve reached your workspace limit. Delete a workspace, or ask for more.',
+  'workspace.retryCreateFor': 'Retry creating {name}',
   'workspace object': 'workspace object',
   '× each': '× each',
 } as const

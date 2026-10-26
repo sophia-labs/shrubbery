@@ -100,6 +100,28 @@ implements SourceMirrorStorage, GraphLifecycleStorage {
     )
   }
 
+  /** A discarded local workspace: its mirror and every outbox row filed under it, in one transaction. */
+  async discardMirror(mirrorKey: string): Promise<void> {
+    const db = await this.open()
+    const transaction = db.transaction([MIRRORS, OUTBOX], 'readwrite')
+    transaction.objectStore(MIRRORS).delete(mirrorKey)
+    const outbox = transaction.objectStore(OUTBOX)
+    const keys = await requestResult(
+      outbox.index(OUTBOX_MIRROR_INDEX).getAllKeys(IDBKeyRange.only(mirrorKey)) as IDBRequest<IDBValidKey[]>,
+    )
+    for (const key of keys) outbox.delete(key)
+    this.hooks.beforeTransactionComplete?.('outbox', transaction)
+    await transactionDone(transaction)
+  }
+
+  async deleteGraphLifecycleIntent(key: string): Promise<void> {
+    const db = await this.open()
+    const transaction = db.transaction(GRAPH_LIFECYCLE, 'readwrite')
+    transaction.objectStore(GRAPH_LIFECYCLE).delete(key)
+    this.hooks.beforeTransactionComplete?.('graph-lifecycle', transaction)
+    await transactionDone(transaction)
+  }
+
   async putGraphLifecycleIntent(intent: GraphLifecycleIntent): Promise<void> {
     const db = await this.open()
     const transaction = db.transaction(GRAPH_LIFECYCLE, 'readwrite')

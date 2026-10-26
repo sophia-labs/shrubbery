@@ -37,6 +37,7 @@ import {
   type SourceMirrorStorage,
   type ResolveCurrentIntent,
   sourceOperationsForToolMutation,
+  sourceMirrorKey,
   retryable,
 } from '@shrubbery/source'
 import {
@@ -93,6 +94,8 @@ class MemorySourceRuntimeStorage implements SourceMirrorStorage, GraphLifecycleS
     intent => this.lifecycle.putGraphLifecycleIntent(intent)
   listGraphLifecycleIntents: GraphLifecycleStorage['listGraphLifecycleIntents'] =
     userId => this.lifecycle.listGraphLifecycleIntents(userId)
+  deleteGraphLifecycleIntent = (key: string): Promise<void> => this.lifecycle.deleteGraphLifecycleIntent(key)
+  discardMirror = (key: string): Promise<void> => this.mirror.discardMirror(key)
 }
 
 function decodeBase64(value: string): Uint8Array {
@@ -449,6 +452,29 @@ export class SourceMirrorRuntime {
       )
     }
     return manager
+  }
+
+  /**
+   * Discard a workspace saved on this device that the cloud never created: its lifecycle intent, its mirror
+   * and outbox, and its cached documents. Only after the person confirms; never for a graph the cloud holds.
+   */
+  async discardLocalCreation(operationId: string): Promise<void> {
+    const lifecycle = await this.openGraphLifecycle()
+    const intent = lifecycle.records().find(record => record.operationId === operationId)
+    if (!intent || intent.kind !== 'create' || intent.status === 'applied') {
+      throw new Error('SourceMirrorRuntime: only a local creation the cloud never applied can be discarded')
+    }
+    const userId = this.options.auth.userId().trim()
+    const localKey = this.graphKey(intent.graphId)
+    const mirrorKey = sourceMirrorKey({ userId, graphId: intent.graphId, ...(localKey !== intent.graphId ? { localKey } : {}) })
+    if (!this.storage.discardMirror) throw new Error('SourceMirrorRuntime: this mirror store cannot discard')
+    await lifecycle.discard(operationId)
+    await this.storage.discardMirror(mirrorKey)
+    this.entries.delete(this.entryKey(userId, intent.graphId))
+    this.queryEngine.retire(intent.graphId)
+    this.semanticIndexes.delete(intent.graphId)
+    this.surfaceServices.delete(intent.graphId)
+    await this.options.documentActivation.pruneGraph(userId, intent.graphId, [])
   }
 
   backgroundFlushGraphLifecycle(): void {

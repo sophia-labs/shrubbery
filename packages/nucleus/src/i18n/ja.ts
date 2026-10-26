@@ -2264,6 +2264,12 @@ export const ja = {
   'workflow.stack': 'スタック: {name}',
   'workflow.unfit': '不適合: {count}件',
   'working…': '作業しています…',
+  'workspace.discard': '破棄',
+  'workspace.discardCreateFor': '「{name}」を破棄',
+  'workspace.discardMessage': '「{name}」はクラウドに作成されていません。破棄すると、このワークスペースと、この端末に保存されたその作業が削除されます。',
+  'workspace.discardTitle': 'このワークスペースを破棄しますか？',
+  'workspace.quotaExceeded': 'ワークスペースの上限に達しました。ワークスペースを削除するか、上限の引き上げを依頼してください。',
+  'workspace.retryCreateFor': '「{name}」の作成を再試行',
   'workspace object': 'ワークスペースのオブジェクト',
   '× each': '項目ごと',
 } as const satisfies Catalog

@@ -12819,6 +12819,13 @@ function navigateToGardenGraph(graphId: string, access = false, owner: string | 
   window.location.assign(gardenGraphHref({ graphId, owner }, params))
 }
 
+/** The create intent behind a Home card for a workspace saved here (the catalog row keeps its operation id). */
+function hostedCreationOperation(workspace: { readonly graphId: string; readonly key?: string }): string | null {
+  if (workspace.key) return null
+  const row = hostedGraphs.find(graph => graph.graphId === workspace.graphId && graph.localCreation)
+  return row?.localCreation?.operationId ?? null
+}
+
 /** A Home or picker summary back to its graph: the summary's key names the owner when it is not the account. */
 function workspaceRef(workspace: { readonly graphId: string; readonly key?: string }): GraphRef {
   const ref = workspace.key ? parseLocalGraphKey(workspace.key) : { owner: null, graphId: workspace.graphId }
@@ -12928,6 +12935,32 @@ function createGardenHomeService(contract: OrganismCellContract): OrganismGarden
       const ref = workspaceRef(workspace)
       navigateToGardenGraph(ref.graphId, true, ref.owner)
     },
+    ...(deploymentConfig.mode === 'hosted' && hostedGatewayContract ? {
+      // A workspace saved here that the cloud refused (e.g. at the workspace limit) or has not confirmed.
+      async retryCreate(workspace: GardenHomeWorkspaceSummary) {
+        const own = hostedGatewayContract
+        const operationId = hostedCreationOperation(workspace)
+        if (!own || !operationId) return
+        const lifecycle = await own.sourceMirror.openGraphLifecycle()
+        await lifecycle.retry(operationId)
+        await lifecycle.flush()
+      },
+      async discardCreate(workspace: GardenHomeWorkspaceSummary) {
+        const own = hostedGatewayContract
+        const operationId = hostedCreationOperation(workspace)
+        if (!own || !operationId) return
+        const name = workspace.title || workspace.graphId
+        const confirmed = await confirmAction({
+          get title() { return msg('workspace.discardTitle') },
+          get message() { return msg('workspace.discardMessage', { name }) },
+          get confirmText() { return msg('workspace.discard') },
+          variant: 'danger',
+        })
+        if (!confirmed) return
+        await own.sourceMirror.discardLocalCreation(operationId)
+        homeActivityStore.removeGraph(workspace.graphId)
+      },
+    } : {}),
     async create() {
       const title = await promptForText({
         get title() { return msg('New graph') },

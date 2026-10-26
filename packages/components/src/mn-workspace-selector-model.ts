@@ -49,13 +49,26 @@ export interface MnWorkspaceLifetimeState {
 
 export interface MnWorkspaceSummary {
   readonly graphId: string
+  /**
+   * The host's identity for this workspace when it differs from the graph id: graph ids are unique only per
+   * owner, so another account's graph with one of this account's ids carries an owner-qualified key. Selection,
+   * busy and active state compare keys; absent, the key is the graph id.
+   */
+  readonly key?: string
   readonly title: string
   readonly role: MnWorkspaceRole
   readonly cellState: MnWorkspaceCellState
   /** Who shared it: the owner's name on a graph this account does not own (never an email). */
   readonly ownerName?: string | null
-  /** A retained local creation, not a confirmed hosted ACL or cell. */
-  readonly localCreation?: { readonly status: 'pending' | 'conflict'; readonly error?: string }
+  /**
+   * A retained local creation, not a confirmed hosted ACL or cell. `reason: 'quota_exceeded'`: the cloud refused it
+   * because the account is at its workspace limit (the host may offer Retry and Discard).
+   */
+  readonly localCreation?: {
+    readonly status: 'pending' | 'conflict'
+    readonly error?: string
+    readonly reason?: 'quota_exceeded'
+  }
   /** Account-local recency used by entry surfaces; never inferred by Shrubbery. */
   readonly lastOpenedAt?: number | null
   /** A quiet catalog testimony supplied by the account/ACL authority. */

@@ -1,10 +1,15 @@
 import type { GraphLifecycleIntent, GraphLifecycleManager } from '@shrubbery/source'
+import { t } from '@shrubbery/nucleus'
 import { ownerPrincipal } from '@shrubbery/source/graph-ref'
 import type { GatewayGraphInfo } from './gateway-transport.js'
 
 export interface LocalWorkspaceCreation {
   readonly status: 'pending' | 'conflict'
   readonly error?: string
+  /** The cloud refused it at the account's workspace limit (Home says so, and offers Retry and Discard). */
+  readonly reason?: 'quota_exceeded'
+  /** The create intent's operation id, for Retry and Discard. */
+  readonly operationId?: string
 }
 
 export type HostedWorkspaceInfo = GatewayGraphInfo & {
@@ -74,6 +79,8 @@ export function mergeHostedWorkspaceCreations(
       localCreation: {
         status: intent.status === 'conflict' ? 'conflict' : 'pending',
         ...(intent.error ? { error: intent.error } : {}),
+        ...(intent.errorCode === 'quota_exceeded' ? { reason: 'quota_exceeded' as const } : {}),
+        operationId: intent.operationId,
       },
     })
   }
@@ -81,6 +88,9 @@ export function mergeHostedWorkspaceCreations(
 }
 
 export function unconfirmedWorkspaceMessage(intent: GraphLifecycleIntent): string {
+  if (intent.errorCode === 'quota_exceeded') {
+    return `${t('workspace.quotaExceeded')} ${t('Cloud creation was refused. Local work is retained.')}`
+  }
   return `Workspace saved locally; cloud creation ${intent.status === 'conflict' ? 'was refused' : 'has not been confirmed'}. `
     + 'Your local work and creation intent are retained. Retry cloud confirmation before opening this workspace.'
     + (intent.error ? ` ${intent.error}` : '')

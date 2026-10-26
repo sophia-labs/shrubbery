@@ -49,6 +49,10 @@ export interface MnGardenHomeIntentDetailMap {
   readonly 'mn-garden-home-create': MnGardenHomeCreateDetail
   readonly 'mn-garden-home-start-onboarding': Readonly<Record<string, never>>
   readonly 'mn-garden-home-account': MnGardenHomeAccountDetail
+  /** A workspace saved here whose cloud creation was refused or is unconfirmed: ask the cloud again. */
+  readonly 'mn-garden-home-retry-create': MnGardenHomeWorkspaceDetail
+  /** A refused local workspace: the host confirms, then removes it and its local work. */
+  readonly 'mn-garden-home-discard-create': MnGardenHomeWorkspaceDetail
 }
 
 /** The card title; another owner's graph that shares a name or id with a listed one reads "… · from <name>". */
@@ -376,6 +380,26 @@ export class MnGardenHome extends SkinAware(LitElement) {
     .graph-actions { display: flex; align-items: flex-start; }
     .access { display: inline-flex; align-items: center; gap: 5px; padding: 0 8px; }
 
+    /* A workspace saved here that the cloud refused or has not confirmed: why, then Retry and Discard. */
+    .local-creation { grid-column: 1 / -1; display: grid; gap: var(--mn-space-2, 0.5rem); }
+    .local-creation-actions { display: flex; flex-wrap: wrap; gap: var(--mn-space-2, 0.5rem); }
+    .retry-create,
+    .discard-create {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      min-height: 32px;
+      padding: 0 8px;
+      border: 1px solid var(--mn-color-border-default, #ccd6cf);
+      border-radius: var(--mn-radius-control, 6px);
+      background: transparent;
+      color: var(--mn-color-text-secondary, #526159);
+      cursor: pointer;
+      font-size: var(--mn-text-xs, 0.75rem);
+    }
+    .retry-create:hover:not(:disabled),
+    .discard-create:hover:not(:disabled) { border-color: var(--mn-color-border-accent, #89a996); background: var(--mn-color-surface-accent, #edf6ef); }
+
     .disabled-reason {
       grid-column: 1 / -1;
       margin: 0;
@@ -608,17 +632,47 @@ export class MnGardenHome extends SkinAware(LitElement) {
               <span>${t('sharing.share')}</span>
             </button>` : nothing}
           </div>
-          ${workspace.localCreation ? html`
-            <p class="disabled-reason" title=${workspace.localCreation.error ?? ''}>
-              ${workspace.localCreation.status === 'conflict' ? t('Cloud creation was refused. Local work is retained.') : t('Cloud creation is not yet confirmed. Local work is retained.')}
-              Retry cloud confirmation before opening this workspace.
-            </p>
-          ` : nothing}
+          ${workspace.localCreation ? this.renderLocalCreation(workspace, title) : nothing}
           ${workspace.disabled ? html`
             <p class="disabled-reason">${workspace.disabledReason?.trim() || t('This graph is not available to open.')}</p>
           ` : nothing}
         </article>
       </li>
+    `
+  }
+
+  /**
+   * A workspace saved here that the cloud has not created. Refused (at the workspace limit, or otherwise): say
+   * why, and offer Retry (once the limit is raised) and Discard. Unconfirmed: offer Retry. The local work stays
+   * until the person discards it.
+   */
+  private renderLocalCreation(workspace: MnWorkspaceSummary, title: string) {
+    const creation = workspace.localCreation!
+    const refused = creation.status === 'conflict'
+    const reason = creation.reason === 'quota_exceeded'
+      ? t('workspace.quotaExceeded')
+      : refused ? t('Cloud creation was refused. Local work is retained.') : t('Cloud creation is not yet confirmed. Local work is retained.')
+    const busy = this.busyGraphId === workspaceKey(workspace)
+    return html`
+      <div class="local-creation" data-refused=${refused ? 'true' : 'false'}>
+        <p class="disabled-reason" title=${creation.error ?? ''} role=${refused ? 'alert' : nothing}>${reason}</p>
+        <div class="local-creation-actions">
+          <button
+            class="retry-create"
+            type="button"
+            ?disabled=${busy}
+            aria-label=${t('workspace.retryCreateFor', { name: title })}
+            @click=${() => this.emit('mn-garden-home-retry-create', { workspace })}
+          >${icon('refresh-cw', { size: 13 })}<span>${t('Retry')}</span></button>
+          ${refused ? html`<button
+            class="discard-create"
+            type="button"
+            ?disabled=${busy}
+            aria-label=${t('workspace.discardCreateFor', { name: title })}
+            @click=${() => this.emit('mn-garden-home-discard-create', { workspace })}
+          >${icon('trash-2', { size: 13 })}<span>${t('workspace.discard')}</span></button>` : nothing}
+        </div>
+      </div>
     `
   }
 
