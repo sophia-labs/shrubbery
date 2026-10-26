@@ -132,6 +132,14 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
 
+function emailOrNull(value: string): string | null {
+  try {
+    return accessEmail(value)
+  } catch {
+    return null
+  }
+}
+
 /** General access, one choice. A live public link wins: it reaches more people than the everyone grant. */
 export function generalAccessOf(state: Pick<ControlSharingState, 'everyone' | 'publicLink'>): WorkspaceGeneralAccess {
   if (state.publicLink?.live) return 'public'
@@ -610,10 +618,8 @@ export class OrganismAccessGrantController {
       this.requestRender()
       return
     }
-    let email: string
-    try {
-      email = accessEmail(detail.email)
-    } catch {
+    const email = emailOrNull(detail.email)
+    if (!email) {
       this.error = t('sharing.invalidEmail')
       this.requestRender()
       return
