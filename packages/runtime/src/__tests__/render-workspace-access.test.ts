@@ -3,8 +3,11 @@ import { GARDEN_DEFAULT } from '@shrubbery/nucleus'
 import {
   renderWorkspace,
   type WorkspaceAccessAddDetail,
+  type WorkspaceAccessInvitationCancelDetail,
+  type WorkspaceAccessInviteDetail,
   type WorkspaceAccessRemoveDetail,
   type WorkspaceAccessRoleChangeDetail,
+  type WorkspaceGeneralAccessChangeDetail,
 } from '../render-workspace.js'
 
 describe('renderWorkspace hosted access seam', () => {
@@ -54,6 +57,31 @@ describe('renderWorkspace hosted access seam', () => {
       ['add', { userId: 'viewer-2', role: 'viewer' }],
       ['role', { userId: 'viewer-2', role: 'editor' }],
       ['remove', { userId: 'viewer-2' }],
+    ])
+  })
+
+  it('forwards share-by-email, invitation-cancel and general-access intents', () => {
+    const intents: unknown[] = []
+    const access = {
+      graphId: 'graph-a',
+      graphTitle: 'Research Garden',
+      currentRole: 'owner' as const,
+      status: 'ready' as const,
+      grants: [],
+      onInvite: (detail: WorkspaceAccessInviteDetail) => intents.push(['invite', detail]),
+      onInvitationCancel: (detail: WorkspaceAccessInvitationCancelDetail) => intents.push(['cancel', detail]),
+      onGeneralAccessChange: (detail: WorkspaceGeneralAccessChangeDetail) => intents.push(['general', detail]),
+    }
+    const container = renderWorkspace(GARDEN_DEFAULT, { chrome: { access } })
+    const top = container.querySelector('mn-top-bar') as HTMLElement
+    const send = (name: string, detail: unknown) => top.dispatchEvent(new CustomEvent(name, { detail, bubbles: true, composed: true }))
+    send('mn-access-invite', { email: 'ada@example.test', role: 'viewer' })
+    send('mn-access-invitation-cancel', { invitationId: 'inv-1' })
+    send('mn-access-general-change', { access: 'public' })
+    expect(intents).toEqual([
+      ['invite', { email: 'ada@example.test', role: 'viewer' }],
+      ['cancel', { invitationId: 'inv-1' }],
+      ['general', { access: 'public' }],
     ])
   })
 
