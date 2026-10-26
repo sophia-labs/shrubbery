@@ -751,12 +751,16 @@ export function sidebarSectionsFromDocuments(
   ]
 }
 
-export async function loadSidebarSections(
-  rest: SidebarDocumentRest,
-  graphId: string,
-  activeId: string | null,
-  expandedFolders: ReadonlySet<string> = new Set(),
-): Promise<SidebarSection[]> {
+/** What the four sidebar queries return, before any tree is built. Cacheable: building from it needs no query. */
+export interface SidebarRows {
+  readonly docs: readonly SidebarDocument[]
+  readonly folders: readonly SidebarFolder[]
+  readonly artifacts: readonly SidebarArtifact[]
+  readonly tags: readonly SidebarTag[]
+}
+
+/** The four whole-workspace queries. The expensive half of a sidebar refresh. */
+export async function loadSidebarRows(rest: SidebarDocumentRest, graphId: string): Promise<SidebarRows> {
   const [docResult, folderResult, artifactResult, tagResult] = (await Promise.all([
     rest.query(graphId, sidebarDocumentListSparql(graphId)),
     rest.query(graphId, sidebarFolderListSparql(graphId)),
@@ -783,5 +787,23 @@ export async function loadSidebarSections(
     const tag = sidebarTagFromRow(row)
     if (tag) tags.push(tag)
   }
-  return sidebarSectionsFromDocuments(docs, activeId, tags, folders, expandedFolders, artifacts)
+  return { docs, folders, artifacts, tags }
+}
+
+/** Build the sections from rows already read: moves the active highlight with no query. */
+export function sidebarSectionsFromRows(
+  rows: SidebarRows,
+  activeId: string | null,
+  expandedFolders: ReadonlySet<string> = new Set(),
+): SidebarSection[] {
+  return sidebarSectionsFromDocuments(rows.docs, activeId, rows.tags, rows.folders, expandedFolders, rows.artifacts)
+}
+
+export async function loadSidebarSections(
+  rest: SidebarDocumentRest,
+  graphId: string,
+  activeId: string | null,
+  expandedFolders: ReadonlySet<string> = new Set(),
+): Promise<SidebarSection[]> {
+  return sidebarSectionsFromRows(await loadSidebarRows(rest, graphId), activeId, expandedFolders)
 }

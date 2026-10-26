@@ -472,10 +472,13 @@ import {
   handleRegistryDocumentShortcut,
 } from './cell/keyboard-shortcuts.js'
 import {
-  loadSidebarSections,
+  loadSidebarRows,
   sidebarFolderMoveExcludeIds,
   sidebarFolderOptionsFromSections,
+  sidebarSectionsFromRows,
+  type SidebarRows,
 } from './cell/sidebar-documents.js'
+import { createCoalescedRunner } from './cell/coalesced-runner.js'
 import { resolveSidebarDrop } from './cell/sidebar-drop.js'
 import {
   ownedDocumentIds,
@@ -5213,11 +5216,43 @@ function sidebarSectionsWithParkedWork(sections: readonly SidebarSection[], grap
   return parked ? [...sections, parked] : sections
 }
 
-async function refreshSidebarSections(): Promise<boolean> {
+/**
+ * The rows the last sidebar read returned, with the store and graph they belong to. Opening a document
+ * only moves the highlight, which needs no query: the tree is rebuilt from these rows.
+ */
+let sidebarRowsCache: { readonly store: OrganismSessionStore; readonly graphId: string; readonly rows: SidebarRows } | null = null
+
+function commitSidebarSections(sections: readonly SidebarSection[], graphId: string): void {
+  // Document-plane pending/parked decoration (master §3 Slice 4). A pure
+  // overlay — folders/artifacts/tags pass through unchanged. Every commit site
+  // decorates, or every sidebar mutation would silently erase every badge.
+  currentSidebarSections = sidebarSectionsWithParkedWork(
+    decorateSidebarSectionsWithSourceState(sections, currentSourceOutboxRecords()),
+    graphId,
+  )
+}
+
+/**
+ * Move the active highlight (and the expanded path to it) by rebuilding the tree from the rows already read.
+ * False when there is nothing trustworthy to rebuild from (no rows for this store and graph, or the open
+ * document is not among them, as for one an agent has just created): the caller then asks the cell.
+ */
+function rebuildSidebarSectionsFromCache(): boolean {
+  const cache = sidebarRowsCache
+  if (!cache || cache.store !== store || cache.graphId !== currentGraphId || sourceSelect.value !== 'CELL_LIVE') return false
+  if (openDocId && !cache.rows.docs.some(doc => doc.id === openDocId)) return false
+  commitSidebarSections(sidebarSectionsFromRows(cache.rows, openDocId, currentSidebarExpandedFolders), cache.graphId)
+  currentSidebarStatus = 'ready'
+  currentSidebarError = ''
+  return true
+}
+
+async function refreshSidebarSectionsNow(): Promise<boolean> {
   if (!store) {
     currentSidebarSections = []
     currentSidebarStatus = 'idle'
     currentSidebarError = ''
+    sidebarRowsCache = null
     latestSidebarRequest++
     if (documentSwitcherEl.open) refreshDocumentSwitcherRows()
     if (sourceSelect.value === 'CELL_LIVE') rerenderCurrentSource()
@@ -5226,23 +5261,24 @@ async function refreshSidebarSections(): Promise<boolean> {
   const activeStore = store
   const requestId = ++latestSidebarRequest
   const graphId = currentGraphId
+  const endSpan = perfSpan('sidebar.refresh')
+  // A refresh of a list already on screen does not blank it or announce itself: the status flips to
+  // 'loading' honestly, but the render waits for the answer. Only a first load renders the spinner.
+  const hadSections = currentSidebarSections.length > 0
   currentSidebarStatus = 'loading'
   currentSidebarError = ''
-  if (sourceSelect.value === 'CELL_LIVE') rerenderCurrentSource()
+  if (sourceSelect.value === 'CELL_LIVE' && !hadSections) rerenderCurrentSource()
   try {
-    const sections = await loadSidebarSections(activeStore.contract.rest, graphId, openDocId, currentSidebarExpandedFolders)
+    const rows = await loadSidebarRows(activeStore.contract.rest, graphId)
     if (
       requestId !== latestSidebarRequest
       || store !== activeStore
       || graphId !== currentGraphId
       || sourceSelect.value !== 'CELL_LIVE'
     ) return false
-    // Document-plane pending/parked decoration (master §3 Slice 4). A pure
-    // overlay — folders/artifacts/tags pass through unchanged.
-    currentSidebarSections = sidebarSectionsWithParkedWork(
-      decorateSidebarSectionsWithSourceState(sections, currentSourceOutboxRecords()),
-      graphId,
-    )
+    sidebarRowsCache = { store: activeStore, graphId, rows }
+    // Built AFTER the answer with the document open NOW, not the one open when the queries began.
+    commitSidebarSections(sidebarSectionsFromRows(rows, openDocId, currentSidebarExpandedFolders), graphId)
     currentSidebarStatus = 'ready'
     currentSidebarError = ''
     void refreshVisitorOwnership(activeStore, graphId)
@@ -5269,7 +5305,24 @@ async function refreshSidebarSections(): Promise<boolean> {
     if (documentSwitcherEl.open) refreshDocumentSwitcherRows()
     err(`sidebar document-list read error:\n${e instanceof Error ? e.message : String(e)}`)
     return false
+  } finally {
+    endSpan({ rows: sidebarRowsCache?.rows.docs.length ?? 0 })
   }
+}
+
+/**
+ * One sidebar read at a time. A request made while one is in flight collapses with every other such request
+ * into a single re-read that starts when the first settles (and sees the state as it is then); a request
+ * for another graph never waits for the first graph's read. (Previously every call started four more
+ * whole-workspace queries, and only the counter discarded the late answers.)
+ */
+const refreshSidebarSectionsCoalesced = createCoalescedRunner(
+  refreshSidebarSectionsNow,
+  () => currentGraphId,
+)
+
+function refreshSidebarSections(): Promise<boolean> {
+  return refreshSidebarSectionsCoalesced()
 }
 
 function liveSidebarMutationStore(action: string): OrganismSessionStore | null {
@@ -5286,23 +5339,14 @@ async function refreshAfterSidebarMutation(activeStore: OrganismSessionStore, gr
   // without making local acceptance wait for an unavailable cell.
   void activeStore.refresh()
   try {
-    const sections = await loadSidebarSections(
-      activeStore.contract.rest,
-      graphId,
-      openDocId,
-      currentSidebarExpandedFolders,
-    )
+    const rows = await loadSidebarRows(activeStore.contract.rest, graphId)
     if (store !== activeStore || currentGraphId !== graphId || sourceSelect.value !== 'CELL_LIVE') return false
     // This mutation owns a post-acceptance projection commit. Invalidate older
     // reads already queued by source-mirror phase notifications, then publish
     // the source+outbox view exactly once.
     latestSidebarRequest += 1
-    // A second, independent call site (master §3 Slice 4) — decorate here
-    // too, or every sidebar mutation would silently erase every badge.
-    currentSidebarSections = sidebarSectionsWithParkedWork(
-      decorateSidebarSectionsWithSourceState(sections, currentSourceOutboxRecords()),
-      graphId,
-    )
+    sidebarRowsCache = { store: activeStore, graphId, rows }
+    commitSidebarSections(sidebarSectionsFromRows(rows, openDocId, currentSidebarExpandedFolders), graphId)
     currentSidebarStatus = 'ready'
     currentSidebarError = ''
     await refreshVisitorOwnership(activeStore, graphId)
@@ -11407,8 +11451,11 @@ function activateDocumentSurface(
   } else {
     currentZoomBlockId = readZoomBlockIdFromUrl()
   }
+  // Opening a document only moves the sidebar highlight: rebuild the tree from the rows already read,
+  // before the render below shows it, and ask the cell only when the document is not among them.
+  const sidebarRebuilt = rebuildSidebarSectionsFromCache()
   renderCellState(store.getState(), configStore?.get())
-  void refreshSidebarSections()
+  if (!sidebarRebuilt) void refreshSidebarSections()
   void refreshWireBundle()
   queueMicrotask(prepareCenterPaneAdjacency)
   void refreshSalienceBundle()
