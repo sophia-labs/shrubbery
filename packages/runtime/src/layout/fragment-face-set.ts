@@ -97,6 +97,8 @@ import { createCardAgentFace, createCardAgentResourceAdapter } from './faces/car
 // Typed objects (2026-10-20, D7 "Layout leaves"): one typed object, any absolute IRI, drawn by <sh-object-view>.
 import { createObjectCardFace, createObjectCardResourceAdapter } from './faces/object-card-face.js'
 import type { TypedObjectService } from '../object-view/typed-object-service.js'
+// la Lente (2026-10-25, the perf hill-climb): the `perf` ledger graph as a dashboard leaf.
+import { createBenchDashboardFace, createBenchDashboardResourceAdapter } from './faces/bench-dashboard-face.js'
 
 /**
  * The adapter id the Surface interpreter resolves a grid's COLLECTION children
@@ -142,6 +144,8 @@ export function createFragmentFaceRegistrations(): readonly FaceRegistration[] {
     createCardAgentFace(),
     // Typed objects D7: a graph-authored layout may place any typed object (a run item, a published object).
     createObjectCardFace(),
+    // la Lente: the bench ledger (graph `perf`) as runs, run-vs-baseline, hill-climb and traces. Read-only.
+    createBenchDashboardFace(),
   ]
 }
 
@@ -188,6 +192,7 @@ export function createFragmentResourceAdapters(
     createComputeCellResourceAdapter(service),
     createAgentSessionFamilyResourceAdapter(service),
     createObjectCardResourceAdapter(typedObjects),
+    createBenchDashboardResourceAdapter(service),
   ]
 }
 
