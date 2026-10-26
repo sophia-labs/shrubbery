@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { createOrganismShellFeatureHost } from '../shell-features.js'
+import { accessOpenRequested, createOrganismShellFeatureHost, withoutAccessOpenRequest } from '../shell-features.js'
 import { createShellContext } from '../shell-context.js'
 import type { GatewayAccessGrant } from '../gateway-transport.js'
 
@@ -110,5 +110,50 @@ describe('hosted access shell feature', () => {
     const incomplete = hostedContext(root, { auth: { userId: () => 'owner-1' } })
     expect(host.workspaceSnapshot(incomplete, { chrome: {} }).chrome?.access).toBeNull()
     host.destroy()
+  })
+
+  it('opens the Share dialog once for ?access=1, after the graph has loaded', async () => {
+    const gateway = {
+      access: vi.fn(async () => rows),
+      putAccess: vi.fn(async () => undefined),
+      deleteAccess: vi.fn(async () => undefined),
+    }
+    const contract = {
+      auth: { userId: () => 'owner-1', snapshot: () => ({ identity: 'vera@example.test' }) },
+      gateway,
+      ui: { confirm: vi.fn(async () => true) },
+    }
+    const root = document.createElement('div')
+    const context = createShellContext({
+      host: root,
+      graphId: 'graph-a',
+      documentId: null,
+      app: 'garden',
+      source: 'CELL_LIVE',
+      deploymentMode: 'hosted',
+      contract,
+      location: new URL('https://garden.test/g/graph-a?access=1'),
+      rerender: vi.fn(),
+    })
+    const host = createOrganismShellFeatureHost()
+    const workspaces = [{ graphId: 'graph-a', title: 'Research Garden', role: 'owner' as const, cellState: 'running' as const }]
+
+    const loading = host.workspaceSnapshot(context, { chrome: { workspaces }, sidebar: { status: 'loading' } })
+    expect(loading.chrome?.access?.openRequest ?? null).toBeNull()
+    expect(gateway.access).not.toHaveBeenCalled()
+
+    const ready = host.workspaceSnapshot(context, { chrome: { workspaces }, sidebar: { status: 'ready' } })
+    expect(ready.chrome?.access?.openRequest).toBe(1)
+    await vi.waitFor(() => expect(gateway.access).toHaveBeenCalledTimes(1))
+    const again = host.workspaceSnapshot(context, { chrome: { workspaces }, sidebar: { status: 'ready' } })
+    expect(again.chrome?.access?.openRequest).toBe(1)
+    expect(again.chrome?.access?.memberLinkUrl).toMatch(/\/g\/graph-a$/)
+    host.destroy()
+  })
+
+  it('reads ?access=1 and strips only that parameter', () => {
+    expect(accessOpenRequested(new URL('https://garden.test/g/a?access=1&doc=d'))).toBe(true)
+    expect(accessOpenRequested(new URL('https://garden.test/g/a?access=0'))).toBe(false)
+    expect(withoutAccessOpenRequest(new URL('https://garden.test/g/a?access=1&doc=d')).href).toBe('https://garden.test/g/a?doc=d')
   })
 })

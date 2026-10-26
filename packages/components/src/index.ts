@@ -726,6 +726,12 @@ export {
   type MnShareLinkCreateDetail,
   type MnShareLinkRevokeDetail,
   type MnSharingBusyAction,
+  type MnGeneralAccess,
+  type MnGeneralAccessChangeDetail,
+  type MnAccessInvitation,
+  type MnAccessInvitationCancelDetail,
+  type MnAccessInviteDetail,
+  type MnAccessInviteResult,
 } from './mn-access-manager.js'
 export {
   MnOpsHealthPage,

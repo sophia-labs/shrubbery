@@ -230,9 +230,21 @@ function settingsOperationsContract(value: unknown): SettingsOperationsContract 
 }
 
 interface HostedAccessContract {
-  readonly auth: { userId(): string }
+  /** The production CognitoAuthSession also has `snapshot()`, whose `identity` is the signed-in email. */
+  readonly auth: { userId(): string; snapshot?(): { readonly identity?: string } }
   readonly gateway: AccessGrantGateway
   readonly ui: AccessGrantUi
+}
+
+/** `?access=1` (Home's Share button): the dialog opens once the graph has loaded, and the parameter leaves the URL. */
+export function accessOpenRequested(location: URL): boolean {
+  return location.searchParams.get('access') === '1'
+}
+
+export function withoutAccessOpenRequest(location: URL): URL {
+  const url = new URL(location.href)
+  url.searchParams.delete('access')
+  return url
 }
 
 function hostedAccessContract(value: unknown): HostedAccessContract | null {
@@ -611,6 +623,7 @@ function chromeFeature<TContract>(): ShellFeature<TContract> {
 
 function hostedAccessFeature<TContract>(): ShellFeature<TContract> {
   let controller: OrganismAccessGrantController | null = null
+  let autoOpenedGraphId: string | null = null
   const ensure = (context: ShellContext<TContract>): OrganismAccessGrantController => {
     controller ??= new OrganismAccessGrantController({ requestRender: context.rerender })
     return controller
@@ -639,6 +652,8 @@ function hostedAccessFeature<TContract>(): ShellFeature<TContract> {
       }
       const graphCrumb = snapshot.chrome?.breadcrumbs?.find(item => item.kind === 'graph')
       const active = ensure(context)
+      let identity = ''
+      try { identity = contract.auth.snapshot?.().identity?.trim() ?? '' } catch { identity = '' }
       active.setScope({
         gateway: contract.gateway,
         ui: contract.ui,
@@ -646,7 +661,24 @@ function hostedAccessFeature<TContract>(): ShellFeature<TContract> {
         graphTitle: workspace?.title || graphCrumb?.label || context.graphId,
         currentUserId,
         roleHint: workspace?.role ?? 'unknown',
+        ...(identity.includes('@') ? { currentUserEmail: identity } : identity ? { currentUserName: identity } : {}),
       })
+      // Home's Share button lands on `/g/<id>?access=1`: open the dialog once the graph's tree is in.
+      if (
+        accessOpenRequested(context.location)
+        && autoOpenedGraphId !== context.graphId
+        && workspace
+        && snapshot.sidebar?.status === 'ready'
+      ) {
+        autoOpenedGraphId = context.graphId
+        active.requestOpen()
+        try {
+          const history = globalThis.history
+          if (history && globalThis.location?.href === context.location.href) {
+            history.replaceState(history.state, '', withoutAccessOpenRequest(context.location).href)
+          }
+        } catch { /* the request is already honoured; a stale address is only cosmetic */ }
+      }
       return {
         chrome: {
           ...snapshot.chrome,

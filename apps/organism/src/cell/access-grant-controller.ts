@@ -6,24 +6,35 @@
  * side of the shell boundary and use GatewayTransport's token-fresh methods.
  */
 
-import type { ConfirmOpts } from '@shrubbery/nucleus'
+import { t, type ConfirmOpts } from '@shrubbery/nucleus'
 import {
+  accessEmail,
   accessUserPrincipal,
+  publicViewUrl,
   shareLinkUrl,
   type ControlMintedShareLink,
+  type ControlPerson,
+  type ControlPublicLink,
+  type ControlPublicLinkCreate,
   type ControlShareLinkCreate,
+  type ControlShareWithEmailResult,
   type ControlSharingState,
 } from '@shrubbery/source/access-control'
 import type {
   WorkspaceAccessAddDetail,
   WorkspaceAccessBusyAction,
   WorkspaceAccessGrant,
+  WorkspaceAccessInvitationCancelDetail,
+  WorkspaceAccessInviteDetail,
+  WorkspaceAccessInviteResult,
   WorkspaceAccessOptions,
   WorkspaceAccessRemoveDetail,
   WorkspaceAccessRole,
   WorkspaceAccessRoleChangeDetail,
   WorkspaceAccessSharing,
   WorkspaceEveryoneChangeDetail,
+  WorkspaceGeneralAccess,
+  WorkspaceGeneralAccessChangeDetail,
   WorkspaceShareLinkCreateDetail,
   WorkspaceShareLinkRevokeDetail,
   WorkspaceSharingBusyAction,
@@ -39,6 +50,11 @@ export interface AccessGrantGateway {
   setEveryoneAccess?(graphId: string, enabled: boolean): Promise<void>
   createShareLink?(graphId: string, request: ControlShareLinkCreate): Promise<ControlMintedShareLink>
   revokeShareLink?(graphId: string, linkId: string): Promise<void>
+  /** Add a person by email (grant a known account, else invite). Absent: the dialog adds typed user ids only. */
+  shareWithEmail?(graphId: string, email: string, role: 'viewer' | 'editor'): Promise<ControlShareWithEmailResult>
+  cancelInvitation?(graphId: string, invitationId: string): Promise<void>
+  /** "Anyone with the link can view"; revoked with revokeShareLink. */
+  createPublicLink?(graphId: string, request?: ControlPublicLinkCreate): Promise<ControlPublicLink>
 }
 
 type SharingGateway = Required<Pick<AccessGrantGateway, 'sharing' | 'setEveryoneAccess' | 'createShareLink' | 'revokeShareLink'>>
@@ -63,6 +79,9 @@ export interface AccessGrantScope {
   readonly graphTitle: string
   readonly currentUserId: string
   readonly roleHint?: WorkspaceAccessRole | 'unknown'
+  /** The signed-in person's name and email: the owner's own row, and who an invitation note is from. */
+  readonly currentUserName?: string
+  readonly currentUserEmail?: string
 }
 
 export interface OrganismAccessGrantControllerOptions {
@@ -75,19 +94,25 @@ function memberName(grant: WorkspaceAccessGrant): string {
   return grant.displayName?.trim() || grant.email?.trim() || grant.userId
 }
 
-function projectGrant(grant: GatewayAccessGrant): WorkspaceAccessGrant {
+function projectGrant(grant: GatewayAccessGrant, people: ReadonlyMap<string, ControlPerson>): WorkspaceAccessGrant {
+  const person = people.get(grant.userId)
+  const email = grant.email || person?.email || ''
+  const displayName = grant.displayName || person?.name || ''
   return Object.freeze({
     userId: grant.userId,
     role: grant.role,
     grantedAt: grant.grantedAt,
     grantedBy: grant.grantedBy,
-    ...(grant.email ? { email: grant.email } : {}),
-    ...(grant.displayName ? { displayName: grant.displayName } : {}),
+    ...(email ? { email } : {}),
+    ...(displayName ? { displayName } : {}),
   })
 }
 
-function projectGrants(grants: readonly GatewayAccessGrant[]): readonly WorkspaceAccessGrant[] {
-  return Object.freeze(grants.map(projectGrant).sort((left, right) => {
+function projectGrants(
+  grants: readonly GatewayAccessGrant[],
+  people: ReadonlyMap<string, ControlPerson>,
+): readonly WorkspaceAccessGrant[] {
+  return Object.freeze(grants.map(grant => projectGrant(grant, people)).sort((left, right) => {
     if (left.role === 'owner' && right.role !== 'owner') return -1
     if (right.role === 'owner' && left.role !== 'owner') return 1
     return memberName(left).localeCompare(memberName(right)) || left.userId.localeCompare(right.userId)
@@ -107,6 +132,12 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
 
+/** General access, one choice. A live public link wins: it reaches more people than the everyone grant. */
+export function generalAccessOf(state: Pick<ControlSharingState, 'everyone' | 'publicLink'>): WorkspaceGeneralAccess {
+  if (state.publicLink?.live) return 'public'
+  return state.everyone ? 'signed-in' : 'restricted'
+}
+
 export class OrganismAccessGrantController {
   private scope: AccessGrantScope | null = null
   private generation = 0
@@ -124,8 +155,32 @@ export class OrganismAccessGrantController {
   private sharingBusy: WorkspaceSharingBusyAction | null = null
   private sharingError: string | null = null
   private createdLinkUrl: string | null = null
+  /** The gateway rows last read, and the names `get_sharing` gives them. */
+  private rows: readonly GatewayAccessGrant[] = Object.freeze([])
+  private people = new Map<string, ControlPerson>()
+  private inviteResult: WorkspaceAccessInviteResult | null = null
+  private openRequests = 0
+  private openRequest: number | null = null
 
   constructor(private readonly options: OrganismAccessGrantControllerOptions) {}
+
+  private origin(): string {
+    return (this.options.linkOrigin?.() ?? globalThis.location?.origin ?? '').replace(/\/+$/u, '')
+  }
+
+  /** The graph's own address: it opens for people with access (and asks anyone else to sign in). */
+  private graphUrl(scope: AccessGrantScope): string {
+    return `${this.origin()}/g/${encodeURIComponent(scope.graphId)}`
+  }
+
+  private inviteMessage(scope: AccessGrantScope, email: string): string {
+    return t('sharing.inviteMessage', {
+      inviter: scope.currentUserName?.trim() || scope.currentUserEmail?.trim() || t('sharing.inviterFallback'),
+      graph: scope.graphTitle || scope.graphId,
+      url: this.graphUrl(scope),
+      email,
+    })
+  }
 
   private resetSharing(): void {
     this.sharingStatus = 'idle'
@@ -169,16 +224,31 @@ export class OrganismAccessGrantController {
     this.notice = null
     this.busyUserId = null
     this.busyAction = null
+    this.rows = Object.freeze([])
+    this.people = new Map()
+    this.inviteResult = null
+    this.openRequest = null
     this.resetSharing()
   }
 
   private applyGrants(rows: readonly GatewayAccessGrant[]): void {
-    this.grants = projectGrants(rows)
+    this.rows = rows
     const scope = this.scope
-    const ownGrant = scope
-      ? this.grants.find(grant => grant.userId === scope.currentUserId)
-      : null
+    const ownGrant = scope ? rows.find(grant => grant.userId === scope.currentUserId) : null
     this.currentRole = ownGrant?.role ?? scope?.roleHint ?? 'unknown'
+    // The owner is not a delegated grant, so the gateway never lists them: the owner's own row is drawn here,
+    // first, the way a sharing dialog shows who owns the thing.
+    const ownerRow: readonly GatewayAccessGrant[] = scope && this.currentRole === 'owner' && !ownGrant
+      ? [{
+          userId: scope.currentUserId,
+          role: 'owner',
+          grantedAt: '',
+          grantedBy: scope.currentUserId,
+          ...(scope.currentUserEmail?.trim() ? { email: scope.currentUserEmail.trim() } : {}),
+          ...(scope.currentUserName?.trim() ? { displayName: scope.currentUserName.trim() } : {}),
+        }]
+      : []
+    this.grants = projectGrants([...ownerRow, ...rows], this.people)
   }
 
   async open(): Promise<void> {
@@ -186,9 +256,24 @@ export class OrganismAccessGrantController {
     await this.refresh()
   }
 
+  /** Open the dialog from outside (Home's Share button lands here with `?access=1`). */
+  requestOpen(): void {
+    if (!this.scope || this.destroyed) return
+    this.openRequest = ++this.openRequests
+    this.requestRender()
+    void this.open()
+  }
+
   async refresh(): Promise<void> {
     const scope = this.scope
     if (!scope || this.destroyed || (this.busyAction && this.busyAction !== 'refresh')) return
+    if (this.currentRole === 'viewer' || this.currentRole === 'editor') {
+      // Only the owner may list who has access. Everyone else sees their own role and the graph's link.
+      this.status = 'ready'
+      this.error = null
+      this.requestRender()
+      return
+    }
     const generation = ++this.generation
     this.status = 'loading'
     this.error = null
@@ -259,6 +344,7 @@ export class OrganismAccessGrantController {
       if (!confirmedBy(rows)) throw new Error('The refreshed list does not yet confirm the requested grant state.')
       this.status = 'ready'
       this.notice = notice
+      void this.loadSharing(scope, generation, true)
     } catch (error) {
       if (generation !== this.generation) return
       this.status = 'error'
@@ -382,20 +468,27 @@ export class OrganismAccessGrantController {
     )
   }
 
-  /** Owner-only: read the everyone grant and share links. Failure never hides people. */
-  private async loadSharing(scope: AccessGrantScope, generation: number): Promise<void> {
+  /** Adopt a sharing view: its general access, links, invitations, and the names of the people with access. */
+  private adoptSharing(state: ControlSharingState): void {
+    this.sharingState = state
+    this.people = new Map(state.people.map(row => [row.userId, row.person]))
+    this.applyGrants(this.rows)
+  }
+
+  /** Owner-only: read general access, links, invitations and names. Failure never hides people. */
+  private async loadSharing(scope: AccessGrantScope, generation: number, quiet = false): Promise<void> {
     const gateway = sharingGateway(scope.gateway)
     if (!gateway || this.currentRole !== 'owner') {
       this.resetSharing()
       return
     }
-    this.sharingStatus = 'loading'
+    if (!quiet || this.sharingStatus !== 'ready') this.sharingStatus = 'loading'
     this.sharingError = null
     this.requestRender()
     try {
       const state = await gateway.sharing(scope.graphId)
       if (generation !== this.generation || this.destroyed) return
-      this.sharingState = state
+      this.adoptSharing(state)
       this.sharingStatus = 'ready'
     } catch (error) {
       if (generation !== this.generation || this.destroyed) return
@@ -424,7 +517,7 @@ export class OrganismAccessGrantController {
       if (generation !== this.generation || this.destroyed) return
       const state = await gateway.sharing(scope.graphId)
       if (generation !== this.generation || this.destroyed) return
-      this.sharingState = state
+      this.adoptSharing(state)
       this.notice = notice
     } catch (error) {
       if (generation !== this.generation || this.destroyed) return
@@ -507,6 +600,150 @@ export class OrganismAccessGrantController {
     )
   }
 
+  /** Add people by email: a known account is granted at once (and named); anyone else is invited. */
+  async invite(detail: WorkspaceAccessInviteDetail): Promise<void> {
+    const scope = this.ownerScope()
+    if (!scope || this.destroyed || this.busyAction) return
+    const gateway = scope.gateway
+    if (typeof gateway.shareWithEmail !== 'function') {
+      this.error = t('sharing.inviteUnavailable')
+      this.requestRender()
+      return
+    }
+    let email: string
+    try {
+      email = accessEmail(detail.email)
+    } catch {
+      this.error = t('sharing.invalidEmail')
+      this.requestRender()
+      return
+    }
+    if (detail.role !== 'viewer' && detail.role !== 'editor') {
+      this.error = 'Member role must be viewer or editor.'
+      this.requestRender()
+      return
+    }
+    const generation = ++this.generation
+    this.busyAction = 'add'
+    this.busyUserId = null
+    this.error = null
+    this.notice = null
+    this.inviteResult = null
+    this.requestRender()
+    try {
+      const result = await gateway.shareWithEmail(scope.graphId, email, detail.role)
+      if (generation !== this.generation || this.destroyed) return
+      if (result.outcome === 'granted') {
+        this.people.set(result.grant.userId, result.person)
+        const granted: WorkspaceAccessInviteResult = {
+          outcome: 'granted', email, name: result.person.name, role: result.grant.role,
+        }
+        this.inviteResult = granted
+        const rows = await gateway.access(scope.graphId)
+        if (generation !== this.generation || this.destroyed) return
+        this.applyGrants(rows)
+        this.status = 'ready'
+      } else {
+        const invited: WorkspaceAccessInviteResult = {
+          outcome: 'invited', email, role: result.invitation.role, message: this.inviteMessage(scope, email),
+        }
+        this.inviteResult = invited
+      }
+      void this.loadSharing(scope, generation, true)
+    } catch (error) {
+      if (generation !== this.generation || this.destroyed) return
+      this.error = errorMessage(error)
+    } finally {
+      if (generation === this.generation) {
+        this.busyAction = null
+        this.requestRender()
+      }
+    }
+  }
+
+  async cancelInvitation(detail: WorkspaceAccessInvitationCancelDetail): Promise<void> {
+    const scope = this.scope
+    const invitation = this.sharingState?.invitations.find(candidate => candidate.invitationId === detail.invitationId)
+    if (!scope || !invitation) return
+    if (typeof scope.gateway.cancelInvitation !== 'function') {
+      this.sharingError = t('sharing.inviteUnavailable')
+      this.requestRender()
+      return
+    }
+    await this.mutateSharing(
+      'invitation-cancel',
+      async (_gateway, active) => { await active.gateway.cancelInvitation?.(active.graphId, invitation.invitationId) },
+      t('sharing.invitationCancelled', { email: invitation.email }),
+    )
+    if (this.inviteResult?.email === invitation.email && !this.sharingState?.invitations.some(row => row.email === invitation.email)) {
+      this.inviteResult = null
+      this.requestRender()
+    }
+  }
+
+  /**
+   * General access, one choice. Restricted clears the everyone grant and revokes the public link; anyone
+   * signed in sets the grant and revokes the link; anyone with the link creates it and clears the grant.
+   * Widening asks first; narrowing does not.
+   */
+  async setGeneralAccess(detail: WorkspaceGeneralAccessChangeDetail): Promise<void> {
+    const scope = this.scope
+    const state = this.sharingState
+    const target = detail.access
+    if (!scope || !state || this.sharingBusy || (target !== 'restricted' && target !== 'signed-in' && target !== 'public')) return
+    if (generalAccessOf(state) === target) return
+    if (target === 'public' && typeof scope.gateway.createPublicLink !== 'function') {
+      this.sharingError = t('sharing.publicUnavailable')
+      this.requestRender()
+      return
+    }
+    const name = scope.graphTitle || scope.graphId
+    if (target !== 'restricted') {
+      let confirmed = false
+      try {
+        confirmed = await scope.ui.confirm(target === 'public'
+          ? {
+              title: t('sharing.confirmPublicTitle'),
+              message: t('sharing.confirmPublicMessage', { name }),
+              confirmLabel: t('sharing.allowViewing'),
+              cancelLabel: t('Cancel'),
+            }
+          : {
+              title: t('sharing.confirmSignedInTitle'),
+              message: t('sharing.confirmSignedInMessage', { name }),
+              confirmLabel: t('sharing.allowViewing'),
+              cancelLabel: t('Cancel'),
+            })
+      } catch (error) {
+        this.sharingError = errorMessage(error)
+        this.requestRender()
+        return
+      }
+      if (!confirmed) {
+        // The radio the person clicked goes back to the current choice.
+        this.requestRender()
+        return
+      }
+    }
+    const live = state.publicLink?.live ? state.publicLink : null
+    await this.mutateSharing(
+      'general',
+      async (gateway, active) => {
+        if (target === 'public') {
+          if (!live) await active.gateway.createPublicLink?.(active.graphId)
+          if (state.everyone) await gateway.setEveryoneAccess(active.graphId, false)
+          return
+        }
+        if (target === 'signed-in' && !state.everyone) await gateway.setEveryoneAccess(active.graphId, true)
+        if (target === 'restricted' && state.everyone) await gateway.setEveryoneAccess(active.graphId, false)
+        if (live) await gateway.revokeShareLink(active.graphId, live.linkId)
+      },
+      target === 'public'
+        ? t('sharing.generalPublicNotice')
+        : target === 'signed-in' ? t('sharing.generalSignedInNotice') : t('sharing.generalRestrictedNotice'),
+    )
+  }
+
   dismissLink(): void {
     this.createdLinkUrl = null
     this.requestRender()
@@ -515,10 +752,21 @@ export class OrganismAccessGrantController {
   private sharingSnapshot(): WorkspaceAccessSharing | null {
     const scope = this.scope
     if (!scope || !sharingGateway(scope.gateway) || this.currentRole !== 'owner' || this.sharingStatus === 'idle') return null
+    const state = this.sharingState
+    const publicLink = state?.publicLink?.live ? state.publicLink : null
     return Object.freeze({
       status: this.sharingStatus,
-      everyone: this.sharingState?.everyone ?? false,
-      links: Object.freeze((this.sharingState?.links ?? []).map(link => Object.freeze({
+      everyone: state?.everyone ?? false,
+      generalAccess: state ? generalAccessOf(state) : 'restricted',
+      publicLinkUrl: publicLink ? publicViewUrl(this.origin(), publicLink.token) : null,
+      invitations: Object.freeze((state?.invitations ?? []).map(invitation => Object.freeze({
+        invitationId: invitation.invitationId,
+        email: invitation.email,
+        role: invitation.role,
+        createdAt: invitation.createdAt,
+        expiresAt: invitation.expiresAt,
+      }))),
+      links: Object.freeze((state?.links ?? []).map(link => Object.freeze({
         linkId: link.linkId,
         role: link.role,
         createdAt: link.createdAt,
@@ -555,6 +803,13 @@ export class OrganismAccessGrantController {
       onLinkCreate: (detail: WorkspaceShareLinkCreateDetail) => { void this.createLink(detail) },
       onLinkRevoke: (detail: WorkspaceShareLinkRevokeDetail) => { void this.revokeLink(detail) },
       onLinkDismiss: () => { this.dismissLink() },
+      currentUserId: scope.currentUserId,
+      memberLinkUrl: this.graphUrl(scope),
+      inviteResult: this.inviteResult,
+      openRequest: this.openRequest,
+      onInvite: (detail: WorkspaceAccessInviteDetail) => { void this.invite(detail) },
+      onInvitationCancel: (detail: WorkspaceAccessInvitationCancelDetail) => { void this.cancelInvitation(detail) },
+      onGeneralAccessChange: (detail: WorkspaceGeneralAccessChangeDetail) => { void this.setGeneralAccess(detail) },
     })
   }
 

@@ -2,10 +2,12 @@ import { afterEach, beforeAll, describe, expect, it } from 'vitest'
 import '../mn-access-manager.js'
 import type {
   MnAccessSharing,
-  MnEveryoneChangeDetail,
+  MnGeneralAccessChangeDetail,
   MnShareLinkCreateDetail,
   MnShareLinkRevokeDetail,
   MnAccessAddDetail,
+  MnAccessInvitationCancelDetail,
+  MnAccessInviteDetail,
   MnAccessManager,
   MnAccessManagerModel,
   MnAccessRemoveDetail,
@@ -42,6 +44,8 @@ function model(overrides: Partial<MnAccessManagerModel> = {}): MnAccessManagerMo
     notice: null,
     busyUserId: null,
     busyAction: null,
+    currentUserId: 'owner-1',
+    memberLinkUrl: 'https://garden.example.test/g/graph-a',
     ...overrides,
   }
 }
@@ -66,21 +70,26 @@ function input(root: ShadowRoot, name: string, value: string): void {
   field.dispatchEvent(new Event('input', { bubbles: true, composed: true }))
 }
 
+async function settle(element: MnAccessManager): Promise<void> {
+  await new Promise(resolve => setTimeout(resolve, 0))
+  await element.updateComplete
+}
+
 afterEach(() => document.body.replaceChildren())
 
 describe('mn-access-manager', () => {
   beforeAll(() => expect(customElements.get('mn-access-manager')).toBeDefined())
 
-  it('does not turn a refused membership read into a known zero-member count', async () => {
+  it('does not turn a refused people read into a known empty list', async () => {
     const element = await mount(model({ status: 'error', grants: [], error: 'graph not found' }))
     const root = await open(element)
-    expect(root.querySelector('.toolbar')?.textContent).not.toMatch(/0 members|0 access grants/)
-    expect(root.querySelector('.toolbar')?.textContent).toContain('Membership unavailable')
-    expect(root.querySelector<HTMLInputElement>('[name="access-user-id"]')?.disabled).toBe(true)
-    expect(root.querySelector<HTMLButtonElement>('button[type="submit"]')?.disabled).toBe(true)
+    expect(root.textContent).not.toMatch(/0 members|0 access grants/)
+    expect(root.querySelector('[role="alert"]')?.textContent).toContain('graph not found')
+    expect(root.querySelector<HTMLInputElement>('[name="access-email"]')?.disabled).toBe(true)
+    expect(root.querySelector<HTMLButtonElement>('.invite-button')?.disabled).toBe(true)
   })
 
-  it('opens an accessible member-only dialog and asks the shell to load grants', async () => {
+  it('opens an accessible Share dialog and asks the shell to load', async () => {
     const element = await mount(model({ status: 'idle', grants: [] }))
     let opens = 0
     element.addEventListener('mn-access-open', () => { opens += 1 })
@@ -90,12 +99,31 @@ describe('mn-access-manager', () => {
     expect(root.querySelector('[role="dialog"]')?.getAttribute('aria-label')).toBe('Workspace access')
     expect(root.querySelector<HTMLElement>('[role="dialog"]')?.hidden).toBe(false)
     expect(root.querySelector('[aria-label="Manage workspace access"]')?.getAttribute('aria-expanded')).toBe('true')
-    expect(root.textContent).toContain('Member grants only')
-    expect(root.textContent).toContain('not an email invitation')
+    expect(root.querySelector('.title')?.textContent).toBe('Share “Research Garden”')
+    expect(root.textContent).toContain('Add people')
+    expect(root.textContent).toContain('People with access')
+    expect(root.textContent).not.toContain('not an email invitation')
     expect(root.querySelector('.close')).toBe(root.activeElement)
   })
 
-  it('renders owner/member identities, protects the owner row, and emits role/remove intents', async () => {
+  it('opens when the host asks, once per request', async () => {
+    const element = await mount(model({ openRequest: null }))
+    let opens = 0
+    element.addEventListener('mn-access-open', () => { opens += 1 })
+    expect(element.shadowRoot!.querySelector<HTMLElement>('[role="dialog"]')?.hidden).toBe(true)
+    element.model = model({ openRequest: 1 })
+    await settle(element)
+    expect(element.shadowRoot!.querySelector<HTMLElement>('[role="dialog"]')?.hidden).toBe(false)
+    expect(opens).toBe(1)
+    element.shadowRoot!.querySelector<HTMLButtonElement>('.close')!.click()
+    await element.updateComplete
+    element.model = model({ openRequest: 1, notice: 'refreshed' })
+    await settle(element)
+    expect(element.shadowRoot!.querySelector<HTMLElement>('[role="dialog"]')?.hidden).toBe(true)
+    expect(opens).toBe(1)
+  })
+
+  it('lists people by name with the owner first, protects the owner row, and emits role/remove intents', async () => {
     const element = await mount()
     const root = await open(element)
     const roleChanges: MnAccessRoleChangeDetail[] = []
@@ -107,10 +135,16 @@ describe('mn-access-manager', () => {
       removals.push((event as CustomEvent<MnAccessRemoveDetail>).detail)
     })
 
-    expect(root.querySelectorAll('.member-row')).toHaveLength(2)
-    expect(root.querySelector('[data-user-id="owner-1"] .role')?.textContent).toBe('owner')
+    const rows = root.querySelectorAll('.member-row')
+    expect(rows).toHaveLength(2)
+    expect(rows[0].getAttribute('data-user-id')).toBe('owner-1')
+    expect(rows[0].querySelector('.name')?.textContent).toContain('Vera Owner')
+    expect(rows[0].querySelector('.name')?.textContent).toContain('(you)')
+    expect(root.querySelector('[data-user-id="owner-1"] .role')?.textContent).toBe('Owner')
     expect(root.querySelector('[data-user-id="owner-1"] select')).toBeNull()
     expect(root.querySelector('[data-user-id="owner-1"] .remove')).toBeNull()
+    expect(root.querySelector('[data-user-id="editor-2"] .secondary')?.textContent).toBe('editor@example.test')
+    expect(root.querySelector('[data-user-id="editor-2"] .user-id')).toBeNull()
 
     const role = root.querySelector<HTMLSelectElement>('[aria-label="Role for Eddie Editor"]')!
     role.value = 'viewer'
@@ -120,48 +154,99 @@ describe('mn-access-manager', () => {
     expect(removals).toEqual([{ userId: 'editor-2' }])
   })
 
-  it('collects typed user id without unsupported metadata and rejects invalid/duplicate grants', async () => {
-    const element = await mount(model({ grants: [{ ...grants[1], userId: 'user:editor-2' }] }))
+  it('adds people by email (or a typed user id) and refuses malformed or duplicate entries', async () => {
+    const element = await mount()
     const root = await open(element)
+    const invites: MnAccessInviteDetail[] = []
     const additions: MnAccessAddDetail[] = []
-    element.addEventListener('mn-access-add', event => {
-      additions.push((event as CustomEvent<MnAccessAddDetail>).detail)
-    })
+    element.addEventListener('mn-access-invite', event => invites.push((event as CustomEvent<MnAccessInviteDetail>).detail))
+    element.addEventListener('mn-access-add', event => additions.push((event as CustomEvent<MnAccessAddDetail>).detail))
+    const submit = async () => {
+      root.querySelector<HTMLFormElement>('.invite-form')!.requestSubmit()
+      await element.updateComplete
+    }
 
-    input(root, 'access-user-id', ' editor-2 ')
-    root.querySelector<HTMLFormElement>('form')!.requestSubmit()
-    await element.updateComplete
-    expect(additions).toEqual([])
-    expect(root.querySelector('[role="alert"]')?.textContent).toContain('typed user ID')
+    input(root, 'access-email', 'not an email')
+    await submit()
+    expect(root.querySelector('.validation')?.textContent).toContain('Enter an email address')
 
-    input(root, 'access-user-id', ' user:editor-2 ')
-    root.querySelector<HTMLFormElement>('form')!.requestSubmit()
-    await element.updateComplete
-    expect(additions).toEqual([])
-    expect(root.querySelector('[role="alert"]')?.textContent).toContain('already has access')
+    input(root, 'access-email', ' Editor@Example.test ')
+    await submit()
+    expect(root.querySelector('.validation')?.textContent).toContain('already has access')
+    expect(invites).toEqual([])
 
-    input(root, 'access-user-id', 'user:viewer-3')
-    expect(root.querySelector('[name="access-email"]')).toBeNull()
-    expect(root.querySelector('[name="access-display-name"]')).toBeNull()
+    input(root, 'access-email', ' Ada@Example.test ')
     const role = root.querySelector<HTMLSelectElement>('[name="access-role"]')!
     role.value = 'viewer'
     role.dispatchEvent(new Event('change', { bubbles: true, composed: true }))
-    root.querySelector<HTMLFormElement>('form')!.requestSubmit()
-    expect(additions).toEqual([{
-      userId: 'user:viewer-3',
-      role: 'viewer',
-    }])
+    await submit()
+    expect(invites).toEqual([{ email: 'ada@example.test', role: 'viewer' }])
+
+    input(root, 'access-email', 'user:viewer-3')
+    await submit()
+    expect(additions).toEqual([{ userId: 'user:viewer-3', role: 'viewer' }])
+    expect(root.querySelector('.validation')).toBeNull()
   })
 
-  it('shows non-owners the grant list without mutation controls', async () => {
-    const element = await mount(model({ currentRole: 'viewer' }))
+  it('shows the name of a person granted at once', async () => {
+    const element = await mount(model({ inviteResult: { outcome: 'granted', email: 'ada@example.test', name: 'Ada Reader', role: 'viewer' } }))
     const root = await open(element)
+    expect(root.querySelector('.invite-result[data-outcome="granted"]')?.textContent).toContain('Ada Reader can now view this graph.')
+    expect(root.querySelector('[data-copy="message"]')).toBeNull()
+  })
 
-    expect(root.querySelectorAll('.member-row')).toHaveLength(2)
+  it('shows an invited email with a message to copy, since Sophia sends no email', async () => {
+    const message = 'Vera has shared “Research Garden” with you on Sophia. …'
+    const element = await mount(model({ inviteResult: { outcome: 'invited', email: 'bob@example.test', role: 'editor', message } }))
+    const root = await open(element)
+    const result = root.querySelector('.invite-result[data-outcome="invited"]')!
+    expect(result.textContent).toContain('bob@example.test')
+    expect(result.textContent).toContain('Invited · they\'ll get access when they sign in with this email')
+    expect(result.textContent).toContain('send them this message yourself')
+    root.querySelector<HTMLButtonElement>('[data-copy="message"]')!.click()
+    await settle(element)
+    expect(await navigator.clipboard.readText()).toBe(message)
+    expect(root.querySelector('[data-copy="message"]')?.textContent?.trim()).toBe('Copied')
+  })
+
+  it('lists pending invitations beside people, each with cancel', async () => {
+    const element = await mount(model({ sharing: {
+      status: 'ready', everyone: false, links: [],
+      invitations: [{ invitationId: 'inv-1', email: 'bob@example.test', role: 'editor', createdAt: '2026-10-26T10:00:00Z', expiresAt: null }],
+    } }))
+    const root = await open(element)
+    const cancels: MnAccessInvitationCancelDetail[] = []
+    element.addEventListener('mn-access-invitation-cancel', event => cancels.push((event as CustomEvent<MnAccessInvitationCancelDetail>).detail))
+    const row = root.querySelector('[data-invitation-id="inv-1"]')!
+    expect(row.textContent).toContain('bob@example.test')
+    expect(row.textContent).toContain('Invited · Editor')
+    row.querySelector<HTMLButtonElement>('[aria-label="Cancel the invitation for bob@example.test"]')!.click()
+    expect(cancels).toEqual([{ invitationId: 'inv-1' }])
+  })
+
+  it('copies the graph link for people with access', async () => {
+    const element = await mount()
+    const root = await open(element)
+    expect(root.querySelector('.footer')?.textContent).toContain('Only people with access can open this link.')
+    root.querySelector<HTMLButtonElement>('[data-copy="member"]')!.click()
+    await settle(element)
+    expect(await navigator.clipboard.readText()).toBe('https://garden.example.test/g/graph-a')
+  })
+
+  it('shows non-owners their role and that only the owner changes access, never the controls', async () => {
+    const element = await mount(model({ currentRole: 'viewer', grants: [], currentUserId: 'viewer-9', sharing: { status: 'ready', everyone: false, links: [] } }))
+    const root = await open(element)
+    expect(root.querySelector('.permission-note')?.textContent).toContain('You can view this graph.')
+    expect(root.querySelector('.permission-note')?.textContent).toContain('Only the owner can change who has access.')
+    expect(root.querySelector('.invite-form')).toBeNull()
     expect(root.querySelector('.role-select')).toBeNull()
     expect(root.querySelector('.remove')).toBeNull()
-    expect(root.querySelector('.add-form')).toBeNull()
-    expect(root.textContent).toContain('Only the workspace owner can add, change, or remove members')
+    expect(root.querySelector('[name="access-general"]')).toBeNull()
+    expect(root.querySelector('[data-copy="member"]')).not.toBeNull()
+
+    document.body.replaceChildren()
+    const editorRoot = await open(await mount(model({ currentRole: 'editor', grants: [] })))
+    expect(editorRoot.querySelector('.permission-note')?.textContent).toContain('You can edit this graph.')
   })
 
   it('surfaces backend errors, emits retry, and disables changes while a mutation is busy', async () => {
@@ -183,9 +268,13 @@ describe('mn-access-manager', () => {
 
   describe('sharing', () => {
     const linkId = 'a'.repeat(64)
+    const publicUrl = `https://garden.example.test/view#shp_${'P'.repeat(43)}`
     const sharing = (overrides: Partial<MnAccessSharing> = {}): MnAccessSharing => ({
       status: 'ready',
       everyone: false,
+      generalAccess: 'restricted',
+      publicLinkUrl: null,
+      invitations: [],
       links: [
         { linkId, role: 'editor', createdAt: '2026-09-22T12:00:00Z', expiresAt: null, label: 'Lab', live: true },
         { linkId: 'b'.repeat(64), role: 'viewer', createdAt: '2026-09-01T12:00:00Z', expiresAt: '2026-09-02T12:00:00Z', label: null, live: false },
@@ -196,29 +285,68 @@ describe('mn-access-manager', () => {
       ...overrides,
     })
 
-    it('keeps the member-only dialog when the host has no sharing capability', async () => {
+    it('keeps people only when the host has no sharing capability', async () => {
       const root = await open(await mount())
-      expect(root.querySelector('[name="access-everyone"]')).toBeNull()
+      expect(root.querySelector('[name="access-general"]')).toBeNull()
       expect(root.querySelector('.link-form')).toBeNull()
-      expect(root.textContent).toContain('Public-link controls are not available')
+      expect(root.querySelector('.invite-form')).not.toBeNull()
     })
 
-    it('lets the owner toggle everyone, create links with role and expiry, and revoke links', async () => {
+    it('offers General access as one choice of three and emits the chosen one', async () => {
       const element = await mount(model({ sharing: sharing() }))
       const root = await open(element)
-      const everyone: MnEveryoneChangeDetail[] = []
+      const changes: MnGeneralAccessChangeDetail[] = []
+      element.addEventListener('mn-access-general-change', e => changes.push((e as CustomEvent<MnGeneralAccessChangeDetail>).detail))
+
+      const radios = [...root.querySelectorAll<HTMLInputElement>('[name="access-general"]')]
+      expect(radios.map(radio => radio.value)).toEqual(['restricted', 'signed-in', 'public'])
+      expect(radios.map(radio => radio.checked)).toEqual([true, false, false])
+      expect(root.textContent).toContain('Anyone signed in to Sophia can view')
+      expect(root.textContent).toContain('Anyone with the link can view, no account needed')
+
+      radios[2].checked = true
+      radios[2].dispatchEvent(new Event('change', { bubbles: true, composed: true }))
+      radios[1].checked = true
+      radios[1].dispatchEvent(new Event('change', { bubbles: true, composed: true }))
+      expect(changes).toEqual([{ access: 'public' }, { access: 'signed-in' }])
+
+      // The host has not changed anything yet: the choice shown is still the host's.
+      element.model = model({ sharing: sharing() })
+      await element.updateComplete
+      expect(radios.map(radio => radio.checked)).toEqual([true, false, false])
+    })
+
+    it('shows the public link with Copy link while anyone with the link can view', async () => {
+      const element = await mount(model({ sharing: sharing({ generalAccess: 'public', publicLinkUrl: publicUrl }) }))
+      const root = await open(element)
+      const radios = [...root.querySelectorAll<HTMLInputElement>('[name="access-general"]')]
+      expect(radios.map(radio => radio.checked)).toEqual([false, false, true])
+      expect(root.querySelector<HTMLInputElement>('[name="public-link-url"]')!.value).toBe(publicUrl)
+      root.querySelector<HTMLButtonElement>('[data-copy="public"]')!.click()
+      await settle(element)
+      expect(await navigator.clipboard.readText()).toBe(publicUrl)
+      expect(root.querySelector('[data-copy="public"]')?.textContent?.trim()).toBe('Copied')
+    })
+
+    it('follows the everyone grant when the host gives no general-access choice', async () => {
+      const root = await open(await mount(model({ sharing: sharing({ generalAccess: undefined, everyone: true }) })))
+      const radios = [...root.querySelectorAll<HTMLInputElement>('[name="access-general"]')]
+      expect(radios.map(radio => radio.checked)).toEqual([false, true, false])
+      expect(root.querySelector('[name="public-link-url"]')).toBeNull()
+    })
+
+    it('folds invite links away with the honest note, and still creates and revokes them', async () => {
+      const element = await mount(model({ sharing: sharing() }))
+      const root = await open(element)
       const creates: MnShareLinkCreateDetail[] = []
       const revokes: MnShareLinkRevokeDetail[] = []
-      element.addEventListener('mn-access-everyone-change', e => everyone.push((e as CustomEvent<MnEveryoneChangeDetail>).detail))
       element.addEventListener('mn-access-link-create', e => creates.push((e as CustomEvent<MnShareLinkCreateDetail>).detail))
       element.addEventListener('mn-access-link-revoke', e => revokes.push((e as CustomEvent<MnShareLinkRevokeDetail>).detail))
 
-      expect(root.textContent).toContain('Anyone signed in can view')
-      const toggle = root.querySelector<HTMLInputElement>('[name="access-everyone"]')!
-      expect(toggle.checked).toBe(false)
-      toggle.checked = true
-      toggle.dispatchEvent(new Event('change', { bubbles: true, composed: true }))
-      expect(everyone).toEqual([{ enabled: true }])
+      const details = root.querySelector<HTMLDetailsElement>('details.invite-links')!
+      expect(details.open).toBe(false)
+      expect(details.querySelector('summary')?.textContent).toBe('Invite links')
+      expect(details.textContent).toContain('People who joined keep their access after the link is revoked')
 
       const role = root.querySelector<HTMLSelectElement>('[name="share-link-role"]')!
       role.value = 'editor'
@@ -243,32 +371,26 @@ describe('mn-access-manager', () => {
       expect(rows[1].textContent).toContain('expired')
       root.querySelector<HTMLButtonElement>(`[data-link-id="${linkId}"] .remove`)!.click()
       expect(revokes).toEqual([{ linkId }])
-      expect(root.textContent).not.toContain('Public-link controls are not available')
     })
 
-    it('shows a newly created link once, with copy and dismiss', async () => {
+    it('opens Invite links to show a newly created link once, with copy and dismiss', async () => {
       const url = `https://garden.example.test/#share=shr_${'C'.repeat(43)}`
-      const element = await mount(model({ sharing: sharing({ createdLinkUrl: url, everyone: true }) }))
+      const element = await mount(model({ sharing: sharing({ createdLinkUrl: url }) }))
       const root = await open(element)
       let dismissed = 0
       element.addEventListener('mn-access-link-dismiss', () => { dismissed += 1 })
+      expect(root.querySelector<HTMLDetailsElement>('details.invite-links')!.open).toBe(true)
       expect(root.querySelector<HTMLInputElement>('[name="share-link-url"]')!.value).toBe(url)
-      expect(root.querySelector<HTMLInputElement>('[name="access-everyone"]')!.checked).toBe(true)
       expect(root.textContent).toContain('shown only once')
       root.querySelector<HTMLButtonElement>('.dismiss')!.click()
       expect(dismissed).toBe(1)
     })
 
-    it('hides sharing controls from non-owners and disables them while busy', async () => {
-      const viewerRoot = await open(await mount(model({ currentRole: 'viewer', sharing: sharing() })))
-      expect(viewerRoot.querySelector('[name="access-everyone"]')).toBeNull()
-      expect(viewerRoot.querySelector('.link-form')).toBeNull()
-      document.body.replaceChildren()
-      const busyRoot = await open(await mount(model({ sharing: sharing({ busyAction: 'link-create', error: 'refused' }) })))
-      expect(busyRoot.querySelector<HTMLInputElement>('[name="access-everyone"]')!.disabled).toBe(true)
-      expect(busyRoot.querySelector<HTMLButtonElement>('.link-create')!.disabled).toBe(true)
-      expect(busyRoot.querySelector<HTMLButtonElement>('.link-create')!.textContent).toContain('Creating')
-      expect(busyRoot.textContent).toContain('refused')
+    it('disables sharing controls while busy and shows the sharing error', async () => {
+      const root = await open(await mount(model({ sharing: sharing({ busyAction: 'general', error: 'refused' }) })))
+      expect([...root.querySelectorAll<HTMLInputElement>('[name="access-general"]')].every(radio => radio.disabled)).toBe(true)
+      expect(root.querySelector<HTMLButtonElement>('.link-create')!.disabled).toBe(true)
+      expect(root.textContent).toContain('refused')
     })
   })
 })

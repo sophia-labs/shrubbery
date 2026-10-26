@@ -1116,7 +1116,37 @@ export interface WorkspaceAccessRemoveDetail {
   readonly userId: string
 }
 
-export type WorkspaceSharingBusyAction = 'everyone' | 'link-create' | 'link-revoke'
+export type WorkspaceSharingBusyAction = 'everyone' | 'link-create' | 'link-revoke' | 'general' | 'invitation-cancel'
+
+/** General access, one choice: people with access only, every signed-in account, or anyone with the link. */
+export type WorkspaceGeneralAccess = 'restricted' | 'signed-in' | 'public'
+
+/** An email invited to the graph; it gets the role when it signs in. */
+export interface WorkspaceAccessInvitation {
+  readonly invitationId: string
+  readonly email: string
+  readonly role: Exclude<WorkspaceAccessRole, 'owner'>
+  readonly createdAt: string
+  readonly expiresAt: string | null
+}
+
+/** What the last "Add people" did: a known account got access, or an email was invited (with a message to send). */
+export type WorkspaceAccessInviteResult =
+  | { readonly outcome: 'granted'; readonly email: string; readonly name: string | null; readonly role: Exclude<WorkspaceAccessRole, 'owner'> }
+  | { readonly outcome: 'invited'; readonly email: string; readonly role: Exclude<WorkspaceAccessRole, 'owner'>; readonly message: string }
+
+export interface WorkspaceAccessInviteDetail {
+  readonly email: string
+  readonly role: Exclude<WorkspaceAccessRole, 'owner'>
+}
+
+export interface WorkspaceAccessInvitationCancelDetail {
+  readonly invitationId: string
+}
+
+export interface WorkspaceGeneralAccessChangeDetail {
+  readonly access: WorkspaceGeneralAccess
+}
 
 export interface WorkspaceShareLink {
   readonly linkId: string
@@ -1136,6 +1166,11 @@ export interface WorkspaceAccessSharing {
   readonly createdLinkUrl?: string | null
   readonly busyAction?: WorkspaceSharingBusyAction | null
   readonly error?: string | null
+  /** The one General access choice; absent means it follows `everyone`. */
+  readonly generalAccess?: WorkspaceGeneralAccess
+  /** The public link's page URL while "Anyone with the link" is on (the owner may copy it again). */
+  readonly publicLinkUrl?: string | null
+  readonly invitations?: readonly WorkspaceAccessInvitation[]
 }
 
 export interface WorkspaceEveryoneChangeDetail {
@@ -1174,6 +1209,16 @@ export interface WorkspaceAccessOptions {
   readonly onLinkCreate?: (detail: WorkspaceShareLinkCreateDetail) => void
   readonly onLinkRevoke?: (detail: WorkspaceShareLinkRevokeDetail) => void
   readonly onLinkDismiss?: () => void
+  /** The signed-in account, so its own row reads "(you)". */
+  readonly currentUserId?: string
+  /** The graph's address for "Copy link" (opens only for people with access). */
+  readonly memberLinkUrl?: string | null
+  readonly inviteResult?: WorkspaceAccessInviteResult | null
+  /** A new value opens the dialog (Home's Share button lands with `?access=1`). */
+  readonly openRequest?: number | null
+  readonly onInvite?: (detail: WorkspaceAccessInviteDetail) => void
+  readonly onInvitationCancel?: (detail: WorkspaceAccessInvitationCancelDetail) => void
+  readonly onGeneralAccessChange?: (detail: WorkspaceGeneralAccessChangeDetail) => void
 }
 
 export type WorkspaceTtsStatus = 'idle' | 'loading' | 'playing' | 'paused'
@@ -2989,6 +3034,12 @@ function renderChromeSurface(
       @mn-access-link-revoke=${(event: Event) =>
         opts.chrome.access?.onLinkRevoke?.(customDetail<WorkspaceShareLinkRevokeDetail>(event))}
       @mn-access-link-dismiss=${() => opts.chrome.access?.onLinkDismiss?.()}
+      @mn-access-invite=${(event: Event) =>
+        opts.chrome.access?.onInvite?.(customDetail<WorkspaceAccessInviteDetail>(event))}
+      @mn-access-invitation-cancel=${(event: Event) =>
+        opts.chrome.access?.onInvitationCancel?.(customDetail<WorkspaceAccessInvitationCancelDetail>(event))}
+      @mn-access-general-change=${(event: Event) =>
+        opts.chrome.access?.onGeneralAccessChange?.(customDetail<WorkspaceGeneralAccessChangeDetail>(event))}
       @mn-workspace-refresh=${() => opts.chrome.onWorkspaceRefresh?.()}
       @mn-workspace-select=${(event: Event) =>
         opts.chrome.onWorkspaceSelect?.(customDetail<{ workspace: WorkspaceSummary }>(event).workspace)}

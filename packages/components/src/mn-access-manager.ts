@@ -1,13 +1,16 @@
 /**
- * Controlled hosted workspace access popover.
+ * Controlled hosted workspace access popover: the Share dialog.
  *
- * This is the backend-free half of Garden's members panel. It owns only the
- * popover and form state; a shell owns authentication, gateway reads/writes,
- * permissions, confirmation, and error handling. When the host supplies
- * `model.sharing` (the hosted gateway's owner sharing view), the owner also
- * gets "Anyone signed in can view" and share links (create / copy / revoke).
- * Without it the component shows member grants only and never fabricates a
- * link. A link URL is displayed only as the host hands it over, once.
+ * This is the backend-free half of Garden's sharing. It owns only the popover
+ * and form state; a shell owns authentication, gateway reads/writes,
+ * permissions, confirmation, and error handling. The owner adds people by
+ * email (the host grants a known account or invites the address), sees the
+ * people with access by name with their roles and pending invitations, and
+ * picks one General access (restricted, anyone signed in, anyone with the
+ * link). Invite links stay, folded away. Everyone else sees their own role
+ * and that only the owner changes access; everyone may copy the graph's link.
+ * A join link's URL is displayed only as the host hands it over, once; the
+ * public link's URL is the host's to give again.
  *
  * `embedded` (Wave 1, north star §2.2/§3: access manager is the second clean
  * "data-driven ≠ face" illustration) is an ADDITIVE, opt-in mode — default
@@ -22,6 +25,7 @@
 import { LocaleController, localeSource, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, unsafeCSS, type PropertyValues } from 'lit'
 import { customElement, property, state } from 'lit/decorators.js'
+import { live } from 'lit/directives/live.js'
 import { SkinAware } from './skin-aware.js'
 import { icon, iconStyles } from './icons.js'
 
@@ -39,7 +43,10 @@ export interface MnAccessGrant {
   readonly displayName?: string
 }
 
-export type MnSharingBusyAction = 'everyone' | 'link-create' | 'link-revoke'
+export type MnSharingBusyAction = 'everyone' | 'link-create' | 'link-revoke' | 'general' | 'invitation-cancel'
+
+/** General access, one choice: people with access only, every signed-in account, or anyone with the link. */
+export type MnGeneralAccess = 'restricted' | 'signed-in' | 'public'
 
 export interface MnShareLink {
   readonly linkId: string
@@ -50,6 +57,20 @@ export interface MnShareLink {
   readonly live: boolean
 }
 
+/** An email invited to the graph; it gets the role when it signs in. */
+export interface MnAccessInvitation {
+  readonly invitationId: string
+  readonly email: string
+  readonly role: Exclude<MnAccessRole, 'owner'>
+  readonly createdAt: string
+  readonly expiresAt: string | null
+}
+
+/** What the last "Add people" did: a known account got access, or an email was invited. */
+export type MnAccessInviteResult =
+  | { readonly outcome: 'granted'; readonly email: string; readonly name: string | null; readonly role: Exclude<MnAccessRole, 'owner'> }
+  | { readonly outcome: 'invited'; readonly email: string; readonly role: Exclude<MnAccessRole, 'owner'>; readonly message: string }
+
 export interface MnAccessSharing {
   readonly status: MnAccessStatus
   readonly everyone: boolean
@@ -57,10 +78,19 @@ export interface MnAccessSharing {
   readonly createdLinkUrl?: string | null
   readonly busyAction?: MnSharingBusyAction | null
   readonly error?: string | null
+  /** The one choice the owner sees; absent means it follows `everyone`. */
+  readonly generalAccess?: MnGeneralAccess
+  /** The public link's page URL while "Anyone with the link" is on. */
+  readonly publicLinkUrl?: string | null
+  readonly invitations?: readonly MnAccessInvitation[]
 }
 
 export interface MnEveryoneChangeDetail {
   readonly enabled: boolean
+}
+
+export interface MnGeneralAccessChangeDetail {
+  readonly access: MnGeneralAccess
 }
 
 export interface MnShareLinkCreateDetail {
@@ -70,6 +100,15 @@ export interface MnShareLinkCreateDetail {
 
 export interface MnShareLinkRevokeDetail {
   readonly linkId: string
+}
+
+export interface MnAccessInviteDetail {
+  readonly email: string
+  readonly role: Exclude<MnAccessRole, 'owner'>
+}
+
+export interface MnAccessInvitationCancelDetail {
+  readonly invitationId: string
 }
 
 const LINK_EXPIRY_CHOICES: readonly { readonly value: string, readonly label: string, readonly seconds: number | null }[] = [
@@ -85,6 +124,16 @@ function shortDate(iso: string): string {
     : iso
 }
 
+function roleLabel(role: MnAccessRole): string {
+  switch (role) {
+    case 'owner': return t('Owner')
+    case 'editor': return t('Editor')
+    case 'viewer': return t('Viewer')
+  }
+}
+
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/u
+
 export interface MnAccessManagerModel {
   readonly graphId: string
   readonly graphTitle: string
@@ -97,6 +146,13 @@ export interface MnAccessManagerModel {
   readonly busyAction?: MnAccessBusyAction | null
   /** Owner sharing controls; absent when the host has no sharing capability. */
   readonly sharing?: MnAccessSharing | null
+  /** The signed-in account, so its own row reads "(you)". */
+  readonly currentUserId?: string
+  /** The graph's address, for "Copy link" (it opens only for people with access). */
+  readonly memberLinkUrl?: string | null
+  readonly inviteResult?: MnAccessInviteResult | null
+  /** A new value opens the dialog (the host asks, e.g. Home's Share button). */
+  readonly openRequest?: number | null
 }
 
 export interface MnAccessAddDetail {
@@ -568,6 +624,118 @@ export class MnAccessManager extends SkinAware(LitElement) {
       opacity: 0.6;
     }
 
+    .section-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--mn-space-2, 6px);
+      margin-block-end: var(--mn-space-2, 6px);
+    }
+
+    .section-header .section-title {
+      margin: 0;
+    }
+
+    .invite-form {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 96px auto;
+      align-items: end;
+      gap: var(--mn-space-2, 6px);
+    }
+
+    .invite-form .validation {
+      grid-column: 1 / -1;
+    }
+
+    .invite-button {
+      min-height: 32px;
+      padding: 0 var(--mn-space-3, 8px);
+      border: 1px solid var(--mn-color-border-accent, #356b50);
+      border-radius: var(--mn-radius-control, 5px);
+      background: var(--mn-color-action-primary, #356b50);
+      color: var(--mn-color-text-on-accent, #fff);
+      cursor: pointer;
+      font-size: var(--mn-text-xs, 12px);
+      font-weight: 700;
+    }
+
+    .invite-result {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: var(--mn-space-2, 6px);
+      margin-block-start: var(--mn-space-2, 6px);
+      padding: var(--mn-space-2, 6px) var(--mn-space-3, 8px);
+      border-radius: var(--mn-radius-control, 5px);
+      background: var(--mn-color-surface-subtle, #f8fafc);
+      font-size: var(--mn-text-xs, 12px);
+      line-height: 1.4;
+    }
+
+    .invite-result .hint {
+      grid-column: 1 / -1;
+    }
+
+    .member-row.invitation .avatar {
+      background: var(--mn-color-surface-subtle, #f3f4f6);
+      color: var(--mn-color-text-muted, #6b7280);
+    }
+
+    .you {
+      color: var(--mn-color-text-muted, #6b7280);
+      font-weight: 500;
+    }
+
+    .general-options {
+      display: flex;
+      flex-direction: column;
+      gap: var(--mn-space-2, 6px);
+    }
+
+    .public-link {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: var(--mn-space-2, 6px);
+      margin-block-start: var(--mn-space-2, 6px);
+    }
+
+    .public-link input {
+      min-width: 0;
+      height: 30px;
+      box-sizing: border-box;
+      padding: 0 var(--mn-space-2, 6px);
+      border: 1px solid var(--mn-color-border-default, #d1d5db);
+      border-radius: var(--mn-radius-control, 5px);
+      background: var(--mn-color-surface-subtle, #f8fafc);
+      color: var(--mn-color-text-primary, #111827);
+      font-family: var(--mn-font-mono, ui-monospace, monospace);
+      font-size: var(--mn-text-2xs, 10px);
+    }
+
+    details.invite-links > summary {
+      cursor: pointer;
+      font-size: var(--mn-text-xs, 12px);
+      font-weight: 700;
+    }
+
+    details.invite-links[open] > summary {
+      margin-block-end: var(--mn-space-2, 6px);
+    }
+
+    .invite-links-note {
+      margin: 0 0 var(--mn-space-2, 6px);
+    }
+
+    .footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--mn-space-2, 6px);
+      margin-block-start: var(--mn-space-3, 8px);
+      padding-block-start: var(--mn-space-3, 8px);
+      border-block-start: 1px solid var(--mn-color-border-subtle, #e5e7eb);
+    }
+
     :host([data-skin='emporium']) .panel,
     :host([data-skin='emporium']) .member-list {
       border-radius: var(--mn-radius-surface, 0);
@@ -604,7 +772,8 @@ export class MnAccessManager extends SkinAware(LitElement) {
       }
 
       .add-form,
-      .optional-fields {
+      .optional-fields,
+      .invite-form {
         grid-template-columns: 1fr;
       }
     }
@@ -615,13 +784,15 @@ export class MnAccessManager extends SkinAware(LitElement) {
   @property({ type: Boolean, reflect: true }) embedded = false
 
   @state() private panelOpen = false
-  @state() private addUserId = ''
+  @state() private addEmail = ''
   @state() private addRole: 'viewer' | 'editor' = 'editor'
   @state() private validationError = ''
   @state() private linkRole: 'viewer' | 'editor' = 'viewer'
   @state() private linkExpiry = '30d'
-  @state() private copied = false
-  private pendingAddUserId: string | null = null
+  /** Which copy button last succeeded (`link`, `message`, `public`, `member`). */
+  @state() private copiedKey: string | null = null
+  private pendingAddKey: string | null = null
+  private seenOpenRequest: number | null = null
 
   private readonly onDocumentPointerDown = (event: PointerEvent): void => {
     if (!this.panelOpen || event.composedPath().includes(this)) return
@@ -649,17 +820,35 @@ export class MnAccessManager extends SkinAware(LitElement) {
     if (!changed.has('model')) return
     const previous = changed.get('model') as MnAccessManagerModel | null | undefined
     if (previous?.graphId && previous.graphId !== this.model?.graphId) this.closePanel()
-    if (this.pendingAddUserId && this.model?.grants.some(grant => grant.userId === this.pendingAddUserId)) {
-      this.addUserId = ''
-      this.pendingAddUserId = null
+    const pending = this.pendingAddKey
+    if (pending && (this.model?.grants.some(grant => grant.userId === pending || grant.email?.toLowerCase() === pending)
+      || this.model?.inviteResult?.email === pending)) {
+      this.addEmail = ''
+      this.pendingAddKey = null
       this.validationError = ''
-    } else if (this.pendingAddUserId && this.model?.error) {
-      this.pendingAddUserId = null
+    } else if (pending && this.model?.error) {
+      this.pendingAddKey = null
+    }
+    const request = this.model?.openRequest
+    if (typeof request === 'number' && request !== this.seenOpenRequest) {
+      this.seenOpenRequest = request
+      if (!this.embedded && !this.panelOpen) void this.openPanel()
     }
   }
 
   private emit(name: string, detail?: unknown): void {
     this.dispatchEvent(new CustomEvent(name, { detail, bubbles: true, composed: true }))
+  }
+
+  private async openPanel(): Promise<void> {
+    if (!this.model) return
+    this.panelOpen = true
+    this.validationError = ''
+    this.emit('mn-access-open')
+    await this.updateComplete
+    this.renderRoot.querySelector<HTMLElement>(
+      this.model?.currentRole === 'owner' && this.model.status === 'ready' ? '[name="access-email"]' : '.close',
+    )?.focus()
   }
 
   private async togglePanel(): Promise<void> {
@@ -668,13 +857,7 @@ export class MnAccessManager extends SkinAware(LitElement) {
       this.closePanel()
       return
     }
-    this.panelOpen = true
-    this.validationError = ''
-    this.emit('mn-access-open')
-    await this.updateComplete
-    this.renderRoot.querySelector<HTMLElement>(
-      this.model.currentRole === 'owner' && this.model.status === 'ready' ? '[name="access-user-id"]' : '.close',
-    )?.focus()
+    await this.openPanel()
   }
 
   private closePanel(): void {
@@ -690,35 +873,51 @@ export class MnAccessManager extends SkinAware(LitElement) {
     this.closePanel()
   }
 
+  /** Add people: an email shares or invites; a typed `user:<subject>` is a direct grant, as before. */
   private add(event: SubmitEvent): void {
     event.preventDefault()
     const model = this.model
     if (!model || model.currentRole !== 'owner' || model.status !== 'ready' || model.busyAction) return
-    const userId = this.addUserId.trim()
-    if (!/^user:[^\s]+$/u.test(userId)) {
-      this.validationError = 'Enter an existing typed user ID: user:<subject>. Emails and bare subject IDs are not resolved.'
+    const value = this.addEmail.trim()
+    if (/^user:[^\s]+$/u.test(value)) {
+      if (model.grants.some(grant => grant.userId === value)) {
+        this.validationError = t('sharing.alreadyHasAccess')
+        return
+      }
+      this.validationError = ''
+      this.pendingAddKey = value
+      this.emit('mn-access-add', { userId: value, role: this.addRole } satisfies MnAccessAddDetail)
       return
     }
-    if (model.grants.some(grant => grant.userId === userId)) {
-      this.validationError = 'This user already has access. Change their role in the member list.'
+    const email = value.toLowerCase()
+    if (!EMAIL.test(email)) {
+      this.validationError = t('sharing.invalidEmail')
+      return
+    }
+    if (model.grants.some(grant => grant.email?.trim().toLowerCase() === email)) {
+      this.validationError = t('sharing.alreadyHasAccess')
       return
     }
     this.validationError = ''
-    this.pendingAddUserId = userId
-    this.emit('mn-access-add', {
-      userId,
-      role: this.addRole,
-    } satisfies MnAccessAddDetail)
+    this.pendingAddKey = email
+    this.copiedKey = null
+    this.emit('mn-access-invite', { email, role: this.addRole } satisfies MnAccessInviteDetail)
   }
 
-  private async copyLink(url: string): Promise<void> {
+  private async copy(key: string, text: string, fallbackField?: string): Promise<void> {
     try {
-      await navigator.clipboard.writeText(url)
-      this.copied = true
+      await navigator.clipboard.writeText(text)
+      this.copiedKey = key
     } catch {
-      // Clipboard can be denied; the field stays selectable for manual copy.
-      this.renderRoot.querySelector<HTMLInputElement>('[name="share-link-url"]')?.select()
+      // Clipboard can be denied; a visible field stays selectable for manual copy.
+      if (fallbackField) this.renderRoot.querySelector<HTMLInputElement>(`[name="${fallbackField}"]`)?.select()
     }
+  }
+
+  private copyButton(key: string, text: string, label: string, fallbackField?: string) {
+    return html`<button class="copy" type="button" data-copy=${key} @click=${() => void this.copy(key, text, fallbackField)}>
+      ${this.copiedKey === key ? t('sharing.copied') : label}
+    </button>`
   }
 
   private createLink(event: SubmitEvent): void {
@@ -726,103 +925,129 @@ export class MnAccessManager extends SkinAware(LitElement) {
     const sharing = this.model?.sharing
     if (!sharing || sharing.busyAction || this.model?.currentRole !== 'owner') return
     const choice = LINK_EXPIRY_CHOICES.find(item => item.value === this.linkExpiry) ?? LINK_EXPIRY_CHOICES[1]
-    this.copied = false
+    if (this.copiedKey === 'link') this.copiedKey = null
     this.emit('mn-access-link-create', {
       role: this.linkRole,
       expiresInSeconds: choice.seconds,
     } satisfies MnShareLinkCreateDetail)
   }
 
+  private generalAccess(sharing: MnAccessSharing): MnGeneralAccess {
+    return sharing.generalAccess ?? (sharing.everyone ? 'signed-in' : 'restricted')
+  }
+
+  private renderGeneralAccess(sharing: MnAccessSharing) {
+    const busy = Boolean(sharing.busyAction) || sharing.status !== 'ready'
+    const current = this.generalAccess(sharing)
+    const option = (value: MnGeneralAccess, label: string, hint: string) => html`<label class="everyone-row">
+      <input
+        type="radio"
+        name="access-general"
+        .value=${value}
+        .checked=${live(current === value)}
+        ?disabled=${busy}
+        @change=${(event: Event) => {
+          if (!(event.currentTarget as HTMLInputElement).checked) return
+          this.emit('mn-access-general-change', { access: value } satisfies MnGeneralAccessChangeDetail)
+        }}
+      />
+      <span>
+        ${label}
+        <div class="hint">${hint}</div>
+      </span>
+    </label>`
+    return html`<div class="sharing-section" aria-label=${t('General access')} role="group">
+      <div class="section-title">${t('General access')}</div>
+      <div class="general-options" role="radiogroup" aria-label=${t('General access')}>
+        ${option('restricted', t('sharing.restricted'), t('sharing.restrictedHint'))}
+        ${option('signed-in', t('sharing.signedIn'), t('sharing.signedInHint'))}
+        ${option('public', t('sharing.public'), t('sharing.publicHint'))}
+      </div>
+      ${current === 'public' && sharing.publicLinkUrl ? html`<div class="public-link">
+        <input name="public-link-url" readonly .value=${sharing.publicLinkUrl} aria-label=${t('sharing.publicLinkLabel')} data-private="true" />
+        ${this.copyButton('public', sharing.publicLinkUrl, t('sharing.copyLink'), 'public-link-url')}
+      </div>` : nothing}
+    </div>`
+  }
+
+  private renderInviteLinks(sharing: MnAccessSharing) {
+    const busy = Boolean(sharing.busyAction) || sharing.status === 'loading'
+    const now = Date.now()
+    return html`<details class="sharing-section invite-links" ?open=${Boolean(sharing.createdLinkUrl)}>
+      <summary>${t('sharing.inviteLinks')}</summary>
+      <p class="hint invite-links-note">${t('sharing.inviteLinksNote')}</p>
+      <form class="link-form" @submit=${this.createLink} novalidate>
+        <label class="field">
+          <span>${t('Link gives')}</span>
+          <select
+            name="share-link-role"
+            .value=${this.linkRole}
+            ?disabled=${busy}
+            @change=${(event: Event) => { this.linkRole = (event.currentTarget as HTMLSelectElement).value as 'viewer' | 'editor' }}
+          >
+            <option value="viewer">${t('Viewer')}</option>
+            <option value="editor">${t('Editor')}</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>${t('Expires')}</span>
+          <select
+            name="share-link-expiry"
+            .value=${this.linkExpiry}
+            ?disabled=${busy}
+            @change=${(event: Event) => { this.linkExpiry = (event.currentTarget as HTMLSelectElement).value }}
+          >
+            ${LINK_EXPIRY_CHOICES.map(choice => html`<option value=${choice.value}>${choice.label}</option>`)}
+          </select>
+        </label>
+        <button class="link-create" type="submit" ?disabled=${busy || sharing.status !== 'ready'}>
+          ${sharing.busyAction === 'link-create' ? t('sharing.creating') : t('Create link')}
+        </button>
+      </form>
+      ${sharing.createdLinkUrl ? html`<div class="created-link" role="status" aria-live="polite">
+        <input name="share-link-url" readonly .value=${sharing.createdLinkUrl} aria-label=${t('New share link')} data-private="true" />
+        ${this.copyButton('link', sharing.createdLinkUrl, t('Copy'), 'share-link-url')}
+        <button class="dismiss" type="button" aria-label=${t('Hide link')} @click=${() => {
+          if (this.copiedKey === 'link') this.copiedKey = null
+          this.emit('mn-access-link-dismiss')
+        }}>${t('Done')}</button>
+      </div>
+      <div class="hint">${t('Copy it now: the link is shown only once. Anyone who opens it and signs in joins with the link\'s role.')}</div>` : nothing}
+      ${sharing.links.length ? html`<ul class="link-list" aria-label=${t('Share links')}>
+        ${sharing.links.map(link => {
+          const expired = !link.live || (link.expiresAt !== null && Date.parse(link.expiresAt) <= now)
+          const created = shortDate(link.createdAt)
+          return html`<li class="link-row ${expired ? 'expired' : ''}" data-link-id=${link.linkId}>
+            <span>
+              ${link.label ? html`${link.label} · ` : nothing}${t('sharing.linkCreated', { date: created })}
+              <span class="hint">${expired
+                ? t('sharing.linkExpired')
+                : link.expiresAt ? t('sharing.linkUntil', { date: shortDate(link.expiresAt) }) : t('sharing.linkUntilRevoked')}</span>
+            </span>
+            <span class="role ${link.role}">${roleLabel(link.role)}</span>
+            <button
+              class="remove"
+              type="button"
+              aria-label=${t('sharing.revokeLinkFor', { role: roleLabel(link.role), date: created })}
+              title=${t('Revoke link')}
+              ?disabled=${busy}
+              @click=${() => this.emit('mn-access-link-revoke', { linkId: link.linkId } satisfies MnShareLinkRevokeDetail)}
+            >${icon('x', { size: 14 })}</button>
+          </li>`
+        })}
+      </ul>` : sharing.status === 'ready'
+        ? html`<div class="hint">${t('No share links yet.')}</div>`
+        : nothing}
+    </details>`
+  }
+
   private renderSharing(model: MnAccessManagerModel) {
     const sharing = model.sharing
     if (!sharing || model.currentRole !== 'owner') return nothing
-    const busy = Boolean(sharing.busyAction) || sharing.status === 'loading'
-    const now = Date.now()
     return html`<div class="sharing-body">
-      <div class="sharing-section" aria-label=${t('General access')} role="group">
-        <div class="section-title">${t('General access')}</div>
-        <label class="everyone-row">
-          <input
-            type="checkbox"
-            name="access-everyone"
-            .checked=${sharing.everyone}
-            ?disabled=${busy || sharing.status !== 'ready'}
-            @change=${(event: Event) => this.emit('mn-access-everyone-change', {
-              enabled: (event.currentTarget as HTMLInputElement).checked,
-            } satisfies MnEveryoneChangeDetail)}
-          />
-          <span>
-            Anyone signed in can view
-            <div class="hint">${t('Every Garden account can find and read this workspace. They cannot edit it.')}</div>
-          </span>
-        </label>
-      </div>
-
-      <div class="sharing-section" aria-label=${t('Share links')} role="group">
-        <div class="section-title">${t('Share links')}</div>
-        <form class="link-form" @submit=${this.createLink} novalidate>
-          <label class="field">
-            <span>${t('Link gives')}</span>
-            <select
-              name="share-link-role"
-              .value=${this.linkRole}
-              ?disabled=${busy}
-              @change=${(event: Event) => { this.linkRole = (event.currentTarget as HTMLSelectElement).value as 'viewer' | 'editor' }}
-            >
-              <option value="viewer">${t('Viewer')}</option>
-              <option value="editor">${t('Editor')}</option>
-            </select>
-          </label>
-          <label class="field">
-            <span>${t('Expires')}</span>
-            <select
-              name="share-link-expiry"
-              .value=${this.linkExpiry}
-              ?disabled=${busy}
-              @change=${(event: Event) => { this.linkExpiry = (event.currentTarget as HTMLSelectElement).value }}
-            >
-              ${LINK_EXPIRY_CHOICES.map(choice => html`<option value=${choice.value}>${choice.label}</option>`)}
-            </select>
-          </label>
-          <button class="link-create" type="submit" ?disabled=${busy || sharing.status !== 'ready'}>
-            ${sharing.busyAction === 'link-create' ? 'Creating…' : t('Create link')}
-          </button>
-        </form>
-        ${sharing.createdLinkUrl ? html`<div class="created-link" role="status" aria-live="polite">
-          <input name="share-link-url" readonly .value=${sharing.createdLinkUrl} aria-label=${t('New share link')} data-private="true" />
-          <button class="copy" type="button" @click=${() => void this.copyLink(sharing.createdLinkUrl!)}>
-            ${this.copied ? 'Copied' : t('Copy')}
-          </button>
-          <button class="dismiss" type="button" aria-label=${t('Hide link')} @click=${() => {
-            this.copied = false
-            this.emit('mn-access-link-dismiss')
-          }}>${t('Done')}</button>
-        </div>
-        <div class="hint">${t('Copy it now: the link is shown only once. Anyone who opens it and signs in joins with the link\'s role.')}</div>` : nothing}
-        ${sharing.error ? html`<div class="error" role="alert">${sharing.error}</div>` : nothing}
-        ${sharing.links.length ? html`<ul class="link-list" aria-label=${t('Share links')}>
-          ${sharing.links.map(link => {
-            const expired = !link.live || (link.expiresAt !== null && Date.parse(link.expiresAt) <= now)
-            return html`<li class="link-row ${expired ? 'expired' : ''}" data-link-id=${link.linkId}>
-              <span>
-                ${link.label ? html`${link.label} · ` : nothing}created ${shortDate(link.createdAt)}
-                <span class="hint">${expired ? '· expired' : link.expiresAt ? `· until ${shortDate(link.expiresAt)}` : '· until revoked'}</span>
-              </span>
-              <span class="role ${link.role}">${link.role}</span>
-              <button
-                class="remove"
-                type="button"
-                aria-label=${`Revoke ${link.role} link created ${shortDate(link.createdAt)}`}
-                title=${t('Revoke link')}
-                ?disabled=${busy}
-                @click=${() => this.emit('mn-access-link-revoke', { linkId: link.linkId } satisfies MnShareLinkRevokeDetail)}
-              >${icon('x', { size: 14 })}</button>
-            </li>`
-          })}
-        </ul>` : sharing.status === 'ready'
-          ? html`<div class="hint">${t('No share links yet.')}</div>`
-          : nothing}
-      </div>
+      ${sharing.error ? html`<div class="error" role="alert">${sharing.error}</div>` : nothing}
+      ${this.renderGeneralAccess(sharing)}
+      ${this.renderInviteLinks(sharing)}
     </div>`
   }
 
@@ -831,20 +1056,21 @@ export class MnAccessManager extends SkinAware(LitElement) {
     const canManage = model.currentRole === 'owner' && grant.role !== 'owner'
     const busy = Boolean(model.busyAction) || model.status !== 'ready'
     const label = identity(grant)
+    const you = Boolean(model.currentUserId) && grant.userId === model.currentUserId
     return html`<li class="member-row" data-user-id=${grant.userId} data-private="true">
       <span class="avatar" aria-hidden="true">${initials(grant)}</span>
       <div class="identity">
-        <div class="name">${label}</div>
+        <div class="name">${label}${you ? html` <span class="you">${t('sharing.you')}</span>` : nothing}</div>
         ${grant.displayName && grant.email
           ? html`<div class="secondary">${grant.email}</div>`
           : nothing}
-        ${label !== grant.userId
+        ${!grant.displayName && !grant.email && !you
           ? html`<div class="user-id" title=${grant.userId}>${grant.userId}</div>`
           : nothing}
       </div>
       ${canManage ? html`<select
         class="role-select"
-        aria-label=${`Role for ${label}`}
+        aria-label=${t('sharing.roleFor', { name: label })}
         .value=${grant.role}
         ?disabled=${busy}
         @change=${(event: Event) => this.emit('mn-access-role-change', {
@@ -854,11 +1080,11 @@ export class MnAccessManager extends SkinAware(LitElement) {
       >
         <option value="editor">${t('Editor')}</option>
         <option value="viewer">${t('Viewer')}</option>
-      </select>` : html`<span class="role ${grant.role}">${grant.role}</span>`}
+      </select>` : html`<span class="role ${grant.role}">${roleLabel(grant.role)}</span>`}
       ${canManage ? html`<button
         class="remove"
         type="button"
-        aria-label=${`Remove ${label}`}
+        aria-label=${t('sharing.removePerson', { name: label })}
         title=${t('Remove member')}
         ?disabled=${busy}
         @click=${() => this.emit('mn-access-remove', { userId: grant.userId } satisfies MnAccessRemoveDetail)}
@@ -866,122 +1092,177 @@ export class MnAccessManager extends SkinAware(LitElement) {
     </li>`
   }
 
-  private renderAddForm() {
+  private renderInvitation(invitation: MnAccessInvitation, busy: boolean) {
+    return html`<li class="member-row invitation" data-invitation-id=${invitation.invitationId} data-private="true">
+      <span class="avatar" aria-hidden="true">${invitation.email.slice(0, 1).toLocaleUpperCase()}</span>
+      <div class="identity">
+        <div class="name">${invitation.email}</div>
+        <div class="secondary">${t('sharing.invitedRole', { role: roleLabel(invitation.role) })}</div>
+      </div>
+      <span></span>
+      <button
+        class="remove"
+        type="button"
+        aria-label=${t('sharing.cancelInvitationFor', { email: invitation.email })}
+        title=${t('sharing.cancelInvitation')}
+        ?disabled=${busy}
+        @click=${() => this.emit('mn-access-invitation-cancel', { invitationId: invitation.invitationId } satisfies MnAccessInvitationCancelDetail)}
+      >${icon('x', { size: 14 })}</button>
+    </li>`
+  }
+
+  private renderInviteResult(model: MnAccessManagerModel) {
+    const result = model.inviteResult
+    if (!result) return nothing
+    if (result.outcome === 'granted') {
+      const name = result.name?.trim() || result.email
+      return html`<div class="invite-result" role="status" aria-live="polite" data-outcome="granted">
+        <span>${result.role === 'editor' ? t('sharing.grantedEditor', { name }) : t('sharing.grantedViewer', { name })}</span>
+      </div>`
+    }
+    return html`<div class="invite-result" role="status" aria-live="polite" data-outcome="invited">
+      <span><strong>${result.email}</strong><br />${t('sharing.invited')}</span>
+      ${this.copyButton('message', result.message, t('sharing.copyMessage'))}
+      <div class="hint">${t('sharing.noEmailSent')}</div>
+    </div>`
+  }
+
+  private renderAddPeople() {
     const model = this.model!
     if (model.currentRole !== 'owner') return nothing
     const busy = Boolean(model.busyAction) || model.status !== 'ready'
-    return html`<form class="add-form" @submit=${this.add} novalidate>
-      <label class="field">
-        <span>${t('Member user ID (user:&lt;subject&gt;)')}</span>
-        <input
-          name="access-user-id"
-          autocomplete="off"
-          placeholder="user:<subject>"
-          .value=${this.addUserId}
-          ?disabled=${busy}
-          @input=${(event: Event) => {
-            this.addUserId = (event.currentTarget as HTMLInputElement).value
-            this.validationError = ''
-          }}
-        />
-      </label>
-      <label class="field">
-        <span>${t('Role')}</span>
-        <select
-          name="access-role"
-          .value=${this.addRole}
-          ?disabled=${busy}
-          @change=${(event: Event) => { this.addRole = (event.currentTarget as HTMLSelectElement).value as 'viewer' | 'editor' }}
-        >
-          <option value="editor">${t('Editor')}</option>
-          <option value="viewer">${t('Viewer')}</option>
-        </select>
-      </label>
-      ${this.validationError
-        ? html`<div class="validation" role="alert">${this.validationError}</div>`
+    return html`<div class="sharing-section add-people" role="group" aria-label=${t('sharing.addPeople')}>
+      <div class="section-title">${t('sharing.addPeople')}</div>
+      <form class="invite-form" @submit=${this.add} novalidate>
+        <label class="field">
+          <span>${t('sharing.emailLabel')}</span>
+          <input
+            name="access-email"
+            type="email"
+            autocomplete="off"
+            inputmode="email"
+            placeholder=${t('sharing.emailPlaceholder')}
+            .value=${this.addEmail}
+            ?disabled=${busy}
+            @input=${(event: Event) => {
+              this.addEmail = (event.currentTarget as HTMLInputElement).value
+              this.validationError = ''
+            }}
+          />
+        </label>
+        <label class="field">
+          <span>${t('Role')}</span>
+          <select
+            name="access-role"
+            .value=${this.addRole}
+            ?disabled=${busy}
+            @change=${(event: Event) => { this.addRole = (event.currentTarget as HTMLSelectElement).value as 'viewer' | 'editor' }}
+          >
+            <option value="editor">${t('Editor')}</option>
+            <option value="viewer">${t('Viewer')}</option>
+          </select>
+        </label>
+        <button class="invite-button" type="submit" ?disabled=${busy || !this.addEmail.trim()}>
+          ${model.busyAction === 'add' ? t('sharing.sharing') : t('sharing.share')}
+        </button>
+        ${this.validationError
+          ? html`<div class="validation" role="alert">${this.validationError}</div>`
+          : nothing}
+      </form>
+      ${this.renderInviteResult(model)}
+    </div>`
+  }
+
+  private renderPeople(model: MnAccessManagerModel) {
+    const invitations = model.currentRole === 'owner' ? model.sharing?.invitations ?? [] : []
+    const busy = Boolean(model.busyAction) || model.status !== 'ready' || Boolean(model.sharing?.busyAction)
+    return html`<div class="sharing-section people" role="group" aria-label=${t('sharing.peopleWithAccess')}>
+      <div class="section-header">
+        <div class="section-title">${t('sharing.peopleWithAccess')}</div>
+        <button
+          class="refresh"
+          type="button"
+          aria-label=${t('Refresh workspace access')}
+          title=${t('sharing.refreshPeople')}
+          ?disabled=${Boolean(model.busyAction) || model.status === 'loading'}
+          @click=${() => this.emit('mn-access-refresh')}
+        >${icon('refresh-cw', { size: 14 })}</button>
+      </div>
+      ${model.status === 'loading' && model.grants.length === 0
+        ? html`<div class="state" role="status" aria-live="polite">${t('sharing.loadingPeople')}</div>`
         : nothing}
-      <button class="add-button" type="submit" ?disabled=${busy || !this.addUserId.trim()}>
-        ${model.busyAction === 'add' ? t('Adding member…') : t('Add member')}
-      </button>
-    </form>`
+      ${model.status === 'error' && model.grants.length === 0 && !model.error
+        ? html`<div class="state">${t('sharing.peopleUnavailable')}</div>`
+        : nothing}
+      ${model.grants.length > 0 || invitations.length > 0
+        ? html`<ul class="member-list" aria-label=${t('Workspace members')}>
+            ${model.grants.map(grant => this.renderGrant(grant))}
+            ${invitations.map(invitation => this.renderInvitation(invitation, busy))}
+          </ul>`
+        : nothing}
+    </div>`
+  }
+
+  private renderReadOnlySummary(model: MnAccessManagerModel) {
+    if (model.currentRole === 'owner') return nothing
+    const summary = model.currentRole === 'editor'
+      ? t('sharing.readOnlyEditor')
+      : model.currentRole === 'viewer'
+        ? t('sharing.readOnlyViewer')
+        : t('sharing.readOnlyUnknown')
+    return html`<div class="permission-note" role="note">
+      <div>${summary}</div>
+      <div>${t('sharing.ownerManages')}</div>
+    </div>`
+  }
+
+  private renderFooter(model: MnAccessManagerModel) {
+    if (!model.memberLinkUrl) return nothing
+    return html`<div class="footer">
+      <span class="hint">${t('sharing.memberLinkHint')}</span>
+      ${this.copyButton('member', model.memberLinkUrl, t('sharing.copyLink'))}
+    </div>`
   }
 
   /**
-   * The real member-grant CRUD content — header/toolbar/state/error/notice/
-   * member-list/add-form, unchanged — shared verbatim by the popover-mode
-   * `.panel` and the Wave-1 `embedded` mode; only the wrapper around this
-   * differs (this file's own header). Wrapped in a real static
-   * `<div class="panel-body">` — empirically required (see
-   * `mn-workspace-selector.ts`'s `renderMenuBody()`, the same fix): a nested
-   * `TemplateResult` mounted one level deeper than its original inline call
-   * site needs a real static element as its own outermost node in this
-   * lit-html/happy-dom combination, or content silently fails to render.
-   * `.panel-body` carries no styling of its own — no CSS rule below targets
-   * it, and no existing `.panel > x` child-combinator selector depends on
-   * `.header`/`.member-list`/etc being a DIRECT child of `.panel`.
+   * The dialog's content, shared verbatim by the popover-mode `.panel` and the
+   * Wave-1 `embedded` mode; only the wrapper around this differs (this file's
+   * own header). Wrapped in a real static `<div class="panel-body">` —
+   * empirically required (see `mn-workspace-selector.ts`'s `renderMenuBody()`,
+   * the same fix): a nested `TemplateResult` mounted one level deeper than its
+   * original inline call site needs a real static element as its own outermost
+   * node in this lit-html/happy-dom combination, or content silently fails to
+   * render. `.panel-body` carries no styling of its own.
+   *
+   * Owners see Add people, People with access (with pending invitations),
+   * General access and the folded Invite links; everyone else sees their role
+   * and that only the owner changes access. Everyone gets Copy link.
    */
   private renderPanelBody(model: MnAccessManagerModel, closeButton: boolean) {
-    const count = `${model.grants.length} access ${model.grants.length === 1 ? 'grant' : 'grants'}`
-    const membership = model.status === 'ready' ? count
-      : model.grants.length ? `Last known: ${count}`
-        : model.status === 'error' ? 'Membership unavailable' : 'Loading members…'
+    const owner = model.currentRole === 'owner'
     return html`<div class="panel-body">
       <div class="header">
         <div class="heading">
-          <div class="title">${t('Workspace access')}</div>
-          <div class="graph-title">${model.graphTitle || model.graphId}</div>
+          <div class="title">${t('sharing.title', { name: model.graphTitle || model.graphId })}</div>
         </div>
         ${closeButton ? html`<button class="close" type="button" aria-label=${t('Close workspace access')} @click=${this.closePanel}>
           ${icon('x', { size: 15 })}
         </button>` : nothing}
       </div>
 
-      <div class="toolbar">
-        <span>${membership}</span>
-        <button
-          class="refresh"
-          type="button"
-          aria-label=${t('Refresh workspace access')}
-          title=${t('Refresh members')}
-          ?disabled=${Boolean(model.busyAction) || model.status === 'loading'}
-          @click=${() => this.emit('mn-access-refresh')}
-        >${icon('refresh-cw', { size: 14 })}</button>
-      </div>
-
-      ${model.status === 'loading' && model.grants.length === 0
-        ? html`<div class="state" role="status" aria-live="polite">${t('Loading members…')}</div>`
-        : nothing}
       ${model.error ? html`<div class="error-row">
         <div class="error" role="alert">${model.error}</div>
-        ${model.status === 'error'
+        ${model.status === 'error' && owner
           ? html`<button class="retry" type="button" @click=${() => this.emit('mn-access-refresh')}>${t('Retry')}</button>`
           : nothing}
       </div>` : nothing}
       ${model.notice ? html`<div class="notice" role="status" aria-live="polite">${model.notice}</div>` : nothing}
 
-      ${model.grants.length > 0
-        ? html`<ul class="member-list" aria-label=${t('Workspace members')}>
-            ${model.grants.map(grant => this.renderGrant(grant))}
-          </ul>`
-        : model.status === 'ready'
-          ? html`<div class="state">${t('No access grants were returned.')}</div>`
-          : nothing}
-
-      ${model.currentRole === 'unknown' && model.status !== 'loading'
-        ? html`<div class="permission-note">${t('Your role could not be resolved. Member access is read-only.')}</div>`
-        : model.currentRole !== 'owner'
-          ? html`<div class="permission-note">${t('Only the workspace owner can add, change, or remove members.')}</div>`
-          : nothing}
-
-      ${this.renderAddForm()}
-
+      ${this.renderReadOnlySummary(model)}
+      ${this.renderAddPeople()}
+      ${owner || model.grants.length > 0 ? this.renderPeople(model) : nothing}
       ${this.renderSharing(model)}
-
-      <div class="capability-note">
-        ${model.sharing
-          ? 'The workspace owner is not a delegated grant. Share links and general access only ever admit signed-in accounts; revoking a link stops new joins, and people who already joined stay listed above until removed.'
-          : 'Member grants only; the workspace owner is not a delegated grant. Use an existing typed user ID; this is not an email invitation. Public-link controls are not available in this interface.'}
-      </div>
+      ${this.renderFooter(model)}
     </div>`
   }
 
@@ -999,6 +1280,7 @@ export class MnAccessManager extends SkinAware(LitElement) {
     if (!model) return nothing
     if (this.embedded) return this.renderEmbedded(model)
     const hasSharedMembers = model.grants.some(grant => grant.role !== 'owner')
+      || Boolean(model.sharing && (model.sharing.everyone || model.sharing.generalAccess === 'public'))
     return html`
       <button
         class="trigger ${hasSharedMembers ? 'active' : ''}"
