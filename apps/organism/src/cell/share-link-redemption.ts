@@ -10,6 +10,7 @@
  */
 
 import type { MnToast } from '@shrubbery/components'
+import { t } from '@shrubbery/nucleus'
 import { shareTokenFromHash, type ControlRedeemedShareLink } from '@shrubbery/source/access-control'
 
 export interface ShareLinkRedeemer {
@@ -57,16 +58,11 @@ export async function redeemShareLinkFromLocation(options: ShareLinkLandingOptio
   if (!token) return { kind: 'failed', message: 'This share link is malformed or incomplete.' }
   try {
     const joined = await options.gateway.redeemShareLink(token)
-    // Editors open the joined graph directly. Viewer access is listed in the
-    // workspace catalog; the hosted browser shell does not yet open
-    // viewer-only graphs (its CRDT channel requires Editor), so a viewer lands
-    // on the ordinary entry instead of an error page.
-    if (joined.role === 'editor') {
-      const target = new URL(cleaned.href)
-      target.searchParams.set('graph', joined.graphId)
-      target.searchParams.delete('graph_id')
-      options.replaceUrl(target)
-    }
+    // Both roles land in the joined graph: an Editor to edit it, a Viewer to read it (viewer mode).
+    const target = new URL(cleaned.href)
+    target.searchParams.set('graph', joined.graphId)
+    target.searchParams.delete('graph_id')
+    options.replaceUrl(target)
     return { kind: 'joined', graphId: joined.graphId, owner: joined.owner, role: joined.role }
   } catch (error) {
     return { kind: 'failed', message: failureMessage(error) }
@@ -79,11 +75,14 @@ export function showShareLinkLanding(doc: Document, landing: ShareLinkLanding): 
   toast.setAttribute('data-share-link-landing', landing.kind)
   toast.type = landing.kind === 'joined' ? 'success' : 'warning'
   toast.position = 'top-right'
-  toast.message = landing.kind === 'joined' ? 'You joined this workspace' : 'Share link not accepted'
+  const viewer = landing.kind === 'joined' && landing.role === 'viewer'
+  toast.message = landing.kind === 'joined'
+    ? viewer ? t('sharing.joinedViewer', { name: landing.graphId }) : 'You joined this workspace'
+    : 'Share link not accepted'
   toast.description = landing.kind === 'joined'
-    ? landing.role === 'editor'
-      ? `You can view and edit ${landing.graphId}. It now appears in your workspaces.`
-      : `You can read ${landing.graphId} through MCP and the API; it now appears in your workspaces.`
+    ? viewer
+      ? t('sharing.joinedViewerDetail')
+      : `You can view and edit ${landing.graphId}. It now appears in your workspaces.`
     : landing.message
   toast.duration = 10_000
   toast.autoShow = false

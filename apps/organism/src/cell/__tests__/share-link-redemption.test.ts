@@ -61,13 +61,26 @@ describe('share link landing', () => {
     }])
   })
 
-  it('does not auto-open a viewer link, and reports dead or malformed links without a request', async () => {
+  it('lands a Viewer in the joined graph, read-only, and says so', async () => {
     const viewer = gatewayTwin({ role: 'viewer' })
     const urls: string[] = []
     const joined = await redeemShareLinkFromLocation({ location: new URL(`https://garden.test/#share=${TOKEN}`), gateway: viewer.gateway, replaceUrl: url => urls.push(url.href) })
-    expect(joined).toMatchObject({ kind: 'joined', role: 'viewer' })
-    expect(urls).toEqual(['https://garden.test/'])
+    expect(joined).toEqual({ kind: 'joined', graphId: 'sophia-standard', owner: 'user:vera', role: 'viewer' })
+    expect(urls).toEqual(['https://garden.test/', 'https://garden.test/?graph=sophia-standard'])
+    expect(urls.join(' ')).not.toContain('shr_')
+    // The landing then opens that graph: the entry route no longer refuses a Viewer.
+    await expect(resolveHostedEntry({
+      location: new URL(urls[1]),
+      loadGraphs: async () => [{ graphId: 'sophia-standard', title: 'Standard', role: 'viewer', cellState: 'running' }],
+    })).resolves.toEqual({ kind: 'graph', graphId: 'sophia-standard' })
+    const toast = showShareLinkLanding(document, joined!)
+    expect(toast.getAttribute('data-share-link-landing')).toBe('joined')
+    expect(toast.type).toBe('success')
+    expect(toast.message).toBe('You can view sophia-standard')
+    expect(toast.description).toContain('read-only')
+  })
 
+  it('reports dead or malformed links without a request', async () => {
     const dead = gatewayTwin({ code: -32004 })
     const failed = await redeemShareLinkFromLocation({ location: new URL(`https://garden.test/#share=${TOKEN}`), gateway: dead.gateway, replaceUrl: () => undefined })
     expect(failed).toEqual({ kind: 'failed', message: expect.stringContaining('expired, was revoked') })
