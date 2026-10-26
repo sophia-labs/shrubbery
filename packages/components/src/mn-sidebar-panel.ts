@@ -11,7 +11,7 @@
  * to application state.
  */
 
-import { LocaleController, t } from '@shrubbery/nucleus'
+import { LocaleController, localeSource, t } from '@shrubbery/nucleus'
 import { LitElement, css, html, nothing, unsafeCSS, type PropertyValues, type TemplateResult } from 'lit'
 import { customElement, property, state } from 'lit/decorators.js'
 import { classMap } from 'lit/directives/class-map.js'
@@ -1011,14 +1011,33 @@ export class MnSidebarPanel extends SkinAware(LitElement) {
     return this.searchQuery.trim() ? 'search-results' : this.presentation
   }
 
+  private _displayMemo: {
+    readonly sections: readonly MnSidebarSection[]
+    readonly sort: MnSidebarSort
+    readonly grouping: MnSidebarGrouping
+    readonly locale: string
+    readonly result: MnSidebarSection[]
+  } | null = null
+
+  /**
+   * Grouped and sorted sections. This regroups and sorts the whole tree (1,000+ nodes), and used to run once per
+   * `willUpdate`, once per `render` and again in every keyboard and selection handler. Memoised on the inputs it
+   * reads (the sections array, sort, grouping) plus the locale, because group labels are read through `t()`.
+   * Hosts hand the panel immutable values, so identity is the right key.
+   */
   private _displaySections(): MnSidebarSection[] {
-    return groupFilePaneSections(
-      this.sections.length > 0 ? this.sections : DEFAULT_SECTIONS,
-      this.grouping,
-    ).map(section => ({
+    const sections = this.sections.length > 0 ? this.sections : DEFAULT_SECTIONS
+    const locale = localeSource.get()
+    const memo = this._displayMemo
+    if (memo && memo.sections === sections && memo.sort === this.sort && memo.grouping === this.grouping && memo.locale === locale) {
+      return memo.result
+    }
+    const result = groupFilePaneSections(sections, this.grouping).map(section => ({
       ...section,
       nodes: sortFilePaneNodes(section.nodes ?? [], this.sort),
     }))
+    this._displayMemo = { sections, sort: this.sort, grouping: this.grouping, locale, result }
+    return result
   }
 
   private _selectedIdSet(): ReadonlySet<string> {

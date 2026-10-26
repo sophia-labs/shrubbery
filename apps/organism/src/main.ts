@@ -478,6 +478,7 @@ import {
   sidebarSectionsFromRows,
   type SidebarRows,
 } from './cell/sidebar-documents.js'
+import { createSidebarNodeIndex } from './cell/sidebar-node-index.js'
 import { createCoalescedRunner } from './cell/coalesced-runner.js'
 import { createRenderScheduler, type RenderScheduler } from './cell/render-scheduler.js'
 import { resolveSidebarDrop } from './cell/sidebar-drop.js'
@@ -2832,20 +2833,10 @@ function excalidrawWorkspaceNodes(): readonly ExcalidrawWorkspaceNode[] {
   return nodes
 }
 
+const sidebarNodeIndex = createSidebarNodeIndex<SidebarNode>()
+
 function sidebarNodeById(id: string): SidebarNode | null {
-  const find = (entries: readonly SidebarNode[]): SidebarNode | null => {
-    for (const node of entries) {
-      if (node.id === id) return node
-      const nested = node.children?.length ? find(node.children) : null
-      if (nested) return nested
-    }
-    return null
-  }
-  for (const section of currentSidebarSections) {
-    const node = find(section.nodes ?? [])
-    if (node) return node
-  }
-  return null
+  return sidebarNodeIndex.find(currentSidebarSections, id)
 }
 
 if (import.meta.env.DEV) {
