@@ -635,15 +635,24 @@ export class MnGardenHome extends SkinAware(LitElement) {
               </div>
             `}
       </section>
-      ${shared.length > 0 ? html`
-        <section aria-labelledby="garden-shared-heading" data-section="shared">
-          <div class="section-heading">
-            <h2 id="garden-shared-heading">${t('sharing.sharedWithMe')}</h2>
-            <span class="section-count">${shared.length}</span>
-          </div>
-          <ol class="graph-list">${shared.map(workspace => this.renderGraph(workspace))}</ol>
-        </section>
-      ` : nothing}
+    `
+  }
+
+  /**
+   * One section per template: a part placed after a top-level element is dropped by happy-dom's parser, so the
+   * shared section is its own part of the column, not a sibling inside renderCatalog's template.
+   */
+  private renderShared() {
+    const shared = this.workspaces.filter(workspace => workspace.role !== 'owner')
+    if (shared.length === 0) return nothing
+    return html`
+      <section aria-labelledby="garden-shared-heading" data-section="shared">
+        <div class="section-heading">
+          <h2 id="garden-shared-heading">${t('sharing.sharedWithMe')}</h2>
+          <span class="section-count">${shared.length}</span>
+        </div>
+        <ol class="graph-list">${shared.map(workspace => this.renderGraph(workspace))}</ol>
+      </section>
     `
   }
 
@@ -753,6 +762,7 @@ export class MnGardenHome extends SkinAware(LitElement) {
                   <div class="column">
                     ${this.renderRecent(recent)}
                     ${this.renderCatalog()}
+                    ${this.renderShared()}
                   </div>
                   <aside class="column" aria-label=${t('Garden account actions')}>
                     ${this.renderOnboarding()}
