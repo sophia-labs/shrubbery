@@ -395,6 +395,7 @@ export {
   chartGeometry,
   compareRuns,
   defaultComparePair,
+  judgeOf,
   deltaVerdict,
   exemplarsQuery,
   filterByKind,

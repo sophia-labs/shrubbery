@@ -10,6 +10,7 @@ import {
   chartGeometry,
   compareRuns,
   defaultComparePair,
+  judgeOf,
   deltaVerdict,
   exemplarsQuery,
   familyOfCase,
@@ -222,10 +223,25 @@ describe('series and the chart', () => {
 
 describe('defaultComparePair', () => {
   it('current is the newest run, base the newest older baseline, else the previous run', () => {
-    const run = (runId: string, isBaseline: boolean) => ({ iri: '', runId, label: '', startedAt: '', gitRev: '', suite: '', tier: '', mode: '', loadBefore1m: null, rssPeakMB: null, isBaseline })
+    const run = (runId: string, isBaseline: boolean, abPartner: string | null = null) => ({ iri: '', runId, label: '', startedAt: '', gitRev: '', suite: '', tier: '', mode: '', loadBefore1m: null, rssPeakMB: null, isBaseline, abPartner, machineClean: null, machineNote: '' })
     expect(defaultComparePair([run('c', false), run('b', false), run('a', true)])).toEqual({ baseRunId: 'a', currentRunId: 'c' })
     expect(defaultComparePair([run('c', false), run('b', false)])).toEqual({ baseRunId: 'b', currentRunId: 'c' })
     expect(defaultComparePair([run('c', false)])).toEqual({ baseRunId: null, currentRunId: 'c' })
     expect(defaultComparePair([])).toEqual({ baseRunId: null, currentRunId: null })
+  })
+  it('prefers the ab partner over a newer baseline, and falls back when the partner is not in the ledger', () => {
+    const run = (runId: string, isBaseline: boolean, abPartner: string | null = null) => ({ iri: '', runId, label: '', startedAt: '', gitRev: '', suite: '', tier: '', mode: '', loadBefore1m: null, rssPeakMB: null, isBaseline, abPartner, machineClean: null, machineNote: '' })
+    expect(defaultComparePair([run('s2-b', false, 's2-a'), run('s3-a', true), run('s2-a', true, 's2-b')])).toEqual({ baseRunId: 's2-a', currentRunId: 's2-b' })
+    expect(defaultComparePair([run('s2-b', false, 'gone'), run('base', true)])).toEqual({ baseRunId: 'base', currentRunId: 's2-b' })
+  })
+})
+
+describe('judgeOf', () => {
+  const run = (runId: string, machineClean: boolean | null, machineNote = '') => ({ iri: '', runId, label: runId, startedAt: '', gitRev: '', suite: '', tier: '', mode: '', loadBefore1m: null, rssPeakMB: null, isBaseline: false, abPartner: null, machineClean, machineNote })
+  it('is a judge only when both sides ran clean', () => {
+    expect(judgeOf(run('a', true), run('b', true))).toEqual({ verdict: 'yes', notes: [] })
+    expect(judgeOf(run('a', true), run('b', false, 'slept 2× (120 s)'))).toEqual({ verdict: 'no', notes: ['b: slept 2× (120 s)'] })
+    expect(judgeOf(run('a', null, 'not recorded'), run('b', true)).verdict).toBe('unknown')
+    expect(judgeOf(run('a', false, 'x'), run('b', null)).verdict).toBe('no')
   })
 })

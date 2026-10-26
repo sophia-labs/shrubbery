@@ -23,6 +23,7 @@ import {
   chartGeometry,
   compareRuns,
   defaultComparePair,
+  judgeOf,
   deltaVerdict,
   exemplarsQuery,
   filterByKind,
@@ -236,6 +237,25 @@ export class ShBenchDashboard extends LitElement {
       color: var(--mn-color-info-strong, var(--mn-color-accent-strong));
       background: var(--mn-color-info-surface, var(--mn-color-surface-accent-subtle));
     }
+    .pill[data-tone='warn'] {
+      color: var(--mn-color-warning-strong, #92400e);
+      background: var(--mn-color-warning-surface, #fff7ed);
+    }
+    .judge {
+      margin: 0 0 var(--mn-space-3, 12px);
+      padding: var(--mn-space-2, 8px) var(--mn-space-3, 12px);
+      border-radius: var(--mn-radius-md, 6px);
+      border: 1px solid var(--mn-color-warning-border, var(--mn-color-warning-strong, #92400e));
+      color: var(--mn-color-warning-strong, #92400e);
+      background: var(--mn-color-warning-surface, #fff7ed);
+      font-size: var(--mn-text-sm, 13px);
+    }
+    .judge[data-verdict='unknown'] {
+      border-color: var(--mn-color-border-subtle, transparent);
+      color: var(--mn-color-text-secondary);
+      background: var(--mn-color-surface-sunken);
+    }
+    .judge ul { margin: var(--mn-space-1, 4px) 0 0; padding-left: 1.2em; }
     .verdict {
       display: inline-flex;
       align-items: center;
@@ -510,6 +530,20 @@ export class ShBenchDashboard extends LitElement {
 
   // ── rendering ───────────────────────────────────────────────────────────────────────────────────────────────────
 
+  /** A comparison over a machine that slept, ran in DarkWake or was throttled is not a judge: say so above the table. */
+  private renderJudge(): TemplateResult | typeof nothing {
+    const byId = (id: string | null) => (id ? this.runs.find((r) => r.runId === id) : undefined)
+    const judge = judgeOf(byId(this.baseRunId), byId(this.currentRunId))
+    if (judge.verdict === 'yes') return nothing
+    return html`
+      <div class="judge" role=${judge.verdict === 'no' ? 'alert' : 'note'} data-verdict=${judge.verdict}>
+        <strong>${judge.verdict === 'no' ? t('bench.notJudge') : t('bench.machineUnrecorded')}</strong>
+        ${judge.verdict === 'no' ? html` ${t('bench.notJudgeBody')}` : nothing}
+        ${judge.notes.length ? html`<ul>${judge.notes.map((n) => html`<li>${n}</li>`)}</ul>` : nothing}
+      </div>
+    `
+  }
+
   private runLabel(run: BenchRunSummary): string {
     return `${run.label || run.runId}${run.gitRev ? ` · ${run.gitRev}` : ''}`
   }
@@ -549,7 +583,7 @@ export class ShBenchDashboard extends LitElement {
                   <td class="mono">${run.gitRev || '—'}</td>
                   <td>${[run.suite, run.tier].filter(Boolean).join(' / ') || '—'}</td>
                   <td class="num">${run.loadBefore1m === null ? '—' : formatNumber(run.loadBefore1m, { maximumFractionDigits: 1 })}</td>
-                  <td>${run.isBaseline ? html`<span class="pill" data-tone="baseline">${t('bench.baselineBadge')}</span>` : nothing}</td>
+                  <td>${run.isBaseline ? html`<span class="pill" data-tone="baseline">${t('bench.baselineBadge')}</span>` : nothing}${run.machineClean === false ? html` <span class="pill" data-tone="warn" title=${run.machineNote}>${t('bench.notCleanBadge')}</span>` : nothing}</td>
                 </tr>
               `)}
             </tbody>
@@ -612,6 +646,7 @@ export class ShBenchDashboard extends LitElement {
             </select>
           </label>
         </div>
+        ${this.renderJudge()}
         <div class="row-head" role="group" aria-label=${t('bench.kindFilter')}>
           <span class="muted">${t('bench.kindFilter')}</span>
           <span class="chips">

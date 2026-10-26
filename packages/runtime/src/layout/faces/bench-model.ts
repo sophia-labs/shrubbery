@@ -52,7 +52,7 @@ function assertIri(iri: string, what: string): string {
 export function runsQuery(limit = 200): string {
   const n = Math.max(1, Math.min(500, Math.trunc(limit)))
   return `${BENCH_PREFIX}
-SELECT ?run ?runId ?label ?startedAt ?gitRev ?suite ?tier ?mode ?loadAvg ?rss ?isBaseline WHERE {
+SELECT ?run ?runId ?label ?startedAt ?gitRev ?suite ?tier ?mode ?loadAvg ?rss ?isBaseline ?abPartner ?machineClean ?machineNote WHERE {
   GRAPH ?g {
     ?run bench:runId ?runId ;
          bench:startedAt ?startedAt .
@@ -64,6 +64,9 @@ SELECT ?run ?runId ?label ?startedAt ?gitRev ?suite ?tier ?mode ?loadAvg ?rss ?i
     OPTIONAL { ?run bench:loadBefore1m ?loadAvg }
     OPTIONAL { ?run bench:rssPeakMB ?rss }
     OPTIONAL { ?run bench:isBaseline ?isBaseline }
+    OPTIONAL { ?run bench:abPartner ?abPartner }
+    OPTIONAL { ?run bench:machineClean ?machineClean }
+    OPTIONAL { ?run bench:machineNote ?machineNote }
   }
 }
 ORDER BY DESC(?startedAt)
@@ -211,6 +214,12 @@ export interface BenchRunSummary {
   readonly loadBefore1m: number | null
   readonly rssPeakMB: number | null
   readonly isBaseline: boolean
+  /** The other side of the interleaved ab sitting this run came from, or null. */
+  readonly abPartner: string | null
+  /** Did every round run on a clean machine (awake, no DarkWake, unthrottled, on AC)? null = unrecorded. */
+  readonly machineClean: boolean | null
+  /** Why not clean (or why unrecorded); '' when clean. */
+  readonly machineNote: string
 }
 
 /** Rows of `runsQuery` → runs, newest first, one per run id (a ledger copied into two graphs does not double). */
@@ -233,6 +242,9 @@ export function mapRunRows(rows: readonly PlainRow[]): BenchRunSummary[] {
       loadBefore1m: num(row.loadAvg),
       rssPeakMB: num(row.rss),
       isBaseline: bool(row.isBaseline),
+      abPartner: row.abPartner || null,
+      machineClean: row.machineClean === undefined ? null : bool(row.machineClean),
+      machineNote: row.machineNote ?? '',
     })
   }
   return runs.sort((a, b) => timeOf(b.startedAt) - timeOf(a.startedAt) || (a.runId < b.runId ? 1 : -1))
@@ -472,12 +484,26 @@ export function kindsPresent(rows: readonly { readonly kind: BenchKind | 'other'
   return BENCH_KINDS.filter((k) => present.has(k))
 }
 
-/** The default comparison pair: the newest run against the newest baseline that is not itself (else the next run). */
+/**
+ * The default comparison pair: the newest run against its ab partner when it has one in the ledger (only an interleaved
+ * sitting judges a change), else the newest baseline that is not itself, else the next run.
+ */
 export function defaultComparePair(runs: readonly BenchRunSummary[]): { baseRunId: string | null; currentRunId: string | null } {
   const current = runs[0]
   if (!current) return { baseRunId: null, currentRunId: null }
+  const partner = current.abPartner ? runs.find((r) => r.runId === current.abPartner) : undefined
+  if (partner) return { baseRunId: partner.runId, currentRunId: current.runId }
   const baseline = runs.slice(1).find((r) => r.isBaseline) ?? runs[1]
   return { baseRunId: baseline?.runId ?? null, currentRunId: current.runId }
+}
+
+/** Is a comparison of these two runs a judge? 'no' if either ran on an unclean machine, 'unknown' if either is unrecorded. */
+export function judgeOf(...runs: readonly (BenchRunSummary | undefined)[]): { verdict: 'yes' | 'no' | 'unknown'; notes: string[] } {
+  const present = runs.filter((r): r is BenchRunSummary => r !== undefined)
+  const notes = [...new Set(present.filter((r) => r.machineClean !== true && r.machineNote).map((r) => `${r.label || r.runId}: ${r.machineNote}`))]
+  if (present.some((r) => r.machineClean === false)) return { verdict: 'no', notes }
+  if (present.some((r) => r.machineClean === null)) return { verdict: 'unknown', notes }
+  return { verdict: 'yes', notes }
 }
 
 // ── the hill-climb chart ────────────────────────────────────────────────────────────────────────────────────────────
