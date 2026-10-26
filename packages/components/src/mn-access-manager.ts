@@ -1174,7 +1174,7 @@ export class MnAccessManager extends SkinAware(LitElement) {
   }
 
   private renderPeople(model: MnAccessManagerModel) {
-    const invitations = model.currentRole === 'owner' ? model.sharing?.invitations ?? [] : []
+    const invitations: readonly MnAccessInvitation[] = model.currentRole === 'owner' ? model.sharing?.invitations ?? [] : []
     const busy = Boolean(model.busyAction) || model.status !== 'ready' || Boolean(model.sharing?.busyAction)
     return html`<div class="sharing-section people" role="group" aria-label=${t('sharing.peopleWithAccess')}>
       <div class="section-header">

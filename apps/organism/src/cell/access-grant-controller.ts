@@ -471,7 +471,7 @@ export class OrganismAccessGrantController {
   /** Adopt a sharing view: its general access, links, invitations, and the names of the people with access. */
   private adoptSharing(state: ControlSharingState): void {
     this.sharingState = state
-    this.people = new Map(state.people.map(row => [row.userId, row.person]))
+    this.people = new Map(state.people.map(row => [row.userId, row.person] as const))
     this.applyGrants(this.rows)
   }
 
@@ -725,7 +725,8 @@ export class OrganismAccessGrantController {
         return
       }
     }
-    const live = state.publicLink?.live ? state.publicLink : null
+    const current = state.publicLink
+    const live = current && current.live ? current : null
     await this.mutateSharing(
       'general',
       async (gateway, active) => {
@@ -753,7 +754,8 @@ export class OrganismAccessGrantController {
     const scope = this.scope
     if (!scope || !sharingGateway(scope.gateway) || this.currentRole !== 'owner' || this.sharingStatus === 'idle') return null
     const state = this.sharingState
-    const publicLink = state?.publicLink?.live ? state.publicLink : null
+    const candidate = state ? state.publicLink : null
+    const publicLink = candidate && candidate.live ? candidate : null
     return Object.freeze({
       status: this.sharingStatus,
       everyone: state?.everyone ?? false,
