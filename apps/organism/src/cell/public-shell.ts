@@ -320,7 +320,7 @@ export async function resolvePublicLink(token: string, transport?: PublicShellTr
   if (!res.ok) throw new PublicApiError(await errorDetail(res), res.status)
   const body = (await res.json()) as { graphId?: unknown }
   if (typeof body?.graphId !== 'string' || !body.graphId.trim()) {
-    throw new PublicApiError('The public link resolved to no graph', 502)
+    throw new PublicApiError(t('sharing.publicLinkDead'), 404)
   }
   return body.graphId.trim()
 }
