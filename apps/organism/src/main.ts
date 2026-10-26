@@ -632,7 +632,7 @@ import { choreographRouteAppLinks, suiteAppLinks } from './cell/hoja-suite.js'
 import { flowAppEnabled, withFlowWorkspace } from './cell/flow-workspace.js'
 import { acceptsGrapevineNavigation } from './cell/grapevine-feature.js'
 import type { MnGrapevinePane } from './cell/grapevine-pane.js'
-import { mountPublicShellRoute } from './cell/public-shell.js'
+import { mountPublicShellRoute, mountPublicViewRoute, publicShellBaseUrl } from './cell/public-shell.js'
 import {
   installOrganismWireMode,
   wireModeEditorFromHost,
@@ -12494,13 +12494,24 @@ hostEl.addEventListener('mn-appearance-menu', (event) => {
 })
 
 function bootPublicShellRoute(): boolean {
-  const mount = mountPublicShellRoute(hostEl, {
+  // Public reads go to the gateway when hosted (on garden.sophia-labs.com `/cell` is the app's own HTML).
+  const options = {
     location: window.location,
     history: window.history,
     storage: window.sessionStorage,
-    transport: { baseUrl: cellRestBase() },
+    transport: { baseUrl: publicShellBaseUrl(deploymentConfig, SELF_HOST, window.location.origin) },
     clipboard: navigator.clipboard,
-  })
+  }
+  const view = mountPublicViewRoute(hostEl, options)
+  if (view) {
+    document.body.dataset.organismMode = 'public'
+    ok('public view: resolving a public link')
+    void view.ready.then(() => {
+      if (view.element.status === 'ready') ok('public view: loaded')
+    })
+    return true
+  }
+  const mount = mountPublicShellRoute(hostEl, options)
   if (!mount) return false
 
   document.body.dataset.organismMode = 'public'

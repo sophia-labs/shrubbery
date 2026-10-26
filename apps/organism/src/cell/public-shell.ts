@@ -9,6 +9,8 @@
  */
 
 import * as Y from 'yjs'
+import { t } from '@shrubbery/nucleus'
+import { publicLinkToken, publicTokenFromHash } from '@shrubbery/source/access-control'
 import type {
   MnPublicBlock,
   MnPublicDocument,
@@ -90,6 +92,24 @@ export interface DetectedPublicRoute {
   readonly tokenStrippedUrl: string | null
 }
 
+/** `/view#shp_…`: an "anyone with the link" public link. The token never reaches a server log or a Referer. */
+export interface DetectedPublicViewRoute {
+  /** The public-link token, from the fragment or (after a reload) this tab's session storage. */
+  readonly token: string | null
+  /** The address carried a fragment that is not a public-link token. */
+  readonly malformed: boolean
+  readonly initialDocumentId: string | null
+  /** The address without its fragment, when it had one. */
+  readonly tokenStrippedUrl: string | null
+}
+
+export interface PublicViewRouteMount {
+  readonly route: DetectedPublicViewRoute
+  readonly element: MnPublicShell
+  readonly ready: Promise<void>
+  destroy(): void
+}
+
 export interface ResolvedPublicRoute {
   readonly graphId: string
   readonly access: PublicAccess
@@ -140,6 +160,24 @@ export class PublicApiError extends Error {
 }
 
 const DEFAULT_BASE_URL = '/cell'
+const PUBLIC_VIEW_TOKEN_KEY = 'mn-public-view-token'
+
+/**
+ * Where the public read routes are. Hosted, they are the gateway's (`/documents/…`, `/wires/…`,
+ * `/public-aliases/…`, `/public-links/resolve` at the gateway root): on garden.sophia-labs.com `/cell/…` is the
+ * app's own HTML, which is why public links could not load. A self-host reads its own gardend at its origin; the
+ * local dev server proxies `/cell`.
+ */
+export function publicShellBaseUrl(
+  deployment: { readonly mode: string; readonly gatewayBaseUrl?: string },
+  selfHost: boolean,
+  origin: string,
+): string {
+  if (deployment.mode === 'hosted' && deployment.gatewayBaseUrl?.trim()) {
+    return deployment.gatewayBaseUrl.trim().replace(/\/+$/, '')
+  }
+  return selfHost ? origin.replace(/\/+$/, '') : DEFAULT_BASE_URL
+}
 const KNOWN_MARKS = new Set<MnPublicMarkType>([
   'bold',
   'italic',
@@ -271,6 +309,20 @@ export async function resolvePublicAlias(
   })
   if (!res.ok) throw new PublicApiError(await errorDetail(res), res.status)
   return (await res.json()) as PublicAliasResolution
+}
+
+/** `GET /public-links/resolve` with the token in `X-Public-Token`: the graph it opens, or a 404 when it is dead. */
+export async function resolvePublicLink(token: string, transport?: PublicShellTransport): Promise<string> {
+  const res = await fetcher(transport)(publicUrl('/public-links/resolve', transport), {
+    method: 'GET',
+    headers: { Accept: 'application/json', ...buildPublicHeaders({ token }) },
+  })
+  if (!res.ok) throw new PublicApiError(await errorDetail(res), res.status)
+  const body = (await res.json()) as { graphId?: unknown }
+  if (typeof body?.graphId !== 'string' || !body.graphId.trim()) {
+    throw new PublicApiError('The public link resolved to no graph', 502)
+  }
+  return body.graphId.trim()
 }
 
 export function extractEntityId(value: string | null | undefined): string | null {
@@ -788,6 +840,37 @@ export function detectPublicRoute(
   }
 }
 
+/** `/view` (with `#shp_…`, or after a reload with the token this tab kept): the token is stored, then stripped. */
+export function detectPublicViewRoute(
+  locationLike: Pick<Location, 'href' | 'pathname' | 'search'> | URL,
+  storage?: Pick<Storage, 'getItem' | 'setItem'> | null,
+): DetectedPublicViewRoute | null {
+  const url = locationLike instanceof URL ? locationLike : new URL(locationLike.href)
+  if (url.pathname.replace(/\/+$/, '') !== '/view') return null
+  const hadFragment = url.hash.length > 1
+  const fromHash = hadFragment ? publicTokenFromHash(url.hash) : null
+  if (fromHash) {
+    try { storage?.setItem(PUBLIC_VIEW_TOKEN_KEY, fromHash) } catch { /* the page still opens this once */ }
+  }
+  let stored: string | null = null
+  if (!hadFragment) {
+    try {
+      const value = storage?.getItem(PUBLIC_VIEW_TOKEN_KEY)?.trim() || null
+      stored = value ? publicLinkToken(value) : null
+    } catch {
+      stored = null
+    }
+  }
+  const stripped = hadFragment ? new URL(url.href) : null
+  if (stripped) stripped.hash = ''
+  return {
+    token: fromHash ?? stored,
+    malformed: hadFragment && !fromHash,
+    initialDocumentId: url.searchParams.get('doc')?.trim() || null,
+    tokenStrippedUrl: stripped?.toString() ?? null,
+  }
+}
+
 export async function resolvePublicRoute(
   route: DetectedPublicRoute,
   transport?: PublicShellTransport,
@@ -995,6 +1078,78 @@ export function mountPublicShellRoute(
       await controller.ready
     } catch (error) {
       if (!destroyed) setShellError(element, error, 'Failed to load public workspace')
+    }
+  })()
+
+  return {
+    route,
+    element,
+    ready,
+    destroy() {
+      destroyed = true
+      controller?.destroy()
+      element.remove()
+    },
+  }
+}
+
+function publicViewError(error: unknown): string {
+  if (error instanceof PublicApiError && (error.status === 404 || error.status === 403 || error.status === 410)) {
+    return t('sharing.publicLinkDead')
+  }
+  return error instanceof Error && error.message ? error.message : 'Failed to load public workspace'
+}
+
+/** Mount `/view#shp_…`: store and strip the token, resolve its graph, and render it read-only, anonymously. */
+export function mountPublicViewRoute(
+  host: HTMLElement,
+  options: MountPublicShellRouteOptions = {},
+): PublicViewRouteMount | null {
+  const locationLike = options.location ?? (typeof window !== 'undefined' ? window.location : undefined)
+  if (!locationLike) return null
+  const route = detectPublicViewRoute(
+    locationLike,
+    options.storage ?? (typeof window !== 'undefined' ? window.sessionStorage : null),
+  )
+  if (!route) return null
+
+  const history = options.history ?? (typeof window !== 'undefined' ? window.history : null)
+  // Scrub first: the bearer token must not stay in history, bookmarks, or a copied address bar.
+  const routeUrl = route.tokenStrippedUrl ?? locationLike.href
+  if (route.tokenStrippedUrl && history && 'replaceState' in history) {
+    history.replaceState({}, '', route.tokenStrippedUrl)
+  }
+
+  const element = document.createElement('mn-public-shell') as MnPublicShell
+  element.status = 'loading'
+  host.replaceChildren(element)
+
+  let destroyed = false
+  let controller: PublicShellController | null = null
+  const ready = (async () => {
+    if (!route.token) {
+      element.status = 'error'
+      element.error = t('sharing.publicLinkMissing')
+      return
+    }
+    try {
+      const graphId = await resolvePublicLink(route.token, options.transport)
+      if (destroyed) return
+      controller = attachPublicShellController(element, {
+        graphId,
+        access: { token: route.token },
+        initialDocumentId: route.initialDocumentId,
+        transport: options.transport,
+        history,
+        location: new URL(routeUrl),
+        clipboard: options.clipboard,
+      })
+      await controller.ready
+    } catch (error) {
+      if (!destroyed) {
+        element.status = 'error'
+        element.error = publicViewError(error)
+      }
     }
   })()
 

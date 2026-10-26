@@ -5,10 +5,13 @@ import type { MnPublicShell } from '@shrubbery/components'
 import {
   attachPublicShellController,
   detectPublicRoute,
+  detectPublicViewRoute,
   fetchPublicWorkspaceBlob,
   loadPublicWorkspaceSnapshot,
   mountPublicShellRoute,
+  mountPublicViewRoute,
   projectPublicWireBundle,
+  publicShellBaseUrl,
   readPublicDocument,
   readPublicWorkspaceProjection,
   resolvePublicRoute,
@@ -400,6 +403,159 @@ describe('public-shell adapter', () => {
     expect(calls.find((call) => call.url.endsWith('/workspace/blob'))?.headers.get('X-Public-Alias')).toBe('wiki')
 
     mount!.destroy()
+    host.remove()
+  })
+})
+
+const PUBLIC_TOKEN = `shp_${'V'.repeat(43)}`
+const GATEWAY = 'https://api.garden.sophia-labs.com'
+
+function memoryStorage() {
+  const stored = new Map<string, string>()
+  return { stored, getItem: (key: string) => stored.get(key) ?? null, setItem: (key: string, value: string) => { stored.set(key, value) } }
+}
+
+/** The gateway's anonymous public read routes, as a twin: alias, public-link resolve, blobs, wires. */
+function publicGateway(options: { readonly liveToken?: string | null } = {}) {
+  const calls: Array<{ url: string; headers: Headers }> = []
+  const live = options.liveToken === undefined ? PUBLIC_TOKEN : options.liveToken
+  const transport: PublicShellTransport = {
+    baseUrl: GATEWAY,
+    fetch: (async (input, init) => {
+      const url = String(input)
+      const headers = new Headers(init?.headers)
+      calls.push({ url, headers })
+      if (url === `${GATEWAY}/public-aliases/wiki`) return jsonResponse({ alias: 'wiki', graph_id: 'graph-public' })
+      if (url === `${GATEWAY}/public-links/resolve`) {
+        return live && headers.get('X-Public-Token') === live
+          ? jsonResponse({ graphId: 'graph-public' })
+          : jsonResponse({ error: 'not found' }, 404)
+      }
+      if (!url.startsWith(`${GATEWAY}/`)) return new Response('<!doctype html><title>Garden</title>', { status: 200, headers: { 'content-type': 'text/html' } })
+      if (url.endsWith('/workspace/blob')) return bytesResponse(workspaceBlob())
+      if (url.endsWith('/documents/graph-public/doc-home/blob')) return bytesResponse(documentBlob('Public brief'))
+      if (url.endsWith('/documents/graph-public/doc-notes/blob')) return bytesResponse(documentBlob('Notes brief'))
+      return jsonResponse({ wired_block_ids: [], outgoing_wires: [], incoming_wires: [] })
+    }) as typeof fetch,
+  }
+  return { calls, transport }
+}
+
+describe('public links on the hosted app', () => {
+  it('reads public routes from the gateway when hosted, not the app\'s own /cell', () => {
+    expect(publicShellBaseUrl({ mode: 'hosted', gatewayBaseUrl: `${GATEWAY}/` }, false, 'https://garden.sophia-labs.com')).toBe(GATEWAY)
+    expect(publicShellBaseUrl({ mode: 'playground' }, false, 'http://localhost:5173')).toBe('/cell')
+    expect(publicShellBaseUrl({ mode: 'playground' }, true, 'https://sophia.example.test/')).toBe('https://sophia.example.test')
+  })
+
+  it('keeps a legacy /public/<alias> link working, on the gateway base', async () => {
+    const { calls, transport } = publicGateway()
+    const host = document.createElement('div')
+    document.body.appendChild(host)
+    const mount = mountPublicShellRoute(host, {
+      location: new URL('https://garden.sophia-labs.com/public/wiki'),
+      history: { pushState: () => {}, replaceState: () => {} },
+      storage: memoryStorage(),
+      transport,
+    })
+    await mount!.ready
+    expect(mount!.element.status).toBe('ready')
+    expect(mount!.element.document?.id).toBe('doc-home')
+    expect(calls.map(call => call.url)).toContain(`${GATEWAY}/public-aliases/wiki`)
+    expect(calls.find(call => call.url.endsWith('/workspace/blob'))?.url).toBe(`${GATEWAY}/documents/graph-public/workspace/blob`)
+    expect(calls.every(call => call.url.startsWith(GATEWAY))).toBe(true)
+    mount!.destroy()
+    host.remove()
+  })
+
+  it('detects /view and takes the token from the fragment, else from this tab', () => {
+    const storage = memoryStorage()
+    expect(detectPublicViewRoute(new URL('https://garden.sophia-labs.com/public/wiki'), storage)).toBeNull()
+    expect(detectPublicViewRoute(new URL('https://garden.sophia-labs.com/viewer'), storage)).toBeNull()
+    expect(detectPublicViewRoute(new URL(`https://garden.sophia-labs.com/view?doc=doc-notes#${PUBLIC_TOKEN}`), storage)).toEqual({
+      token: PUBLIC_TOKEN,
+      malformed: false,
+      initialDocumentId: 'doc-notes',
+      tokenStrippedUrl: 'https://garden.sophia-labs.com/view?doc=doc-notes',
+    })
+    expect(storage.stored.get('mn-public-view-token')).toBe(PUBLIC_TOKEN)
+    expect(detectPublicViewRoute(new URL('https://garden.sophia-labs.com/view/'), storage)).toMatchObject({ token: PUBLIC_TOKEN, tokenStrippedUrl: null })
+    expect(detectPublicViewRoute(new URL('https://garden.sophia-labs.com/view#nope'), storage)).toMatchObject({ token: null, malformed: true })
+  })
+
+  it('mounts /view#shp_…: scrubs the token from the address, resolves its graph, and reads with X-Public-Token', async () => {
+    const { calls, transport } = publicGateway()
+    const storage = memoryStorage()
+    const replaced: string[] = []
+    const host = document.createElement('div')
+    document.body.appendChild(host)
+    const mount = mountPublicViewRoute(host, {
+      location: new URL(`https://garden.sophia-labs.com/view#${PUBLIC_TOKEN}`),
+      history: {
+        pushState: () => {},
+        replaceState: (_state: unknown, _unused: string, url?: string | URL | null) => { if (url) replaced.push(String(url)) },
+      },
+      storage,
+      transport,
+    })
+    expect(mount).not.toBeNull()
+    expect(replaced).toEqual(['https://garden.sophia-labs.com/view'])
+    await mount!.ready
+    await mount!.element.updateComplete
+
+    expect(host.querySelector('mn-public-shell')).toBe(mount!.element)
+    expect(mount!.element.status).toBe('ready')
+    expect(mount!.element.document?.id).toBe('doc-home')
+    expect(mount!.element.nav?.documents?.map(doc => doc.id)).toEqual(['doc-home', 'doc-notes'])
+    expect(calls[0].url).toBe(`${GATEWAY}/public-links/resolve`)
+    expect(calls.every(call => call.headers.get('X-Public-Token') === PUBLIC_TOKEN)).toBe(true)
+    expect(calls.some(call => call.headers.has('Authorization'))).toBe(false)
+    expect(storage.stored.get('mn-public-view-token')).toBe(PUBLIC_TOKEN)
+    mount!.destroy()
+
+    // A reload keeps working from this tab's copy of the token.
+    const reload = publicGateway()
+    const again = mountPublicViewRoute(host, {
+      location: new URL('https://garden.sophia-labs.com/view?doc=doc-notes'),
+      history: { pushState: () => {}, replaceState: () => {} },
+      storage,
+      transport: reload.transport,
+    })
+    await again!.ready
+    expect(again!.element.status).toBe('ready')
+    expect(again!.element.document?.id).toBe('doc-notes')
+    again!.destroy()
+    host.remove()
+  })
+
+  it('says so when a public link is incomplete or has been turned off', async () => {
+    const host = document.createElement('div')
+    document.body.appendChild(host)
+    const incomplete = publicGateway()
+    const broken = mountPublicViewRoute(host, {
+      location: new URL('https://garden.sophia-labs.com/view#shp_short'),
+      history: { pushState: () => {}, replaceState: () => {} },
+      storage: memoryStorage(),
+      transport: incomplete.transport,
+    })
+    await broken!.ready
+    expect(broken!.element.status).toBe('error')
+    expect(broken!.element.error).toBe('This link is incomplete. Ask the person who shared it to send it again.')
+    expect(incomplete.calls).toEqual([])
+    broken!.destroy()
+
+    const revoked = publicGateway({ liveToken: null })
+    const dead = mountPublicViewRoute(host, {
+      location: new URL(`https://garden.sophia-labs.com/view#${PUBLIC_TOKEN}`),
+      history: { pushState: () => {}, replaceState: () => {} },
+      storage: memoryStorage(),
+      transport: revoked.transport,
+    })
+    await dead!.ready
+    expect(dead!.element.status).toBe('error')
+    expect(dead!.element.error).toBe('This link has been turned off or does not exist.')
+    expect(revoked.calls.map(call => call.url)).toEqual([`${GATEWAY}/public-links/resolve`])
+    dead!.destroy()
     host.remove()
   })
 })
