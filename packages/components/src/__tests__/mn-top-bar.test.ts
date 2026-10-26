@@ -405,6 +405,21 @@ describe('mn-top-bar — real custom element', () => {
     ;(el.shadowRoot!.querySelector('[data-app-action="home"]') as HTMLElement).click()
     expect(caughtOnHost).toBe(true)
   })
+
+  it('says View only for a graph shared with this account as a Viewer, and nothing for its editors', async () => {
+    const access = (currentRole: 'viewer' | 'editor' | 'owner') => ({
+      graphId: 'shared', graphTitle: 'Shared', currentRole, status: 'ready' as const, grants: [],
+    })
+    const viewer = await mount(el => { el.access = access('viewer') })
+    const chip = sr(viewer).querySelector('[data-view-only]')
+    expect(chip?.textContent?.trim()).toBe('View only')
+    expect(sr(viewer).querySelector('mn-access-manager')).not.toBeNull()
+    viewer.access = access('editor')
+    await viewer.updateComplete
+    expect(sr(viewer).querySelector('[data-view-only]')).toBeNull()
+    const owner = await mount(el => { el.access = access('owner') })
+    expect(sr(owner).querySelector('[data-view-only]')).toBeNull()
+  })
 })
 
 function eBreadcrumb(el: MnTopBar, index: number) {

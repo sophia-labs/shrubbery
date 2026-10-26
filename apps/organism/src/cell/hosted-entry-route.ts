@@ -48,18 +48,13 @@ export async function resolveHostedEntry(options: HostedEntryOptions): Promise<H
   // Empty is not evidence of a new user and does not authorize graph creation.
   // Graphs shared with everyone signed in (or through a viewer link) appear in
   // every catalog as Viewer. They are not the account's own workspaces, so an
-  // undirected root with nothing else still lands on Home rather than
-  // auto-opening a read-only graph the browser app cannot yet host.
+  // undirected root with nothing else lands on Home (which lists them under
+  // Shared with me) rather than auto-opening someone else's graph. A Viewer
+  // graph asked for by path, ?graph= or the last session opens, read-only.
   const undirectedRoot = url.pathname === '/' && !url.search && !url.hash
   if (undirectedRoot && !graphs.some(graph => graph.role !== 'viewer')) {
     return { kind: 'home', location: new URL('/home', url.origin) }
   }
   if (!graphId) throw new Error('No Garden graphs are available to this account.')
-  const graph = graphs.find(item => item.graphId === graphId)
-  if (graph?.role === 'viewer') {
-    throw new Error(
-      `Graph "${graphId}" is viewer-only; the current gateway MCP route requires Editor for workspace reads.`,
-    )
-  }
   return { kind: 'graph', graphId }
 }

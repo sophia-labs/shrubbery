@@ -470,6 +470,20 @@ export class MnTopBar extends SkinAware(LitElement) {
       flex-shrink: 0;
     }
     .actions .action-btn[hidden] { display: none; }
+    /* A graph shared with this account as a Viewer: everything in it opens read-only. */
+    .view-only-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      height: calc(var(--mn-control-height, 32px) - 8px);
+      padding: 0 var(--mn-space-2, 8px);
+      border: 1px solid var(--mn-color-border-default, #d1d5db);
+      border-radius: 999px;
+      color: var(--mn-top-bar-text-muted, #6b7280);
+      font-size: var(--mn-text-xs, 12px);
+      font-weight: 600;
+      white-space: nowrap;
+    }
     .action-btn {
       display: flex;
       align-items: center;
@@ -1108,6 +1122,9 @@ export class MnTopBar extends SkinAware(LitElement) {
           .status=${this.quickClipStatus}
           .error=${this.quickClipError}
         ></mn-quick-clip>` : nothing}
+        ${this.access?.currentRole === 'viewer' ? html`<span class="view-only-chip" data-view-only role="status" title=${t('sharing.readOnlyViewer')}>
+          ${icon('eye', { size: 13 })}${t('sharing.viewOnly')}
+        </span>` : nothing}
         ${this.access && this._showControl('access') ? html`<mn-access-manager .model=${this.access}></mn-access-manager>` : nothing}
         <button
           class="action-btn theme-action ${this.isDark ? 'active' : ''}"

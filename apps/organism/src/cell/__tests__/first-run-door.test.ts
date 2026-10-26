@@ -145,10 +145,10 @@ describe('hosted first-run door', () => {
     expect(fetch).not.toHaveBeenCalled()
   })
 
-  it('sends an undirected root with only Viewer graphs to Home, but still refuses a directed Viewer graph', async () => {
+  it('sends an undirected root with only Viewer graphs to Home, and opens a directed Viewer graph', async () => {
     // Graphs shared with everyone signed in appear as Viewer in every
-    // catalog; they are not the account's own workspaces, so they must not
-    // turn a new account's root entry into a viewer-only error.
+    // catalog; they are not the account's own workspaces, so an undirected
+    // root lands on Home. Asked for by name, a Viewer graph opens (read-only).
     await expect(resolveHostedEntry({
       location: new URL('https://app.test/'),
       loadGraphs: async () => [catalog[1]],
@@ -156,7 +156,16 @@ describe('hosted first-run door', () => {
     await expect(resolveHostedEntry({
       location: new URL('https://app.test/?graph=viewer'),
       loadGraphs: async () => [catalog[1]],
-    })).rejects.toThrow('viewer-only')
+    })).resolves.toEqual({ kind: 'graph', graphId: 'viewer' })
+    await expect(resolveHostedEntry({
+      location: new URL('https://app.test/g/viewer'),
+      loadGraphs: async () => [catalog[1]],
+    })).resolves.toEqual({ kind: 'graph', graphId: 'viewer' })
+    await expect(resolveHostedEntry({
+      location: new URL('https://app.test/?doc=d1'),
+      storedGraphId: 'viewer',
+      loadGraphs: async () => [catalog[1]],
+    })).resolves.toEqual({ kind: 'graph', graphId: 'viewer' })
   })
 
   it.each([401, 403, 500])('does not turn an HTTP %s catalog refusal into Home', async status => {

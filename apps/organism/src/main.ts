@@ -482,6 +482,13 @@ import {
   type VisitorState,
 } from './cell/visitor-mode.js'
 import {
+  probeViewerRooms,
+  viewerDocumentAccess,
+  viewerDropRefusal,
+  viewerRoomsMessage,
+  viewerSidebarRefusal,
+} from './cell/viewer-mode.js'
+import {
   documentSwitcherActionRows,
   documentSwitcherDocumentsFromSidebar,
   documentSwitcherOfflineSemanticItems,
@@ -1582,7 +1589,7 @@ function openBoardForPanels(): CurrentWhiteboard | null {
 }
 
 function whiteboardPageView(open: CurrentWhiteboard): WhiteboardPageOptions {
-  const readOnly = sidebarNodeById(open.documentId)?.readOnly === true
+  const readOnly = hostedViewerGraph(open.graphId) || sidebarNodeById(open.documentId)?.readOnly === true
   // A read-only board is passed no editing options: it can be looked at, followed and read, never drawn on or wired.
   const editing: Partial<WhiteboardPageOptions> = readOnly
     ? {}
@@ -6116,6 +6123,12 @@ function handleSidebarNodeDrop(detail: SidebarNodeDropDetail): void {
     const refusal = visitorDropRefusal(detail, currentSidebarSections, currentGraphId, visitor, parentId, visitorOwnedIds())
     if (refusal) { placeNoticeLazy().say(refusal, 'info'); ok(`visitor: ${refusal}`); return }
   }
+  if (hostedViewerGraph()) {
+    const refusal = viewerDropRefusal()
+    placeNoticeLazy().say(refusal, 'info')
+    ok(`viewer: ${refusal}`)
+    return
+  }
 
   // One tree: a drag may carry a file or cross kinds. The Files commands move files and say, in words, what an older cell cannot do yet.
   const kind = source.kind === 'artifact' ? 'artifact' : source.kind === 'document' ? 'document' : 'folder'
@@ -6211,6 +6224,27 @@ function activeVisitor(): VisitorState | null {
   return activeSelfHostSession()?.visitor ?? null
 }
 
+/** The hosted graph is shared with this account as a Viewer: it opens read-only everywhere (see viewer-mode). */
+function hostedViewerGraph(graphId: string = currentGraphId): boolean {
+  return deploymentConfig.mode === 'hosted' && hostedGraphs.find(graph => graph.graphId === graphId)?.role === 'viewer'
+}
+
+const viewerRoomsChecked = new Set<string>()
+
+/**
+ * A Viewer's rooms need a cell engine that admits Viewers. A refused WebSocket shows the browser no status, so read
+ * the cell's `/health` (as the gateway does) once per graph, and say in words that it is not there yet.
+ */
+async function announceViewerRooms(graphId: string): Promise<void> {
+  const gateway = hostedGatewayContract?.gateway
+  if (!gateway || viewerRoomsChecked.has(graphId)) return
+  viewerRoomsChecked.add(graphId)
+  const support = await probeViewerRooms(() => gateway.getJson(graphId, '/health'))
+  if (support !== 'unsupported' || currentGraphId !== graphId) return
+  placeNoticeLazy().say(msg('sharing.viewerRoomsUnsupported'), 'info')
+  ok(`viewer: the cell of ${graphId} does not admit Viewer rooms yet`)
+}
+
 /** The documents gardend records as this visitor's (`get_workspace` rows' `extra.createdBy`), by graph. */
 let visitorOwned: { graphId: string; ids: ReadonlySet<string> } = { graphId: '', ids: new Set() }
 
@@ -6248,6 +6282,12 @@ function visitorFolderLabel(visitor: VisitorState): string {
 }
 
 function handleSidebarAction(detail: SidebarActionDetail): void {
+  const viewerRefusal = hostedViewerGraph() ? viewerSidebarRefusal(detail) : null
+  if (viewerRefusal) {
+    placeNoticeLazy().say(viewerRefusal, 'info')
+    ok(`viewer: ${viewerRefusal}`)
+    return
+  }
   const visitor = activeVisitor()
   if (visitor) {
     const refusal = visitorSidebarRefusal(detail, currentSidebarSections, currentGraphId, visitor, visitorFolderLabel(visitor), visitorOwnedIds())
@@ -8810,6 +8850,12 @@ function visitorPaneDocumentAccess(claim: EditorClaim): EditorDocumentAccess | n
   }
 }
 
+/** A Viewer's pane: every document of the graph is view-only, with no Make Editable. */
+function viewerPaneDocumentAccess(claim: EditorClaim): EditorDocumentAccess | null {
+  if (!hostedViewerGraph(claim.graphId)) return null
+  return { ...viewerDocumentAccess(), salienceWritable: false, salienceWriteReason: msg('sharing.viewerRatings') }
+}
+
 function salienceEditorDocumentAccess(): EditorDocumentAccess {
   const salience = currentSalienceWriteAccess()
   return {
@@ -8847,15 +8893,8 @@ function currentHomeOptions(): NonNullable<RenderWorkspaceOptions['home']> {
 }
 
 function workspaceSummaries(): WorkspaceSummary[] {
-  return hostedGraphs.map(graph => ({
-    ...graph,
-    ...(graph.role === 'viewer'
-      ? {
-          disabled: true,
-          disabledReason: 'Viewer workspaces are visible but cannot be opened until the gateway exposes read-only MCP access.',
-        }
-      : {}),
-  }))
+  // Viewer workspaces open read-only (viewer-mode); none is disabled for its role.
+  return hostedGraphs.map(graph => ({ ...graph }))
 }
 
 /**
@@ -8898,7 +8937,7 @@ function centerPaneEditorHostOptions(): ReadonlyMap<CenterPaneId, CenterPaneEdit
       wireRadialContexts: active ? currentWireRadialContexts : null,
       salienceBundle: active ? currentSalienceBundle : null,
       imageInserter: claim.imageInserter,
-      documentAccess: visitorPaneDocumentAccess(claim) ?? salienceEditorDocumentAccess(),
+      documentAccess: visitorPaneDocumentAccess(claim) ?? viewerPaneDocumentAccess(claim) ?? salienceEditorDocumentAccess(),
       commentPaint: claim.graphId === currentGraphId && claim.documentId === openDocId ? currentCommentPaint() : null,
     })
   }
@@ -9726,6 +9765,8 @@ function renderConfig(config: WorkspaceConfig, app: string | undefined): string 
   const shellContext = currentShellContext()
   const filePaneState = filePaneController.snapshot(currentGraphId)
   const filePaneLive = sourceSelect.value === 'CELL_LIVE' && store !== null
+  // A Viewer's tree offers nothing that writes (the shell refuses it too, see viewer-mode).
+  const filePaneWritable = filePaneLive && !hostedViewerGraph()
   const featureWorkspaceSnapshot = shellFeatureHost.workspaceSnapshot(shellContext, {
     app,
     ...(fragments ? { fragments } : {}),
@@ -9808,15 +9849,15 @@ function renderConfig(config: WorkspaceConfig, app: string | undefined): string 
         ? currentMobileFileOperation
         : null,
       capabilities: {
-        createDocument: filePaneLive,
-        upload: filePaneLive,
-        createFolder: filePaneLive,
+        createDocument: filePaneWritable,
+        upload: filePaneWritable,
+        createFolder: filePaneWritable,
         refresh: sourceSelect.value === 'CELL_LIVE',
         sort: true,
         group: true,
         multiSelect: true,
-        dragDrop: filePaneLive,
-        contextMenu: filePaneLive,
+        dragDrop: filePaneWritable,
+        contextMenu: filePaneWritable,
       },
       onSearchChange: ({ query }) => {
         currentSidebarSearchQuery = query
@@ -10109,7 +10150,17 @@ function renderConfig(config: WorkspaceConfig, app: string | undefined): string 
           salienceWriteReason: 'Visitors read the ratings.',
         },
       }
-    : featuredSnapshot
+    : openDocId && hostedViewerGraph()
+      ? {
+          ...featuredSnapshot,
+          editorDocumentAccess: {
+            ...(featuredSnapshot.editorDocumentAccess ?? { readOnly: false }),
+            ...viewerDocumentAccess(),
+            salienceWritable: false,
+            salienceWriteReason: msg('sharing.viewerRatings'),
+          },
+        }
+      : featuredSnapshot
   // Lit intentionally preserves unmanaged siblings in its render container.
   // Retire the static pre-module boot shell before the first managed frame so
   // it cannot remain stacked above the live Surface workspace. Same for a
@@ -11083,7 +11134,7 @@ function renderCellState(
     // Paint the honest error panel instead — but never clobber a LIVE
     // workspace over a transient refresh failure (state.read present).
     if (!state.read) {
-      renderCellErrorPanel(hostEl, state.error ?? 'unknown error', {
+      renderCellErrorPanel(hostEl, viewerRoomsMessage(state.error) ?? state.error ?? 'unknown error', {
         onRetry: () => void store?.refresh(),
         ...(deploymentConfig.mode === 'hosted' ? { onBack: () => window.location.assign('/') } : {}),
       })
@@ -11268,9 +11319,10 @@ function startCellMode(): void {
   // invoke the user SourceMirror's source_pull/source_push tools. Keep this
   // proof on the RDF/layout surface it is authorized for; ordinary Cognito
   // sessions continue to activate SourceMirror exactly as before.
-  if (!(deploymentConfig.mode === 'hosted' && deploymentConfig.devServiceProxySubject)) {
+  if (!(deploymentConfig.mode === 'hosted' && deploymentConfig.devServiceProxySubject) && !hostedViewerGraph(graphId)) {
     nextStore.contract.sourceMirror.backgroundSync(graphId)
   }
+  if (hostedViewerGraph(graphId)) void announceViewerRooms(graphId)
   void nextStore.refresh().then(() => {
     if (store === nextStore) {
       if (cellPoll.checked) stopPoll = nextStore.startPoll(3000)
@@ -13065,12 +13117,6 @@ async function switchHostedWorkspace(graphId: string): Promise<void> {
   const graph = hostedGraphs.find(item => item.graphId === graphId)
   if (!graph) {
     hostedGraphsError = `Workspace "${graphId}" is no longer available.`
-    hostedGraphsStatus = 'error'
-    rerenderCurrentSource()
-    return
-  }
-  if (graph.role === 'viewer') {
-    hostedGraphsError = `Workspace "${graphId}" is viewer-only; read-only gateway MCP access is not available yet.`
     hostedGraphsStatus = 'error'
     rerenderCurrentSource()
     return
