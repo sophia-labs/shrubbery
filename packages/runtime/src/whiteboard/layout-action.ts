@@ -10,6 +10,7 @@ import { t } from '@shrubbery/nucleus'
 import {
   applyBoardLayout,
   type BoardElement,
+  type ElkNodeJson,
   BoardLayoutError,
   type BoardLayoutPlan,
   type BoardLayoutRequest,
@@ -77,7 +78,7 @@ export async function layOut(deps: WbSelectionBarDeps, command: WbLayoutCommand,
       throw error
     }
     const before = versionsOf(elements, plan.touched)
-    let result
+    let result: ElkNodeJson
     try {
       result = await host.layout(plan.graph)
     } catch (error) {

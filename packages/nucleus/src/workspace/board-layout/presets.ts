@@ -59,7 +59,7 @@ export interface ResolvedBoardLayoutOptions {
 }
 
 function has<K extends string>(record: Readonly<Record<K, unknown>>, key: string): key is K {
-  return Object.prototype.hasOwnProperty.call(record, key)
+  return Object.hasOwn(record, key)
 }
 
 /** Validate and default a request's style, direction and spacing. An unknown value is refused, naming it. */
