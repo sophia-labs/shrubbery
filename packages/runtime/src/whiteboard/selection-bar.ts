@@ -26,6 +26,7 @@ import type { WbBacklink } from './semantic-types.js'
 import { linkOfTarget, recordOfTarget, targetOfElement } from './links.js'
 import { arrowEndsOf, promoteSelectedArrow, unwireArrow, wireMarkOf } from './arrow-wire.js'
 import { addCard, isCard } from './card-embed.js'
+import { layOut } from './layout-action.js'
 
 /** What the bar needs of its host. The bar reads `page()` and `api()` on every use, never caches them. */
 export interface WbSelectionBarDeps {
@@ -181,11 +182,31 @@ export function barAnchor(
 
 // ---- what the bar offers --------------------------------------------------------------------------------------
 
-export type WbBarActionId = 'link' | 'unlink' | 'open' | 'wire' | 'unwire' | 'card'
+export type WbBarActionId = 'link' | 'unlink' | 'open' | 'wire' | 'unwire' | 'card' | 'layout'
 
 export interface WbBarAction {
   readonly id: WbBarActionId
   readonly label: string
+}
+
+/**
+ * Pure: whether "Lay out" applies to `selection`: several elements, at least two of them shapes (arrows are routed,
+ * never placed). Bound text was already folded into its container by {@link selectionOf}.
+ */
+export function layoutAppliesTo(selection: WbSelection, elements: readonly WbElement[]): boolean {
+  if (selection.kind !== 'multiple') return false
+  const byId = new Map(elements.map((e) => [e.id, e] as const))
+  return selection.ids.filter((id) => byId.get(id)?.type !== 'arrow').length >= 2
+}
+
+/** Pure: whether the whole board has at least two shapes to lay out (live, not arrows, not bound text). */
+export function boardLayoutApplies(elements: readonly WbElement[]): boolean {
+  let shapes = 0
+  for (const e of elements) {
+    if (!isLive(e) || e.type === 'arrow' || isBoundText(e)) continue
+    if (++shapes >= 2) return true
+  }
+  return false
 }
 
 /**
@@ -198,9 +219,14 @@ export function actionsFor(
   page: WhiteboardPageOptions | null,
   elements: readonly WbElement[] = [],
 ): readonly WbBarAction[] {
-  if (!page || selection.elementId === null) return []
-  const out: WbBarAction[] = []
+  if (!page) return []
   const editable = page.readOnly !== true
+  // Several elements: the one thing to do with them together is arrange them.
+  if (selection.kind === 'multiple') {
+    return editable && layoutAppliesTo(selection, elements) ? [{ id: 'layout', get label() { return t('Lay out') } }] : []
+  }
+  if (selection.elementId === null) return []
+  const out: WbBarAction[] = []
   const canOpen = !!selection.link && !!page.onOpenLink
   if (selection.kind === 'shape') {
     if (editable && page.pickLink) out.push({ id: 'link', label: selection.link ? t('Relink…') : t('Link…') })
@@ -276,6 +302,7 @@ export function createSelectionBar(deps: WbSelectionBarDeps): WbSelectionBar {
   bar.addEventListener('keydown', onKeyDown)
 
   const run = (id: WbBarActionId, selection: WbSelection): void => {
+    if (id === 'layout') { void layOut(deps, { ids: selection.ids }); return }
     const elementId = selection.elementId
     if (!elementId) return
     const page = deps.page()

@@ -285,7 +285,11 @@ describe('what the bar offers', () => {
     expect(ids(selectionOf(ELEMENTS, pick(ARW3)), editable)).toEqual(['card'])
     expect(ids(selectionOf(ELEMENTS, pick(BOX)), pageOf({ pickLink: undefined }))).toEqual([])
     expect(ids(selectionOf(ELEMENTS, pick(ARW1)), pageOf({ pickPredicate: undefined }))).toEqual(['card'])
-    expect(ids(selectionOf(ELEMENTS, pick(BOX, NOTE)), editable)).toEqual([])
+    // Several shapes: the one thing the bar offers is to lay them out (ELK), and not on a read-only board.
+    expect(ids(selectionOf(ELEMENTS, pick(BOX, NOTE)), editable)).toEqual(['layout'])
+    expect(ids(selectionOf(ELEMENTS, pick(BOX, NOTE)), readOnly)).toEqual([])
+    // A shape and an arrow are not two shapes: an arrow is routed, never placed.
+    expect(ids(selectionOf(ELEMENTS, pick(BOX, ARW1)), editable)).toEqual([])
     expect(ids(selectionOf(ELEMENTS, pick(LNK)), null)).toEqual([])
   })
 

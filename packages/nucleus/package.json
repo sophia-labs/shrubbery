@@ -13,6 +13,7 @@
     "./object-faces": "./src/object-faces/index.ts",
     "./workspace": "./src/workspace/index.ts",
     "./files-canvas": "./src/workspace/files-canvas/index.ts",
+    "./board-layout": "./src/workspace/board-layout/index.ts",
     "./layout": "./src/layout/index.ts",
     "./component-library": "./src/workspace/component-library.ts",
     "./component-library/manifest": "./component-library/manifest.ts",

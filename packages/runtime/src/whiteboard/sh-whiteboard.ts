@@ -21,7 +21,8 @@ import {
 } from './whiteboard-presence.js'
 import { applySophiaPalette, WHITEBOARD_DEFAULTS, WHITEBOARD_THEME_CSS } from './whiteboard-theme.js'
 import { type WbElement, type WbScene, type WbToolWrite, WhiteboardBinding } from './whiteboard-binding.js'
-import { createSelectionBar, linkActionApplies, linkElement, selectionOf, type WbSelectionBar, type WbSelectionBarDeps } from './selection-bar.js'
+import { boardLayoutApplies, createSelectionBar, layoutAppliesTo, linkActionApplies, linkElement, selectionOf, type WbSelectionBar, type WbSelectionBarDeps } from './selection-bar.js'
+import { layOut, type WbLayoutCommand } from './layout-action.js'
 import { addCard, attachSidebarDrop, createCardHost } from './card-embed.js'
 import { promoteSelectedArrow } from './arrow-wire.js'
 import type {
@@ -206,6 +207,55 @@ function busyIdsOf(state: Record<string, any>): Set<string> {
     for (const [id, on] of Object.entries(state.selectedElementIds ?? {})) if (on) busy.add(id)
   }
   return busy
+}
+
+/**
+ * What Alt+Shift+L lays out: the selection when it holds several shapes, the whole board when nothing is selected,
+ * else nothing (one shape, or a read-only board).
+ */
+export function layoutShortcutCommand(elements: readonly WbElement[], appState: Record<string, any>, readOnly: boolean): WbLayoutCommand | null {
+  if (readOnly) return null
+  const selection = selectionOf(elements, appState)
+  if (layoutAppliesTo(selection, elements)) return { ids: selection.ids }
+  if (selection.kind === 'none' && boardLayoutApplies(elements)) return { ids: null }
+  return null
+}
+
+/** The command palette's layout entries: the selection four ways, and the whole board. */
+export function layoutPaletteItems(
+  editable: () => boolean,
+  elements: () => readonly WbElement[],
+  selected: () => WbSelection | null,
+  run: (command: WbLayoutCommand) => void,
+): Array<Record<string, unknown>> {
+  const onSelection = (label: () => string, extra: Omit<WbLayoutCommand, 'ids'>, keywords: string[]) => ({
+    get label() { return label() },
+    category: 'Elements',
+    keywords: ['layout', 'arrange', 'tidy', ...keywords],
+    viewMode: false,
+    predicate: () => {
+      const sel = selected()
+      return editable() && !!sel && layoutAppliesTo(sel, elements())
+    },
+    perform: () => {
+      const sel = selected()
+      if (sel) run({ ...extra, ids: sel.ids })
+    },
+  })
+  return [
+    onSelection(() => t('Lay out selection'), {}, ['flow', 'right']),
+    onSelection(() => t('Lay out selection downward'), { direction: 'down' }, ['flow', 'down', 'vertical']),
+    onSelection(() => t('Lay out as tree'), { style: 'tree' }, ['tree', 'hierarchy']),
+    onSelection(() => t('Lay out as grid'), { style: 'grid' }, ['grid', 'pack']),
+    {
+      get label() { return t('Lay out board') },
+      category: 'Elements',
+      keywords: ['layout', 'arrange', 'tidy', 'board', 'all'],
+      viewMode: false,
+      predicate: () => editable() && boardLayoutApplies(elements()),
+      perform: () => run({ ids: null }),
+    },
+  ]
 }
 
 /**
@@ -555,6 +605,20 @@ export class ShWhiteboard extends LitElement {
         return linkActionApplies(elements, appState) && !!this.page?.pickLink
       },
     })
+    // Alt+Shift+L lays out the selection (several shapes), or the whole board when nothing is selected. Excalidraw
+    // leaves it free: its tool letters refuse Alt (App.tsx), and its only Alt+Shift action is Alt+Shift+C.
+    api.registerAction?.({
+      name: 'sophiaLayOut',
+      get label() { return t('Lay out') },
+      keywords: ['layout', 'arrange', 'tidy', 'elk'],
+      trackEvent: false,
+      perform: (elements: readonly WbElement[], appState: Record<string, any>) => {
+        const command = layoutShortcutCommand(elements, appState, this.page?.readOnly === true)
+        if (command) void layOut(barDeps, command)
+        return false
+      },
+      keyTest: (event: KeyboardEvent) => event.altKey && event.shiftKey && !event.ctrlKey && !event.metaKey && event.code === 'KeyL',
+    })
     this.bar.update()
   }
 
@@ -589,6 +653,10 @@ export class ShWhiteboard extends LitElement {
           if (id) void linkElement(deps, id)
         },
       },
+      ...layoutPaletteItems(editable, () => {
+        const api = this.api
+        return api ? (api.getSceneElementsIncludingDeleted() as readonly WbElement[]) : []
+      }, selected, (command) => { void layOut(deps, command) }),
       {
         get label() { return t('Make wire…') },
         category: 'Links',
