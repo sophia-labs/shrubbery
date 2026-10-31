@@ -201,6 +201,7 @@ try {
     await button.click()
     await page.waitForFunction(`(() => { ${FIND_BOARD}
       const board = findBoard(document)
+      if (!board || !board.api) return false
       const els = board.api.getSceneElements()
       return els.some((e) => e.type === 'arrow' && e.elbowed && e.points && e.points.length >= 3)
     })()`, undefined, { timeout: 30_000 })
@@ -238,7 +239,8 @@ try {
 
     // 4. One undo step back, then forward again.
     const canvas = page.locator('sh-whiteboard canvas.interactive').first()
-    await canvas.click({ position: { x: 20, y: 880 } })
+    const corner = async () => { const b = await canvas.boundingBox(); return { x: 12, y: Math.max(12, (b?.height ?? 40) - 12) } }
+    await canvas.click({ position: await corner() })
     const mod = process.platform === 'darwin' ? 'Meta' : 'Control'
     await page.keyboard.press(`${mod}+z`)
     await page.waitForTimeout(600)
@@ -289,13 +291,14 @@ try {
     // 7. Alt+Shift+L with nothing selected lays out the whole board.
     await page.evaluate(`(() => { ${FIND_BOARD}
       const board = findBoard(document)
+      if (!board || !board.api) return false
       const els = board.api.getSceneElements()
       const box = els.find((e) => e.id === ${JSON.stringify(created.latent)})
       board.api.updateScene({ elements: els.map((e) => e.id === box.id ? { ...e, x: e.x + 900, y: e.y + 700, version: e.version + 1, versionNonce: e.versionNonce + 1 } : e), appState: { selectedElementIds: {} } })
     })()`)
     await page.waitForTimeout(400)
     const scattered = (await sceneOf(page)).find((e) => e.id === created.latent)!
-    await page.locator('sh-whiteboard canvas.interactive').first().click({ position: { x: 20, y: 880 } })
+    await canvas.click({ position: await corner() })
     await page.keyboard.press('Alt+Shift+KeyL')
     await page.waitForTimeout(2500)
     const whole = (await sceneOf(page)).find((e) => e.id === created.latent)!
@@ -305,6 +308,11 @@ try {
     report.pageErrors = pageErrors
     assert(offOrigin.length === 0, `no request left 127.0.0.1: ${offOrigin.slice(0, 5).join(' | ')}`)
     assert(pageErrors.length === 0, `no page errors: ${pageErrors.join(' | ')}`)
+  } catch (error) {
+    report.pageErrors = pageErrors
+    report.offOrigin = offOrigin
+    report.worker = workerRequests.slice(0, 3)
+    throw error
   } finally {
     console.log(JSON.stringify(report, null, 2))
   }
