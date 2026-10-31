@@ -23,10 +23,6 @@
       "elk.algorithm": "mrtree",
       "elk.spacing.nodeNode": 40
     },
-    "radial": {
-      "elk.algorithm": "radial",
-      "elk.spacing.nodeNode": 40
-    },
     "grid": {
       "elk.algorithm": "rectpacking",
       "elk.spacing.nodeNode": 32
@@ -34,7 +30,7 @@
   },
   "defaultStyle": "flow",
   "directions": { "right": "RIGHT", "down": "DOWN", "left": "LEFT", "up": "UP" },
-  "defaultDirection": { "flow": "right", "tree": "down", "radial": "right", "grid": "right" },
+  "defaultDirection": { "flow": "right", "tree": "down", "grid": "right" },
   "directional": ["flow", "tree"],
   "spacing": { "tight": 0.6, "normal": 1, "loose": 1.6 },
   "spacingKeys": [

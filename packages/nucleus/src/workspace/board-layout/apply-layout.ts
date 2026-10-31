@@ -231,7 +231,8 @@ export function applyBoardLayout(elements: readonly BoardElement[], plan: BoardL
     write(next as BoardElement)
     const label = boundTextOf(byId, arrow)
     if (label) {
-      const box = edge.labels?.find((l) => l.id === label.id) ?? edge.labels?.[0]
+      // Only the layered style places labels; the others return label boxes at the origin (gardend, layout.rs).
+      const box = plan.options.style === 'flow' ? edge.labels?.find((l) => l.id === label.id) ?? edge.labels?.[0] : undefined
       const center = box && typeof box.x === 'number' && typeof box.y === 'number'
         ? { x: box.x + (box.width ?? 0) / 2 + dx, y: box.y + (box.height ?? 0) / 2 + dy }
         : midpointAlong(route)

@@ -175,8 +175,8 @@ describe('Lay out on the fixture, with the real ELK', () => {
     expect(await run()).toBe(await run())
   })
 
-  it('runs every style: tree and grid place, radial too; only flow makes elbows', async () => {
-    for (const style of ['tree', 'radial', 'grid'] as const) {
+  it('runs every style: tree and grid place; only flow makes elbows', async () => {
+    for (const style of ['tree', 'grid'] as const) {
       const { canvas } = seeded()
       const outcome = await layOut(rig(canvas).deps, { ids: SELECTION, style }, createElkHost({ inThread: true }))
       expect(outcome.ok).toBe(true)

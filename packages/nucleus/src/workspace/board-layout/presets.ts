@@ -5,7 +5,7 @@
  */
 import presetsJson from './presets.json'
 
-export type BoardLayoutStyle = 'flow' | 'tree' | 'radial' | 'grid'
+export type BoardLayoutStyle = 'flow' | 'tree' | 'grid'
 export type BoardLayoutDirection = 'right' | 'down' | 'left' | 'up'
 export type BoardLayoutSpacing = 'tight' | 'normal' | 'loose'
 

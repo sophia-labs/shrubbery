@@ -32,7 +32,7 @@ const byId = new Map(ELEMENTS.map((e) => [e.id, e]))
 const SELECTION = ELEMENTS.filter((e) => e.isDeleted !== true && e.type !== 'arrow' && !(e.type === 'text' && e.containerId) && e.id !== 'waking').map((e) => e.id)
 
 /** sha256 of the hub's presets.json (plans/2026-10-30-elk-layout/presets.json), the copy gardend also carries. */
-const PRESETS_SHA256 = 'a3fac592a2a52e13f6ab767204022f0108637e1dcd613326aa27245a142f15bf'
+const PRESETS_SHA256 = '4c1c82b9e37454509cb3240258f48cd3692fc01183d913fcf85c067e1558ae68'
 
 describe('presets', () => {
   it('are the hub copy, byte for byte', () => {
@@ -54,8 +54,9 @@ describe('presets', () => {
     expect(loose['elk.spacing.edgeLabel']).toBe(6)
     const tree = layoutOptionsFor(resolveBoardLayoutOptions({ style: 'tree' }))
     expect(tree['elk.direction']).toBe('DOWN')
-    // Radial and grid take no direction, whatever the request says.
-    expect(layoutOptionsFor(resolveBoardLayoutOptions({ style: 'radial', direction: 'down' }))['elk.direction']).toBeUndefined()
+    // Grid takes no direction, whatever the request says; radial is gone (ELK's radial handles only trees).
+    expect(layoutOptionsFor(resolveBoardLayoutOptions({ style: 'grid', direction: 'down' }))['elk.direction']).toBeUndefined()
+    expect(() => resolveBoardLayoutOptions({ style: 'radial' as never })).toThrow(/radial/)
     expect(layoutOptionsFor(resolveBoardLayoutOptions({ style: 'grid' }))['elk.algorithm']).toBe('rectpacking')
   })
 
