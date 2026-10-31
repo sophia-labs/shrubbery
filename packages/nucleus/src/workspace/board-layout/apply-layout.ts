@@ -11,7 +11,7 @@
  */
 import type { BoardLayoutPlan, ElkEdgeJson, ElkNodeJson } from './board-graph.js'
 import { type BoardElement, type Rect, bindingTarget, boundTextOf, isLinear, isLive, num, rectOf } from './elements.js'
-import { rerouteArrow } from './reroute.js'
+import { exitPoint, rerouteArrow } from './reroute.js'
 
 /** How far from axis-parallel a segment may be and still count as one (px). */
 const AXIS_TOLERANCE = 0.01
@@ -75,6 +75,44 @@ function midpointAlong(route: readonly Point[]): Point {
     left -= len
   }
   return route[route.length - 1] ?? { x: 0, y: 0 }
+}
+
+/**
+ * ELK routes an edge to its unit's node. When the arrow is bound to one member of a group, that node is the group's box,
+ * and the route may end beside the member rather than on it. Snap that end onto the member's box: a horizontal last
+ * segment ends on the near vertical side, its height clamped into the box (the bend before it follows, so the route
+ * keeps its right angles; a two-point route gets a Z of two bends at its middle); a vertical one likewise; a slanted
+ * one ends where the ray toward its neighbour leaves the box.
+ */
+function snapEnd(route: Point[], atEnd: boolean, r: Rect, kind: string): void {
+  const n = route.length
+  const i = atEnd ? n - 1 : 0
+  const j = atEnd ? n - 2 : 1
+  const p = route[i]!
+  const q = route[j]!
+  const horizontal = Math.abs(p.y - q.y) <= AXIS_TOLERANCE
+  const vertical = Math.abs(p.x - q.x) <= AXIS_TOLERANCE
+  if (horizontal === vertical) {
+    const [x, y] = exitPoint(kind, r, [q.x, q.y])
+    route[i] = { x, y }
+    return
+  }
+  const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v))
+  const next: Point = horizontal
+    ? { x: q.x <= p.x ? r.x : r.x + r.w, y: clamp(p.y, r.y, r.y + r.h) }
+    : { x: clamp(p.x, r.x, r.x + r.w), y: q.y <= p.y ? r.y : r.y + r.h }
+  const shifted = horizontal ? next.y !== p.y : next.x !== p.x
+  if (shifted && n === 2) {
+    // Both points are ends: keep the other one, and turn the straight run into a Z through its middle.
+    const mid = horizontal ? (p.x + q.x) / 2 : (p.y + q.y) / 2
+    const bends: Point[] = horizontal ? [{ x: mid, y: q.y }, { x: mid, y: next.y }] : [{ x: q.x, y: mid }, { x: next.x, y: mid }]
+    if (atEnd) route.splice(1, 0, ...bends)
+    else route.splice(1, 0, ...bends.reverse())
+    route[atEnd ? route.length - 1 : 0] = next
+    return
+  }
+  if (shifted) route[j] = horizontal ? { x: q.x, y: next.y } : { x: next.x, y: q.y }
+  route[i] = next
 }
 
 function translated(el: BoardElement, tx: number, ty: number): BoardElement {
@@ -150,13 +188,22 @@ export function applyBoardLayout(elements: readonly BoardElement[], plan: BoardL
 
   // 3. Edges: ELK's route, the bindings re-aimed at where the route meets each shape.
   let edgeCount = 0
+  const routed = new Set<string>()
   for (const arrowId of plan.edgeArrows) {
     const arrow = byId.get(arrowId)
     const edge = edges.get(arrowId)
     const section = edge?.sections?.[0]
+    // An edge ELK gives no route (a grid packs nodes and ignores edges) is re-routed with the others in step 4.
     if (!isLive(arrow) || !edge || !section) continue
     edgeCount++
+    routed.add(arrowId)
     const route: Point[] = [section.startPoint, ...(section.bendPoints ?? []), section.endPoint].map((p) => ({ x: p.x + dx, y: p.y + dy }))
+    for (const [key, atEnd] of [['endBinding', true], ['startBinding', false]] as const) {
+      const target = bindingTarget(arrow, key)
+      const unit = target === null ? undefined : plan.units.get(plan.unitOfElement.get(target) ?? '')
+      const shape = target === null ? undefined : current(target)
+      if (unit?.kind === 'group' && isLive(shape) && route.length >= 2) snapEnd(route, atEnd, rectOf(shape), shape.type)
+    }
     const origin = route[0]!
     const points = route.map((p) => [p.x - origin.x, p.y - origin.y] as [number, number])
     const xs = points.map((p) => p[0])
@@ -193,7 +240,7 @@ export function applyBoardLayout(elements: readonly BoardElement[], plan: BoardL
   }
 
   // 4. Arrows bound to a moved shape that are not edges: re-routed straight, over the board as it now stands.
-  const edgeSet = new Set(plan.edgeArrows)
+  const edgeSet = routed
   const moved = new Set(plan.unitOfElement.keys())
   const after = new Map(byId)
   for (const [id, el] of changed) after.set(id, el)
