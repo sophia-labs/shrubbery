@@ -15,6 +15,15 @@
  * - Canvas to remote: diff the scene against the last synced versions, write only what changed, in one transaction with
  *   a local origin, throttled, and once more on pointer-up so the final position always lands. Echoes are ignored by
  *   origin.
+ * - Excalidraw's own housekeeping never outranks a remote write. Excalidraw re-stamps every element it is handed (a new
+ *   z-order `index`, empty fields filled in, version bumped), and a window in the background holds those re-stamps
+ *   back. A local copy that differs from the last synced copy only in those fields (`HOUSEKEEPING_KEYS`) is treated as
+ *   the synced copy: any newer remote write replaces it. Only a real edit competes by version.
+ * - A queued write never lands on a newer copy. When a remote copy wins, any write still queued for that element is
+ *   dropped (the scene now shows the remote one); a correction loses every version tie (`CORRECTION_NONCE`), so an
+ *   agent's next write at the same version beats a re-measure of the copy before it; and a flush skips any element whose
+ *   copy in the doc beats the one queued. Without this, a correction queued for an agent's drawing was flushed after the
+ *   agent's layout of it and put labels and frame children back where they were drawn (2026-10-30).
  * - Images are not shared in v1: they stay on the local canvas and the binding counts them (`droppedImages`) so the
  *   shell can say so.
  */
@@ -24,6 +33,26 @@ export const WHITEBOARD_SCHEMA = 'sophia.whiteboard/1'
 
 /** Transaction origin of every write this binding makes. */
 export const LOCAL_ORIGIN: unique symbol = Symbol('sophia.whiteboard.local')
+
+/**
+ * The nonce of a re-measure correction: above every nonce Excalidraw draws (it picks below 2^31), so a correction loses
+ * any tie with another write at the same version.
+ */
+export const CORRECTION_NONCE = 2_147_483_647
+
+/** Fields Excalidraw changes on its own when it is handed elements: none of them is a person's edit of the drawing. */
+export const HOUSEKEEPING_KEYS: ReadonlySet<string> = new Set(['version', 'versionNonce', 'updated', 'index', 'created', 'labelPosition', 'baseFontSize'])
+
+/** Does `local` differ from `base` only in housekeeping (an absent field and `null` count as the same)? */
+export function onlyHousekeeping(local: WbElement, base: WbElement): boolean {
+  const a = local as unknown as Record<string, unknown>
+  const b = base as unknown as Record<string, unknown>
+  for (const key of new Set([...Object.keys(a), ...Object.keys(b)])) {
+    if (HOUSEKEEPING_KEYS.has(key)) continue
+    if (JSON.stringify(a[key] ?? null) !== JSON.stringify(b[key] ?? null)) return false
+  }
+  return true
+}
 
 export interface WbElement {
   readonly id: string
@@ -110,6 +139,8 @@ export class WhiteboardBinding {
   private readonly elements: Y.Map<string>
   /** The version each element had when we last wrote it or accepted it. */
   private readonly synced = new Map<string, { version: number; versionNonce: number }>()
+  /** The copy each element had when we last wrote it or accepted it: what a local copy is compared with. */
+  private readonly syncedCopy = new Map<string, WbElement>()
   private readonly pending = new Map<string, { element: WbElement; attribute: boolean }>()
   /** Remote versions that arrived while a person was working on the element. */
   private readonly deferred = new Map<string, WbElement>()
@@ -146,7 +177,10 @@ export class WhiteboardBinding {
       if (element) found.push(element)
     })
     const ordered = inIndexOrder(found)
-    for (const element of ordered) this.synced.set(element.id, { version: element.version, versionNonce: element.versionNonce })
+    for (const element of ordered) {
+      this.synced.set(element.id, { version: element.version, versionNonce: element.versionNonce })
+      this.syncedCopy.set(element.id, element)
+    }
     return this.options.refresh ? this.options.refresh(ordered) : ordered
   }
 
@@ -197,12 +231,16 @@ export class WhiteboardBinding {
     const at = this.now()
     this.doc.transact(() => {
       for (const { element, attribute } of batch) {
+        // The doc moved on while this waited (an agent's next write, a peer's edit): never put an older copy back.
+        const current = parseElement(this.elements.get(element.id))
+        if (current && remoteWins(element, current)) continue
         let out: WbElement = element
         if (attribute) {
           out = { ...element, customData: { ...(element.customData ?? {}), sophia: { by: this.actor, at } } }
         }
         this.elements.set(element.id, JSON.stringify(out))
         this.synced.set(element.id, { version: element.version, versionNonce: element.versionNonce })
+        this.syncedCopy.set(element.id, element)
       }
     }, LOCAL_ORIGIN)
   }
@@ -246,6 +284,16 @@ export class WhiteboardBinding {
         continue
       }
       const local = current.get(id)
+      const base = this.syncedCopy.get(id)
+      if (local && base && onlyHousekeeping(local, base)) {
+        // No edit here, only Excalidraw's re-stamp: judge the room's copy against the synced one, not the re-stamp.
+        if (remoteWins(base, remote)) accepted.push(remote)
+        else if (remote.version !== base.version || remote.versionNonce !== base.versionNonce) {
+          // The room holds an older copy than ours (a stale peer): write ours back.
+          this.pending.set(id, { element: local, attribute: false })
+        }
+        continue
+      }
       if (!local || remoteWins(local, remote)) accepted.push(remote)
       else if (local.version !== remote.version || local.versionNonce !== remote.versionNonce) {
         // The room holds a copy that loses to ours (Yjs settles a concurrent write by client id, not by version):
@@ -257,7 +305,12 @@ export class WhiteboardBinding {
       if (this.pending.size > 0 && this.timer === null) this.timer = this.schedule(() => this.flushNow(), this.throttleMs)
       return
     }
-    for (const element of accepted) this.synced.set(element.id, { version: element.version, versionNonce: element.versionNonce })
+    for (const element of accepted) {
+      this.synced.set(element.id, { version: element.version, versionNonce: element.versionNonce })
+      this.syncedCopy.set(element.id, element)
+      // The scene now shows the remote copy: what was queued for this element is older than it.
+      this.pending.delete(element.id)
+    }
     const prepared = this.options.refresh ? [...this.options.refresh(accepted)] : [...accepted]
     // Re-measured sizes differ from what the writer put there: one client writes the correction back.
     const leader = this.options.isLeader ? this.options.isLeader() : true
@@ -270,9 +323,11 @@ export class WhiteboardBinding {
         if (by === null || by === 'person') continue
         const drift = (key: string) => Math.abs(Number(after[key] ?? 0) - Number(before[key] ?? 0)) > 1.5
         if (drift('width') || drift('height') || drift('x') || drift('y')) {
-          const fixed: WbElement = { ...after, version: after.version + 1, versionNonce: Math.floor(Math.random() * 2_000_000_000) }
+          const fixed: WbElement = { ...after, version: after.version + 1, versionNonce: CORRECTION_NONCE }
           prepared[i] = fixed
           this.pending.set(fixed.id, { element: fixed, attribute: false })
+          // The correction is the copy this client stands behind now; Excalidraw's re-stamp of it is housekeeping.
+          this.syncedCopy.set(fixed.id, fixed)
         }
       }
     }

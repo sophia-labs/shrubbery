@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest'
 import * as Y from 'yjs'
 import fixture from './fixtures/whiteboard-fixture-v1.json'
 import {
-  LOCAL_ORIGIN, remoteWins, WhiteboardBinding, type WbElement, type WbScene, type WbToolWrite,
+  CORRECTION_NONCE, LOCAL_ORIGIN, remoteWins, WhiteboardBinding, type WbElement, type WbScene, type WbToolWrite,
 } from './whiteboard-binding.js'
 
 /** The fixture is gardend's `src-tauri/tests/fixtures/whiteboard/whiteboard-fixture-v1.json`, copied at its commit (gardend feat/whiteboard-20261021 @ 5e7be74). */
@@ -240,6 +240,71 @@ describe('two peers on one board', () => {
     expect(JSON.parse(a.getMap<string>('elements').get('x')!).x).toBe(0) // still queued
     pa.binding.flushNow()
     expect(JSON.parse(a.getMap<string>('elements').get('x')!).x).toBe(42)
+  })
+})
+
+describe('an agent writes again before a correction lands (2026-10-30)', () => {
+  // Sophia draws, the leader re-measures and queues a correction, and Sophia's layout of the same elements arrives
+  // before the throttled flush. The flush must not put the drawing's copy back over the layout.
+  const agent = { sophia: { by: 'agent:claude', at: 1 } }
+  const measure = (els: readonly WbElement[]) => els.map((e) => (e.type === 'text' ? ({ ...e, width: 99 } as WbElement) : e))
+  const run = (layoutNonce: number) => {
+    const a = new Y.Doc()
+    const timers: Array<() => void> = []
+    const pa = peer(a, { refresh: measure, isLeader: () => true, throttleMs: 80, schedule: (cb) => { timers.push(cb); return timers.length }, cancel: () => {} })
+    const map = a.getMap<string>('elements')
+    a.transact(() => map.set('t1', JSON.stringify(el('t1', 1, 4, { type: 'text', width: 120, x: 10, customData: agent }))), 'server')
+    expect(JSON.parse(map.get('t1')!).version).toBe(1) // the correction is queued, not written
+    // The layout: the agent read version 1 and wrote version 2, as gardend does.
+    a.transact(() => map.set('t1', JSON.stringify(el('t1', 2, layoutNonce, { type: 'text', width: 120, x: 500, customData: agent }))), 'server')
+    for (const fire of timers.splice(0)) fire()
+    return { stored: JSON.parse(map.get('t1')!), shown: pa.scene.elements.find((e) => e.id === 't1')! }
+  }
+
+  it('the layout survives the flush, and the correction is redone on top of it', () => {
+    const { stored, shown } = run(7)
+    expect(stored.x).toBe(500)
+    expect(stored.width).toBe(99) // re-measured again, from the layout's copy
+    expect(stored.version).toBe(3)
+    expect(shown.x).toBe(500)
+  })
+
+  it('a correction loses the tie even against the largest nonce Excalidraw draws', () => {
+    const { stored, shown } = run(2 ** 31 - 2)
+    expect(stored.x).toBe(500)
+    expect(shown.x).toBe(500)
+    expect(remoteWins(el('t1', 2, CORRECTION_NONCE), el('t1', 2, 2 ** 31 - 2))).toBe(true)
+  })
+
+  it("Excalidraw's re-stamp held back by a background window never outranks the agent's next write", () => {
+    const a = new Y.Doc()
+    const timers: Array<() => void> = []
+    const pa = peer(a, { throttleMs: 80, schedule: (cb) => { timers.push(cb); return timers.length }, cancel: () => {} })
+    // Excalidraw as it behaves when handed elements: a new z-order index and a version bump, twice for good measure.
+    const restamp = (els: readonly WbElement[]) => els.map((e) => ({ ...e, index: `al${e.id}`, version: e.version + 2, versionNonce: 3 } as WbElement))
+    const setElements = pa.scene.setElements.bind(pa.scene)
+    pa.scene.setElements = (els) => { setElements(restamp(els)); pa.binding.localChanged() }
+    const map = a.getMap<string>('elements')
+    a.transact(() => map.set('box', JSON.stringify(el('box', 4, 11, { x: 10, customData: agent }))), 'server')
+    expect(pa.scene.elements.find((e) => e.id === 'box')!.version).toBe(6) // re-stamped ahead of the room, queued
+    // The agent read version 4 and lays the box out at version 5.
+    a.transact(() => map.set('box', JSON.stringify(el('box', 5, 9, { x: 900, customData: agent }))), 'server')
+    for (const fire of timers.splice(0)) fire()
+    expect(JSON.parse(map.get('box')!).x).toBe(900)
+    expect(pa.scene.elements.find((e) => e.id === 'box')!.x).toBe(900)
+  })
+
+  it("a person's queued edit gives way to a newer agent copy, in the scene and in the doc", () => {
+    const a = new Y.Doc()
+    seed(a, [el('x', 1, 1)])
+    const timers: Array<() => void> = []
+    const pa = peer(a, { throttleMs: 80, schedule: (cb) => { timers.push(cb); return timers.length }, cancel: () => {} })
+    pa.scene.edit('x', { x: 42 }) // version 2, queued
+    pa.binding.localChanged()
+    a.transact(() => a.getMap<string>('elements').set('x', JSON.stringify(el('x', 3, 9, { x: 700, customData: agent }))), 'server')
+    for (const fire of timers.splice(0)) fire()
+    expect(JSON.parse(a.getMap<string>('elements').get('x')!).x).toBe(700)
+    expect(pa.scene.elements.find((e) => e.id === 'x')!.x).toBe(700)
   })
 })
 

@@ -13,6 +13,9 @@
  *   5. A shape dragged with the mouse: its elbow arrows stay attached and right-angled (Excalidraw re-routes them).
  *   6. The second browser shows the same positions; a reload shows them; gardend's `whiteboard_read` has them.
  *   7. Alt+Shift+L with nothing selected lays out the whole board.
+ *   8. With the board open in both browsers, Sophia draws a cluster (labelled shapes, notes in a frame) and lays it
+ *      out in a second call a moment later: gardend's copy keeps every label in its shape and every child in its frame
+ *      (the re-measure correction queued for the drawing must not land on the layout; 2026-10-30).
  *   Zero requests leave 127.0.0.1; no page errors.
  *
  *   SHRUBBERY_BROWSER_ENGINE=webkit pnpm -C apps/organism run test:whiteboard-layout
@@ -194,6 +197,27 @@ try {
     const shapeIds = before.filter((e) => !e.isDeleted && e.type !== 'arrow' && !(e.type === 'text' && e.containerId)).map((e) => e.id)
     assert(shapeIds.length >= 8, `the sketch has its shapes and the frame (${shapeIds.length})`)
 
+
+    const labelProbe = async (step: string) => {
+      const check = (els: El[]) => {
+        const by = new Map(els.map((e) => [e.id, e]))
+        const off: string[] = []
+        for (const e of els) {
+          if (e.type === 'arrow' || (e as any).isDeleted) continue
+          const b = ((e as any).boundElements ?? []).find((x: any) => x.type === 'text')
+          const t = b ? by.get(b.id) : undefined
+          if (t && !(t.x >= e.x - 2 && t.x <= e.x + e.width + 2 && t.y >= e.y - 2 && t.y <= e.y + e.height + 2)) off.push(`'${(t as any).text}' text ${Math.round(t.x)},${Math.round(t.y)} v${(t as any).version} vs box ${Math.round(e.x)},${Math.round(e.y)} v${(e as any).version}`)
+        }
+        return off
+      }
+      await page.waitForTimeout(1500)
+      const canvas = check(await sceneOf(page))
+      const stored = check(((payload(await mcp.toolsCall('whiteboard_read', { graphId: GRAPH_ID, documentId: boardId, format: 'elements' })).elements ?? []) as El[]).filter((e) => !(e as any).isDeleted))
+      ;(report.labelProbe ??= {} as Record<string, unknown>) as Record<string, unknown>
+      ;(report.labelProbe as Record<string, unknown>)[step] = { canvas, stored }
+      console.log(`label probe after ${step}: canvas ${canvas.length ? canvas.join(' | ') : 'ok'}; stored ${stored.length ? stored.join(' | ') : 'ok'}`)
+    }
+    await labelProbe('1 the drawing')
     // 2. Select them all and click the bar's "Lay out".
     await select(page, shapeIds)
     const button = page.locator('sh-whiteboard .selbar button[data-action="layout"]').first()
@@ -237,6 +261,7 @@ try {
     const offset = (m: Map<string, El>) => [m.get(created.remembered!)!.x - m.get(created.manifest!)!.x, m.get(created.remembered!)!.y - m.get(created.manifest!)!.y]
     assert(near(offset(byId)[0]!, offset(beforeById)[0]!, 0.01) && near(offset(byId)[1]!, offset(beforeById)[1]!, 0.01), 'the group kept its shape')
 
+    await labelProbe('2-3 lay out')
     // 4. One undo step back, then forward again.
     const canvas = page.locator('sh-whiteboard canvas.interactive').first()
     const corner = async () => { const b = await canvas.boundingBox(); return { x: 12, y: Math.max(12, (b?.height ?? 40) - 12) } }
@@ -251,6 +276,7 @@ try {
     const redone = new Map((await sceneOf(page)).map((e) => [e.id, e]))
     assert(shapeIds.every((id) => near(redone.get(id)!.x, byId.get(id)!.x, 0.01)), 'redo lays it out again')
 
+    await labelProbe('4 undo and redo')
     // 5. Drag the dream-work box with the mouse: its elbow arrows stay attached and right-angled.
     const work = redone.get(created.work!)!
     const view = await viewportOf(page)
@@ -275,6 +301,7 @@ try {
     await page.waitForTimeout(1500)
     const final = new Map((await sceneOf(page)).map((e) => [e.id, e]))
 
+    await labelProbe('5 drag')
     // 6. The second browser, a reload, and gardend all have it.
     const sameAs = (m: Map<string, El>, label: string) => {
       for (const id of shapeIds) assert(near(m.get(id)!.x, final.get(id)!.x, 0.01) && near(m.get(id)!.y, final.get(id)!.y, 0.01), `${label}: ${id} where the first browser has it`)
@@ -288,13 +315,15 @@ try {
     const read = payload(await mcp.toolsCall('whiteboard_read', { graphId: GRAPH_ID, documentId: boardId, format: 'elements' }))
     sameAs(new Map(((read.elements ?? []) as El[]).map((e) => [e.id, e])), "gardend's whiteboard_read")
 
+    await labelProbe('6 reload')
     // 7. Alt+Shift+L with nothing selected lays out the whole board.
     await page.evaluate(`(() => { ${FIND_BOARD}
       const board = findBoard(document)
       if (!board || !board.api) return false
       const els = board.api.getSceneElements()
       const box = els.find((e) => e.id === ${JSON.stringify(created.latent)})
-      board.api.updateScene({ elements: els.map((e) => e.id === box.id ? { ...e, x: e.x + 900, y: e.y + 700, version: e.version + 1, versionNonce: e.versionNonce + 1 } : e), appState: { selectedElementIds: {} } })
+      // As a drag does: the box and its label move together.
+      board.api.updateScene({ elements: els.map((e) => e.id === box.id || e.containerId === box.id ? { ...e, x: e.x + 900, y: e.y + 700, version: e.version + 1, versionNonce: e.versionNonce + 1 } : e), appState: { selectedElementIds: {} } })
     })()`)
     await page.waitForTimeout(400)
     const scattered = (await sceneOf(page)).find((e) => e.id === created.latent)!
@@ -303,6 +332,62 @@ try {
     await page.waitForTimeout(2500)
     const whole = (await sceneOf(page)).find((e) => e.id === created.latent)!
     assert(!near(whole.x, scattered.x, 1) || !near(whole.y, scattered.y, 1), 'Alt+Shift+L laid the whole board out')
+
+    await labelProbe('7 Alt+Shift+L')
+    // 8. Sophia draws and then lays out while both browsers hold the board open.
+    // Both windows behave like a background window (WebKit holds its timers): a correction a canvas queues for the
+    // drawing cannot flush until after the layout has arrived. Real time still passes for the sockets.
+    for (const p of [page, other]) { await p.clock.install(); await p.clock.pauseAt(new Date(Date.now() + 1000)) }
+    const cluster = payload(await mcp.toolsCall('whiteboard_apply', {
+      graphId: GRAPH_ID, documentId: boardId, rationale: 'a cluster drawn while the board is open',
+      moves: [
+        { op: 'add', ref: 'p', shape: 'box', text: 'perception', at: { x: 3000, y: 2400 } },
+        { op: 'add', ref: 'q', shape: 'box', text: 'the preconscious', at: { x: 2600, y: 2900 }, color: 'blue' },
+        { op: 'add', ref: 'n1', shape: 'note', text: 'day residues', at: { x: 3400, y: 2600 } },
+        { op: 'add', ref: 'n2', shape: 'note', text: 'somatic stimuli', at: { x: 2800, y: 2500 } },
+        { op: 'add', ref: 'n3', shape: 'diamond', text: 'wish', at: { x: 3300, y: 3000 }, color: 'green' },
+        { op: 'connect', from: 'p', to: 'n1', label: 'leaves' },
+        { op: 'connect', from: 'p', to: 'n2' },
+        { op: 'connect', from: 'n1', to: 'n3' },
+        { op: 'connect', from: 'n2', to: 'n3' },
+        { op: 'connect', from: 'n3', to: 'q', label: 'censored by' },
+        { op: 'group', ids: ['n1', 'n2', 'n3'], frame: 'Sources' },
+      ],
+    }))
+    const made = (cluster.created ?? {}) as Record<string, string>
+    await new Promise((r) => setTimeout(r, 600)) // the drawing reaches both canvases; their corrections are queued
+    const storedNow = async () => ((payload(await mcp.toolsCall('whiteboard_read', { graphId: GRAPH_ID, documentId: boardId, format: 'elements' })).elements ?? []) as El[]).filter((e) => !e.isDeleted)
+    const sourcesFrame = (await storedNow()).find((e) => e.type === 'frame' && (e as El & { name?: string }).name === 'Sources')
+    assert(sourcesFrame, 'the Sources frame was drawn')
+    const clusterIds = ['p', 'q', 'n1', 'n2', 'n3'].map((r) => made[r]!).concat(sourcesFrame.id)
+    const laidOut = payload(await mcp.toolsCall('whiteboard_apply', { graphId: GRAPH_ID, documentId: boardId, moves: [{ op: 'layout', ids: clusterIds }] }))
+    assert(Array.isArray(laidOut.layouts), 'the layout move reported')
+    await new Promise((r) => setTimeout(r, 800)) // the layout reaches both canvases
+    if (process.env.WB_DEBUG) for (const [name, p] of [['A', page], ['B', other]] as const) console.log(`queued on ${name}:`, await p.evaluate(`(() => { ${FIND_BOARD}
+      const board = findBoard(document); const b = board && board.binding
+      if (!b) return 'no binding'
+      const scene = new Map(board.api.getSceneElements().map((e) => [e.id, e]))
+      const diff = (a, d) => Object.keys({ ...a, ...d }).filter((k) => JSON.stringify(a[k]) !== JSON.stringify(d[k])).map((k) => k + '=' + String(JSON.stringify(d[k])).slice(0, 60) + ' → ' + String(JSON.stringify(a[k])).slice(0, 60))
+      return JSON.stringify([...b.pending.values()].slice(0, 8).map(({ element: e }) => { const d = JSON.parse(b.elements.get(e.id) || '{}'); return { id: e.id.slice(0, 6), type: e.type, docV: d.version, changed: diff(e, d) } }))
+    })()`))
+    for (const p of [page, other]) { await p.clock.runFor(2000); await p.clock.resume() } // the windows come back: queued writes flush
+    await new Promise((r) => setTimeout(r, 1500))
+    const stored = await storedNow()
+    const storedById = new Map(stored.map((e) => [e.id, e]))
+    const misplaced: string[] = []
+    for (const e of stored) {
+      const boundText = (e as El & { boundElements?: Array<{ id: string; type: string }> }).boundElements?.find((b) => b.type === 'text')
+      const t = boundText ? storedById.get(boundText.id) : undefined
+      if (t && e.type !== 'arrow' && !(t.x >= e.x - 2 && t.x <= e.x + e.width + 2 && t.y >= e.y - 2 && t.y <= e.y + e.height + 2)) misplaced.push(`label of ${e.id} (${e.type} ${Math.round(e.x)},${Math.round(e.y)} ${Math.round(e.width)}x${Math.round(e.height)} v${(e as any).version} by ${(e as any).customData?.sophia?.by}; text '${(t as any).text}' ${Math.round(t.x)},${Math.round(t.y)} v${(t as any).version} n${(t as any).versionNonce} by ${(t as any).customData?.sophia?.by})`)
+      if ((e as El & { frameId?: string }).frameId === sourcesFrame.id && e.type !== 'arrow' && !(e as El & { containerId?: string }).containerId) {
+        const f = storedById.get(sourcesFrame.id)!
+        if (!(e.x >= f.x - 1 && e.y >= f.y - 1 && e.x + e.width <= f.x + f.width + 1 && e.y + e.height <= f.y + f.height + 1)) misplaced.push(`frame child ${e.id}`)
+      }
+    }
+    report.openBoardAgentLayout = { layouts: laidOut.layouts, misplaced }
+    assert(misplaced.length === 0, `with the board open, Sophia's layout stayed laid out: ${misplaced.join(', ')}`)
+    const shown = new Map((await sceneOf(page)).map((e) => [e.id, e]))
+    assert(clusterIds.every((id) => near(shown.get(id)!.x, storedById.get(id)!.x, 0.5) && near(shown.get(id)!.y, storedById.get(id)!.y, 0.5)), 'the open canvas shows what gardend stored')
 
     report.offOrigin = offOrigin
     report.pageErrors = pageErrors
